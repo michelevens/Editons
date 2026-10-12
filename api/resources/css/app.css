@@ -7,3 +7,8 @@
    layout lives outside the default heuristics. */
 @source '../views';
 @source '../js';
+
+/* Typography plugin for the manuscript canvas — Tiptap emits semantic HTML
+   and `prose` is what makes a chapter read like a book page rather than
+   unstyled markup. */
+@plugin '@tailwindcss/typography';
