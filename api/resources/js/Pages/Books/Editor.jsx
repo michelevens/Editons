@@ -1,126 +1,160 @@
 import ManuscriptEditor from '@/Components/Editor/ManuscriptEditor';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import InspectorPanel from '@/Components/Studio/InspectorPanel';
+import { NotBuilt, Sidebar, TopNav } from '@/Components/Studio/Shell';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * The writing studio: binder left, canvas centre, history right.
+ * The writing studio.
  *
- * The design reference also shows an AI Editorial panel, a research library,
- * a design preview, a cover studio and an export panel. None of those have
- * an engine behind them yet, so the right rail shows version history — which
- * is real — and the unbuilt modules appear once, explicitly, as a
- * "coming in Milestone 2" note. CLAUDE.md forbids shipping mock screens, and
- * a panel listing "Fact Checker" with nothing behind it is exactly that.
+ * Follows the design reference's layout: product nav across the top, book
+ * sidebar on the left, binder, canvas, inspector. Destinations without an
+ * engine are present and navigable but lead to an explicit empty state —
+ * hiding them would make the product impossible to evaluate, and faking them
+ * would misrepresent it.
  */
-export default function Editor({ book, binder, activeSection }) {
+export default function Editor({ book, binder, activeSection, agents }) {
+    const { auth } = usePage().props;
+
     const [section, setSection] = useState(activeSection);
     const [bookWords, setBookWords] = useState(book.word_count);
     const [versions, setVersions] = useState([]);
-    const [loadingVersions, setLoadingVersions] = useState(false);
+    const [findings, setFindings] = useState([]);
+    const [running, setRunning] = useState(null);
 
-    // Inertia replaces props on navigation; mirror them into local state so
-    // the editor swaps chapters without a full remount.
+    const [nav, setNav] = useState('writing');      // top nav
+    const [pane, setPane] = useState('manuscript'); // sidebar
+    const [binderTab, setBinderTab] = useState('manuscript');
+
     useEffect(() => setSection(activeSection), [activeSection?.id]);
 
-    const loadVersions = useCallback(async () => {
+    const load = useCallback(async () => {
         if (!section) return;
-        setLoadingVersions(true);
-        try {
-            const res = await window.axios.get(`/sections/${section.id}/versions`);
-            setVersions(res.data.versions);
-        } finally {
-            setLoadingVersions(false);
-        }
+        const [v, f] = await Promise.all([
+            window.axios.get(`/sections/${section.id}/versions`),
+            window.axios.get(`/sections/${section.id}/findings`),
+        ]);
+        setVersions(v.data.versions);
+        setFindings(f.data.findings);
     }, [section?.id]);
 
     useEffect(() => {
-        loadVersions();
-    }, [loadVersions]);
+        load();
+    }, [load]);
 
     const onSaved = useCallback(
         (data) => {
             setBookWords(data.book_word_count);
-            // Version count can change on save; refresh the list so the panel
-            // is not quietly stale.
-            if (data.versions_count !== versions.length) loadVersions();
+            if (data.versions_count !== versions.length) load();
         },
-        [versions.length, loadVersions],
+        [versions.length, load],
     );
 
-    const restore = async (versionId) => {
-        if (!confirm('Restore this version? Your current text is saved to history first.')) {
-            return;
+    const runAgent = async (agent) => {
+        setRunning(agent);
+        try {
+            const res = await window.axios.post(`/sections/${section.id}/review`, { agent });
+            setFindings(res.data.findings);
+        } finally {
+            setRunning(null);
         }
-        const res = await window.axios.post(
-            `/sections/${section.id}/versions/${versionId}/restore`,
-        );
-        setSection((s) => ({ ...s, content: res.data.content, word_count: res.data.word_count }));
-        loadVersions();
     };
+
+    const resolve = async (finding, status) => {
+        const res = await window.axios.patch(`/findings/${finding.id}`, { status });
+        setFindings(res.data.findings);
+    };
+
+    const restore = async (versionId) => {
+        if (!confirm('Restore this version? Your current text is saved to history first.')) return;
+        const res = await window.axios.post(`/sections/${section.id}/versions/${versionId}/restore`);
+        setSection((s) => ({ ...s, content: res.data.content, word_count: res.data.word_count }));
+        load();
+    };
+
+    // Which destinations actually have something behind them.
+    const liveNav = nav === 'writing' || nav === 'ai' || nav === 'books';
+    const livePane = pane === 'manuscript';
 
     return (
         <div className="flex h-screen flex-col bg-slate-100">
             <Head title={book.title} />
 
-            <TopBar book={book} bookWords={bookWords} />
+            <TopNav active={nav} onSelect={(i) => setNav(i.key)} user={auth?.user} />
 
             <div className="flex min-h-0 flex-1">
-                <Binder
-                    book={book}
-                    nodes={binder}
-                    activeId={section?.id}
-                    onSelect={(id) =>
-                        router.get(
-                            route('books.edit', book.id),
-                            { section: id },
-                            { preserveState: true, preserveScroll: true },
-                        )
-                    }
+                <Sidebar
+                    book={{ ...book, word_count: bookWords }}
+                    active={nav === 'writing' ? pane : null}
+                    onSelect={(i) => {
+                        // The sidebar belongs to the manuscript area; choosing
+                        // from it moves you back there rather than leaving the
+                        // highlight pointing at a pane you cannot see.
+                        setNav('writing');
+                        setPane(i.key);
+                    }}
                 />
 
-                <main className="min-w-0 flex-1 border-x border-slate-200 bg-white">
-                    <ManuscriptEditor section={section} onSaved={onSaved} />
-                </main>
+                {!liveNav ? (
+                    <main className="flex-1 bg-white">
+                        <NotBuilt
+                            title={nav.charAt(0).toUpperCase() + nav.slice(1)}
+                            milestone={
+                                nav === 'research' ? 'Milestone 2'
+                                : nav === 'design' || nav === 'publishing' ? 'Milestone 3'
+                                : 'Milestone 5'
+                            }
+                            what="This area of the studio has no engine behind it yet."
+                        />
+                    </main>
+                ) : !livePane ? (
+                    <main className="flex-1 bg-white">
+                        <NotBuilt
+                            title="Not built yet"
+                            milestone="a later milestone"
+                            what="This section of the book workspace has no engine behind it yet."
+                        />
+                    </main>
+                ) : (
+                    <>
+                        <Binder
+                            book={book}
+                            nodes={binder}
+                            activeId={section?.id}
+                            tab={binderTab}
+                            onTab={setBinderTab}
+                            onSelect={(id) =>
+                                router.get(
+                                    route('books.edit', book.id),
+                                    { section: id },
+                                    { preserveState: true, preserveScroll: true },
+                                )
+                            }
+                        />
 
-                <HistoryPanel
-                    versions={versions}
-                    loading={loadingVersions}
-                    onRestore={restore}
-                />
+                        <main className="min-w-0 flex-1 border-x border-slate-200 bg-white">
+                            <ManuscriptEditor section={section} onSaved={onSaved} />
+                        </main>
+
+                        <InspectorPanel
+                            agents={agents}
+                            findings={findings}
+                            versions={versions}
+                            running={running}
+                            onRunAgent={runAgent}
+                            onResolve={resolve}
+                            onRestore={restore}
+                        />
+                    </>
+                )}
             </div>
         </div>
     );
 }
 
-function TopBar({ book, bookWords }) {
-    return (
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-2.5">
-            <div className="flex items-center gap-4">
-                <Link
-                    href={route('books.index')}
-                    className="text-sm font-semibold text-slate-500 hover:text-slate-800"
-                >
-                    ← Books
-                </Link>
-                <div>
-                    <h1 className="font-serif text-base font-bold leading-tight text-slate-900">
-                        {book.title}
-                    </h1>
-                    <p className="text-xs text-slate-500">
-                        {book.status.replace('_', ' ')} ·{' '}
-                        {bookWords.toLocaleString()} words
-                    </p>
-                </div>
-            </div>
-        </header>
-    );
-}
-
-function Binder({ book, nodes, activeId, onSelect }) {
-    const { data, setData, post, processing, reset } = useForm({
-        type: 'chapter',
-        title: '',
-    });
+function Binder({ book, nodes, activeId, tab, onTab, onSelect }) {
+    const [query, setQuery] = useState('');
+    const { data, setData, post, processing, reset } = useForm({ type: 'chapter', title: '' });
 
     const addChapter = (e) => {
         e.preventDefault();
@@ -128,40 +162,88 @@ function Binder({ book, nodes, activeId, onSelect }) {
         post(route('sections.store', book.id), { onSuccess: () => reset() });
     };
 
+    const matches = (node) =>
+        !query || node.title.toLowerCase().includes(query.toLowerCase());
+
     return (
-        <aside className="flex w-64 shrink-0 flex-col overflow-y-auto bg-slate-50">
-            <div className="px-4 py-3">
-                <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Manuscript
-                </h2>
+        <aside className="flex w-64 shrink-0 flex-col overflow-hidden bg-slate-50">
+            <div className="flex border-b border-slate-200 bg-white">
+                {[
+                    { key: 'manuscript', label: 'Manuscript', ready: true },
+                    { key: 'outline', label: 'Outline', ready: false },
+                    { key: 'notes', label: 'Notes', ready: false },
+                ].map((t) => (
+                    <button
+                        key={t.key}
+                        onClick={() => onTab(t.key)}
+                        className={`flex-1 border-b-2 py-2.5 text-xs font-semibold transition ${
+                            tab === t.key
+                                ? 'border-indigo-600 text-indigo-700'
+                                : t.ready
+                                  ? 'border-transparent text-slate-500 hover:text-slate-800'
+                                  : 'border-transparent text-slate-400'
+                        }`}
+                    >
+                        {t.label}
+                        {!t.ready && <span className="ml-0.5 align-super text-[8px]">•</span>}
+                    </button>
+                ))}
             </div>
 
-            <nav className="flex-1 px-2">
-                {nodes.map((node) => (
-                    <BinderNode
-                        key={node.id}
-                        node={node}
-                        activeId={activeId}
-                        onSelect={onSelect}
-                        depth={0}
-                    />
-                ))}
-            </nav>
-
-            <form onSubmit={addChapter} className="border-t border-slate-200 p-3">
-                <input
-                    value={data.title}
-                    onChange={(e) => setData('title', e.target.value)}
-                    placeholder="New chapter title"
-                    className="w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+            {tab !== 'manuscript' ? (
+                <NotBuilt
+                    title={tab === 'outline' ? 'Outline' : 'Notes'}
+                    milestone="a later milestone"
+                    what={
+                        tab === 'outline'
+                            ? 'A drag-and-drop structural view of the whole book.'
+                            : 'Per-chapter notes kept beside the manuscript.'
+                    }
                 />
-                <button
-                    disabled={processing}
-                    className="mt-2 w-full rounded-md bg-slate-800 py-1.5 text-xs font-bold text-white hover:bg-slate-900 disabled:opacity-60"
-                >
-                    Add chapter
-                </button>
-            </form>
+            ) : (
+                <>
+                    <div className="px-3 pt-3">
+                        <input
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Search chapters…"
+                            className="w-full rounded-md border-slate-300 text-xs focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    <nav className="flex-1 overflow-y-auto px-2 py-2">
+                        {nodes.filter(matches).map((node) => (
+                            <BinderNode
+                                key={node.id}
+                                node={node}
+                                activeId={activeId}
+                                onSelect={onSelect}
+                                depth={0}
+                            />
+                        ))}
+                        {nodes.filter(matches).length === 0 && (
+                            <p className="px-2 py-3 text-[11px] text-slate-400">
+                                No chapters match.
+                            </p>
+                        )}
+                    </nav>
+
+                    <form onSubmit={addChapter} className="border-t border-slate-200 p-3">
+                        <input
+                            value={data.title}
+                            onChange={(e) => setData('title', e.target.value)}
+                            placeholder="New chapter title"
+                            className="w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                        <button
+                            disabled={processing}
+                            className="mt-2 w-full rounded-md bg-slate-800 py-1.5 text-xs font-bold text-white hover:bg-slate-900 disabled:opacity-60"
+                        >
+                            Add chapter
+                        </button>
+                    </form>
+                </>
+            )}
         </aside>
     );
 }
@@ -178,7 +260,7 @@ function BinderNode({ node, activeId, onSelect, depth }) {
                 style={{ paddingLeft: 10 + depth * 12 }}
                 className={`flex w-full items-baseline justify-between rounded-md py-1.5 pr-2 text-left text-sm transition ${
                     isPart
-                        ? 'cursor-default font-bold uppercase tracking-wide text-[11px] text-slate-500'
+                        ? 'cursor-default text-[11px] font-bold uppercase tracking-wide text-slate-500'
                         : active
                           ? 'bg-indigo-50 font-semibold text-indigo-700'
                           : 'text-slate-700 hover:bg-slate-100'
@@ -202,75 +284,5 @@ function BinderNode({ node, activeId, onSelect, depth }) {
                 />
             ))}
         </div>
-    );
-}
-
-function HistoryPanel({ versions, loading, onRestore }) {
-    return (
-        <aside className="flex w-72 shrink-0 flex-col overflow-y-auto bg-slate-50">
-            <div className="px-4 py-3">
-                <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Version history
-                </h2>
-            </div>
-
-            <div className="flex-1 px-3">
-                {loading && <p className="px-1 text-xs text-slate-400">Loading…</p>}
-
-                {!loading && versions.length === 0 && (
-                    <p className="px-1 text-xs leading-relaxed text-slate-500">
-                        No versions yet. One is saved automatically as you
-                        write, and whenever you press Ctrl/Cmd+S.
-                    </p>
-                )}
-
-                <ul className="space-y-1.5">
-                    {versions.map((v) => (
-                        <li
-                            key={v.id}
-                            className="rounded-lg border border-slate-200 bg-white p-2.5"
-                        >
-                            <div className="flex items-baseline justify-between">
-                                <span className="text-xs font-bold text-slate-800">
-                                    v{v.version_number}
-                                </span>
-                                <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                                    {v.reason}
-                                </span>
-                            </div>
-                            <p className="mt-0.5 text-[11px] text-slate-500">
-                                {v.created_human} · {v.word_count.toLocaleString()} words
-                            </p>
-                            {v.label && (
-                                <p className="mt-0.5 text-[11px] italic text-slate-500">
-                                    {v.label}
-                                </p>
-                            )}
-                            <button
-                                onClick={() => onRestore(v.id)}
-                                className="mt-1.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800"
-                            >
-                                Restore
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-
-            {/* Stated plainly rather than mocked. The design reference shows
-                AI agents, research and export panels here; they have no engine
-                behind them, and a convincing placeholder would misrepresent
-                what this build can do. */}
-            <div className="m-3 rounded-lg border border-dashed border-slate-300 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    Not built yet
-                </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                    AI editorial review, research library, citations, book
-                    design and export arrive in later milestones. Nothing on
-                    this screen is simulated.
-                </p>
-            </div>
-        </aside>
     );
 }

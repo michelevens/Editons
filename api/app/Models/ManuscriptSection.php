@@ -92,6 +92,45 @@ class ManuscriptSection extends Model
         return $trimmed === '' ? 0 : count(explode(' ', $trimmed));
     }
 
+    /**
+     * The section's prose as plain text.
+     *
+     * Paragraph boundaries become blank lines so a reviewer can tell
+     * paragraphs apart; everything else flattens. Drivers receive this rather
+     * than the ProseMirror tree — a provider should not need to understand
+     * the document format, and offsets into this string are what findings
+     * anchor to.
+     */
+    public function plainText(): string
+    {
+        if (! $this->content) {
+            return '';
+        }
+
+        $blocks = [];
+        $walk = function (array $node, bool $topLevel = false) use (&$walk, &$blocks): string {
+            $text = $node['text'] ?? '';
+            foreach ($node['content'] ?? [] as $child) {
+                if (is_array($child)) {
+                    $text .= $walk($child);
+                }
+            }
+
+            return $text;
+        };
+
+        foreach ($this->content['content'] ?? [] as $block) {
+            if (is_array($block)) {
+                $t = trim($walk($block));
+                if ($t !== '') {
+                    $blocks[] = $t;
+                }
+            }
+        }
+
+        return implode("\n\n", $blocks);
+    }
+
     /** A part is a container; it holds chapters rather than prose. */
     public function isContainer(): bool
     {

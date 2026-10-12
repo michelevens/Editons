@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\ProfileController;
@@ -59,4 +60,21 @@ Route::middleware('auth')->group(function () {
         ->name('sections.versions');
     Route::post('/sections/{section}/versions/{version}/restore', [ManuscriptSectionController::class, 'restore'])
         ->name('sections.restore');
+});
+
+/*
+ * Editorial review (Milestone 2).
+ *
+ * Synchronous: the fake driver answers in milliseconds, so a queue would add
+ * a worker and a polling UI to buy nothing. The seam is the driver, not the
+ * dispatch — a real provider moves this behind a job without touching the
+ * client.
+ */
+Route::middleware('auth')->group(function () {
+    Route::post('/sections/{section}/review', [EditorialController::class, 'review'])
+        ->name('editorial.review');
+    Route::get('/sections/{section}/findings', [EditorialController::class, 'findings'])
+        ->name('editorial.findings');
+    Route::patch('/findings/{finding}', [EditorialController::class, 'resolve'])
+        ->name('editorial.resolve');
 });

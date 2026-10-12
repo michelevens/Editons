@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Editorial\EditorialAgent;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use Illuminate\Http\RedirectResponse;
@@ -84,9 +85,13 @@ class BookController extends Controller
                 'id' => $book->id,
                 'title' => $book->title,
                 'subtitle' => $book->subtitle,
+                'genre' => $book->genre,
                 'status' => $book->status,
                 'word_count' => $book->word_count,
             ],
+            // The panel renders whatever agents exist, so adding one is a
+            // single enum case rather than an edit in two languages.
+            'agents' => EditorialAgent::catalogue(),
             'binder' => $book->rootSections->map(fn ($s) => $this->binderNode($s)),
             'activeSection' => $active ? [
                 'id' => $active->id,
