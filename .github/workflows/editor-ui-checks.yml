@@ -29,7 +29,7 @@ jobs:
         run: |
           npm run dev -- --host 127.0.0.1 > /tmp/editons-vite.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:5173/ >/dev/null && break || sleep 1; done
-          npx --yes -p playwright@1.56.1 node -e "const {chromium}=require('playwright'); (async()=>{ const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1536,height:1024},deviceScaleFactor:1}); await page.goto('http://127.0.0.1:5173/',{waitUntil:'networkidle'}); await page.screenshot({path:'editons-desktop-1536x1024.png',fullPage:false}); await browser.close();})().catch(e=>{console.error(e);process.exit(1)})"
+          npx --yes playwright@1.56.1 screenshot --browser chromium --viewport-size "1536,1024" --wait-for-timeout 2500 http://127.0.0.1:5173/ editons-desktop-1536x1024.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:
