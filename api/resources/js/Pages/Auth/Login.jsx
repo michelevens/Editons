@@ -6,12 +6,19 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
-export default function Login({ status, canResetPassword }) {
+export default function Login({ status, canResetPassword, demo }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
         remember: false,
     });
+
+    // One click to sign in while the product is being built. The server only
+    // shares `demo` when APP_ENV is local and the seeded account exists, so
+    // this block cannot appear in production — see HandleInertiaRequests.
+    const fillDemo = () => {
+        setData({ email: demo.email, password: demo.password, remember: false });
+    };
 
     const submit = (e) => {
         e.preventDefault();
@@ -24,6 +31,22 @@ export default function Login({ status, canResetPassword }) {
     return (
         <GuestLayout>
             <Head title="Log in" />
+
+            {demo && (
+                <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+                    <p className="font-semibold text-amber-900">Demo account</p>
+                    <p className="mt-1 font-mono text-xs text-amber-800">
+                        {demo.email} / {demo.password}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={fillDemo}
+                        className="mt-2 rounded bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
+                    >
+                        Fill demo credentials
+                    </button>
+                </div>
+            )}
 
             {status && (
                 <div className="mb-4 text-sm font-medium text-green-600">

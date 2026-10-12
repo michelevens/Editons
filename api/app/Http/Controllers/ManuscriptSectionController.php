@@ -1,0 +1,143 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Book;
+use App\Models\ManuscriptSection;
+use App\Models\ManuscriptVersion;
+use App\Services\ManuscriptWriter;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+
+class ManuscriptSectionController extends Controller
+{
+    public function __construct(private readonly ManuscriptWriter $writer) {}
+
+    public function store(Request $request, Book $book): RedirectResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'type' => ['required', 'in:'.implode(',', ManuscriptSection::TYPES)],
+            'title' => ['required', 'string', 'max:255'],
+            'parent_id' => ['nullable', 'integer'],
+        ]);
+
+        // Validate the parent belongs to THIS book. Without it, a crafted
+        // parent_id would graft a section onto someone else's manuscript —
+        // the policy above only checked the book in the URL.
+        $parentId = null;
+        if (! empty($data['parent_id'])) {
+            $parent = $book->sections()->whereKey($data['parent_id'])->firstOrFail();
+            $parentId = $parent->id;
+        }
+
+        $section = $book->sections()->create([
+            'type' => $data['type'],
+            'title' => $data['title'],
+            'parent_id' => $parentId,
+            'position' => ManuscriptSection::nextPosition($book->id, $parentId),
+        ]);
+
+        return redirect()->route('books.edit', ['book' => $book, 'section' => $section->id]);
+    }
+
+    /**
+     * Autosave endpoint.
+     *
+     * Returns JSON rather than an Inertia redirect: this fires while someone
+     * is typing, and a page visit would discard their cursor position.
+     */
+    public function save(Request $request, ManuscriptSection $section): JsonResponse
+    {
+        $this->authorize('update', $section);
+
+        $data = $request->validate([
+            'content' => ['nullable', 'array'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'reason' => ['nullable', 'in:autosave,manual'],
+        ]);
+
+        $section = $this->writer->save(
+            section: $section,
+            content: $data['content'] ?? null,
+            title: $data['title'] ?? null,
+            reason: $data['reason'] ?? 'autosave',
+            userId: $request->user()->id,
+        );
+
+        return response()->json([
+            'saved_at' => $section->updated_at->toIso8601String(),
+            'word_count' => $section->word_count,
+            'book_word_count' => $section->book->word_count,
+            'versions_count' => $section->versions()->count(),
+        ]);
+    }
+
+    /** Version history for the right-hand panel. */
+    public function versions(ManuscriptSection $section): JsonResponse
+    {
+        $this->authorize('view', $section);
+
+        return response()->json([
+            'versions' => $section->versions()
+                ->with('user:id,name')
+                ->limit(50)
+                ->get()
+                ->map(fn (ManuscriptVersion $v) => [
+                    'id' => $v->id,
+                    'version_number' => $v->version_number,
+                    'title' => $v->title,
+                    'word_count' => $v->word_count,
+                    'reason' => $v->reason,
+                    'label' => $v->label,
+                    'author' => $v->user?->name,
+                    'created_at' => $v->created_at->toIso8601String(),
+                    'created_human' => $v->created_at->diffForHumans(),
+                ]),
+        ]);
+    }
+
+    public function restore(Request $request, ManuscriptSection $section, ManuscriptVersion $version): JsonResponse
+    {
+        $this->authorize('update', $section);
+
+        // The version must belong to this section. Route-model binding
+        // resolves both independently, so nothing else stops a version id
+        // from another manuscript being restored over this one.
+        abort_unless($version->manuscript_section_id === $section->id, 404);
+
+        $section = $this->writer->restore($section, $version, $request->user()->id);
+
+        return response()->json([
+            'content' => $section->content,
+            'title' => $section->title,
+            'word_count' => $section->word_count,
+            'saved_at' => $section->updated_at->toIso8601String(),
+        ]);
+    }
+
+    public function update(Request $request, ManuscriptSection $section): RedirectResponse
+    {
+        $this->authorize('update', $section);
+
+        $section->update($request->validate([
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'subtitle' => ['nullable', 'string', 'max:255'],
+        ]));
+
+        return back();
+    }
+
+    public function destroy(ManuscriptSection $section): RedirectResponse
+    {
+        $this->authorize('delete', $section);
+
+        $book = $section->book;
+        $section->delete();
+        $book->recalculateWordCount();
+
+        return redirect()->route('books.edit', $book);
+    }
+}

@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\BookController;
+use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -25,3 +27,36 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+/*
+ * Writing studio.
+ *
+ * Books use implicit model binding; the policies (BookPolicy,
+ * ManuscriptSectionPolicy) do the ownership checks, because binding resolves
+ * an id before any authorisation runs.
+ *
+ * Section save/versions/restore return JSON rather than Inertia redirects:
+ * they fire while someone is typing, and a page visit would throw away the
+ * cursor position.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books', [BookController::class, 'index'])->name('books.index');
+    Route::post('/books', [BookController::class, 'store'])->name('books.store');
+    Route::get('/books/{book}/edit', [BookController::class, 'edit'])->name('books.edit');
+    Route::patch('/books/{book}', [BookController::class, 'update'])->name('books.update');
+    Route::delete('/books/{book}', [BookController::class, 'destroy'])->name('books.destroy');
+
+    Route::post('/books/{book}/sections', [ManuscriptSectionController::class, 'store'])
+        ->name('sections.store');
+    Route::patch('/sections/{section}', [ManuscriptSectionController::class, 'update'])
+        ->name('sections.update');
+    Route::delete('/sections/{section}', [ManuscriptSectionController::class, 'destroy'])
+        ->name('sections.destroy');
+
+    Route::put('/sections/{section}/content', [ManuscriptSectionController::class, 'save'])
+        ->name('sections.save');
+    Route::get('/sections/{section}/versions', [ManuscriptSectionController::class, 'versions'])
+        ->name('sections.versions');
+    Route::post('/sections/{section}/versions/{version}/restore', [ManuscriptSectionController::class, 'restore'])
+        ->name('sections.restore');
+});

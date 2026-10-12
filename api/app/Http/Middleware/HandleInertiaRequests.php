@@ -34,6 +34,19 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+
+            // Demo credentials, shown on the login page while the product is
+            // under construction.
+            //
+            // Gated on APP_ENV=local and nothing else. A seeded password in
+            // page props is harmless on a developer machine and a handed-out
+            // account in production; the environment check is the whole
+            // safeguard, so it is deliberately the first condition and not
+            // buried behind a config flag someone can flip by accident.
+            'demo' => app()->environment('local') ? [
+                'email' => 'test@editons.local',
+                'password' => 'password',
+            ] : null,
         ];
     }
 }
