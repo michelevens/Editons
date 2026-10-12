@@ -1,0 +1,37 @@
+name: Editor UI checks
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - '.github/workflows/editor-ui-checks.yml'
+  push:
+    branches:
+      - feature/first-editor-ui
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Type-check and production build
+        run: npm run build
+      - name: Install browser
+        run: npx playwright@1.56.1 install --with-deps chromium
+      - name: Screenshot editor at original reference dimensions
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/editons-vite.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:5173/ >/dev/null && break || sleep 1; done
+          npx --yes playwright@1.56.1 screenshot --browser chromium --viewport-size "1536,1024" --wait-for-timeout 2500 http://127.0.0.1:5173/ editons-desktop-1536x1024.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editons-desktop-screenshot
+          path: editons-desktop-1536x1024.png
