@@ -1,0 +1,12 @@
+/api/vendor/
+/api/node_modules/
+/api/.env
+/api/.env.backup
+/api/public/build/
+/api/public/hot
+/api/storage/*.key
+/api/storage/pail
+/api/bootstrap/cache/*.php
+/api/.phpunit.result.cache
+/api/database/*.sqlite
+.DS_Store
