@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import CitationsTab from './CitationsTab';
 import { NotBuilt } from './Shell';
 
 /**
@@ -19,16 +20,19 @@ export default function InspectorPanel({
     findings,
     versions,
     running,
+    sectionId,
+    bookId,
     onRunAgent,
     onResolve,
     onRestore,
+    onOpenLibrary,
 }) {
     const [tab, setTab] = useState('ai');
 
     const tabs = [
         { key: 'ai', label: 'AI Editor', ready: true },
         { key: 'comments', label: 'Comments', ready: false },
-        { key: 'research', label: 'Research', ready: false },
+        { key: 'research', label: 'Research', ready: true },
         { key: 'history', label: 'History', ready: true },
     ];
 
@@ -74,10 +78,10 @@ export default function InspectorPanel({
                     />
                 )}
                 {tab === 'research' && (
-                    <NotBuilt
-                        title="Research Library"
-                        milestone="Milestone 2"
-                        what="Sources, citations and evidence provenance, so every claim in the book can be traced."
+                    <CitationsTab
+                        sectionId={sectionId}
+                        bookId={bookId}
+                        onManageLibrary={onOpenLibrary}
                     />
                 )}
             </div>

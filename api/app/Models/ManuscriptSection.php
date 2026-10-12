@@ -57,6 +57,12 @@ class ManuscriptSection extends Model
         return $this->hasMany(ManuscriptVersion::class)->latest('version_number');
     }
 
+    /** Claims in this section and the sources backing them. */
+    public function citations(): HasMany
+    {
+        return $this->hasMany(Citation::class);
+    }
+
     /**
      * Count words in a ProseMirror document.
      *

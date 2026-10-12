@@ -1,5 +1,7 @@
 import ManuscriptEditor from '@/Components/Editor/ManuscriptEditor';
+import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import InspectorPanel from '@/Components/Studio/InspectorPanel';
+import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
 import { NotBuilt, Sidebar, TopNav } from '@/Components/Studio/Shell';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
@@ -73,8 +75,20 @@ export default function Editor({ book, binder, activeSection, agents }) {
     };
 
     // Which destinations actually have something behind them.
-    const liveNav = nav === 'writing' || nav === 'ai' || nav === 'books';
-    const livePane = pane === 'manuscript';
+    const liveNav = ['writing', 'ai', 'books', 'research'].includes(nav);
+    const livePane = (p) => ['manuscript', 'research', 'terms'].includes(p);
+
+    // The top-level Research area and the sidebar's Research Library are the
+    // same destination; keeping them in step avoids two routes to one screen
+    // that disagree about which is selected.
+    const effectivePane = nav === 'research' ? 'research' : pane;
+
+    const openSection = (id) =>
+        router.get(
+            route('books.edit', book.id),
+            { section: id },
+            { preserveState: true, preserveScroll: true },
+        );
 
     return (
         <div className="flex h-screen flex-col bg-slate-100">
@@ -85,7 +99,7 @@ export default function Editor({ book, binder, activeSection, agents }) {
             <div className="flex min-h-0 flex-1">
                 <Sidebar
                     book={{ ...book, word_count: bookWords }}
-                    active={nav === 'writing' ? pane : null}
+                    active={liveNav ? effectivePane : null}
                     onSelect={(i) => {
                         // The sidebar belongs to the manuscript area; choosing
                         // from it moves you back there rather than leaving the
@@ -107,13 +121,21 @@ export default function Editor({ book, binder, activeSection, agents }) {
                             what="This area of the studio has no engine behind it yet."
                         />
                     </main>
-                ) : !livePane ? (
+                ) : !livePane(effectivePane) ? (
                     <main className="flex-1 bg-white">
                         <NotBuilt
                             title="Not built yet"
                             milestone="a later milestone"
                             what="This section of the book workspace has no engine behind it yet."
                         />
+                    </main>
+                ) : effectivePane === 'research' ? (
+                    <main className="flex-1 overflow-y-auto bg-white">
+                        <ResearchLibrary bookId={book.id} />
+                    </main>
+                ) : effectivePane === 'terms' ? (
+                    <main className="flex-1 overflow-y-auto bg-white">
+                        <ConsistencyPanel bookId={book.id} onOpenSection={openSection} />
                     </main>
                 ) : (
                     <>
@@ -123,13 +145,7 @@ export default function Editor({ book, binder, activeSection, agents }) {
                             activeId={section?.id}
                             tab={binderTab}
                             onTab={setBinderTab}
-                            onSelect={(id) =>
-                                router.get(
-                                    route('books.edit', book.id),
-                                    { section: id },
-                                    { preserveState: true, preserveScroll: true },
-                                )
-                            }
+                            onSelect={openSection}
                         />
 
                         <main className="min-w-0 flex-1 border-x border-slate-200 bg-white">
@@ -141,9 +157,15 @@ export default function Editor({ book, binder, activeSection, agents }) {
                             findings={findings}
                             versions={versions}
                             running={running}
+                            sectionId={section?.id}
+                            bookId={book.id}
                             onRunAgent={runAgent}
                             onResolve={resolve}
                             onRestore={restore}
+                            onOpenLibrary={() => {
+                                setNav('writing');
+                                setPane('research');
+                            }}
                         />
                     </>
                 )}
@@ -228,6 +250,8 @@ function Binder({ book, nodes, activeId, tab, onTab, onSelect }) {
                         )}
                     </nav>
 
+                    <ImportExport book={book} />
+
                     <form onSubmit={addChapter} className="border-t border-slate-200 p-3">
                         <input
                             value={data.title}
@@ -283,6 +307,107 @@ function BinderNode({ node, activeId, onSelect, depth }) {
                     depth={depth + 1}
                 />
             ))}
+        </div>
+    );
+}
+
+/**
+ * Import a Markdown manuscript, or take the whole book back out as one.
+ *
+ * The report is shown rather than swallowed: an author who uploads 90,000
+ * words needs to know what could not be carried before they start editing,
+ * not at proof stage.
+ */
+function ImportExport({ book }) {
+    const [report, setReport] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(null);
+
+    const upload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setBusy(true);
+        setError(null);
+        setReport(null);
+
+        try {
+            const body = new FormData();
+            body.append('file', file);
+
+            const res = await window.axios.post(
+                route('books.import', book.id),
+                body,
+            );
+            setReport(res.data.report);
+
+            // The binder is server-rendered, so it has to come back to show
+            // the imported chapters.
+            router.reload({ only: ['binder', 'book'] });
+        } catch (err) {
+            setError(
+                err.response?.data?.message ??
+                    'That file could not be imported.',
+            );
+        } finally {
+            setBusy(false);
+            e.target.value = '';
+        }
+    };
+
+    return (
+        <div className="border-t border-slate-200 p-3">
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Manuscript
+            </p>
+
+            <div className="flex gap-2">
+                <label className="flex-1 cursor-pointer rounded-md border border-slate-300 bg-white py-1.5 text-center text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
+                    {busy ? 'Importing…' : 'Import .md'}
+                    <input
+                        type="file"
+                        accept=".md,.markdown,.txt,text/markdown,text/plain"
+                        onChange={upload}
+                        disabled={busy}
+                        className="hidden"
+                    />
+                </label>
+
+                <a
+                    href={route('books.export', book.id)}
+                    className="flex-1 rounded-md border border-slate-300 bg-white py-1.5 text-center text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                    Export .md
+                </a>
+            </div>
+
+            {error && (
+                <p className="mt-2 text-[11px] font-semibold text-rose-700">
+                    {error}
+                </p>
+            )}
+
+            {report && (
+                <div className="mt-2 rounded bg-slate-100 px-2 py-1.5 text-[11px] leading-relaxed text-slate-700">
+                    <p className="font-semibold">
+                        Imported {report.sections} chapter
+                        {report.sections === 1 ? '' : 's'}.
+                    </p>
+                    {report.lossless ? (
+                        <p className="text-emerald-700">
+                            Nothing was dropped.
+                        </p>
+                    ) : (
+                        <p className="text-amber-700">
+                            Could not carry:{' '}
+                            {Object.entries(report.skipped)
+                                .map(([what, n]) => `${n} ${what}${n === 1 ? '' : 's'}`)
+                                .join(', ')}
+                            .
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -62,6 +63,24 @@ class Book extends Model
         return $this->sections()
             ->whereNull('parent_id')
             ->orderBy('position');
+    }
+
+    /** The book's research library. */
+    public function sources(): HasMany
+    {
+        return $this->hasMany(ResearchSource::class);
+    }
+
+    /** The book's controlled vocabulary, used for cross-chapter consistency. */
+    public function terms(): HasMany
+    {
+        return $this->hasMany(Term::class);
+    }
+
+    /** Every citation in the book, across all its sections. */
+    public function citations(): HasManyThrough
+    {
+        return $this->hasManyThrough(Citation::class, ManuscriptSection::class);
     }
 
     /**

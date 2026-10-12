@@ -1,0 +1,283 @@
+<?php
+
+namespace App\Import;
+
+use App\Models\Book;
+use App\Models\ManuscriptSection;
+use App\Services\ManuscriptWriter;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Import a Markdown manuscript into chapters.
+ *
+ * ROADMAP.md Milestone 1 asks for "basic import" and a demonstrated
+ * "round-trip without content loss". Markdown is the honest first format:
+ * DOCX round-tripping is listed in ARCHITECTURE.md as an unresolved risk,
+ * and shipping a lossy DOCX importer that silently drops footnotes and
+ * tracked changes would be worse than not shipping one.
+ *
+ * What survives: headings, paragraphs, bold, italic, inline code, blockquotes,
+ * and bullet/ordered lists. What does not is REPORTED rather than discarded
+ * quietly — see ImportReport. An author who imports a 90,000-word manuscript
+ * deserves to know what did not make it, not to discover it at proof stage.
+ */
+class MarkdownImporter
+{
+    public function __construct(private readonly ManuscriptWriter $writer) {}
+
+    /**
+     * Split on H1/H2 and create one section per heading.
+     *
+     * Text before the first heading becomes a chapter too; dropping it would
+     * be exactly the content loss this is supposed to demonstrate avoiding.
+     */
+    public function import(Book $book, string $markdown, ?int $userId = null): ImportReport
+    {
+        $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+
+        $chunks = $this->splitIntoChapters($markdown);
+        $report = new ImportReport;
+
+        if ($chunks === []) {
+            return $report;
+        }
+
+        DB::transaction(function () use ($book, $chunks, $userId, $report) {
+            // Append after whatever is already in the binder rather than
+            // replacing it: import must never destroy existing work.
+            $position = (int) $book->sections()->max('position');
+
+            foreach ($chunks as $chunk) {
+                $position += ManuscriptSection::POSITION_STEP;
+
+                $section = $book->sections()->create([
+                    'type' => 'chapter',
+                    'title' => $chunk['title'],
+                    'position' => $position,
+                ]);
+
+                $doc = $this->toProseMirror($chunk['body'], $report);
+
+                // Through the normal writer so the import is versioned like
+                // any other write, and is therefore revertible.
+                $this->writer->save(
+                    section: $section,
+                    content: $doc,
+                    reason: 'import',
+                    userId: $userId,
+                );
+
+                $report->sections++;
+            }
+        });
+
+        $book->refresh()->recalculateWordCount();
+
+        return $report;
+    }
+
+    /**
+     * @return array<int, array{title: string, body: string}>
+     */
+    private function splitIntoChapters(string $markdown): array
+    {
+        $lines = explode("\n", $markdown);
+        $chapters = [];
+        $title = null;
+        $buffer = [];
+
+        $flush = function () use (&$chapters, &$title, &$buffer) {
+            $body = trim(implode("\n", $buffer));
+
+            if ($title === null && $body === '') {
+                return;
+            }
+
+            $chapters[] = [
+                'title' => $title ?? 'Untitled',
+                'body' => $body,
+            ];
+
+            $title = null;
+            $buffer = [];
+        };
+
+        foreach ($lines as $line) {
+            if (preg_match('/^(#{1,2})\s+(.*)$/', $line, $m)) {
+                $flush();
+                $title = trim($m[2]);
+
+                continue;
+            }
+
+            $buffer[] = $line;
+        }
+
+        $flush();
+
+        return $chapters;
+    }
+
+    /**
+     * Convert one chapter's Markdown body to a ProseMirror document.
+     *
+     * Hand-written rather than pulled from a library because the output has
+     * to match the Tiptap schema the editor actually uses; a generic
+     * converter would produce nodes the editor silently drops on load, which
+     * is the content loss this is meant to prevent.
+     *
+     * @return array<string, mixed>
+     */
+    private function toProseMirror(string $body, ImportReport $report): array
+    {
+        $content = [];
+        $blocks = preg_split('/\n{2,}/', trim($body)) ?: [];
+
+        foreach ($blocks as $block) {
+            $block = trim($block);
+
+            if ($block === '') {
+                continue;
+            }
+
+            if (str_starts_with($block, '```')) {
+                // Code blocks are reported, not guessed at: the editor's
+                // schema has no code-block node yet, and inventing one here
+                // would produce a document the editor cannot render.
+                $report->skip('code block');
+
+                continue;
+            }
+
+            if (preg_match('/^!\[/', $block)) {
+                // Images need uploaded assets (ARCHITECTURE.md: object
+                // storage). Importing the alt text as a paragraph would be a
+                // silent downgrade; saying so is better.
+                $report->skip('image');
+
+                continue;
+            }
+
+            if (preg_match('/^(#{1,6})\s+(.*)$/s', $block, $m)) {
+                $content[] = [
+                    'type' => 'heading',
+                    'attrs' => ['level' => min(strlen($m[1]), 3)],
+                    'content' => $this->inline(trim($m[2])),
+                ];
+
+                continue;
+            }
+
+            if (str_starts_with($block, '> ')) {
+                $quoted = preg_replace('/^>\s?/m', '', $block);
+
+                $content[] = [
+                    'type' => 'blockquote',
+                    'content' => [[
+                        'type' => 'paragraph',
+                        'content' => $this->inline(trim((string) $quoted)),
+                    ]],
+                ];
+
+                continue;
+            }
+
+            if (preg_match('/^\s*([-*+]|\d+\.)\s+/', $block)) {
+                $content[] = $this->list($block);
+
+                continue;
+            }
+
+            $content[] = [
+                'type' => 'paragraph',
+                'content' => $this->inline($block),
+            ];
+        }
+
+        return ['type' => 'doc', 'content' => $content];
+    }
+
+    /** @return array<string, mixed> */
+    private function list(string $block): array
+    {
+        $ordered = (bool) preg_match('/^\s*\d+\./', $block);
+        $items = [];
+
+        foreach (explode("\n", $block) as $line) {
+            $line = preg_replace('/^\s*([-*+]|\d+\.)\s+/', '', $line);
+
+            if (trim((string) $line) === '') {
+                continue;
+            }
+
+            $items[] = [
+                'type' => 'listItem',
+                'content' => [[
+                    'type' => 'paragraph',
+                    'content' => $this->inline(trim((string) $line)),
+                ]],
+            ];
+        }
+
+        return [
+            'type' => $ordered ? 'orderedList' : 'bulletList',
+            'content' => $items,
+        ];
+    }
+
+    /**
+     * Inline marks: bold, italic, code.
+     *
+     * Returns an empty array for empty text rather than a text node with an
+     * empty string — ProseMirror rejects empty text nodes, and producing one
+     * would make the whole document fail to load.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function inline(string $text): array
+    {
+        if (trim($text) === '') {
+            return [];
+        }
+
+        // Collapse the single newlines left inside a paragraph. Markdown
+        // treats them as spaces, and keeping them would add stray breaks.
+        $text = preg_replace('/\s*\n\s*/', ' ', $text) ?? $text;
+
+        $pattern = '/(\*\*(?P<bold>.+?)\*\*)|(\*(?P<italic>.+?)\*)|(`(?P<code>.+?)`)/u';
+        $nodes = [];
+        $offset = 0;
+
+        preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
+
+        foreach ($matches as $m) {
+            [$whole, $at] = $m[0];
+
+            if ($at > $offset) {
+                $nodes[] = ['type' => 'text', 'text' => substr($text, $offset, $at - $offset)];
+            }
+
+            [$value, $mark] = match (true) {
+                ($m['bold'][0] ?? '') !== '' => [$m['bold'][0], 'bold'],
+                ($m['italic'][0] ?? '') !== '' => [$m['italic'][0], 'italic'],
+                default => [$m['code'][0] ?? '', 'code'],
+            };
+
+            if ($value !== '') {
+                $nodes[] = [
+                    'type' => 'text',
+                    'text' => $value,
+                    'marks' => [['type' => $mark]],
+                ];
+            }
+
+            $offset = $at + strlen($whole);
+        }
+
+        if ($offset < strlen($text)) {
+            $nodes[] = ['type' => 'text', 'text' => substr($text, $offset)];
+        }
+
+        return $nodes;
+    }
+}

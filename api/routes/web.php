@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\EditorialController;
+use App\Http\Controllers\ConsistencyController;
+use App\Http\Controllers\ImportController;
+use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\ProfileController;
@@ -77,4 +80,50 @@ Route::middleware('auth')->group(function () {
         ->name('editorial.findings');
     Route::patch('/findings/{finding}', [EditorialController::class, 'resolve'])
         ->name('editorial.resolve');
+});
+
+/*
+ * Research library, citation provenance and cross-chapter consistency
+ * (Milestone 2).
+ *
+ * Verification is its own endpoint rather than a field on store(): a source
+ * must not be able to arrive pre-approved, because the approval is what
+ * carries evidentiary weight.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/sources', [ResearchController::class, 'index'])
+        ->name('research.index');
+    Route::post('/books/{book}/sources', [ResearchController::class, 'store'])
+        ->name('research.store');
+    Route::patch('/sources/{source}/verification', [ResearchController::class, 'verify'])
+        ->name('research.verify');
+    Route::delete('/sources/{source}', [ResearchController::class, 'destroy'])
+        ->name('research.destroy');
+
+    Route::get('/sections/{section}/citations', [ResearchController::class, 'citations'])
+        ->name('citations.index');
+    Route::post('/sections/{section}/citations', [ResearchController::class, 'storeCitation'])
+        ->name('citations.store');
+    Route::delete('/citations/{citation}', [ResearchController::class, 'destroyCitation'])
+        ->name('citations.destroy');
+
+    Route::get('/books/{book}/consistency', [ConsistencyController::class, 'show'])
+        ->name('consistency.show');
+    Route::post('/books/{book}/terms', [ConsistencyController::class, 'storeTerm'])
+        ->name('consistency.terms.store');
+    Route::delete('/terms/{term}', [ConsistencyController::class, 'destroyTerm'])
+        ->name('consistency.terms.destroy');
+});
+
+/*
+ * Manuscript import and Markdown export (Milestone 1).
+ *
+ * Not the Milestone 3 export pipeline: no edition themes, pagination or
+ * validation. This is the round-trip that proves content survives.
+ */
+Route::middleware('auth')->group(function () {
+    Route::post('/books/{book}/import', [ImportController::class, 'store'])
+        ->name('books.import');
+    Route::get('/books/{book}/export.md', [ImportController::class, 'export'])
+        ->name('books.export');
 });
