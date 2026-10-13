@@ -41,9 +41,16 @@ export default {
         // session cookie is issued for the wrong domain and every
         // authenticated request after sign-in arrives as a guest.
         const headers = new Headers(request.headers);
+
+        // X-Forwarded-Host must carry the hostname the BROWSER used. Setting
+        // it to the origin made Laravel see the Railway host, which then did
+        // not match the .ecrivain.ai session cookie — so every authenticated
+        // cross-host request arrived as a guest. The Host header still has to
+        // be the origin for Railway's edge to route it.
         headers.set('Host', env[originVar]);
         headers.set('X-Forwarded-Host', url.hostname);
         headers.set('X-Forwarded-Proto', 'https');
+        headers.set('X-Forwarded-Port', '443');
 
         const upstream = new Request(target.toString(), {
             method: request.method,

@@ -44,7 +44,20 @@ return Application::configure(basePath: dirname(__DIR__))
         // Railway terminates TLS at its edge, so without trusting the proxy
         // Laravel builds http:// URLs behind an https:// request — which
         // breaks secure-cookie issuance and every absolute redirect.
-        $middleware->trustProxies(at: '*');
+        $middleware->trustProxies(
+            at: '*',
+            // X-Forwarded-Host must be trusted explicitly; Symfony omits it
+            // from the default header set because honouring it from an
+            // untrusted proxy allows host-header poisoning. Here the only
+            // thing in front is Cloudflare, and without it Laravel sees the
+            // Railway hostname rather than app.ecrivain.ai — which stopped it
+            // matching the .ecrivain.ai session cookie, so every
+            // authenticated cross-host request arrived as a guest.
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
