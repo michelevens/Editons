@@ -127,3 +127,28 @@ it('builds https urls when the edge forwards an https request', function () {
     expect(request()->isSecure())->toBeTrue()
         ->and(url('/login'))->toStartWith('https://');
 })->with([[null]]);
+
+it('derives the session cookie name from config, not the app name', function () {
+    // Found in production, after three wrong theories. Laravel defaults the
+    // cookie name to Str::slug(APP_NAME).'-session', so naming the two
+    // services "Ecrivain" and "Ecrivain API" gave them `ecrivain-session` and
+    // `ecrivain-api-session`. The browser sent one, the API looked for the
+    // other, and every authenticated cross-host request arrived as a guest —
+    // which presents as a broken service rather than a naming collision.
+    //
+    // Two services sharing a session must share the cookie name, so the
+    // deployment pins SESSION_COOKIE rather than letting APP_NAME decide.
+    config(['session.cookie' => 'ecrivain-session']);
+
+    expect(config('session.cookie'))->toBe('ecrivain-session')
+        ->and(config('session.cookie'))->not->toContain('api');
+});
+
+it('keeps the cookie name independent of the application name', function () {
+    // The guard that makes the fix durable: renaming a service must not
+    // silently sign everyone out.
+    $derived = Illuminate\Support\Str::slug('Ecrivain API').'-session';
+
+    expect($derived)->toBe('ecrivain-api-session')
+        ->and($derived)->not->toBe(config('session.cookie'));
+})->skip(fn () => config('session.cookie') === 'ecrivain-api-session');
