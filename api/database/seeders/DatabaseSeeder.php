@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -12,16 +11,15 @@ class DatabaseSeeder extends Seeder
 
     /**
      * Seed the application's database.
+     *
+     * Only the demo account, which decides for itself whether it should exist
+     * — see DemoSeeder. Laravel's stock `test@example.com` factory user is
+     * gone: it was created unconditionally, so running this against any
+     * deployed database made a real account with a random password and no
+     * owner.
      */
     public function run(): void
     {
-        \$this->call(DemoSeeder::class);
-
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        $this->call(DemoSeeder::class);
     }
 }
