@@ -221,3 +221,40 @@ is sufficient, and both debit.
 
 The AI panel described in ADR-0007 was built in Milestone 2. The reasoning
 stands as written — it was not built until there was an engine behind it.
+
+---
+
+## ADR-0011 — Deployment notes that cost time to learn
+
+**Railpack caches config at BUILD time.** `php artisan config:cache` runs
+during the build, so an environment variable changed afterwards is not visible
+to the running service until it is rebuilt — `railway redeploy` reuses the
+image and keeps the stale cache. Every variable change that config reads needs
+a fresh `railway up`. This cost two wrong diagnoses before it was noticed.
+
+**The session cookie name is derived from APP_NAME.** Laravel defaults it to
+`Str::slug(APP_NAME).'-session'`. Two services named to tell them apart will
+therefore disagree about which cookie holds the session, and the symptom is an
+authenticated request silently arriving as a guest. `SESSION_COOKIE` is pinned
+on both services; it must stay pinned.
+
+**`trustProxies(at: '*')` does not trust X-Forwarded-Host.** Symfony excludes
+it from the default header set, because honouring it from an untrusted proxy
+allows host-header poisoning. It has to be named explicitly. Without it
+Laravel builds URLs for the platform hostname rather than the real one.
+
+**`trustHosts()` turns host validation ON.** Wiring it to an env var that
+might be empty produces an empty allow-list, which rejects every request with
+a 400 — including the platform health check. It is now opt-in.
+
+**Cloudflare DNS needs an API token.** wrangler's OAuth grants `zone:read` and
+offers no DNS scope; the records are instead created by a Worker using
+`custom_domain = true`, which is the same mechanism lljjc.org already used.
+Cloudflare Pages was tried first: it attaches a custom domain but still
+reports "CNAME record not set", so it does not solve the problem.
+
+**The pattern in all of these:** the failure appeared at a layer above its
+cause. A naming collision looked like a broken service; a build-time cache
+looked like a fix that did not work. The thing that settled each one was
+asking the running service what it believed — a temporary route reporting its
+host, cookies and config — rather than inferring from a status code.
