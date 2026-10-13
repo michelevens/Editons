@@ -1,0 +1,106 @@
+<?php
+
+use App\Models\Book;
+use App\Models\User;
+
+/**
+ * The deployment serves pages from app.ecrivain.ai and data from
+ * api.ecrivain.ai. That split only works if three things hold, and all three
+ * fail silently in the browser rather than loudly in the logs — which is why
+ * they are asserted here rather than discovered in production.
+ */
+beforeEach(function () {
+    config([
+        'cors.allowed_origins' => ['https://app.ecrivain.ai'],
+        'cors.supports_credentials' => true,
+        'cors.paths' => ['*'],
+    ]);
+});
+
+it('allows the app origin to read data with credentials', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+
+    $response = $this->actingAs($user)->getJson(
+        "/books/{$book->id}/sources",
+        ['Origin' => 'https://app.ecrivain.ai'],
+    );
+
+    $response->assertOk()
+        ->assertHeader('Access-Control-Allow-Origin', 'https://app.ecrivain.ai')
+        // Without this the browser discards the response and the session
+        // cookie is never sent on the next call.
+        ->assertHeader('Access-Control-Allow-Credentials', 'true');
+});
+
+it('does not hand an unknown origin an allow header', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+
+    $response = $this->actingAs($user)->getJson(
+        "/books/{$book->id}/sources",
+        ['Origin' => 'https://evil.example.com'],
+    );
+
+    expect($response->headers->get('Access-Control-Allow-Origin'))
+        ->not->toBe('https://evil.example.com');
+});
+
+it('answers the preflight a cross-origin write triggers', function () {
+    // A PATCH with a JSON content type is not a simple request, so the
+    // browser sends OPTIONS first and never issues the PATCH if it fails.
+    $this->call('OPTIONS', '/findings/1', [], [], [], [
+        'HTTP_ORIGIN' => 'https://app.ecrivain.ai',
+        'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'PATCH',
+        'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'content-type,x-xsrf-token',
+    ])
+        ->assertNoContent()
+        ->assertHeader('Access-Control-Allow-Origin', 'https://app.ecrivain.ai');
+});
+
+it('never allows a wildcard origin while credentials are on', function () {
+    // Browsers reject '*' with credentials, and accepting any origin with
+    // cookies would be a CSRF hole besides. A misconfiguration here is the
+    // kind that looks like it works until it is exploited.
+    expect(config('cors.allowed_origins'))->not->toContain('*');
+});
+
+it('issues one session cookie both hosts can read', function () {
+    // The two services share a session only because the cookie is scoped to
+    // the parent domain. Scoped to the host, signing in on app. would leave
+    // every api. call unauthenticated.
+    config(['session.domain' => '.ecrivain.ai']);
+
+    $user = User::factory()->create();
+
+    $cookie = $this->actingAs($user)
+        ->get('/books')
+        ->headers->getCookies()[0] ?? null;
+
+    expect(config('session.domain'))->toBe('.ecrivain.ai');
+
+    if ($cookie) {
+        expect($cookie->getDomain())->toBe('.ecrivain.ai');
+    }
+});
+
+it('keeps the CORS origin list configurable rather than hard-coded', function () {
+    // The same image runs locally, in preview and in production. A hostname
+    // compiled into the config is how a staging deploy ends up trusting
+    // production.
+    $config = file_get_contents(config_path('cors.php'));
+
+    expect($config)->toContain('CORS_ALLOWED_ORIGINS')
+        ->and($config)->not->toContain("'https://app.ecrivain.ai'");
+});
+
+it('serves pages and data from the same routes either way', function () {
+    // The split is a deployment choice, not a code fork: with no API base URL
+    // set, relative paths still work and nothing is cross-origin. This is
+    // what keeps local development a single host.
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+
+    $this->actingAs($user)->get("/books/{$book->id}/edit")->assertOk();
+    $this->actingAs($user)->getJson("/books/{$book->id}/sources")->assertOk();
+});

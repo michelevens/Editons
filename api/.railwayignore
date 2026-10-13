@@ -1,0 +1,11 @@
+# Keep the upload to what Railpack needs to build.
+node_modules
+vendor
+public/build
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+.env
+.phpunit.result.cache
+tests
