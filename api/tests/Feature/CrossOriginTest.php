@@ -104,3 +104,26 @@ it('serves pages and data from the same routes either way', function () {
     $this->actingAs($user)->get("/books/{$book->id}/edit")->assertOk();
     $this->actingAs($user)->getJson("/books/{$book->id}/sources")->assertOk();
 });
+
+it('serves requests when no trusted-host list is configured', function () {
+    // Regression: trustHosts() turns host validation ON, so wiring it to an
+    // env var that might be empty produced an empty allow-list and a blanket
+    // 400 — including on the platform health check. Found in production,
+    // where it looked like a routing bug for an hour.
+    expect(env('TRUSTED_HOSTS', ''))->toBeIn(['', null]);
+
+    $this->get('/up')->assertOk();
+});
+
+it('builds https urls when the edge forwards an https request', function () {
+    // Railway terminates TLS at its edge. Without trusting the proxy, Laravel
+    // sees http:// behind an https:// request, which breaks secure-cookie
+    // issuance and every absolute redirect.
+    $this->get('/up', [
+        'X-Forwarded-Proto' => 'https',
+        'X-Forwarded-Host' => 'app.ecrivain.ai',
+    ])->assertOk();
+
+    expect(request()->isSecure())->toBeTrue()
+        ->and(url('/login'))->toStartWith('https://');
+})->with([[null]]);
