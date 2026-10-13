@@ -7,17 +7,20 @@ use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+/*
+ | The studio's root.
+ |
+ | app.ecrivain.ai is the application, not a landing page — ecrivain.ai is
+ | the marketing site. A signed-in author belongs on their shelf; anyone else
+ | belongs at the sign-in form. Laravel's stock Welcome page served neither,
+ | and shipping a framework's default screen on a product domain reads as an
+ | unfinished deployment.
+ */
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return redirect()->route(auth()->check() ? 'books.index' : 'login');
 });
 
 Route::get('/dashboard', function () {

@@ -176,14 +176,29 @@ it('generates asset and route urls from APP_URL, not the request host', function
         ->and(url('/login'))->not->toContain('railway.app');
 });
 
-it('serves the welcome page with same-origin assets', function () {
-    // The page that was blank. Asserting it renders is not enough — it did
-    // render. What matters is that the asset URLs are usable from the host
-    // the browser is on.
+it('serves a signed-in page with same-origin assets', function () {
+    // The failure this guards was a blank page behind a 200: the HTML
+    // rendered, but every script URL pointed at the platform hostname, so the
+    // browser refused them and React never mounted. Asserting the page
+    // renders is not enough — it did render.
     config(['app.url' => 'https://app.ecrivain.ai']);
     (new App\Providers\AppServiceProvider($this->app))->boot();
 
-    $html = $this->get('/')->assertOk()->getContent();
+    $html = $this->actingAs(User::factory()->create())
+        ->get('/books')
+        ->assertOk()
+        ->getContent();
 
     expect($html)->not->toContain('up.railway.app');
+});
+
+it('sends the studio root somewhere useful', function () {
+    // app.ecrivain.ai is the application; ecrivain.ai is the marketing site.
+    // Laravel's stock Welcome page served neither audience and reads as an
+    // unfinished deployment on a product domain.
+    $this->get('/')->assertRedirect(route('login'));
+
+    $this->actingAs(User::factory()->create())
+        ->get('/')
+        ->assertRedirect(route('books.index'));
 });
