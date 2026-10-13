@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Écrivain — AI editorial review for serious nonfiction</title>
+<meta name="description" content="Write your book in one place, with seven editorial agents, a research library that tracks what every claim rests on, and consistency checking across the whole manuscript.">
+
+<meta property="og:title" content="Écrivain — AI editorial review for serious nonfiction">
+<meta property="og:description" content="Seven editorial agents, citation provenance, and cross-chapter consistency — in one writing studio.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ecrivain.ai/">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* Design tokens measured from the reference site rather than guessed:
+   Inter body on #F8FAFC, Bricolage Grotesque display, indigo #4F46E5
+   actions with a coloured glow, slate-900 bands, 104px section rhythm. */
+:root{
+  --bg:#F8FAFC; --surface:#FFFFFF; --ink:#0F172A; --body:#475569;
+  --muted:#64748B; --faint:#94A3B8; --line:#E2E8F0; --line-soft:#EEF2F7;
+  --brand:#4F46E5; --brand-deep:#4338CA; --brand-tint:#EEF2FF; --brand-pale:#A5B4FC;
+  --dark:#0F172A; --dark-2:#1E293B; --dark-3:#334155;
+  --ok:#066E54; --ok-tint:#ECFDF5; --warn:#B45309; --warn-tint:#FFFBEB;
+  --r-sm:8px; --r:10px; --r-lg:14px; --r-xl:20px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.06);
+  --shadow:0 10px 30px -18px rgba(15,23,42,.28);
+  --shadow-cta:0 10px 24px -12px rgba(79,70,229,.7);
+  --pad:104px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--body);
+  font:400 16px/1.65 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{
+  font-family:"Bricolage Grotesque",Inter,system-ui,sans-serif;
+  color:var(--ink);margin:0;font-weight:800;letter-spacing:-.035em;line-height:1.08;
+}
+h1{font-size:clamp(38px,5.4vw,64px)}
+h2{font-size:clamp(28px,3.4vw,40px);letter-spacing:-.03em}
+h3{font-size:18px;font-weight:700;letter-spacing:-.015em;line-height:1.3}
+p{margin:0}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+.wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+section{padding:var(--pad) 0}
+.eyebrow{
+  font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--brand-deep);margin-bottom:14px;
+}
+.center{text-align:center}
+.lede{font-size:18px;line-height:1.65;color:var(--muted);max-width:60ch}
+.center .lede{margin-left:auto;margin-right:auto}
+.stack-sm{margin-top:14px}
+.stack{margin-top:22px}
+.stack-lg{margin-top:48px}
+
+/* Skip link — a keyboard user should not have to tab the whole nav. */
+.skip{position:absolute;left:-9999px}
+.skip:focus{
+  left:16px;top:16px;z-index:100;background:var(--surface);color:var(--ink);
+  padding:10px 16px;border-radius:var(--r);box-shadow:var(--shadow);
+}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;gap:8px;justify-content:center;
+  font-size:14.5px;font-weight:600;padding:11px 18px;border-radius:var(--r);
+  border:1px solid transparent;cursor:pointer;transition:.16s ease;
+  font-family:Inter,sans-serif;
+}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:var(--shadow-cta)}
+.btn-primary:hover{background:var(--brand-deep)}
+.btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow-sm)}
+.btn-ghost:hover{border-color:var(--brand-pale);color:var(--brand-deep)}
+.btn-dark{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.22)}
+.btn-dark:hover{background:rgba(255,255,255,.16)}
+.btn-lg{padding:13px 22px;font-size:15.5px}
+
+/* ---------- nav ---------- */
+header.nav{
+  position:sticky;top:0;z-index:50;background:rgba(248,250,252,.86);
+  backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);
+}
+.nav-in{display:flex;align-items:center;gap:30px;height:64px}
+.logo{display:flex;align-items:center;gap:9px;font-family:"Bricolage Grotesque",sans-serif;
+  font-weight:800;font-size:19px;color:var(--ink);letter-spacing:-.02em}
+.logo-mark{
+  width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--brand),#7C6BF0);color:#fff;
+  font-size:15px;box-shadow:var(--shadow-cta);
+}
+.nav-links{display:flex;gap:26px;font-size:14.5px;color:var(--body)}
+.nav-links a:hover{color:var(--ink)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+@media(max-width:900px){.nav-links{display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:84px 0 var(--pad)}
+.hero-grid{display:grid;grid-template-columns:1.04fr .96fr;gap:56px;align-items:center}
+@media(max-width:980px){.hero-grid{grid-template-columns:1fr;gap:44px}}
+.hero h1{margin-bottom:20px}
+.hero .lede{font-size:19px}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.trust{display:flex;flex-wrap:wrap;gap:18px;margin-top:28px;font-size:13.5px;color:var(--muted)}
+.trust span{display:flex;align-items:center;gap:7px}
+.tick{color:var(--ok);flex:none}
+
+/* ---------- product mock ---------- */
+.mock{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);
+  box-shadow:0 30px 60px -30px rgba(15,23,42,.3);overflow:hidden;
+}
+.mock-bar{
+  display:flex;align-items:center;gap:7px;padding:11px 14px;
+  border-bottom:1px solid var(--line-soft);background:#FCFDFE;
+}
+.dot{width:9px;height:9px;border-radius:99px;background:#E2E8F0}
+.mock-title{margin-left:8px;font-size:11.5px;color:var(--faint);font-weight:500}
+.mock-body{padding:16px}
+.finding{
+  display:flex;gap:10px;padding:11px 12px;border:1px solid var(--line);
+  border-radius:var(--r);margin-bottom:9px;background:#fff;
+}
+.sev{width:7px;height:7px;border-radius:99px;margin-top:6px;flex:none}
+.sev-crit{background:#E5484D}.sev-warn{background:#F0A10B}.sev-note{background:#4F46E5}
+.finding h4{font:600 12.5px Inter,sans-serif;color:var(--ink);margin:0 0 2px}
+.finding p{font-size:11.5px;color:var(--muted);line-height:1.5}
+.agent-tag{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-top:3px}
+.mock-foot{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:11px 16px;border-top:1px solid var(--line-soft);background:#FCFDFE;
+  font-size:11.5px;color:var(--muted);
+}
+.pill{background:var(--brand-tint);color:var(--brand-deep);font-weight:600;
+  padding:3px 9px;border-radius:99px;font-size:11px}
+
+/* ---------- generic cards ---------- */
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:980px){.g3,.g4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:24px;box-shadow:var(--shadow-sm);
+}
+.card h3{margin-bottom:8px}
+.card p{font-size:14.5px;color:var(--muted);line-height:1.6}
+.ico{
+  width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+  background:var(--brand-tint);color:var(--brand-deep);margin-bottom:14px;
+}
+.ico svg{width:19px;height:19px}
+
+/* ---------- dark band ---------- */
+.band{background:var(--dark);color:#CBD5E1}
+.band h2,.band h3{color:#fff}
+.band .eyebrow{color:var(--brand-pale)}
+.band .lede{color:#94A3B8}
+.band .card{background:var(--dark-2);border-color:#2B3954;box-shadow:none}
+.band .card p{color:#94A3B8}
+.band .ico{background:rgba(99,102,241,.16);color:var(--brand-pale)}
+
+/* ---------- status chips ---------- */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;padding:4px 9px;border-radius:99px;
+}
+.chip-now{background:var(--ok-tint);color:var(--ok)}
+.chip-soon{background:var(--warn-tint);color:var(--warn)}
+.band .chip-now{background:rgba(6,110,84,.2);color:#6EE7B7}
+.band .chip-soon{background:rgba(180,83,9,.22);color:#FCD34D}
+
+/* ---------- comparison ---------- */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:820px){.compare{grid-template-columns:1fr}}
+.compare ul{margin:16px 0 0;padding-left:0;list-style:none}
+.compare li{display:flex;gap:10px;font-size:14.5px;padding:7px 0;line-height:1.55}
+.x{color:#E5484D;flex:none;font-weight:700}
+.v{color:var(--ok);flex:none;font-weight:700}
+
+/* ---------- steps ---------- */
+.step-n{
+  width:30px;height:30px;border-radius:99px;display:grid;place-items:center;
+  background:var(--ink);color:#fff;font:700 13px Inter,sans-serif;margin-bottom:14px;
+}
+
+/* ---------- pricing ---------- */
+.prices{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:start}
+@media(max-width:900px){.prices{grid-template-columns:1fr;max-width:420px;margin:0 auto}}
+.price{position:relative;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-xl);padding:28px;box-shadow:var(--shadow-sm)}
+.price.featured{background:var(--dark);border-color:var(--dark);color:#CBD5E1;
+  box-shadow:0 26px 50px -26px rgba(15,23,42,.6)}
+.price.featured h3,.price.featured .amount{color:#fff}
+.price.featured li{color:#CBD5E1}
+.badge{
+  position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+  background:var(--brand);color:#fff;font:700 10.5px Inter,sans-serif;
+  letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;
+  box-shadow:var(--shadow-cta);white-space:nowrap;
+}
+.amount{font-family:"Bricolage Grotesque",sans-serif;font-size:42px;font-weight:800;
+  color:var(--ink);letter-spacing:-.04em;line-height:1}
+.per{font-size:14px;color:var(--muted);font-weight:500}
+.price ul{list-style:none;margin:20px 0 0;padding:0}
+.price li{display:flex;gap:9px;font-size:14px;padding:6px 0;color:var(--body);line-height:1.5}
+.price .btn{width:100%;margin-top:22px}
+
+/* ---------- faq ---------- */
+.faq{max-width:780px;margin:0 auto}
+details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:18px 20px;margin-bottom:10px}
+details[open]{border-color:var(--brand-pale)}
+summary{font:600 15.5px Inter,sans-serif;color:var(--ink);cursor:pointer;list-style:none;
+  display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--brand);font-size:20px;line-height:1;flex:none}
+details[open] summary::after{content:"\2212"}
+details p{margin-top:12px;font-size:14.5px;color:var(--muted);line-height:1.65}
+
+/* ---------- final cta ---------- */
+.final{background:linear-gradient(135deg,#312E81,#4F46E5 58%,#6366F1);
+  border-radius:var(--r-xl);padding:56px 40px;text-align:center;color:#fff}
+.final h2{color:#fff}
+.final p{color:#DDD6FE;margin:14px auto 0;max-width:52ch;font-size:17px}
+
+/* ---------- footer ---------- */
+footer{background:var(--dark);color:#94A3B8;padding:60px 0 32px;font-size:14px}
+.foot-grid{display:grid;grid-template-columns:1.6fr repeat(3,1fr);gap:34px}
+@media(max-width:820px){.foot-grid{grid-template-columns:1fr 1fr}}
+footer h4{color:#fff;font:700 12px Inter,sans-serif;letter-spacing:.1em;
+  text-transform:uppercase;margin:0 0 14px}
+footer ul{list-style:none;margin:0;padding:0}
+footer li{padding:5px 0}
+footer a:hover{color:#fff}
+.foot-bottom{border-top:1px solid #1E293B;margin-top:40px;padding-top:22px;
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:13px;color:#64748B}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="/">
+      <span class="logo-mark">É</span> Écrivain
+    </a>
+    <nav class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#agents">Editorial agents</a>
+      <a href="#research">Research</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-right">
+      <a href="https://app.ecrivain.ai/login" style="font-size:14.5px;font-weight:500">Sign in</a>
+      <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Start writing</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Writing studio + editorial review</p>
+      <h1>Write the book. Keep the receipts.</h1>
+      <p class="lede">
+        Écrivain is a writing studio for serious nonfiction. Seven editorial
+        agents review each chapter, a research library records what every
+        claim rests on, and consistency checking runs across the whole
+        manuscript — not one chapter at a time.
+      </p>
+
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg" href="https://app.ecrivain.ai/register">Start writing free</a>
+        <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+      </div>
+
+      <div class="trust">
+        <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Free plan, no card</span>
+        <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Your manuscript exports in one click</span>
+        <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Every AI edit is yours to accept</span>
+      </div>
+    </div>
+
+    <!-- A representation of the real panel: these are the severities, agent
+         names and finding shapes the product actually produces. -->
+    <div class="mock" role="img" aria-label="The AI Editor panel showing three findings on a chapter: an unsourced statistic, a repeated word, and a long sentence.">
+      <div class="mock-bar">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="mock-title">AI Editor — Chapter 1</span>
+      </div>
+      <div class="mock-body">
+        <div class="finding">
+          <span class="sev sev-crit"></span>
+          <div>
+            <h4>Statistic without a citation</h4>
+            <p>“Roughly 47 percent of new practices close within three years.”</p>
+            <p class="agent-tag">Fact Checker</p>
+          </div>
+        </div>
+        <div class="finding">
+          <span class="sev sev-warn"></span>
+          <div>
+            <h4>Mixed spelling: “organise” and “organized”</h4>
+            <p>Both appear in this chapter. Pick one for the book.</p>
+            <p class="agent-tag">Consistency Agent</p>
+          </div>
+        </div>
+        <div class="finding">
+          <span class="sev sev-note"></span>
+          <div>
+            <h4>Long sentence (47 words)</h4>
+            <p>Consider splitting after “without delay”.</p>
+            <p class="agent-tag">Line Editor</p>
+          </div>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <span>1 critical · 1 warning · 1 suggestion</span>
+        <span class="pill">Accept or dismiss — your call</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PROBLEM ================= -->
+<section style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Why this exists</p>
+      <h2>A long book breaks in the gaps between chapters</h2>
+      <p class="lede stack-sm">
+        Most tools check a page. Books fail across them — a name spelled two
+        ways in chapter 19, a statistic nobody can source by proof stage.
+      </p>
+    </div>
+
+    <div class="compare stack-lg">
+      <div class="card">
+        <h3>The usual setup</h3>
+        <ul>
+          <li><span class="x">✕</span> A word processor that checks grammar inside one paragraph</li>
+          <li><span class="x">✕</span> Sources in a folder, a browser tab, and your memory</li>
+          <li><span class="x">✕</span> “Which chapter did I define that in?”</li>
+          <li><span class="x">✕</span> An AI that rewrites your voice and calls it an improvement</li>
+          <li><span class="x">✕</span> Finding the unsourced claim after it is typeset</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color:var(--brand-pale)">
+        <h3>With Écrivain</h3>
+        <ul>
+          <li><span class="v">✓</span> Seven agents, each reviewing one dimension of the craft</li>
+          <li><span class="v">✓</span> A library where each source carries its own verification standing</li>
+          <li><span class="v">✓</span> Consistency checked across every chapter at once</li>
+          <li><span class="v">✓</span> Suggestions you accept or dismiss — nothing rewrites itself</li>
+          <li><span class="v">✓</span> Claims flagged as unsourced while you can still fix them</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= AGENTS ================= -->
+<section id="agents">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Editorial agents</p>
+      <h2>Seven readers, each with one job</h2>
+      <p class="lede stack-sm">
+        Run them on a chapter or the whole book. Every finding quotes your own
+        sentence, says which agent raised it, and waits for your decision.
+      </p>
+    </div>
+
+    <div class="grid g4 stack-lg">
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 12h10M4 19h7"/></svg></div>
+        <h3>Developmental</h3><p>Structure, pacing and argument at chapter level.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 18 6-12 6 12M7 14h6"/></svg></div>
+        <h3>Line Editor</h3><p>Clarity, rhythm and sentence-level craft.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 13 4 4L19 7"/></svg></div>
+        <h3>Copy Editor</h3><p>Grammar, punctuation and house style.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="M12 11v3"/></svg></div>
+        <h3>Fact Checker</h3><p>Claims that need a source before publication.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg></div>
+        <h3>Consistency</h3><p>Names, terms and facts that disagree across the book.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></div>
+        <h3>Subject Matter</h3><p>Domain accuracy and regulated language.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg></div>
+        <h3>Accessibility</h3><p>Readability, structure and inclusive language.</p></div>
+      <div class="card" style="background:var(--brand-tint);border-color:var(--brand-pale)">
+        <div class="ico" style="background:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18"/></svg></div>
+        <h3>Your own</h3><p>The model behind every agent is a configuration choice — Claude, Gemini or GPT.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RESEARCH (dark band) ================= -->
+<section id="research" class="band">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Research &amp; provenance</p>
+      <h2>Know what every claim rests on</h2>
+      <p class="lede stack-sm">
+        A bibliography that looks finished while resting on unchecked sources
+        is worse than one that is obviously unfinished. Écrivain refuses to
+        let the first happen quietly.
+      </p>
+    </div>
+
+    <div class="grid g3 stack-lg">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h10a1 1 0 0 1 1 1v15H6V5a1 1 0 0 1 1-1z"/><path d="M9 17h6"/></svg></div>
+        <h3>Sources carry a standing</h3>
+        <p>Every source is unverified until a person says otherwise. A disputed source cannot back a claim at all.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h8l5 5v13H6z"/><path d="M13 3v6h6M9 13h6M9 17h4"/></svg></div>
+        <h3>Claims are recorded, not inferred</h3>
+        <p>A citation stores the assertion in your words, so rewriting the sentence never changes what the source was held to support.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+        <h3>Drift is visible</h3>
+        <p>Edit the text a citation points at and it is flagged — rather than quietly pointing at a sentence you deleted.</p>
+      </div>
+    </div>
+
+    <div class="grid g2 stack-lg">
+      <div class="card">
+        <h3>Consistency across the whole book</h3>
+        <p class="stack-sm">
+          Declare that this book says “the Board”, not “the board” or “Board of
+          Directors”. The scan reads every chapter at once and tells you where
+          each variant appears — the failure a per-chapter pass structurally
+          cannot see.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Your vocabulary, not a guess</h3>
+        <p class="stack-sm">
+          Terms are declared by you, never inferred. Software that decides for
+          itself which spelling is canonical will eventually “correct” a
+          deliberate one — and in a book about language, that is not a small
+          mistake.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section id="how" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">How it works</p>
+      <h2>From a draft to a reviewed manuscript</h2>
+    </div>
+
+    <div class="grid g4 stack-lg">
+      <div class="card"><div class="step-n">1</div>
+        <h3>Bring your draft</h3>
+        <p>Import a Markdown manuscript and it splits into chapters. Anything the importer cannot carry is reported, never dropped silently.</p></div>
+      <div class="card"><div class="step-n">2</div>
+        <h3>Write</h3>
+        <p>A clean editor with your chapters beside it. Every save is versioned, and any version can be restored.</p></div>
+      <div class="card"><div class="step-n">3</div>
+        <h3>Review</h3>
+        <p>Run one agent or all seven. Findings quote your sentence and point at the exact passage.</p></div>
+      <div class="card"><div class="step-n">4</div>
+        <h3>Decide</h3>
+        <p>Accept a fix or dismiss it. An accepted edit travels through the same versioned, reversible save as anything you type.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHAT'S READY ================= -->
+<section>
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Honest status</p>
+      <h2>What works today, and what is coming</h2>
+      <p class="lede stack-sm">
+        Écrivain is early. Rather than list a roadmap as though it had shipped,
+        here is exactly where the line falls.
+      </p>
+    </div>
+
+    <div class="grid g2 stack-lg">
+      <div class="card">
+        <span class="chip chip-now">Available now</span>
+        <ul style="list-style:none;padding:0;margin:16px 0 0">
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px"><span class="v">✓</span> Chapter editor with versioning and restore</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px"><span class="v">✓</span> Seven editorial agents with accept / dismiss</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px"><span class="v">✓</span> Research library with source verification</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px"><span class="v">✓</span> Citation provenance and drift detection</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px"><span class="v">✓</span> Cross-chapter consistency checking</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px"><span class="v">✓</span> Markdown import and export, round-trip tested</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="chip chip-soon">In development</span>
+        <ul style="list-style:none;padding:0;margin:16px 0 0">
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px;color:var(--muted)"><span style="color:var(--faint)">○</span> Print-ready PDF, EPUB 3 and DOCX export</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px;color:var(--muted)"><span style="color:var(--faint)">○</span> Design, layout and cover studio</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px;color:var(--muted)"><span style="color:var(--faint)">○</span> Comments, suggestions and co-authoring</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px;color:var(--muted)"><span style="color:var(--faint)">○</span> Publishing and store distribution</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px;color:var(--muted)"><span style="color:var(--faint)">○</span> Audiobook narration</li>
+          <li style="display:flex;gap:10px;padding:7px 0;font-size:14.5px;color:var(--muted)"><span style="color:var(--faint)">○</span> Sales and analytics</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRICING ================= -->
+<section id="pricing" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Pricing</p>
+      <h2>Start free. Pay when it earns it.</h2>
+      <p class="lede stack-sm">
+        AI reviews use credits. Every plan includes a monthly allowance, and a
+        failed review is refunded automatically.
+      </p>
+    </div>
+
+    <div class="prices stack-lg">
+      <div class="price">
+        <h3>Free</h3>
+        <p style="font-size:14px;color:var(--muted);margin:6px 0 18px">For a first manuscript.</p>
+        <div><span class="amount">$0</span> <span class="per">/month</span></div>
+        <ul>
+          <li><span class="v">✓</span> 1 book</li>
+          <li><span class="v">✓</span> 100 AI credits a month</li>
+          <li><span class="v">✓</span> All seven editorial agents</li>
+          <li><span class="v">✓</span> Research library and citations</li>
+          <li><span class="v">✓</span> Markdown import and export</li>
+        </ul>
+        <a class="btn btn-ghost" href="https://app.ecrivain.ai/register">Start writing</a>
+      </div>
+
+      <div class="price featured">
+        <span class="badge">Most popular</span>
+        <h3>Author</h3>
+        <p style="font-size:14px;color:#94A3B8;margin:6px 0 18px">For the book you intend to finish.</p>
+        <div><span class="amount">$19</span> <span class="per" style="color:#94A3B8">/month</span></div>
+        <ul>
+          <li><span class="v">✓</span> 10 books</li>
+          <li><span class="v">✓</span> 1,000 AI credits a month</li>
+          <li><span class="v">✓</span> Up to 5 collaborators</li>
+          <li><span class="v">✓</span> Full version history</li>
+          <li><span class="v">✓</span> Export formats as they ship</li>
+        </ul>
+        <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Start free trial</a>
+      </div>
+
+      <div class="price">
+        <h3>Studio</h3>
+        <p style="font-size:14px;color:var(--muted);margin:6px 0 18px">For a list, not a title.</p>
+        <div><span class="amount">$79</span> <span class="per">/month</span></div>
+        <ul>
+          <li><span class="v">✓</span> Unlimited books</li>
+          <li><span class="v">✓</span> 5,000 AI credits a month</li>
+          <li><span class="v">✓</span> Unlimited collaborators</li>
+          <li><span class="v">✓</span> Every export format</li>
+          <li><span class="v">✓</span> Priority support</li>
+        </ul>
+        <a class="btn btn-ghost" href="https://app.ecrivain.ai/register">Start free trial</a>
+      </div>
+    </div>
+
+    <p class="center stack" style="font-size:13.5px;color:var(--faint)">
+      Credit packs available on any paid plan. Prices are introductory and may
+      change as real model costs settle — anyone who has subscribed keeps their
+      rate.
+    </p>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section id="faq">
+  <div class="wrap">
+    <div class="center"><p class="eyebrow">Questions</p><h2>Frequently asked</h2></div>
+
+    <div class="faq stack-lg">
+      <details open>
+        <summary>Does the AI rewrite my book?</summary>
+        <p>No. Every finding is a suggestion you accept or dismiss. An accepted edit travels through the same versioned, reversible save as anything you type by hand, so it is never permanent and never silent.</p>
+      </details>
+      <details>
+        <summary>Which AI model do you use?</summary>
+        <p>The provider is a configuration choice — Claude, Google Vertex or OpenAI — and can be swapped without changing anything else. Reviews on the free plan currently run local heuristics: long sentences, passive voice, unsourced figures, mixed spelling. Those find real problems but cannot assess an argument, and the product says so where the findings appear rather than burying it here.</p>
+      </details>
+      <details>
+        <summary>Can I get my manuscript out?</summary>
+        <p>Yes, at any time, as Markdown — and the round-trip is tested, not asserted: a manuscript is imported, exported and compared byte for byte in the test suite. PDF, EPUB and DOCX are in development.</p>
+      </details>
+      <details>
+        <summary>Is my unpublished manuscript used to train anything?</summary>
+        <p>No. Your text is sent to the configured review provider only when you run a review, and only the chapter being reviewed. Fonts and assets are self-hosted, so loading the studio does not tell a third party what you are writing.</p>
+      </details>
+      <details>
+        <summary>What happens if a review fails?</summary>
+        <p>The credits are refunded automatically, and the failure is recorded as a failure. A review that silently produced nothing would be indistinguishable from a clean chapter, which is the worst possible reading.</p>
+      </details>
+      <details>
+        <summary>What is a credit worth?</summary>
+        <p>A single-agent run is 5 credits, a chapter review 10, a whole-book review 40. Pricing is introductory while real model costs settle.</p>
+      </details>
+      <details>
+        <summary>Can I use it for fiction?</summary>
+        <p>You can, and the line, copy and consistency agents work on any prose. The fact-checking and citation tooling is built for nonfiction, so that part will sit unused.</p>
+      </details>
+      <details>
+        <summary>Is it finished?</summary>
+        <p>No, and the site above says exactly which parts are not. Writing, review, research and consistency work today; export, design, collaboration and publishing are in development.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINAL CTA ================= -->
+<section>
+  <div class="wrap">
+    <div class="final">
+      <h2>Your next chapter, with a second reader</h2>
+      <p>Start free. One book, a hundred credits a month, and all seven agents.</p>
+      <div class="cta-row" style="justify-content:center;margin-top:28px">
+        <a class="btn btn-lg" style="background:#fff;color:var(--brand-deep)" href="https://app.ecrivain.ai/register">Start writing free</a>
+        <a class="btn btn-dark btn-lg" href="mailto:hello@ecrivain.ai">Talk to us</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="logo" href="/" style="color:#fff"><span class="logo-mark">É</span> Écrivain</a>
+        <p style="margin-top:14px;max-width:34ch;font-size:14px;line-height:1.6">
+          A writing studio for people who intend to be read closely.
+        </p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#agents">Editorial agents</a></li>
+          <li><a href="#research">Research &amp; citations</a></li>
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Account</h4>
+        <ul>
+          <li><a href="https://app.ecrivain.ai/login">Sign in</a></li>
+          <li><a href="https://app.ecrivain.ai/register">Create an account</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="mailto:hello@ecrivain.ai">Contact</a></li>
+          <li><a href="/privacy.html">Privacy</a></li>
+          <li><a href="/terms.html">Terms</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="foot-bottom">
+      <span>© <span id="yr">2026</span> Écrivain. All rights reserved.</span>
+      <span>Your manuscript is yours. Export it any time.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
