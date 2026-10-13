@@ -10,3 +10,7 @@
 /api/.phpunit.result.cache
 /api/database/*.sqlite
 .DS_Store
+
+# Wrangler's local cache holds account identifiers and deploy state. It is
+# machine-local and this repository is public.
+.wrangler/

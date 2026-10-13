@@ -1,5 +1,0 @@
-# Tells Railpack this directory is a static site served as-is.
-# No build step: the page is one hand-written HTML file with inline CSS, which
-# is the right shape for a marketing page that must load fast and has no app
-# state to manage.
-root: .

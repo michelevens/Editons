@@ -1,0 +1,23 @@
+name = "ecrivain-edge"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# custom_domain = true is the Workers mechanism for owning a hostname:
+# Cloudflare creates and manages the DNS record itself, which is how these
+# three names get pointed without touching the DNS API directly.
+[[routes]]
+pattern = "ecrivain.ai"
+custom_domain = true
+
+[[routes]]
+pattern = "app.ecrivain.ai"
+custom_domain = true
+
+[[routes]]
+pattern = "api.ecrivain.ai"
+custom_domain = true
+
+[vars]
+WWW_ORIGIN = "ecrivain-www-production.up.railway.app"
+APP_ORIGIN = "ecrivain-app-production.up.railway.app"
+API_ORIGIN = "ecrivain-api-production.up.railway.app"
