@@ -152,3 +152,38 @@ it('keeps the cookie name independent of the application name', function () {
     expect($derived)->toBe('ecrivain-api-session')
         ->and($derived)->not->toBe(config('session.cookie'));
 })->skip(fn () => config('session.cookie') === 'ecrivain-api-session');
+
+it('generates asset and route urls from APP_URL, not the request host', function () {
+    // Found in production as a blank page behind a 200. Two proxies sit in
+    // front of the app and Railway's edge overwrites X-Forwarded-Host with
+    // its own hostname, so Laravel built every asset, Ziggy and redirect URL
+    // against *.up.railway.app while the browser was on app.ecrivain.ai.
+    // The HTML arrived, the script URLs were cross-origin, and React never
+    // mounted.
+    config(['app.url' => 'https://app.ecrivain.ai']);
+
+    // Re-run the provider so this exercises the real boot code rather than a
+    // half-reproduction of it — the https part is what the first version of
+    // this test got wrong.
+    (new App\Providers\AppServiceProvider($this->app))->boot();
+
+    // A request arriving with the WRONG host must not change what is built.
+    $response = $this->get('/up', ['X-Forwarded-Host' => 'wrong-host.up.railway.app']);
+
+    $response->assertOk();
+
+    expect(url('/login'))->toStartWith('https://app.ecrivain.ai')
+        ->and(url('/login'))->not->toContain('railway.app');
+});
+
+it('serves the welcome page with same-origin assets', function () {
+    // The page that was blank. Asserting it renders is not enough — it did
+    // render. What matters is that the asset URLs are usable from the host
+    // the browser is on.
+    config(['app.url' => 'https://app.ecrivain.ai']);
+    (new App\Providers\AppServiceProvider($this->app))->boot();
+
+    $html = $this->get('/')->assertOk()->getContent();
+
+    expect($html)->not->toContain('up.railway.app');
+});
