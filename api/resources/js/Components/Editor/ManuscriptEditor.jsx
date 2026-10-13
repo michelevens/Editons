@@ -1,5 +1,6 @@
-import StarterKit from '@tiptap/starter-kit';
+import Icon from '@/Components/Studio/Icon';
 import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -119,9 +120,9 @@ export default function ManuscriptEditor({ section, onSaved }) {
 
     if (!section) {
         return (
-            <div className="flex h-full items-center justify-center p-12 text-center">
-                <p className="text-sm text-slate-500">
-                    Select a chapter from the binder to start writing.
+            <div className="grid h-full place-items-center p-12 text-center">
+                <p className="text-[12.5px] text-text-secondary">
+                    Select a chapter from the outline to start writing.
                 </p>
             </div>
         );
@@ -131,24 +132,29 @@ export default function ManuscriptEditor({ section, onSaved }) {
 
     return (
         <div className="flex h-full flex-col">
+            {/* Chapter header, h48 per the handoff: title, live word count,
+                save state. */}
+            <header className="flex h-[48px] shrink-0 items-center gap-3 border-b border-border-divider px-[21px]">
+                <h2 className="truncate text-[14px] font-semibold text-text-primary">
+                    {section.title}
+                </h2>
+                <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary">
+                    {wordCount.toLocaleString()} words
+                </span>
+                <SaveStatus status={status} />
+            </header>
+
             <Toolbar editor={editor} />
 
-            <div className="flex-1 overflow-y-auto bg-white px-8 py-6">
-                <h1 className="mb-1 font-serif text-3xl font-bold text-slate-900">
-                    {section.title}
-                </h1>
-                {section.subtitle && (
-                    <p className="mb-6 text-slate-600">{section.subtitle}</p>
-                )}
+            <div className="flex-1 overflow-y-auto px-[21px] pb-10 pt-[30px]">
                 <EditorContent editor={editor} />
             </div>
 
-            <footer className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-2 text-xs text-slate-500">
-                <span>
-                    {wordCount.toLocaleString()} words · reading time{' '}
-                    {readingMinutes} min
+            <footer className="flex h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-[21px] text-[11px] text-text-secondary">
+                <span>Reading time ~{readingMinutes} min</span>
+                <span className="tabular-nums">
+                    {wordCount.toLocaleString()} words
                 </span>
-                <SaveStatus status={status} />
             </footer>
         </div>
     );
@@ -156,50 +162,99 @@ export default function ManuscriptEditor({ section, onSaved }) {
 
 function SaveStatus({ status }) {
     const map = {
-        idle: ['text-slate-400', 'Ready'],
-        dirty: ['text-amber-600', 'Unsaved changes'],
-        saving: ['text-slate-500', 'Saving…'],
-        saved: ['text-emerald-600', 'Saved'],
-        error: ['text-red-600', 'Not saved — check your connection'],
+        idle: ['text-text-secondary', 'Ready', false],
+        dirty: ['text-status-warning', 'Unsaved changes', false],
+        saving: ['text-text-secondary', 'Saving…', false],
+        saved: ['text-status-success', 'Saved', true],
+        error: ['text-status-danger', 'Not saved — check your connection', false],
     };
-    const [cls, label] = map[status] ?? map.idle;
+    const [cls, label, showCheck] = map[status] ?? map.idle;
 
     return (
-        <span className={`font-semibold ${cls}`} role="status">
+        <span
+            className={`flex shrink-0 items-center gap-1 text-[11.5px] font-medium ${cls}`}
+            role="status"
+        >
+            {showCheck && <Icon name="savedc" size={14} strokeWidth={2} />}
             {label}
         </span>
     );
 }
 
 /**
- * Formatting controls.
+ * Formatting controls, h47 per the handoff.
  *
- * Only the marks StarterKit actually provides. The screenshot shows links,
- * images, tables and code blocks too; those need extensions that are not
- * installed, and a button that does nothing is worse than an absent one.
+ * Only the commands StarterKit actually provides. The mockup also shows link,
+ * image and table buttons; those need extensions that are not installed, and a
+ * button that does nothing is worse than an absent one.
  */
 function Toolbar({ editor }) {
     if (!editor) return null;
 
-    const Btn = ({ onClick, active, title, children }) => (
+    const block = editor.isActive('heading', { level: 1 })
+        ? 'h1'
+        : editor.isActive('heading', { level: 2 })
+          ? 'h2'
+          : editor.isActive('heading', { level: 3 })
+            ? 'h3'
+            : editor.isActive('blockquote')
+              ? 'quote'
+              : 'p';
+
+    const setBlock = (value) => {
+        const chain = editor.chain().focus();
+
+        if (value === 'p') return chain.setParagraph().run();
+        if (value === 'quote') return chain.toggleBlockquote().run();
+
+        return chain
+            .toggleHeading({ level: Number(value.replace('h', '')) })
+            .run();
+    };
+
+    const Btn = ({ onClick, active, title, label, children }) => (
         <button
             type="button"
             title={title}
+            aria-label={title}
+            aria-pressed={active}
+            data-a={`toolbar:${label}`}
             onClick={onClick}
-            className={`h-8 min-w-8 rounded px-2 text-sm font-semibold transition ${
+            className={`grid h-[28px] min-w-[28px] place-items-center rounded-button px-1.5 text-[13px] transition ${
                 active
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    ? 'bg-brand-primary-subtle text-brand-primary'
+                    : 'text-text-body hover:bg-bg-subtle'
             }`}
         >
             {children}
         </button>
     );
 
+    const Divider = () => (
+        <span className="mx-1 h-[18px] w-px shrink-0 bg-border-default" />
+    );
+
     return (
-        <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-white px-4 py-2">
+        <div className="flex h-[47px] shrink-0 flex-wrap items-center gap-0.5 border-b border-border-divider px-[21px]">
+            <select
+                value={block}
+                onChange={(event) => setBlock(event.target.value)}
+                data-a="toolbar:block"
+                aria-label="Block type"
+                className="mr-1 h-[28px] rounded-control border border-border-input bg-bg-surface py-0 pl-2 pr-7 text-[12px] text-text-body focus:border-brand-primary focus:ring-0"
+            >
+                <option value="p">Paragraph</option>
+                <option value="h1">Heading 1</option>
+                <option value="h2">Heading 2</option>
+                <option value="h3">Heading 3</option>
+                <option value="quote">Quote</option>
+            </select>
+
+            <Divider />
+
             <Btn
                 title="Bold"
+                label="bold"
                 active={editor.isActive('bold')}
                 onClick={() => editor.chain().focus().toggleBold().run()}
             >
@@ -207,25 +262,28 @@ function Toolbar({ editor }) {
             </Btn>
             <Btn
                 title="Italic"
+                label="italic"
                 active={editor.isActive('italic')}
                 onClick={() => editor.chain().focus().toggleItalic().run()}
             >
-                <em>I</em>
+                <em className="font-serif">I</em>
             </Btn>
             <Btn
                 title="Strikethrough"
+                label="strike"
                 active={editor.isActive('strike')}
                 onClick={() => editor.chain().focus().toggleStrike().run()}
             >
                 <s>S</s>
             </Btn>
 
-            <span className="mx-1 h-5 w-px bg-slate-200" />
+            <Divider />
 
             {[1, 2, 3].map((level) => (
                 <Btn
                     key={level}
                     title={`Heading ${level}`}
+                    label={`h${level}`}
                     active={editor.isActive('heading', { level })}
                     onClick={() =>
                         editor.chain().focus().toggleHeading({ level }).run()
@@ -235,37 +293,56 @@ function Toolbar({ editor }) {
                 </Btn>
             ))}
 
-            <span className="mx-1 h-5 w-px bg-slate-200" />
+            <Divider />
 
             <Btn
                 title="Bullet list"
+                label="ul"
                 active={editor.isActive('bulletList')}
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
             >
-                ••
+                <Icon name="ul" size={16} />
             </Btn>
             <Btn
                 title="Numbered list"
+                label="ol"
                 active={editor.isActive('orderedList')}
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
             >
-                1.
+                <Icon name="ol" size={16} />
             </Btn>
             <Btn
                 title="Quote"
+                label="quote"
                 active={editor.isActive('blockquote')}
                 onClick={() => editor.chain().focus().toggleBlockquote().run()}
             >
-                ❝
+                <Icon name="cite" size={16} />
+            </Btn>
+            <Btn
+                title="Code block"
+                label="code"
+                active={editor.isActive('codeBlock')}
+                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            >
+                <Icon name="code" size={16} />
             </Btn>
 
-            <span className="mx-1 h-5 w-px bg-slate-200" />
+            <Divider />
 
-            <Btn title="Undo" onClick={() => editor.chain().focus().undo().run()}>
-                ↶
+            <Btn
+                title="Undo"
+                label="undo"
+                onClick={() => editor.chain().focus().undo().run()}
+            >
+                <Icon name="left" size={15} />
             </Btn>
-            <Btn title="Redo" onClick={() => editor.chain().focus().redo().run()}>
-                ↷
+            <Btn
+                title="Redo"
+                label="redo"
+                onClick={() => editor.chain().focus().redo().run()}
+            >
+                <Icon name="right" size={15} />
             </Btn>
         </div>
     );

@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
  * presence of a source. A library that displayed unchecked sources the same
  * way as checked ones would undo the reason the distinction is stored.
  */
-export default function ResearchLibrary({ bookId }) {
+export default function ResearchLibrary({ bookId, onChanged }) {
     const [sources, setSources] = useState([]);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
@@ -32,6 +32,7 @@ export default function ResearchLibrary({ bookId }) {
             verification,
         });
         setSources(res.data.sources);
+        onChanged?.();
     };
 
     const remove = async (source) => {
@@ -43,6 +44,7 @@ export default function ResearchLibrary({ bookId }) {
 
         const res = await window.axios.delete(`/sources/${source.id}`);
         setSources(res.data.sources);
+        onChanged?.();
     };
 
     return (
@@ -72,6 +74,7 @@ export default function ResearchLibrary({ bookId }) {
                         setSources(rows);
                         setAdding(false);
                         setError(null);
+                        onChanged?.();
                     }}
                     onError={setError}
                 />

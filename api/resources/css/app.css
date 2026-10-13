@@ -3,6 +3,10 @@
    CSS via @theme, which is why that file was removed. */
 @import 'tailwindcss';
 
+/* Design tokens from the handoff package. Generated — see
+   scripts/build-tokens.py. */
+@import './tokens.css';
+
 /* Scan Blade and JS for class names. v4 infers most sources, but Laravel's
    layout lives outside the default heuristics. */
 @source '../views';
@@ -12,3 +16,102 @@
    and `prose` is what makes a chapter read like a book page rather than
    unstyled markup. */
 @plugin '@tailwindcss/typography';
+
+/* Fonts, self-hosted rather than fetched from Google.
+   This app holds unpublished manuscripts; a per-page request to a third party
+   is a leak of who is writing what, and it is avoidable. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/source-serif-4/400.css';
+@import '@fontsource/source-serif-4/600.css';
+@import '@fontsource/source-serif-4/700.css';
+
+/* The manuscript canvas.
+   Type scale from tokens.json: H1 31/38, H2 21.5/28, body 17/24. These are
+   the page, not the UI, so they are set in px exactly as the handoff gives
+   them rather than being rounded into a utility scale. */
+.manuscript .ProseMirror {
+    font-family: var(--font-manuscript);
+    color: var(--color-text-body);
+    font-size: 17px;
+    line-height: 24px;
+    outline: none;
+}
+
+.manuscript .ProseMirror > * + * {
+    margin-top: 1em;
+}
+
+.manuscript .ProseMirror h1 {
+    font-size: 31px;
+    line-height: 38px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-top: 0;
+}
+
+.manuscript .ProseMirror h2 {
+    font-size: 21.5px;
+    line-height: 28px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-top: 1.4em;
+}
+
+.manuscript .ProseMirror h3 {
+    font-size: 18px;
+    line-height: 25px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.manuscript .ProseMirror blockquote {
+    border-left: 3px solid var(--color-border-default);
+    padding-left: 14px;
+    color: var(--color-text-secondary);
+}
+
+.manuscript .ProseMirror ul,
+.manuscript .ProseMirror ol {
+    padding-left: 1.4em;
+}
+
+.manuscript .ProseMirror ul { list-style: disc; }
+.manuscript .ProseMirror ol { list-style: decimal; }
+
+.manuscript .ProseMirror pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13.5px;
+    background: var(--color-bg-subtle);
+    border-radius: var(--radius-control);
+    padding: 12px 14px;
+    overflow-x: auto;
+}
+
+/* Empty-document placeholder. Without this an empty chapter is an invisible
+   click target and looks broken. */
+.manuscript .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: var(--color-text-secondary);
+    float: left;
+    height: 0;
+    pointer-events: none;
+}
+
+/* An AI suggestion anchored in the text. */
+.manuscript .ProseMirror .ai-mark {
+    background: var(--color-highlight-ai-bg);
+    border-bottom: 1.5px solid var(--color-highlight-ai-underline);
+    cursor: pointer;
+}
+
+/* Key Takeaway callout. */
+.manuscript .ProseMirror .callout {
+    background: var(--color-callout-bg);
+    border: 1px solid var(--color-callout-border);
+    border-radius: var(--radius-tile);
+    padding: 14px 16px;
+    max-width: 400px;
+}

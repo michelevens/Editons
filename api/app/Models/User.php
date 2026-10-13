@@ -10,13 +10,45 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Cashier\Billable;
 
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use Billable, HasFactory, Notifiable;
+
+    /** The plan's configured limits, falling back to free if it is unknown. */
+    public function planLimits(): array
+    {
+        return config("billing.plans.{$this->plan}")
+            ?? config('billing.plans.free');
+    }
+
+    /**
+     * May this account create another book?
+     *
+     * Enforced on the server. The prototype gates limits client-side, which
+     * tells an honest user what to expect but stops nobody.
+     */
+    public function canCreateBook(): bool
+    {
+        $limit = $this->planLimits()['books'];
+
+        return $limit === null || $this->books()->count() < $limit;
+    }
+
+    public function canExportFormat(string $format): bool
+    {
+        return in_array($format, $this->planLimits()['formats'], true);
+    }
+
+    /** The credit ledger. The balance is the sum of these rows. */
+    public function creditTransactions(): HasMany
+    {
+        return $this->hasMany(CreditTransaction::class);
+    }
 
     /**
      * Get the attributes that should be cast.

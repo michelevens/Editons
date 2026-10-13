@@ -21,6 +21,25 @@ class AppServiceProvider extends ServiceProvider
             $class = config("editorial.drivers.{$driver}")
                 ?? throw new \InvalidArgumentException("Unknown editorial driver [{$driver}].");
 
+            if ($driver === 'anthropic') {
+                $key = config('editorial.anthropic.key');
+
+                // Fail here rather than at the first review. A driver that
+                // silently falls back to heuristics would have the product
+                // claiming AI review while running regex, which is the one
+                // failure the whole seam exists to prevent.
+                throw_unless($key, \InvalidArgumentException::class,
+                    'EDITORIAL_DRIVER=anthropic but ANTHROPIC_API_KEY is not set.');
+
+                return new $class(
+                    apiKey: $key,
+                    model: config('editorial.anthropic.model'),
+                    maxTokens: config('editorial.anthropic.max_tokens'),
+                    timeout: config('editorial.anthropic.timeout'),
+                    maxCharacters: config('editorial.anthropic.max_characters'),
+                );
+            }
+
             return $app->make($class);
         });
 

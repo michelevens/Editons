@@ -92,6 +92,19 @@ class BookController extends Controller
             // The panel renders whatever agents exist, so adding one is a
             // single enum case rather than an edit in two languages.
             'agents' => EditorialAgent::catalogue(),
+            // The bottom-row Research card needs the library on first paint;
+            // fetching it after mount would flash an empty card on every
+            // chapter change.
+            'sources' => $book->sources()
+                ->orderBy('title')
+                ->get()
+                ->map(fn ($s) => [
+                    'id' => $s->id,
+                    'kind' => $s->kind,
+                    'title' => $s->title,
+                    'published' => $s->published,
+                    'verification' => $s->verification,
+                ]),
             'binder' => $book->rootSections->map(fn ($s) => $this->binderNode($s)),
             'activeSection' => $active ? [
                 'id' => $active->id,

@@ -145,3 +145,79 @@ engine behind them is exactly that — and worse than an empty space, because
 it implies a capability that does not exist.
 
 **Revisit at** Milestone 2, which is where editorial review belongs.
+
+---
+
+## ADR-0008 — Laravel is kept over the handoff's TypeScript default
+
+**Decision.** `publishing-studio-handoff/` specifies Vite + React + TypeScript,
+and `CLAUDE-NEXT.md` defaults to TypeScript end to end with Prisma and BullMQ.
+This repository stays on Laravel + Postgres. The handoff's React component
+spec, layout grid, tokens and interaction table still apply in full.
+
+**Why.** Both handoff documents defer explicitly: "pick one and record it in
+CLAUDE.md", and "change only if the target repo dictates otherwise". The
+repository dictates otherwise, and the owner confirmed it. The backend being
+rewritten would discard the editorial driver seam, the versioned write path,
+the provenance and citation integrity constraints, and the test suite that
+holds them — none of which the handoff asks to change.
+
+**What this costs.** The handoff's job-queue advice names BullMQ and its
+storage advice names Prisma; those map to Laravel's queue and Eloquent rather
+than being adopted. Where it names a behaviour rather than a library — atomic
+debit, refund on failure, progress to the UI — the behaviour is implemented
+as specified.
+
+---
+
+## ADR-0009 — Anthropic is a driver, not a replacement
+
+**Decision.** `AnthropicDriver` implements the same `EditorialDriver`
+interface as `FakeDriver`. `EDITORIAL_DRIVER` selects between them. The fake
+remains the default.
+
+**Why.** A fresh clone, and the whole test suite, must work without an API key
+and without spending money. Making the real provider the default would mean
+every contributor needs credentials to run the tests, and every test run bills
+someone.
+
+**The boundary that matters.** The manuscript is sent as a document block the
+system prompt frames as untrusted content to be reviewed, never obeyed. The
+findings tool constrains output to a schema rather than asking for JSON in
+prose. Findings whose excerpt is not present in the chapter character for
+character are discarded: an anchor that cannot be located makes "Show in text"
+fail and reports itself stale the moment it is stored.
+
+**What it does not do.** Fall back to heuristics when the key is missing. The
+binding throws at resolution instead, because a product silently claiming AI
+review while running regex is the one failure the seam exists to prevent.
+
+---
+
+## ADR-0010 — Credits are a ledger, not a balance column
+
+**Decision.** `credit_transactions` is append-only and signed. The balance is
+`SUM(amount)`. There is no `credits` integer on `users`.
+
+**Why.** A mutable balance answers "how many are left" and nothing else. It
+cannot explain a charge, cannot be audited after a dispute, and cannot be
+rebuilt if a refund is missed. Summing rows costs one aggregate per read and
+buys the property that matters: the balance and its explanation are the same
+data, so they cannot disagree.
+
+**Enforced in the database, not the application.** A spend must be negative
+and a grant positive; a refund must name the spend it reverses; one refund per
+spend. A sign error would silently hand out credits, and the ledger is the only
+record of what anyone is owed. Stripe's invoice ID is unique on the row, so a
+replayed webhook grants once.
+
+**Concurrency.** `spend()` locks the user row before checking the balance.
+Without it two simultaneous reviews both read the same balance, both decide it
+is sufficient, and both debit.
+
+---
+
+## ADR-0007 is superseded
+
+The AI panel described in ADR-0007 was built in Milestone 2. The reasoning
+stands as written — it was not built until there was an engine behind it.

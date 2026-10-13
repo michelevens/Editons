@@ -1,0 +1,81 @@
+{
+  "user": { "initials": "AS", "avatar": "assets/avatar.png" },
+  "book": {
+    "id": "book_1",
+    "title": "Building an Independent Practice",
+    "subtitle": "A Step-by-Step Guide for Healthcare Professionals",
+    "genre": "Nonfiction",
+    "wordCount": 82450,
+    "status": "draft",
+    "trim": "Paperback 6 x 9 in",
+    "thumbnail": "assets/book-thumb.png"
+  },
+  "outline": [
+    { "type": "item", "id": "fm", "title": "Front Matter", "indent": 0 },
+    { "type": "item", "id": "intro", "title": "Introduction", "indent": 0 },
+    { "type": "part", "id": "p1", "title": "Part I: Laying the Foundation", "children": [
+      { "id": "c1", "number": 1, "title": "The Professional Opportunity", "wordCount": 2450 },
+      { "id": "c2", "number": 2, "title": "Defining Your Services" },
+      { "id": "c3", "number": 3, "title": "Legal and Regulatory Considerations" },
+      { "id": "c4", "number": 4, "title": "Business Models and Revenue" },
+      { "id": "c5", "number": 5, "title": "Creating a Business Plan" }
+    ]},
+    { "type": "part", "id": "p2", "title": "Part II: Building Your Practice", "children": [
+      { "id": "c6", "number": 6, "title": "Operations and Systems" },
+      { "id": "c7", "number": 7, "title": "Marketing and Client Acquisition" },
+      { "id": "c8", "number": 8, "title": "Financial Management" },
+      { "id": "c9", "number": 9, "title": "Technology and Tools" },
+      { "id": "c10", "number": 10, "title": "Building Your Team" }
+    ]},
+    { "type": "part", "id": "p3", "title": "Part III: Growth and Sustainability", "children": [
+      { "id": "c11", "number": 11, "title": "Quality and Outcomes" },
+      { "id": "c12", "number": 12, "title": "Scaling Your Practice" },
+      { "id": "c13", "number": 13, "title": "Avoiding Common Pitfalls" },
+      { "id": "c14", "number": 14, "title": "Future Opportunities" }
+    ]},
+    { "type": "section", "id": "back", "title": "Back Matter", "children": [
+      { "id": "bm1", "title": "Conclusion" },
+      { "id": "bm2", "title": "Appendices" },
+      { "id": "bm3", "title": "References" },
+      { "id": "bm4", "title": "Index" },
+      { "id": "bm5", "title": "About the Author" }
+    ]}
+  ],
+  "chapterContent": {
+    "c1": [
+      { "type": "h1", "text": "1. The Professional Opportunity" },
+      { "type": "h2", "text": "1.1 A Changing Healthcare Landscape" },
+      { "type": "p", "text": "The demand for high-quality, accessible professional services has never been greater. As healthcare systems evolve and communities seek more personalized care, independent practitioners are uniquely positioned to fill critical gaps in service delivery." },
+      { "type": "p", "text": "Establishing a successful professional practice requires a clear understanding of the opportunities, challenges, and responsibilities involved. This chapter explores the current landscape, key trends, and the factors that make this an ideal time to consider independent practice." },
+      { "type": "callout", "variant": "keyTakeaway", "title": "Key Takeaway", "text": "Independent practice offers greater autonomy, the opportunity to align your values with your work, and the potential for long-term financial sustainability when approached with a clear strategy." },
+      { "type": "h2", "text": "1.2 Market Demand and Opportunities" },
+      { "type": "p", "text": "Several factors are driving increased demand for independent practitioners, including demographic changes, increased awareness of specialized services, and growing interest in personalized care." }
+    ]
+  },
+  "suggestions": [
+    { "id": "s1", "chapterId": "c1", "agent": "line-editor", "label": "Improve clarity", "anchorText": "independent practitioners are uniquely positioned", "message": "Consider specifying the type of practitioners or services to make this more precise.", "status": "open" }
+  ],
+  "editorialOverview": { "claimsToVerify": 2, "styleSuggestions": 5, "potentialRepetition": 1, "criticalIssues": 0 },
+  "agents": [
+    { "id": "developmental-editor", "name": "Developmental Editor", "summary": "Chapter structure looks strong.", "tone": "danger", "status": "ok", "count": 0 },
+    { "id": "fact-checker", "name": "Fact Checker", "summary": "2 claims need verification.", "tone": "warning", "status": "issues", "count": 2, "badgeTone": "danger" },
+    { "id": "line-editor", "name": "Line Editor", "summary": "5 suggestions for clarity.", "tone": "info", "status": "issues", "count": 5, "badgeTone": "info" },
+    { "id": "copy-editor", "name": "Copy Editor", "summary": "Minor grammar and style updates.", "tone": "success", "status": "issues", "count": 3, "badgeTone": "info" },
+    { "id": "consistency", "name": "Consistency Agent", "summary": "No conflicts detected.", "tone": "warning", "status": "ok", "count": 0 },
+    { "id": "subject-matter", "name": "Subject Matter Review", "summary": "Review regulatory references.", "tone": "danger", "status": "issues", "count": 1, "badgeTone": "warning" },
+    { "id": "accessibility", "name": "Accessibility Check", "summary": "Good structure and readability.", "tone": "success", "status": "ok", "count": 0 }
+  ],
+  "research": [
+    { "id": "r1", "type": "pdf", "title": "Small Practice Success Study", "source": null, "year": 2024, "size": "2.4 MB" },
+    { "id": "r2", "type": "web", "title": "Healthcare Access Trends", "source": "WHO", "year": 2024, "size": null },
+    { "id": "r3", "type": "pdf", "title": "Business Planning for Clinicians", "source": null, "year": 2023, "size": "1.8 MB" }
+  ],
+  "exportFormats": [
+    { "id": "pdf-print", "name": "Print-ready PDF", "description": "For KDP, IngramSpark, etc.", "tone": "file.pdf" },
+    { "id": "epub3", "name": "EPUB 3", "description": "For eBooks and digital stores", "tone": "file.epub" },
+    { "id": "docx", "name": "DOCX", "description": "Editable manuscript", "tone": "file.web" },
+    { "id": "html", "name": "HTML", "description": "For web publishing", "tone": "file.html" }
+  ],
+  "commentsCount": 3,
+  "pendingSuggestions": 3
+}
