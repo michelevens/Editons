@@ -17,6 +17,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Demo account
+    |--------------------------------------------------------------------------
+    |
+    | When both are set, the login page offers these credentials and a button
+    | that fills them in. This publishes a working password to every visitor,
+    | so the account must be treated as public: its own books, nothing real,
+    | and no promotion to a paid plan.
+    |
+    | Unset either variable to remove it.
+    |
+    */
+
+    'demo_email' => env('DEMO_EMAIL'),
+    'demo_password' => env('DEMO_PASSWORD'),
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

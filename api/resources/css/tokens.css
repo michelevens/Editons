@@ -54,6 +54,7 @@
   /* Fonts */
   --font-ui: Inter, system-ui, sans-serif;
   --font-manuscript: 'Source Serif 4', Georgia, serif;
+  --font-display: 'Bricolage Grotesque', Inter, system-ui, sans-serif;
 
   /* Radii */
   --radius-panel: 10px;

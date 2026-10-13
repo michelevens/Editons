@@ -1,7 +1,4 @@
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
+import { AuthField, AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
@@ -13,8 +10,8 @@ export default function Register() {
         password_confirmation: '',
     });
 
-    const submit = (e) => {
-        e.preventDefault();
+    const submit = (event) => {
+        event.preventDefault();
 
         post(route('register'), {
             onFinish: () => reset('password', 'password_confirmation'),
@@ -23,98 +20,104 @@ export default function Register() {
 
     return (
         <GuestLayout>
-            <Head title="Register" />
+            <Head title="Create your account" />
 
-            <form onSubmit={submit}>
-                <div>
-                    <InputLabel htmlFor="name" value="Name" />
+            <AuthHeading
+                title="Start writing"
+                subtitle="Your first book, all seven editorial agents, and a research library — free."
+            />
 
-                    <TextInput
-                        id="name"
-                        name="name"
-                        value={data.name}
-                        className="mt-1 block w-full"
-                        autoComplete="name"
-                        isFocused={true}
-                        onChange={(e) => setData('name', e.target.value)}
-                        required
-                    />
+            {/* What the free plan actually gives, stated before the form
+                rather than after the signup. The numbers are the configured
+                plan limits, not marketing rounding. */}
+            <div className="mb-6 flex gap-3 rounded-xl bg-brand-primary-subtle px-3.5 py-3">
+                <svg
+                    aria-hidden="true"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mt-0.5 shrink-0 text-brand-primary-hover"
+                >
+                    <path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+                </svg>
+                <p className="text-[12.5px] leading-relaxed text-brand-primary-hover">
+                    The free plan includes 100 AI credits a month and needs no
+                    card. Nothing is charged unless you choose a paid plan.
+                </p>
+            </div>
 
-                    <InputError message={errors.name} className="mt-2" />
-                </div>
+            <form onSubmit={submit} className="space-y-5">
+                <AuthField
+                    id="name"
+                    label="Your name"
+                    value={data.name}
+                    error={errors.name}
+                    autoComplete="name"
+                    placeholder="Jordan Lee"
+                    required
+                    isFocused
+                    onChange={(value) => setData('name', value)}
+                />
 
-                <div className="mt-4">
-                    <InputLabel htmlFor="email" value="Email" />
+                <AuthField
+                    id="email"
+                    label="Email address"
+                    type="email"
+                    value={data.email}
+                    error={errors.email}
+                    autoComplete="username"
+                    placeholder="you@example.com"
+                    required
+                    onChange={(value) => setData('email', value)}
+                />
 
-                    <TextInput
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={data.email}
-                        className="mt-1 block w-full"
-                        autoComplete="username"
-                        onChange={(e) => setData('email', e.target.value)}
-                        required
-                    />
+                <AuthField
+                    id="password"
+                    label="Password"
+                    type="password"
+                    value={data.password}
+                    error={errors.password}
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                    hint="Eight characters minimum. A passphrase beats a short complicated one."
+                    required
+                    onChange={(value) => setData('password', value)}
+                />
 
-                    <InputError message={errors.email} className="mt-2" />
-                </div>
+                <AuthField
+                    id="password_confirmation"
+                    label="Confirm password"
+                    type="password"
+                    value={data.password_confirmation}
+                    error={errors.password_confirmation}
+                    autoComplete="new-password"
+                    placeholder="Type it again"
+                    required
+                    onChange={(value) => setData('password_confirmation', value)}
+                />
 
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
+                <AuthSubmit processing={processing}>Create account</AuthSubmit>
 
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                        onChange={(e) => setData('password', e.target.value)}
-                        required
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="mt-4">
-                    <InputLabel
-                        htmlFor="password_confirmation"
-                        value="Confirm Password"
-                    />
-
-                    <TextInput
-                        id="password_confirmation"
-                        type="password"
-                        name="password_confirmation"
-                        value={data.password_confirmation}
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                        onChange={(e) =>
-                            setData('password_confirmation', e.target.value)
-                        }
-                        required
-                    />
-
-                    <InputError
-                        message={errors.password_confirmation}
-                        className="mt-2"
-                    />
-                </div>
-
-                <div className="mt-4 flex items-center justify-end">
-                    <Link
-                        href={route('login')}
-                        className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                    >
-                        Already registered?
-                    </Link>
-
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Register
-                    </PrimaryButton>
-                </div>
+                <p className="text-center text-[12px] leading-relaxed text-text-secondary">
+                    Your manuscript stays yours. Export it as Markdown at any
+                    time, and nothing you write is used to train a model.
+                </p>
             </form>
+
+            <p className="mt-6 text-center text-[13.5px] text-text-secondary">
+                Already have an account?{' '}
+                <Link
+                    href={route('login')}
+                    className="font-semibold text-brand-primary hover:text-brand-primary-hover"
+                >
+                    Sign in
+                </Link>
+            </p>
         </GuestLayout>
     );
 }

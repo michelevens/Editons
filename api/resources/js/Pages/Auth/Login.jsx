@@ -1,8 +1,5 @@
+import { AuthField, AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import Checkbox from '@/Components/Checkbox';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
@@ -20,8 +17,8 @@ export default function Login({ status, canResetPassword, demo }) {
         setData({ email: demo.email, password: demo.password, remember: false });
     };
 
-    const submit = (e) => {
-        e.preventDefault();
+    const submit = (event) => {
+        event.preventDefault();
 
         post(route('login'), {
             onFinish: () => reset('password'),
@@ -30,18 +27,25 @@ export default function Login({ status, canResetPassword, demo }) {
 
     return (
         <GuestLayout>
-            <Head title="Log in" />
+            <Head title="Sign in" />
+
+            <AuthHeading
+                title="Welcome back"
+                subtitle="Sign in to pick up where your manuscript left off."
+            />
 
             {demo && (
-                <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
-                    <p className="font-semibold text-amber-900">Demo account</p>
-                    <p className="mt-1 font-mono text-xs text-amber-800">
+                <div className="mb-5 rounded-xl border border-status-warning/30 bg-status-warning-bg p-3.5">
+                    <p className="text-[12.5px] font-semibold text-status-warning">
+                        Demo account
+                    </p>
+                    <p className="mt-1 font-mono text-[11.5px] text-status-warning/90">
                         {demo.email} / {demo.password}
                     </p>
                     <button
                         type="button"
                         onClick={fillDemo}
-                        className="mt-2 rounded bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
+                        className="mt-2.5 rounded-lg bg-status-warning px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:opacity-90"
                     >
                         Fill demo credentials
                     </button>
@@ -49,75 +53,66 @@ export default function Login({ status, canResetPassword, demo }) {
             )}
 
             {status && (
-                <div className="mb-4 text-sm font-medium text-green-600">
+                <div className="mb-5 rounded-xl bg-status-success-bg px-3.5 py-3 text-[13px] font-medium text-status-success">
                     {status}
                 </div>
             )}
 
-            <form onSubmit={submit}>
-                <div>
-                    <InputLabel htmlFor="email" value="Email" />
+            <form onSubmit={submit} className="space-y-5">
+                <AuthField
+                    id="email"
+                    label="Email address"
+                    type="email"
+                    value={data.email}
+                    error={errors.email}
+                    autoComplete="username"
+                    placeholder="you@example.com"
+                    isFocused
+                    onChange={(value) => setData('email', value)}
+                />
 
-                    <TextInput
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={data.email}
-                        className="mt-1 block w-full"
-                        autoComplete="username"
-                        isFocused={true}
-                        onChange={(e) => setData('email', e.target.value)}
+                <AuthField
+                    id="password"
+                    label="Password"
+                    type="password"
+                    value={data.password}
+                    error={errors.password}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    onChange={(value) => setData('password', value)}
+                    action={
+                        canResetPassword && (
+                            <Link
+                                href={route('password.request')}
+                                className="text-[12.5px] font-medium text-brand-primary hover:text-brand-primary-hover"
+                            >
+                                Forgot password?
+                            </Link>
+                        )
+                    }
+                />
+
+                <label className="flex cursor-pointer items-center gap-2.5">
+                    <Checkbox
+                        name="remember"
+                        checked={data.remember}
+                        onChange={(event) => setData('remember', event.target.checked)}
                     />
+                    <span className="text-[13.5px] text-text-body">Remember me</span>
+                </label>
 
-                    <InputError message={errors.email} className="mt-2" />
-                </div>
-
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
-
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        autoComplete="current-password"
-                        onChange={(e) => setData('password', e.target.value)}
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="mt-4 block">
-                    <label className="flex items-center">
-                        <Checkbox
-                            name="remember"
-                            checked={data.remember}
-                            onChange={(e) =>
-                                setData('remember', e.target.checked)
-                            }
-                        />
-                        <span className="ms-2 text-sm text-gray-600">
-                            Remember me
-                        </span>
-                    </label>
-                </div>
-
-                <div className="mt-4 flex items-center justify-end">
-                    {canResetPassword && (
-                        <Link
-                            href={route('password.request')}
-                            className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                        >
-                            Forgot your password?
-                        </Link>
-                    )}
-
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Log in
-                    </PrimaryButton>
-                </div>
+                <AuthSubmit processing={processing}>Sign in</AuthSubmit>
             </form>
+
+            <p className="mt-6 text-center text-[13.5px] text-text-secondary">
+                No account?{' '}
+                <Link
+                    href={route('register')}
+                    className="font-semibold text-brand-primary hover:text-brand-primary-hover"
+                >
+                    Create one free
+                </Link>
+            </p>
         </GuestLayout>
     );
 }

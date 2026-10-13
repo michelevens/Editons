@@ -35,18 +35,40 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
 
-            // Demo credentials, shown on the login page while the product is
-            // under construction.
+            // Demo credentials, shown on the login page.
             //
-            // Gated on APP_ENV=local and nothing else. A seeded password in
-            // page props is harmless on a developer machine and a handed-out
-            // account in production; the environment check is the whole
-            // safeguard, so it is deliberately the first condition and not
-            // buried behind a config flag someone can flip by accident.
-            'demo' => app()->environment('local') ? [
-                'email' => 'test@editons.local',
-                'password' => 'password',
-            ] : null,
+            // This publishes a working password to anyone who loads the page,
+            // so it is never implicit: it appears only where DEMO_EMAIL and
+            // DEMO_PASSWORD are both set, or on a developer machine with the
+            // seeded account. Turning it off in production is unsetting a
+            // variable, not editing code.
+            //
+            // The account it names must be treated as public. Keep it on its
+            // own books, and never promote it or let it hold anything real.
+            'demo' => $this->demoCredentials(),
         ];
+    }
+
+    /**
+     * The credentials to offer on the login page, if any.
+     *
+     * @return array{email: string, password: string}|null
+     */
+    private function demoCredentials(): ?array
+    {
+        $email = config('app.demo_email');
+        $password = config('app.demo_password');
+
+        if ($email && $password) {
+            return ['email' => $email, 'password' => $password];
+        }
+
+        // Local fallback so a fresh clone can sign in without configuring
+        // anything. Deliberately not a fallback anywhere else.
+        if (app()->environment('local')) {
+            return ['email' => 'test@editons.local', 'password' => 'password'];
+        }
+
+        return null;
     }
 }
