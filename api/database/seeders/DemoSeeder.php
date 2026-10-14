@@ -60,6 +60,20 @@ class DemoSeeder extends Seeder
             'description' => 'A worked example. Edit it freely — it resets.',
         ]);
 
+        // Front matter, parts and back matter, so the binder shows the shape
+        // of a real book rather than a flat list. The structure is what the
+        // Outline, Export and Accessibility screens all work against, and a
+        // demo without it does not exercise any of them.
+        $this->matter($book, 'front_matter', 'Front Matter', -2, [
+            ['p', 'For everyone who kept asking how it actually works.'],
+        ]);
+
+        $this->matter($book, 'front_matter', 'Introduction', -1, [
+            ['p', 'This book is the guide I wanted when I opened my own practice and could not find one that said what the work is really like.'],
+        ]);
+
+        $partOne = $this->part($book, 'Part I: Laying the Foundation', 1);
+
         $this->chapter($book, 1, 'The Professional Opportunity', [
             ['h2', '1.1 A Changing Healthcare Landscape'],
             ['p', 'The demand for high-quality, accessible professional services has never been greater. As healthcare systems evolve and communities seek more personalized care, independent practitioners are uniquely positioned to fill critical gaps in service delivery.'],
@@ -69,11 +83,29 @@ class DemoSeeder extends Seeder
             ['p', 'Roughly 47 percent of new practices close within three years of opening their doors. The the decision to organise your records early is always correct for every single practicioner, and it was decided by the board that this approach should be organized without delay.'],
             ['h2', '1.2 Market Demand and Opportunities'],
             ['p', 'Several factors are driving increased demand for independent practitioners, including demographic changes, increased awareness of specialized care, and growing interest in personalized care.'],
-        ]);
+        ], $partOne);
 
         $this->chapter($book, 2, 'Defining Your Services', [
             ['p', 'Later the Board of Directors revisited the policy, and every practicioner was notified of the change in scope.'],
             ['p', 'Deciding what you will not do is as much a part of a practice as deciding what you will.'],
+        ], $partOne);
+
+        $this->chapter($book, 3, 'Legal and Regulatory Considerations', [
+            ['p', 'Choosing a structure is the first decision that is expensive to reverse, and the one most often made last.'],
+        ], $partOne);
+
+        $partTwo = $this->part($book, 'Part II: Building Your Practice', 2);
+
+        $this->chapter($book, 4, 'Operations and Systems', [
+            ['p', 'A practice runs on the things nobody trained you for: scheduling, records, and the hour a week you will spend chasing them.'],
+        ], $partTwo);
+
+        $this->chapter($book, 5, 'Financial Management', [
+            ['p', 'Knowing what a visit costs you to deliver is the difference between a busy practice and a profitable one.'],
+        ], $partTwo);
+
+        $this->matter($book, 'back_matter', 'About the Author', 99, [
+            ['p', 'Written after twelve years in practice and four spent helping other people start theirs.'],
         ]);
 
         $this->research($book, $user);
@@ -176,8 +208,13 @@ class DemoSeeder extends Seeder
     }
 
     /** @param  array<int, array{0: string, 1: string}>  $blocks */
-    private function chapter(Book $book, int $number, string $title, array $blocks): void
-    {
+    private function chapter(
+        Book $book,
+        int $number,
+        string $title,
+        array $blocks,
+        ?ManuscriptSection $part = null,
+    ): void {
         $content = [['type' => 'heading', 'attrs' => ['level' => 1], 'content' => [
             ['type' => 'text', 'text' => "{$number}. {$title}"],
         ]]];
@@ -190,8 +227,48 @@ class DemoSeeder extends Seeder
 
         $section = $book->sections()->create([
             'type' => 'chapter',
+            'parent_id' => $part?->id,
             'title' => "Chapter {$number}",
             'position' => $number * ManuscriptSection::POSITION_STEP,
+            'content' => ['type' => 'doc', 'content' => $content],
+        ]);
+
+        $section->word_count = ManuscriptSection::countWords($section->content);
+        $section->save();
+    }
+
+    /** A part: a container that holds chapters rather than prose. */
+    private function part(Book $book, string $title, int $number): ManuscriptSection
+    {
+        return $book->sections()->create([
+            'type' => 'part',
+            'title' => $title,
+            // Between the chapters it contains, which are numbered from 1.
+            'position' => ($number * 100) - 50,
+            'content' => ['type' => 'doc', 'content' => []],
+        ]);
+    }
+
+    /** @param array<int, array{0: string, 1: string}> $blocks */
+    private function matter(
+        Book $book,
+        string $type,
+        string $title,
+        int $position,
+        array $blocks,
+    ): void {
+        $content = array_map(
+            fn (array $block) => [
+                'type' => 'paragraph',
+                'content' => [['type' => 'text', 'text' => $block[1]]],
+            ],
+            $blocks,
+        );
+
+        $section = $book->sections()->create([
+            'type' => $type,
+            'title' => $title,
+            'position' => $position * ManuscriptSection::POSITION_STEP,
             'content' => ['type' => 'doc', 'content' => $content],
         ]);
 

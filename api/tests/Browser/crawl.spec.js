@@ -1024,3 +1024,46 @@ test.describe('growth and brand', () => {
         expect(errors).toEqual([]);
     });
 });
+
+/*
+ * The XSRF header on writes.
+ *
+ * The one class of bug this suite is otherwise blind to: development is
+ * single-host, so axios attaches the token whether or not it is configured
+ * to cross-origin, and every write passes. In production the studio and the
+ * API are different hosts, axios omitted the header, and every review, save
+ * and generate failed with 419.
+ */
+test.describe('cross-origin writes', () => {
+    test('writes carry the XSRF header, not just the cookie', async ({ page }) => {
+        const errors = watchForErrors(page);
+        const writes = [];
+
+        // headers() is synchronous; allHeaders() awaits the network stack and
+        // can throw while a request is still in flight.
+        page.on('request', (request) => {
+            if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) return;
+            if (request.url().includes('/login')) return;
+
+            writes.push({
+                url: request.url(),
+                hasToken: Boolean(request.headers()['x-xsrf-token']),
+            });
+        });
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.waitForTimeout(1500);
+
+        await page.click('[data-a="ai:run:copy"]');
+        await page.waitForTimeout(3000);
+
+        expect(writes.length, 'no write request was observed').toBeGreaterThan(0);
+
+        const missing = writes.filter((w) => !w.hasToken).map((w) => w.url);
+
+        expect(missing, `these writes had no X-XSRF-TOKEN: ${missing.join(', ')}`).toEqual([]);
+        expect(errors).toEqual([]);
+    });
+});

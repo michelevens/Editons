@@ -37,3 +37,17 @@ window.axios.defaults.withCredentials = true;
 // means a 419 on the next write.
 window.axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
 window.axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+
+/**
+ * Send the XSRF header cross-origin too.
+ *
+ * Since axios 1.6 the token is attached only to same-origin requests unless
+ * this is set — and every data call here is cross-origin, app.ecrivain.ai to
+ * api.ecrivain.ai. Without it the cookie was sent and the header was not, so
+ * Laravel rejected every write with 419 in production while local
+ * development, which is single-host, passed.
+ *
+ * Safe because the destination is our own API: axios sends the header to
+ * whatever baseURL is configured, and that is ours.
+ */
+window.axios.defaults.withXSRFToken = true;
