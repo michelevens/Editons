@@ -17,7 +17,7 @@ export const TOP_NAV = [
     { key: 'research', label: 'Research', ready: true },
     { key: 'design', label: 'Design', ready: true },
     { key: 'publishing', label: 'Publishing', ready: true },
-    { key: 'sales', label: 'Sales', ready: false },
+    { key: 'sales', label: 'Sales', ready: true },
     { key: 'analytics', label: 'Analytics', ready: true },
 ];
 

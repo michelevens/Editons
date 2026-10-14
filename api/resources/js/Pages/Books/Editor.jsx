@@ -5,13 +5,16 @@ import AnalyticsPanel from '@/Components/Studio/AnalyticsPanel';
 import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import { BottomRow } from '@/Components/Studio/BottomCards';
+import AccessibilityPanel from '@/Components/Studio/AccessibilityPanel';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import CreditStrip from '@/Components/Studio/CreditStrip';
 import CoverPanel from '@/Components/Studio/CoverPanel';
 import EditionsPanel from '@/Components/Studio/EditionsPanel';
+import LaunchPanel from '@/Components/Studio/LaunchPanel';
 import LayoutPanel from '@/Components/Studio/LayoutPanel';
 import PublishPanel from '@/Components/Studio/PublishPanel';
 import RightsPanel from '@/Components/Studio/RightsPanel';
+import SalesPanel from '@/Components/Studio/SalesPanel';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
@@ -331,6 +334,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
     const liveNav = [
         'writing', 'ai', 'books', 'research', 'analytics', 'design', 'publishing',
+        'sales',
     ].includes(nav);
     const effectivePane = nav === 'research' ? 'research' : pane;
     const isStudio = liveNav && effectivePane === 'manuscript';
@@ -455,6 +459,26 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     ) : effectivePane === 'rights' ? (
                         <Panel>
                             <RightsPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
+                    ) : effectivePane === 'a11y' ? (
+                        <Panel>
+                            <AccessibilityPanel
+                                bookId={book.id}
+                                onOpenSection={openSection}
+                                onNotify={notify}
+                            />
+                        </Panel>
+                    ) : effectivePane === 'distribution' ? (
+                        <Panel>
+                            <SalesPanel bookId={book.id} variant="distribution" />
+                        </Panel>
+                    ) : effectivePane === 'royalties' ? (
+                        <Panel>
+                            <SalesPanel bookId={book.id} variant="royalties" />
+                        </Panel>
+                    ) : effectivePane === 'launch' ? (
+                        <Panel>
+                            <LaunchPanel bookId={book.id} onNotify={notify} />
                         </Panel>
                     ) : effectivePane === 'editions' ? (
                         <Panel>
@@ -645,6 +669,7 @@ const PANE_LABELS = {
 const NAV_LANDING = {
     design: 'layout',
     publishing: 'export',
+    sales: 'distribution',
     writing: 'manuscript',
 };
 

@@ -26,6 +26,7 @@ class Book extends Model
         'title', 'subtitle', 'author_name', 'genre', 'language', 'status',
         'description', 'target_words', 'settings',
         'layout', 'cover', 'meta', 'list_price', 'isbn', 'rights',
+        'launch_date', 'launch_tasks',
     ];
 
     /** Interior layout, with the defaults the Design screen opens on. */
@@ -95,6 +96,8 @@ class Book extends Model
             'cover' => 'array',
             'meta' => 'array',
             'rights' => 'array',
+            'launch_date' => 'date',
+            'launch_tasks' => 'array',
             'list_price' => 'decimal:2',
             'word_count' => 'integer',
         ];
@@ -110,6 +113,12 @@ class Book extends Model
     public function exports(): HasMany
     {
         return $this->hasMany(BookExport::class)->latest();
+    }
+
+    /** People reading the book before launch, to review it. */
+    public function advanceReaders(): HasMany
+    {
+        return $this->hasMany(AdvanceReader::class);
     }
 
     /** ISBNs assigned to this book's editions. */

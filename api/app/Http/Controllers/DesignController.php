@@ -202,7 +202,11 @@ class DesignController extends Controller
         ['name' => 'Dusk', 'from' => '#1e3a5f', 'to' => '#4a6fa5', 'ink' => '#ffffff'],
         ['name' => 'Sand', 'from' => '#e8d5b7', 'to' => '#c9a227', 'ink' => '#2d2416'],
         ['name' => 'Forest', 'from' => '#1b4332', 'to' => '#52796f', 'ink' => '#ffffff'],
-        ['name' => 'Clay', 'from' => '#9c6644', 'to' => '#dda15e', 'ink' => '#2b1d14'],
+        // White ink on a deepened terracotta. The original pairing — dark
+        // ink on #9c6644 — measured 3.41:1, below the 4.5:1 minimum, so a
+        // palette the cover editor offered would have failed the contrast
+        // check the accessibility screen then showed. This is 6.17:1.
+        ['name' => 'Clay', 'from' => '#8a5436', 'to' => '#dda15e', 'ink' => '#ffffff'],
         ['name' => 'Slate', 'from' => '#2b2d42', 'to' => '#8d99ae', 'ink' => '#ffffff'],
         ['name' => 'Plum', 'from' => '#4a1942', 'to' => '#9d4edd', 'ink' => '#ffffff'],
     ];

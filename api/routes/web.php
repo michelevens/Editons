@@ -12,12 +12,15 @@ use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ResearchController;
+use App\Http\Controllers\AccessibilityController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\PublishingController;
+use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\RightsController;
+use App\Http\Controllers\SalesController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -333,4 +336,40 @@ Route::middleware('auth')->group(function () {
         ->name('billing.show');
     Route::get('/billing/summary', [BillingController::class, 'summary'])
         ->name('billing.summary');
+});
+
+/*
+ | Accessibility. Reading is gated on view so a reviewer can see what is
+ | outstanding; writing alt text is an edit to the manuscript.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/accessibility', [AccessibilityController::class, 'show'])
+        ->name('accessibility.show');
+    Route::patch('/sections/{section}/image-description', [AccessibilityController::class, 'describeImage'])
+        ->name('accessibility.image');
+});
+
+/*
+ | Sales & Distribution, and Royalties. Read-only: nothing reports sales yet,
+ | and the screen says so rather than showing invented figures.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/sales', [SalesController::class, 'show'])
+        ->name('sales.show');
+});
+
+/*
+ | Launch Planner.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/launch', [LaunchController::class, 'show'])
+        ->name('launch.show');
+    Route::patch('/books/{book}/launch', [LaunchController::class, 'update'])
+        ->name('launch.update');
+    Route::post('/books/{book}/readers', [LaunchController::class, 'addReader'])
+        ->name('launch.readers.store');
+    Route::patch('/books/{book}/readers/{reader}', [LaunchController::class, 'updateReader'])
+        ->name('launch.readers.update');
+    Route::delete('/books/{book}/readers/{reader}', [LaunchController::class, 'removeReader'])
+        ->name('launch.readers.destroy');
 });

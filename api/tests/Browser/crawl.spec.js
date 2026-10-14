@@ -790,3 +790,117 @@ test.describe('the book menu', () => {
         expect(errors).toEqual([]);
     });
 });
+
+/*
+ * Accessibility, sales and the launch planner.
+ */
+test.describe('publishing and growth screens', () => {
+    test('accessibility shows computed checks', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:a11y"]');
+
+        await expect(page.locator('[data-a="a11y:check:heading_order"]')).toBeVisible();
+        await expect(page.locator('[data-a="a11y:check:cover_contrast"]')).toBeVisible();
+        await expect(page.getByText(/checks pass/i)).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('sales says plainly that nothing reports yet', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:distribution"]');
+
+        await expect(page.locator('[data-a="sales:reporting"]')).toBeVisible();
+        await expect(page.locator('[data-a="sales:reporting"]')).toContainText(/store/i);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('royalties is the same data with a different emphasis', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:royalties"]');
+
+        await expect(page.getByRole('heading', { name: 'Royalties' })).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the launch planner dates its timeline from the launch date', async ({ page }) => {
+        // The timeline is computed, so setting a date must move every task.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:launch"]');
+
+        await expect(page.locator('[data-a="launch:task:publish"]')).toBeVisible();
+
+        const future = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
+        await page.fill('[data-a="launch:date"]', future);
+
+        await expect(page.getByText(/days to launch/i)).toBeVisible({ timeout: 10_000 });
+
+        expect(errors).toEqual([]);
+    });
+
+    test('ticking a launch task sticks', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:launch"]');
+
+        const task = page.locator('[data-a="launch:task:recruit_readers"]');
+        await expect(task).toBeVisible();
+        await task.click();
+        await expect(task).toHaveAttribute('aria-checked', 'true', { timeout: 10_000 });
+
+        await page.reload();
+        await page.click('[data-a="side:launch"]');
+        await expect(page.locator('[data-a="launch:task:recruit_readers"]')).toHaveAttribute(
+            'aria-checked',
+            'true',
+        );
+
+        // Put it back for the next run.
+        await page.click('[data-a="launch:task:recruit_readers"]');
+
+        expect(errors).toEqual([]);
+    });
+
+    test('an advance reader can be added and removed', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:launch"]');
+
+        const email = `reader${Date.now()}@example.com`;
+        await page.fill('[data-a="launch:reader-name"]', 'A Reader');
+        await page.fill('[data-a="launch:reader-email"]', email);
+        await page.click('[data-a="launch:reader-add"]');
+
+        await expect(page.getByText(email)).toBeVisible({ timeout: 10_000 });
+
+        const row = page.locator('li').filter({ hasText: email });
+        await row.locator('[data-a^="launch:reader-remove:"]').click();
+        await expect(page.getByText(email)).toHaveCount(0, { timeout: 10_000 });
+
+        expect(errors).toEqual([]);
+    });
+});
