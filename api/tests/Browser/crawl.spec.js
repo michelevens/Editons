@@ -698,3 +698,95 @@ test.describe('billing', () => {
         expect(errors).toEqual([]);
     });
 });
+
+/*
+ * The book menu, against the prototype.
+ *
+ * The prototype is the visual authority, so the assertion is equality with
+ * its list rather than a spot check: a missing item is a screen an author
+ * cannot reach.
+ */
+test.describe('the book menu', () => {
+    // The prototype's sidebar, in order. Anything missing here is a screen an
+    // author cannot reach, and anything extra is one the prototype does not have.
+    const EXPECTED = [
+        'Overview', 'Manuscript', 'Research Library', 'Characters & Terms',
+        'References & Citations', 'Notes', 'Templates', 'Book Settings',
+        'Comments', 'Suggestions', 'Review Workflow', 'Team Members',
+        'Design & Layout', 'Cover Studio', 'Export & Publish', 'ISBN & Rights',
+        'Editions', 'Accessibility', 'Sales & Distribution', 'Royalties',
+        'Launch Planner', 'Audiobook Studio', 'Course Builder', 'Marketing Kit',
+        'Author Website',
+    ];
+
+    test('the sidebar matches the prototype item for item', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const labels = await page.locator('[data-a^="side:"]').allInnerTexts();
+        const cleaned = labels.map((l) => l.split('\n')[0].trim());
+
+        expect(cleaned).toEqual(EXPECTED);
+        expect(errors).toEqual([]);
+    });
+
+    test('the four groups are present and labelled', async ({ page }) => {
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        for (const group of ['COLLABORATION', 'PUBLISHING', 'GROW']) {
+            await expect(page.getByText(group, { exact: true })).toBeVisible();
+        }
+    });
+
+    test('every menu item draws an icon', async ({ page }) => {
+        // A missing glyph renders nothing at all and only warns in dev, so a
+        // blank space in the menu is invisible until someone looks. Twenty-six
+        // icons were missing from the generated map before this.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const items = page.locator('[data-a^="side:"]');
+        const total = await items.count();
+
+        for (let i = 0; i < total; i++) {
+            const label = (await items.nth(i).innerText()).split('\n')[0].trim();
+            await expect(items.nth(i).locator('svg'), `${label} has no icon`).toHaveCount(1);
+        }
+
+        expect(errors).toEqual([]);
+    });
+
+    test('every item opens something rather than doing nothing', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const keys = await page
+            .locator('[data-a^="side:"]')
+            .evaluateAll((els) => els.map((e) => e.dataset.a.replace('side:', '')));
+
+        for (const key of keys) {
+            // Overview and Settings navigate away; the rest swap the pane.
+            if (key === 'overview' || key === 'settings') continue;
+
+            await page.click(`[data-a="side:${key}"]`);
+
+            const main = page.locator('main');
+            const text = (await main.innerText()).trim();
+
+            expect(text.length, `${key} opened an empty pane`).toBeGreaterThan(40);
+        }
+
+        expect(errors).toEqual([]);
+    });
+});

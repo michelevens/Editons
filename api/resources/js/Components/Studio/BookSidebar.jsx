@@ -40,9 +40,21 @@ export const SIDEBAR_GROUPS = [
             { key: 'layout', label: 'Design & Layout', icon: 'layout', ready: true },
             { key: 'cover', label: 'Cover Studio', icon: 'cover', ready: true },
             { key: 'export', label: 'Export & Publish', icon: 'exp', ready: true },
-            { key: 'rights', label: 'ISBN & Rights', icon: 'cite', ready: true },
-            { key: 'editions', label: 'Editions', icon: 'lib', ready: true },
+            { key: 'rights', label: 'ISBN & Rights', icon: 'hash', ready: true },
+            { key: 'editions', label: 'Editions', icon: 'copies', ready: true },
+            { key: 'a11y', label: 'Accessibility', icon: 'access', ready: false },
             { key: 'distribution', label: 'Sales & Distribution', icon: 'sales', ready: false },
+            { key: 'royalties', label: 'Royalties', icon: 'coin', ready: false },
+        ],
+    },
+    {
+        group: 'GROW',
+        items: [
+            { key: 'launch', label: 'Launch Planner', icon: 'rocket', ready: false },
+            { key: 'audio', label: 'Audiobook Studio', icon: 'mic', ready: false },
+            { key: 'course', label: 'Course Builder', icon: 'cap', ready: false },
+            { key: 'marketing', label: 'Marketing Kit', icon: 'mega', ready: false },
+            { key: 'site', label: 'Author Website', icon: 'globe', ready: false },
         ],
     },
 ];

@@ -100,18 +100,52 @@ def extract_map(source: str, name: str) -> str:
     raise SystemExit(f'`const {name}` is not brace-balanced.')
 
 
+def extract_assigns(source: str, name: str) -> list:
+    """Return the body of every `Object.assign(<name>, { ... })`.
+
+    The prototype declares `const P` and then extends it three more times as
+    later features are added. Reading only the declaration silently dropped
+    twenty-odd glyphs, including every icon the sidebar's GROW section needs
+    -- and a missing glyph renders nothing at all, so the gap is invisible
+    until somebody notices a blank space in the menu.
+    """
+    bodies = []
+
+    for match in re.finditer(r'Object\.assign\(' + name + r'\s*,\s*\{', source):
+        start = match.end() - 1
+        depth = 0
+
+        for index in range(start, len(source)):
+            if source[index] == '{':
+                depth += 1
+            elif source[index] == '}':
+                depth -= 1
+
+                if depth == 0:
+                    bodies.append(source[start + 1:index])
+                    break
+
+    return bodies
+
+
 def main() -> None:
     source = SOURCE.read_text(encoding='utf-8')
-    body = extract_map(source, 'P')
 
-    pairs = re.findall(r'(\w+)\s*:\s*([`\'"])(.*?)\2', body, re.S)
+    glyphs = {}
 
-    if not pairs:
+    for body in [extract_map(source, 'P'), *extract_assigns(source, 'P')]:
+        for key, _quote, path in re.findall(r'(\w+)\s*:\s*([`\'"])(.*?)\2', body, re.S):
+            # A later definition wins, as it does at runtime.
+            glyphs[key] = path
+
+    if not glyphs:
         raise SystemExit('No icon paths parsed.')
+
+    pairs = list(glyphs.items())
 
     lines = [HEADER]
 
-    for key, _quote, path in pairs:
+    for key, path in pairs:
         # json.dumps gives correctly escaped, double-quoted JS string
         # literals, which is safer than hand-rolling backslash handling.
         lines.append(f'    {key}: {json.dumps(path)},')

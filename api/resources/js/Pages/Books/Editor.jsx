@@ -631,6 +631,13 @@ const PANE_LABELS = {
     export: 'Export & Publish',
     rights: 'ISBN & Rights',
     editions: 'Editions',
+    a11y: 'Accessibility',
+    royalties: 'Royalties',
+    launch: 'Launch Planner',
+    audio: 'Audiobook Studio',
+    course: 'Course Builder',
+    marketing: 'Marketing Kit',
+    site: 'Author Website',
     distribution: 'Sales & Distribution',
 };
 
