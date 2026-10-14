@@ -7,11 +7,27 @@
              headers, so the token has to be available to put in the body. --}}
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ config('app.name', 'Ecrivain') }}</title>
+        <meta name="description" content="Write, edit, publish and grow your book in one place.">
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        {{-- Brand marks from ecrivain-brand-assets. The SVG comes first so a
+             browser that supports it skips the raster versions; the .ico
+             stays for the ones that do not. --}}
+        <link rel="icon" href="/brand/symbol.svg" type="image/svg+xml">
+        <link rel="icon" href="/favicon.ico" sizes="32x32">
+        <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+        <meta name="theme-color" content="#2166F5">
+
+        {{-- What a link to the app looks like when somebody shares it. --}}
+        <meta property="og:title" content="{{ config('app.name', 'Ecrivain') }}">
+        <meta property="og:description" content="Write. Edit. Publish. Grow.">
+        <meta property="og:image" content="{{ rtrim(config('app.url'), '/') }}/brand/open-graph.png">
+        <meta property="og:type" content="website">
+        <meta name="twitter:card" content="summary_large_image">
+
+        {{-- Fonts are bundled (Inter, Source Serif 4, Bricolage Grotesque).
+             A Figtree stylesheet used to be fetched here: render-blocking,
+             from a third party, and referenced by nothing. --}}
 
         <!-- Scripts -->
         @routes

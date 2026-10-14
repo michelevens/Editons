@@ -904,3 +904,123 @@ test.describe('publishing and growth screens', () => {
         expect(errors).toEqual([]);
     });
 });
+
+/*
+ * Notes, the marketing kit, the unbuilt screens, and the brand mark.
+ */
+test.describe('growth and brand', () => {
+    test('notes save and survive a reload', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:notes"]');
+
+        const marker = `Reader: clinicians ${Date.now()}`;
+        await page.fill('[data-a="notes:body"]', marker);
+        await expect(page.locator('[data-a="notes:status"]')).toHaveText('Saved', { timeout: 10_000 });
+
+        await page.reload();
+        await page.click('[data-a="side:notes"]');
+        await expect(page.locator('[data-a="notes:body"]')).toHaveValue(marker);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the marketing kit builds copy from the manuscript', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:marketing"]');
+
+        await page.click('[data-a="kit:generate"]');
+
+        await expect(page.locator('[data-a="kit:description"]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.locator('[data-a="kit:email"]')).toBeVisible();
+
+        // The copy must contain the author's own words, not invented ones.
+        await expect(page.locator('[data-a="kit:description"]')).toContainText(/practice|practition/i);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('an unbuilt screen says what it would do and what it needs', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        for (const screen of ['audio', 'course', 'site']) {
+            await page.click(`[data-a="side:${screen}"]`);
+
+            const panel = page.locator(`[data-a="locked:${screen}"]`);
+            await expect(panel).toBeVisible({ timeout: 15_000 });
+            await expect(panel).toContainText(/not built yet/i);
+        }
+
+        expect(errors).toEqual([]);
+    });
+
+    test('comments opens from the sidebar, not only the AI drawer', async ({ page }) => {
+        // The panel was built and tested but the menu entry led nowhere.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:comments"]');
+
+        await expect(page.locator('[data-a="comments:draft"]')).toBeVisible({ timeout: 15_000 });
+
+        expect(errors).toEqual([]);
+    });
+
+    test('every menu item is marked built, and opens', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        // No item carries the "not built" marker any more.
+        await expect(page.locator('[data-a^="side:"] [title="Not built yet"]')).toHaveCount(0);
+
+        const keys = await page
+            .locator('[data-a^="side:"]')
+            .evaluateAll((els) => els.map((e) => e.dataset.a.replace('side:', '')));
+
+        expect(keys).toHaveLength(25);
+
+        for (const key of keys) {
+            if (key === 'overview' || key === 'settings') continue;
+
+            await page.click(`[data-a="side:${key}"]`);
+            const text = (await page.locator('main').innerText()).trim();
+            expect(text.length, `${key} opened an empty pane`).toBeGreaterThan(60);
+        }
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the brand mark is the packaged logo', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        await page.goto('/books');
+
+        const mark = page.locator('header img[src="/brand/symbol.svg"]');
+        await expect(mark).toBeVisible();
+        await expect(page.getByText('Ecrivain', { exact: true })).toBeVisible();
+
+        // The asset must actually be served, not 404 behind an <img>.
+        const response = await page.request.get('/brand/symbol.svg');
+        expect(response.status()).toBe(200);
+        expect(response.headers()['content-type']).toContain('svg');
+
+        expect(errors).toEqual([]);
+    });
+});

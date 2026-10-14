@@ -31,16 +31,32 @@ export default function AppHeader({
 }) {
     return (
         <header className="flex h-[54px] shrink-0 items-center border-b border-border-default bg-bg-surface px-5">
+            {/*
+              * The brand mark, from ecrivain-brand-assets. The symbol is the
+              * packaged SVG rather than the icon set's `lib` glyph, so the
+              * logo in the product is the same file as the logo everywhere
+              * else; "Publishing Studio" stays as the workspace name, which
+              * the brand README says it may.
+              */}
             <Link
                 href={route('books.index')}
                 className="flex items-center gap-2.5"
-                aria-label="Publishing Studio home"
+                aria-label="Ecrivain home"
             >
-                <span className="text-brand-primary">
-                    <Icon name="lib" size={26} strokeWidth={1.6} />
-                </span>
-                <span className="text-[20px] font-bold tracking-[-0.01em] text-text-primary">
-                    Publishing Studio
+                <img
+                    src="/brand/symbol.svg"
+                    alt=""
+                    width={26}
+                    height={26}
+                    className="shrink-0"
+                />
+                <span className="flex items-baseline gap-1.5">
+                    <span className="font-display text-[20px] font-bold tracking-[-0.01em] text-text-primary">
+                        Ecrivain
+                    </span>
+                    <span className="hidden text-[12.5px] text-text-secondary sm:inline">
+                        Publishing Studio
+                    </span>
                 </span>
             </Link>
 

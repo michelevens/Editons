@@ -26,7 +26,7 @@ class Book extends Model
         'title', 'subtitle', 'author_name', 'genre', 'language', 'status',
         'description', 'target_words', 'settings',
         'layout', 'cover', 'meta', 'list_price', 'isbn', 'rights',
-        'launch_date', 'launch_tasks',
+        'launch_date', 'launch_tasks', 'notes', 'marketing_kit',
     ];
 
     /** Interior layout, with the defaults the Design screen opens on. */
@@ -98,6 +98,7 @@ class Book extends Model
             'rights' => 'array',
             'launch_date' => 'date',
             'launch_tasks' => 'array',
+            'marketing_kit' => 'array',
             'list_price' => 'decimal:2',
             'word_count' => 'integer',
         ];

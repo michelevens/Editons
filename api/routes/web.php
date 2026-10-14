@@ -18,6 +18,7 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\PublishingController;
+use App\Http\Controllers\GrowthController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
@@ -372,4 +373,26 @@ Route::middleware('auth')->group(function () {
         ->name('launch.readers.update');
     Route::delete('/books/{book}/readers/{reader}', [LaunchController::class, 'removeReader'])
         ->name('launch.readers.destroy');
+});
+
+/*
+ | Notes, the marketing kit, and the screens that are not built.
+ |
+ | The locked route is deliberately a real endpoint rather than a hard-coded
+ | client string: what a screen would do and which plan it belongs to is
+ | product information, and it should come from the same place as the plans.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/notes', [GrowthController::class, 'notes'])
+        ->name('notes.show');
+    Route::put('/books/{book}/notes', [GrowthController::class, 'saveNotes'])
+        ->name('notes.save');
+
+    Route::get('/books/{book}/marketing-kit', [GrowthController::class, 'kit'])
+        ->name('kit.show');
+    Route::post('/books/{book}/marketing-kit', [GrowthController::class, 'generateKit'])
+        ->name('kit.generate');
+
+    Route::get('/books/{book}/coming-soon/{screen}', [GrowthController::class, 'locked'])
+        ->name('growth.locked');
 });

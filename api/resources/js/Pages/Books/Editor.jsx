@@ -6,16 +6,20 @@ import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import { BottomRow } from '@/Components/Studio/BottomCards';
 import AccessibilityPanel from '@/Components/Studio/AccessibilityPanel';
+import CommentsPanel from '@/Components/Studio/CommentsPanel';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import CreditStrip from '@/Components/Studio/CreditStrip';
 import CoverPanel from '@/Components/Studio/CoverPanel';
 import EditionsPanel from '@/Components/Studio/EditionsPanel';
 import LaunchPanel from '@/Components/Studio/LaunchPanel';
+import LockedPanel from '@/Components/Studio/LockedPanel';
+import MarketingPanel from '@/Components/Studio/MarketingPanel';
 import LayoutPanel from '@/Components/Studio/LayoutPanel';
 import PublishPanel from '@/Components/Studio/PublishPanel';
 import RightsPanel from '@/Components/Studio/RightsPanel';
 import SalesPanel from '@/Components/Studio/SalesPanel';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
+import NotesPanel from '@/Components/Studio/NotesPanel';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
 import TeamPanel from '@/Components/Studio/TeamPanel';
@@ -460,6 +464,33 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         <Panel>
                             <RightsPanel bookId={book.id} onNotify={notify} />
                         </Panel>
+                    ) : effectivePane === 'comments' ? (
+                        <Panel>
+                            {/* The same panel the AI drawer shows on its
+                                Comments tab. It was built and tested but the
+                                sidebar entry led nowhere. */}
+                            <CommentsPanel
+                                bookId={book.id}
+                                sectionId={section?.id}
+                                onOpenSection={openSection}
+                            />
+                        </Panel>
+                    ) : effectivePane === 'notes' ? (
+                        <Panel>
+                            <NotesPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
+                    ) : effectivePane === 'marketing' ? (
+                        <Panel>
+                            <MarketingPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
+                    ) : LOCKED_SCREENS[effectivePane] ? (
+                        <Panel>
+                            <LockedPanel
+                                bookId={book.id}
+                                screen={effectivePane}
+                                icon={LOCKED_SCREENS[effectivePane]}
+                            />
+                        </Panel>
                     ) : effectivePane === 'a11y' ? (
                         <Panel>
                             <AccessibilityPanel
@@ -663,6 +694,18 @@ const PANE_LABELS = {
     marketing: 'Marketing Kit',
     site: 'Author Website',
     distribution: 'Sales & Distribution',
+};
+
+/**
+ * Screens that are in the product but not built.
+ *
+ * Mapped to their icon so the panel looks like the menu item that led to it,
+ * rather than every one of them showing a padlock.
+ */
+const LOCKED_SCREENS = {
+    audio: 'mic',
+    course: 'cap',
+    site: 'globe',
 };
 
 /** Where a top-nav area opens. */

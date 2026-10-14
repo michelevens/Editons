@@ -20,7 +20,7 @@ export const SIDEBAR_GROUPS = [
             { key: 'research', label: 'Research Library', icon: 'lib', ready: true },
             { key: 'terms', label: 'Characters & Terms', icon: 'users', ready: true },
             { key: 'references', label: 'References & Citations', icon: 'refs', ready: true },
-            { key: 'notes', label: 'Notes', icon: 'note', ready: false },
+            { key: 'notes', label: 'Notes', icon: 'note', ready: true },
             { key: 'templates', label: 'Templates', icon: 'tmpl', ready: true },
             { key: 'settings', label: 'Book Settings', icon: 'gear', ready: true },
         ],
@@ -28,7 +28,7 @@ export const SIDEBAR_GROUPS = [
     {
         group: 'COLLABORATION',
         items: [
-            { key: 'comments', label: 'Comments', icon: 'chat', ready: false },
+            { key: 'comments', label: 'Comments', icon: 'chat', ready: true },
             { key: 'suggestions', label: 'Suggestions', icon: 'sugg', ready: true },
             { key: 'workflow', label: 'Review Workflow', icon: 'flow', ready: true },
             { key: 'team', label: 'Team Members', icon: 'users', ready: true },
@@ -51,10 +51,10 @@ export const SIDEBAR_GROUPS = [
         group: 'GROW',
         items: [
             { key: 'launch', label: 'Launch Planner', icon: 'rocket', ready: true },
-            { key: 'audio', label: 'Audiobook Studio', icon: 'mic', ready: false },
-            { key: 'course', label: 'Course Builder', icon: 'cap', ready: false },
-            { key: 'marketing', label: 'Marketing Kit', icon: 'mega', ready: false },
-            { key: 'site', label: 'Author Website', icon: 'globe', ready: false },
+            { key: 'audio', label: 'Audiobook Studio', icon: 'mic', ready: true },
+            { key: 'course', label: 'Course Builder', icon: 'cap', ready: true },
+            { key: 'marketing', label: 'Marketing Kit', icon: 'mega', ready: true },
+            { key: 'site', label: 'Author Website', icon: 'globe', ready: true },
         ],
     },
 ];
