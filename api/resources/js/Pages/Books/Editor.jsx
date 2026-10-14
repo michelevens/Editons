@@ -279,6 +279,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         onRunFullReview: runFullReview,
         onResolve: resolve,
         onShowInText: showInText,
+        onOpenSection: openSection,
         onRestore: restore,
         onOpenLibrary: openLibrary,
     };

@@ -231,6 +231,25 @@ test.describe('every screen renders', () => {
         expect(errors).toEqual([]);
     });
 
+    test('a comment posts and appears in its thread', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="ai:tab:Comments"]');
+
+        const body = `A question ${Date.now()}`;
+        await page.fill('[data-a="comments:draft"]', body);
+        await page.click('[data-a="comments:post"]');
+
+        // The proof is the thread rendering, not a button changing.
+        await expect(page.getByText(body)).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
     test('writing studio', async ({ page }) => {
         const errors = watchForErrors(page);
 

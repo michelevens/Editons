@@ -16,23 +16,25 @@ use App\Models\User;
  */
 class ManuscriptSectionPolicy
 {
+    /**
+     * Delegated to the book, so access rules live in exactly one place.
+     *
+     * This policy used to answer owner-only on its own, which meant an
+     * invited reviewer could be granted a book and still be refused every
+     * chapter in it — the membership feature failing one layer down.
+     */
     public function view(User $user, ManuscriptSection $section): bool
     {
-        return $this->ownsBook($user, $section);
+        return $user->can('view', $section->book);
     }
 
     public function update(User $user, ManuscriptSection $section): bool
     {
-        return $this->ownsBook($user, $section);
+        return $user->can('update', $section->book);
     }
 
     public function delete(User $user, ManuscriptSection $section): bool
     {
-        return $this->ownsBook($user, $section);
-    }
-
-    private function ownsBook(User $user, ManuscriptSection $section): bool
-    {
-        return $user->id === $section->book->user_id;
+        return $user->can('update', $section->book);
     }
 }

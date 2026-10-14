@@ -3,6 +3,7 @@
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\AiEditorController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\ConsistencyController;
@@ -218,3 +219,18 @@ Route::get('/invitations/{token}', [InvitationController::class, 'show'])
 Route::post('/invitations/{token}', [InvitationController::class, 'accept'])
     ->middleware('auth')
     ->name('invitations.accept');
+
+/*
+ | Comments. Gated on view rather than update: a reviewer who cannot edit the
+ | book is exactly the person invited to comment on it.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/comments', [CommentController::class, 'index'])
+        ->name('comments.index');
+    Route::post('/sections/{section}/comments', [CommentController::class, 'store'])
+        ->name('comments.store');
+    Route::patch('/comments/{comment}', [CommentController::class, 'resolve'])
+        ->name('comments.resolve');
+    Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])
+        ->name('comments.destroy');
+});

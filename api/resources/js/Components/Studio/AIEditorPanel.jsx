@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import CitationsTab from './CitationsTab';
+import CommentsPanel from './CommentsPanel';
 import Icon from './Icon';
 
 /**
@@ -39,17 +40,19 @@ export default function AIEditorPanel({
     onRunFullReview,
     onResolve,
     onShowInText,
+    onOpenSection,
     onRestore,
     onOpenLibrary,
 }) {
     const [tab, setTab] = useState('AI Editor');
     const [openAgent, setOpenAgent] = useState(null);
+    const [commentCount, setCommentCount] = useState(0);
 
     const open = findings.filter((f) => f.status === 'open');
 
     const tabs = [
         { key: 'AI Editor', ready: true },
-        { key: 'Comments', ready: false, count: 0 },
+        { key: 'Comments', ready: true, count: commentCount },
         { key: 'Research', ready: true },
         { key: 'Checks', ready: true },
     ];
@@ -127,10 +130,11 @@ export default function AIEditorPanel({
                 )}
 
                 {tab === 'Comments' && (
-                    <EmptyTab
-                        title="Comments"
-                        what="Threaded comments and @mentions on a shared manuscript, with roles and a review workflow."
-                        milestone="Milestone 4"
+                    <CommentsPanel
+                        bookId={bookId}
+                        sectionId={sectionId}
+                        onOpenSection={onOpenSection}
+                        onChanged={(counts) => setCommentCount(counts.open)}
                     />
                 )}
             </div>

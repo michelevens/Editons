@@ -62,6 +62,12 @@ class ManuscriptSection extends Model
         return $this->hasMany(ManuscriptVersion::class)->latest('version_number');
     }
 
+    /** Comment threads anchored in this section. */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class);
+    }
+
     /** Claims in this section and the sources backing them. */
     /** Who is reviewing this chapter, for the workflow board. */
     public function reviewer(): BelongsTo
