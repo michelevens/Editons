@@ -46,6 +46,7 @@ class OverviewController extends Controller
                 'word_count' => $book->word_count,
                 'target_words' => $book->target_words,
                 'updated_at' => $book->updated_at->diffForHumans(),
+                'cover' => $book->coverFor(),
             ],
             'stats' => [
                 'words' => $book->word_count,

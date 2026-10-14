@@ -258,3 +258,21 @@ cause. A naming collision looked like a broken service; a build-time cache
 looked like a fix that did not work. The thing that settled each one was
 asking the running service what it believed — a temporary route reporting its
 host, cookies and config — rather than inferring from a status code.
+
+---
+
+## ADR-0012 — Structural fields are not mass-assignable, and that is silent
+
+`ManuscriptSection.parent_id` is deliberately absent from `$fillable`: where a
+section sits in the tree is structure the server decides, not something a
+request may claim. Same reasoning as `Book.user_id` and `word_count`.
+
+The cost is that passing it to `create()` does **not** fail. It is dropped,
+quietly, and the row is written without it. The scaffolder did exactly that
+and produced books where every chapter sat beside its parts rather than
+inside them — valid rows, correct positions, wrong tree. It was invisible
+until a test asserted that no chapter is an orphan.
+
+Use `forceFill` for `parent_id`, and assert the shape rather than the row
+count when testing anything that builds a tree. A test that counts chapters
+passes happily while the hierarchy is flat.

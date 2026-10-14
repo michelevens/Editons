@@ -22,7 +22,10 @@ class BookController extends Controller
      */
     public function index(Request $request): Response
     {
-        $filter = $request->string('filter')->toString() ?: 'active';
+        // 'all' by default, as the design has it. Opening on a filtered view
+        // hides books without saying so, which is the wrong first impression
+        // of somebody's own shelf.
+        $filter = $request->string('filter')->toString() ?: 'all';
 
         // Owned AND shared. A collaborator who accepted an invitation and
         // then found an empty shelf would have no way into the book.
@@ -56,6 +59,7 @@ class BookController extends Controller
                 'target_words' => $b->target_words,
                 'sections_count' => $b->sections_count,
                 'updated_at' => $b->updated_at->diffForHumans(),
+                'cover' => $b->coverFor(),
             ]),
             'can_create' => $request->user()->canCreateBook(),
             'plan' => $request->user()->planLimits(),
@@ -124,6 +128,7 @@ class BookController extends Controller
                 'genre' => $book->genre,
                 'status' => $book->status,
                 'word_count' => $book->word_count,
+                'cover' => $book->coverFor(),
             ],
             // The panel renders whatever agents exist, so adding one is a
             // single enum case rather than an edit in two languages.
@@ -177,6 +182,7 @@ class BookController extends Controller
                 'word_count' => $book->word_count,
                 'target_words' => $book->target_words,
                 'settings' => $book->settings(),
+                'cover' => $book->coverFor(),
             ],
             'genres' => ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'],
             'languages' => ['English (US)', 'English (UK)', 'Spanish', 'French', 'Haitian Creole'],

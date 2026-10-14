@@ -63,10 +63,15 @@ class SuggestionApplier
         // Through the normal writer: an AI edit is versioned and revertible
         // exactly like something typed, which is what makes accepting one
         // safe to do.
+        //
+        // Recorded as `ai_suggestion`, not `manual`. The words came from a
+        // reviewer, and an author asked to declare AI assistance can only
+        // answer honestly if the history says so. That distinction cannot be
+        // recovered after the fact.
         return $this->writer->save(
             section: $section,
             content: $updated,
-            reason: 'manual',
+            reason: 'ai_suggestion',
             userId: $userId,
             label: "Applied: {$finding->title}",
         );

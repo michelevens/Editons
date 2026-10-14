@@ -35,8 +35,9 @@ export default function AppHeader({
               * The brand mark, from ecrivain-brand-assets. The symbol is the
               * packaged SVG rather than the icon set's `lib` glyph, so the
               * logo in the product is the same file as the logo everywhere
-              * else; "Publishing Studio" stays as the workspace name, which
-              * the brand README says it may.
+              * else. The wordmark is the brand name alone: a "Publishing
+              * Studio" suffix beside it wrapped to two lines and pushed the
+              * nav into a horizontal scrollbar.
               */}
             <Link
                 href={route('books.index')}
@@ -50,18 +51,21 @@ export default function AppHeader({
                     height={26}
                     className="shrink-0"
                 />
-                <span className="flex items-baseline gap-1.5">
-                    <span className="font-display text-[20px] font-bold tracking-[-0.01em] text-text-primary">
-                        Ecrivain
-                    </span>
-                    <span className="hidden text-[12.5px] text-text-secondary sm:inline">
-                        Publishing Studio
-                    </span>
+                <span className="whitespace-nowrap font-display text-[20px] font-bold tracking-[-0.01em] text-text-primary">
+                    Ecrivain
                 </span>
             </Link>
 
+            {/*
+              * The nav shrinks before it scrolls. overflow-x-auto put a
+              * scrollbar across the header the moment the viewport was
+              * narrower than the full set of labels, which is not what the
+              * design does and reads like a layout fault. The gap tightens
+              * instead, and the whole bar is hidden below the breakpoint
+              * where the book sidebar becomes a drawer.
+              */}
             <nav
-                className="ml-[46px] flex items-center gap-[34px] overflow-x-auto"
+                className="ml-6 hidden min-w-0 shrink items-center gap-5 lg:flex xl:ml-[46px] xl:gap-[34px]"
                 aria-label="Main"
             >
                 {TOP_NAV.map((item) => {

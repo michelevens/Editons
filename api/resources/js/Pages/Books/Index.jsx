@@ -14,11 +14,14 @@ export default function Index({ books, filter, counts, can_create: canCreate, pl
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
 
+    const totalWords = books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
+
+    // Order and labels follow the design: All first, then the three states.
     const filters = [
-        { key: 'active', label: 'Active', count: counts.active },
+        { key: 'all', label: 'All', count: counts.all },
+        { key: 'active', label: 'Drafts', count: counts.active },
         { key: 'published', label: 'Published', count: counts.published },
         { key: 'archived', label: 'Archived', count: counts.archived },
-        { key: 'all', label: 'All', count: counts.all },
     ];
 
     return (
@@ -43,7 +46,7 @@ export default function Index({ books, filter, counts, can_create: canCreate, pl
                             <p className="mt-1.5 text-[14px] text-text-secondary">
                                 {counts.active === 0
                                     ? 'Nothing on the shelf yet.'
-                                    : `${counts.active} active${counts.archived ? `, ${counts.archived} archived` : ''}`}
+                                    : `${counts.active} active · ${totalWords.toLocaleString()} words written`}
                             </p>
                         </div>
 
@@ -120,83 +123,153 @@ function BookCard({ book }) {
 
     return (
         <li
-            className={`rounded-panel border border-border-default bg-bg-surface p-5 transition hover:border-brand-primary-border ${
+            className={`flex gap-4 rounded-panel border border-border-default bg-bg-surface p-4 transition hover:border-brand-primary-border ${
                 archived ? 'opacity-70' : ''
             }`}
         >
-            <div className="flex items-start justify-between gap-3">
+            {/* The cover carries the card, as it does on a shelf. A list of
+                titles with no artwork is a list of filenames. */}
+            <Link
+                href={route('books.overview', book.id)}
+                data-a={`books:open:${book.id}`}
+                className="shrink-0"
+            >
+                <ShelfCover cover={book.cover} title={book.title} />
+            </Link>
+
+            <div className="flex min-w-0 flex-1 flex-col">
                 <Link
                     href={route('books.overview', book.id)}
-                    data-a={`books:open:${book.id}`}
                     className="min-w-0"
                 >
-                    <h2 className="truncate font-display text-[17px] font-bold tracking-[-0.02em] text-text-primary">
+                    <h2 className="font-display text-[17px] font-bold leading-[1.2] tracking-[-0.02em] text-text-primary">
                         {book.title}
                     </h2>
-                    {book.subtitle && (
-                        <p className="mt-0.5 truncate text-[12.5px] text-text-secondary">
-                            {book.subtitle}
-                        </p>
-                    )}
                 </Link>
 
-                <StatusChip status={book.status} />
-            </div>
+                <p className="mt-1 text-[12.5px] text-text-secondary">
+                    {book.genre || 'Unclassified'} · {book.word_count.toLocaleString()} words
+                </p>
 
-            <p className="mt-3 text-[12.5px] text-text-secondary">
-                {book.word_count.toLocaleString()} words ·{' '}
-                {book.sections_count} section{book.sections_count === 1 ? '' : 's'} ·{' '}
-                {book.updated_at}
-            </p>
-
-            {pct !== null && (
-                <div className="mt-3">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-bg-subtle">
-                        <div
-                            className="h-full rounded-full bg-brand-primary"
-                            style={{ width: `${pct}%` }}
-                        />
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-text-secondary">
-                        {pct}% of {book.target_words.toLocaleString()}
-                    </p>
+                <div className="mt-2 flex items-center gap-2">
+                    <StatusChip status={book.status} />
+                    <span className="text-[11px] text-text-secondary">{book.updated_at}</span>
                 </div>
-            )}
 
-            <div className="mt-4 flex items-center gap-4 border-t border-border-divider pt-3 text-[12.5px]">
-                {archived ? (
-                    <button
-                        data-a={`books:restore:${book.id}`}
-                        onClick={() =>
-                            router.patch(
-                                route('books.update', book.id),
-                                { status: 'draft' },
-                                { preserveScroll: true },
-                            )
-                        }
-                        className="font-semibold text-brand-primary hover:text-brand-primary-hover"
-                    >
-                        Restore
-                    </button>
-                ) : (
-                    <Link
-                        href={route('books.edit', book.id)}
-                        data-a={`books:write:${book.id}`}
-                        className="font-semibold text-brand-primary hover:text-brand-primary-hover"
-                    >
-                        Open manuscript
-                    </Link>
+                {pct !== null && (
+                    <div className="mt-2.5">
+                        <div className="h-[6px] overflow-hidden rounded-full bg-bg-subtle">
+                            <div
+                                className="h-full rounded-full bg-brand-primary transition-[width]"
+                                style={{ width: `${pct}%` }}
+                            />
+                        </div>
+                        <p className="mt-1 text-[10.5px] text-text-secondary">
+                            {pct}% of {book.target_words.toLocaleString()} words
+                        </p>
+                    </div>
                 )}
 
-                <Link
-                    href={route('books.settings', book.id)}
-                    data-a={`books:settings:${book.id}`}
-                    className="ml-auto text-text-secondary hover:text-text-primary"
-                >
-                    Settings
-                </Link>
+                <div className="mt-auto flex items-center gap-2 pt-3">
+                    {archived ? (
+                        <button
+                            data-a={`books:restore:${book.id}`}
+                            onClick={() =>
+                                router.patch(
+                                    route('books.update', book.id),
+                                    { status: 'draft' },
+                                    { preserveScroll: true },
+                                )
+                            }
+                            className="rounded-control bg-brand-primary px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                        >
+                            Restore
+                        </button>
+                    ) : (
+                        <>
+                            <Link
+                                href={route('books.edit', book.id)}
+                                data-a={`books:write:${book.id}`}
+                                className="rounded-control bg-brand-primary px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                            >
+                                Open
+                            </Link>
+
+                            <button
+                                data-a={`books:archive:${book.id}`}
+                                onClick={() =>
+                                    router.patch(
+                                        route('books.update', book.id),
+                                        { status: 'archived' },
+                                        { preserveScroll: true },
+                                    )
+                                }
+                                className="rounded-control border border-border-input px-3.5 py-1.5 text-[12.5px] font-medium text-text-body transition hover:border-border-input/80"
+                            >
+                                Archive
+                            </button>
+                        </>
+                    )}
+
+                    <Link
+                        href={route('books.settings', book.id)}
+                        data-a={`books:settings:${book.id}`}
+                        className="ml-auto text-[12px] text-text-secondary hover:text-text-primary"
+                    >
+                        Settings
+                    </Link>
+                </div>
             </div>
         </li>
+    );
+}
+
+/**
+ * A book's cover on the shelf.
+ *
+ * Drawn from the palette the author picked when there is no uploaded
+ * artwork, so every book has one. Small enough that only the title fits,
+ * which is what a spine-sized thumbnail is for.
+ */
+function ShelfCover({ cover, title }) {
+    // The proportions stores ask for (1600x2560), at the size the design
+    // draws it on the shelf.
+    const width = 104;
+    const height = Math.round(width * (2560 / 1600));
+
+    if (cover?.url) {
+        return (
+            <img
+                src={cover.url}
+                alt=""
+                style={{ width, height }}
+                className="rounded-[3px] object-cover shadow-[0_2px_10px_rgba(15,34,61,.18)]"
+            />
+        );
+    }
+
+    if (!cover) return null;
+
+    return (
+        <div
+            data-a="shelf:cover"
+            style={{
+                width,
+                height,
+                background: `linear-gradient(170deg, ${cover.from}, ${cover.to})`,
+                color: cover.ink,
+            }}
+            className="flex flex-col justify-between overflow-hidden rounded-[3px] p-2.5 shadow-[0_2px_10px_rgba(15,34,61,.18)]"
+        >
+            <span className="line-clamp-4 text-[10px] font-bold uppercase leading-[1.2] tracking-tight">
+                {cover.title || title}
+            </span>
+            {cover.author && (
+                <span className="truncate text-[7.5px] font-semibold uppercase tracking-[0.08em] opacity-90">
+                    {cover.author}
+                </span>
+            )}
+        </div>
     );
 }
 

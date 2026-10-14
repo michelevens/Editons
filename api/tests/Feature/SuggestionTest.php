@@ -205,3 +205,33 @@ it('dismisses without touching the manuscript', function () {
     expect($section->fresh()->plainText())->toBe('The the decision.')
         ->and($finding->refresh()->status)->toBe('dismissed');
 });
+
+it('records an accepted suggestion as AI-written, not as a manual edit', function () {
+    // The distinction an AI-use declaration depends on. Stored as `manual`,
+    // an AI-authored sentence is indistinguishable from one the author typed,
+    // and no later work recovers which was which.
+    $section = sectionWithText('The the decision was made early.');
+    $finding = findingOn($section, 'The the', 'The');
+
+    app(SuggestionApplier::class)->apply($finding);
+
+    expect($section->versions()->latest('version_number')->first()->reason)
+        ->toBe('ai_suggestion');
+});
+
+it('keeps a typed edit marked as the author\'s own', function () {
+    // The other half of the same guarantee: marking everything ai_ would be
+    // as useless as marking nothing.
+    $section = sectionWithText('Something the author wrote.');
+
+    app(App\Services\ManuscriptWriter::class)->save(
+        section: $section,
+        content: ['type' => 'doc', 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Something the author then changed.']],
+        ]]],
+        reason: 'manual',
+    );
+
+    expect($section->versions()->latest('version_number')->first()->reason)->toBe('manual');
+});

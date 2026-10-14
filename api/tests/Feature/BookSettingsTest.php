@@ -72,11 +72,21 @@ it('filters the shelf by status', function () {
     Book::factory()->for($user)->create(['title' => 'Active one']);
     Book::factory()->for($user)->create(['title' => 'Old one', 'status' => 'archived']);
 
-    $active = $this->actingAs($user)->get('/books')->viewData('page')['props'];
+    // The shelf opens on 'all', so both books are listed. Opening on a
+    // filtered view would hide a book without saying so, which is the wrong
+    // first impression of somebody's own shelf.
+    $all = $this->actingAs($user)->get('/books')->viewData('page')['props'];
+
+    expect($all['books'])->toHaveCount(2)
+        ->and($all['counts']['archived'])->toBe(1)
+        ->and($all['counts']['active'])->toBe(1);
+
+    $active = $this->actingAs($user)
+        ->get('/books?filter=active')
+        ->viewData('page')['props'];
 
     expect($active['books'])->toHaveCount(1)
-        ->and($active['books'][0]['title'])->toBe('Active one')
-        ->and($active['counts']['archived'])->toBe(1);
+        ->and($active['books'][0]['title'])->toBe('Active one');
 
     $archived = $this->actingAs($user)
         ->get('/books?filter=archived')

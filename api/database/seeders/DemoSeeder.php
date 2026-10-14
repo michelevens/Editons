@@ -52,66 +52,9 @@ class DemoSeeder extends Seeder
         // would grow without bound.
         $user->books()->withTrashed()->forceDelete();
 
-        $book = $user->books()->create([
-            'title' => 'Building an Independent Practice',
-            'subtitle' => 'A Step-by-Step Guide for Healthcare Professionals',
-            'author_name' => 'Demo Author',
-            'genre' => 'Nonfiction',
-            'description' => 'A worked example. Edit it freely — it resets.',
-        ]);
-
-        // Front matter, parts and back matter, so the binder shows the shape
-        // of a real book rather than a flat list. The structure is what the
-        // Outline, Export and Accessibility screens all work against, and a
-        // demo without it does not exercise any of them.
-        $this->matter($book, 'front_matter', 'Front Matter', -2, [
-            ['p', 'For everyone who kept asking how it actually works.'],
-        ]);
-
-        $this->matter($book, 'front_matter', 'Introduction', -1, [
-            ['p', 'This book is the guide I wanted when I opened my own practice and could not find one that said what the work is really like.'],
-        ]);
-
-        $partOne = $this->part($book, 'Part I: Laying the Foundation', 1);
-
-        $this->chapter($book, 1, 'The Professional Opportunity', [
-            ['h2', '1.1 A Changing Healthcare Landscape'],
-            ['p', 'The demand for high-quality, accessible professional services has never been greater. As healthcare systems evolve and communities seek more personalized care, independent practitioners are uniquely positioned to fill critical gaps in service delivery.'],
-            // Deliberately flawed: an unsourced statistic, a repeated word, a
-            // mixed spelling and a passive construction, so running the agents
-            // finds something real rather than reporting a clean chapter.
-            ['p', 'Roughly 47 percent of new practices close within three years of opening their doors. The the decision to organise your records early is always correct for every single practicioner, and it was decided by the board that this approach should be organized without delay.'],
-            ['h2', '1.2 Market Demand and Opportunities'],
-            ['p', 'Several factors are driving increased demand for independent practitioners, including demographic changes, increased awareness of specialized care, and growing interest in personalized care.'],
-        ], $partOne);
-
-        $this->chapter($book, 2, 'Defining Your Services', [
-            ['p', 'Later the Board of Directors revisited the policy, and every practicioner was notified of the change in scope.'],
-            ['p', 'Deciding what you will not do is as much a part of a practice as deciding what you will.'],
-        ], $partOne);
-
-        $this->chapter($book, 3, 'Legal and Regulatory Considerations', [
-            ['p', 'Choosing a structure is the first decision that is expensive to reverse, and the one most often made last.'],
-        ], $partOne);
-
-        $partTwo = $this->part($book, 'Part II: Building Your Practice', 2);
-
-        $this->chapter($book, 4, 'Operations and Systems', [
-            ['p', 'A practice runs on the things nobody trained you for: scheduling, records, and the hour a week you will spend chasing them.'],
-        ], $partTwo);
-
-        $this->chapter($book, 5, 'Financial Management', [
-            ['p', 'Knowing what a visit costs you to deliver is the difference between a busy practice and a profitable one.'],
-        ], $partTwo);
-
-        $this->matter($book, 'back_matter', 'About the Author', 99, [
-            ['p', 'Written after twelve years in practice and four spent helping other people start theirs.'],
-        ]);
-
-        $this->research($book, $user);
-        $this->vocabulary($book);
-
-        $book->refresh()->recalculateWordCount();
+        $this->flagship($user);
+        $this->secondBook($user);
+        $this->thirdBook($user);
 
         $this->command?->info("Demo account ready: {$email}");
     }
@@ -274,5 +217,215 @@ class DemoSeeder extends Seeder
 
         $section->word_count = ManuscriptSection::countWords($section->content);
         $section->save();
+    }
+
+    /**
+     * The worked example: twenty chapters across four parts, with front and
+     * back matter, and numbered sections and subsections inside the prose.
+     *
+     * Big enough to be worth navigating, which is the point. An outline, a
+     * word target and a review queue only mean anything against a manuscript
+     * that has some size to it.
+     */
+    private function flagship(User $user): void
+    {
+        $book = $user->books()->create([
+            'title' => 'Building an Independent Practice',
+            'subtitle' => 'A Step-by-Step Guide for Healthcare Professionals',
+            'author_name' => 'Demo Author',
+            'genre' => 'Nonfiction',
+            'book_type' => 'nonfiction',
+            'started_with' => 'template',
+            'journey_stage' => 'create',
+            'description' => 'A worked example. Edit it freely, it resets.',
+            'target_words' => 90000,
+            'cover' => ['palette' => 0],
+            'list_price' => 24.99,
+            'meta' => [
+                'description' => 'A practical guide to opening and running an independent healthcare practice, from the first legal decision to the first hire.',
+                'category' => 'Medical / Practice Management',
+                'keywords' => 'private practice, healthcare, small business',
+            ],
+        ]);
+
+        $this->matter($book, 'front_matter', 'Front Matter', -3, [
+            ['p', 'For everyone who kept asking how it actually works.'],
+        ]);
+
+        $this->matter($book, 'front_matter', 'Introduction', -2, [
+            ['p', 'This book is the guide I wanted when I opened my own practice and could not find one that said what the work is really like.'],
+            ['p', 'It is organised the way the decisions actually arrive: what you are building, then how to build it, then how to keep it standing.'],
+        ]);
+
+        $structure = [
+            'Part I: Laying the Foundation' => [
+                ['The Professional Opportunity', [
+                    ['h2', '1.1 A Changing Healthcare Landscape'],
+                    ['p', 'The demand for high-quality, accessible professional services has never been greater. As healthcare systems evolve and communities seek more personalized care, independent practitioners are uniquely positioned to fill critical gaps in service delivery.'],
+                    ['p', 'Roughly 47 percent of new practices close within three years of opening their doors. The the decision to organise your records early is always correct for every single practicioner, and it was decided by the board that this approach should be organized without delay.'],
+                    ['h3', '1.1.1 Who this book is for'],
+                    ['p', 'If you are weighing whether to leave an employer, this is the chapter that matters most.'],
+                    ['h2', '1.2 Market Demand and Opportunities'],
+                    ['p', 'Several factors are driving increased demand for independent practitioners, including demographic changes, increased awareness of specialized care, and growing interest in personalized care.'],
+                ]],
+                ['Defining Your Services', [
+                    ['h2', '2.1 Scope of Practice'],
+                    ['p', 'Later the Board of Directors revisited the policy, and every practicioner was notified of the change in scope.'],
+                    ['h2', '2.2 Saying No'],
+                    ['p', 'Deciding what you will not do is as much a part of a practice as deciding what you will.'],
+                ]],
+                ['Legal and Regulatory Considerations', [
+                    ['h2', '3.1 Choosing a Structure'],
+                    ['p', 'Choosing a structure is the first decision that is expensive to reverse, and the one most often made last.'],
+                    ['h3', '3.1.1 Sole practice'],
+                    ['p', 'The simplest to form and the hardest to step away from.'],
+                    ['h3', '3.1.2 Group practice'],
+                    ['p', 'More paperwork at the start, and more room to be ill later.'],
+                ]],
+                ['Business Models and Revenue', [
+                    ['h2', '4.1 Where the Money Comes From'],
+                    ['p', 'Most practices have three or four revenue lines and only understand two of them.'],
+                ]],
+                ['Creating a Business Plan', [
+                    ['p', 'A plan nobody reads is still worth writing, because writing it is where you find the holes.'],
+                ]],
+            ],
+            'Part II: Building Your Practice' => [
+                ['Operations and Systems', [
+                    ['h2', '6.1 The Work Behind the Work'],
+                    ['p', 'A practice runs on the things nobody trained you for: scheduling, records, and the hour a week you will spend chasing them.'],
+                ]],
+                ['Marketing and Client Acquisition', [
+                    ['p', 'Referrals are the only marketing channel most practices ever need, and the only one that cannot be bought.'],
+                ]],
+                ['Financial Management', [
+                    ['h2', '8.1 Unit Economics'],
+                    ['p', 'Knowing what a visit costs you to deliver is the difference between a busy practice and a profitable one.'],
+                ]],
+                ['Technology and Tools', [
+                    ['p', 'Buy the smallest system that solves the problem you actually have this quarter.'],
+                ]],
+                ['Building Your Team', [
+                    ['h2', '10.1 The First Hire'],
+                    ['p', 'Your first hire changes the practice more than any software will.'],
+                ]],
+            ],
+            'Part III: Growth and Sustainability' => [
+                ['Quality and Outcomes', [
+                    ['p', 'Measuring outcomes is uncomfortable precisely because it is useful.'],
+                ]],
+                ['Scaling Your Practice', [
+                    ['p', 'Growth multiplies whatever is already true about how you run things.'],
+                ]],
+                ['Avoiding Common Pitfalls', [
+                    ['h2', '13.1 Undercharging'],
+                    ['p', 'The most common error, and the one that compounds quietly for years.'],
+                ]],
+                ['Managing Risk', [
+                    ['p', 'Insurance is the cheap part. The expensive part is the habit of writing things down.'],
+                ]],
+                ['Future Opportunities', [
+                    ['p', 'Telehealth did not replace the clinic; it replaced the drive to it.'],
+                ]],
+            ],
+            'Part IV: The Long View' => [
+                ['Succession and Exit', [
+                    ['p', 'A practice you cannot leave is a job with extra paperwork.'],
+                ]],
+                ['Partnerships', [
+                    ['p', 'Write the disagreement down while everybody still agrees.'],
+                ]],
+                ['Burnout and Boundaries', [
+                    ['p', 'The practices that last are run by people who stopped answering the phone at nine.'],
+                ]],
+                ['Teaching and Mentorship', [
+                    ['p', 'Explaining the work to somebody newer is how you find out what you actually believe.'],
+                ]],
+                ['What Comes Next', [
+                    ['p', 'Whatever you build, build it so somebody else could run it for a fortnight.'],
+                ]],
+            ],
+        ];
+
+        $number = 0;
+        $partIndex = 0;
+
+        foreach ($structure as $partTitle => $chapters) {
+            $part = $this->part($book, $partTitle, ++$partIndex);
+
+            foreach ($chapters as [$title, $blocks]) {
+                $this->chapter($book, ++$number, $title, $blocks, $part);
+            }
+        }
+
+        $this->matter($book, 'back_matter', 'Conclusion', 97, [
+            ['p', 'None of this is the hard part. The hard part is the first Monday.'],
+        ]);
+
+        $this->matter($book, 'back_matter', 'References', 98, [
+            ['p', 'Sources are tracked in the Research Library and cited from the manuscript.'],
+        ]);
+
+        $this->matter($book, 'back_matter', 'About the Author', 99, [
+            ['p', 'Written after twelve years in practice and four spent helping other people start theirs.'],
+        ]);
+
+        $this->research($book, $user);
+        $this->vocabulary($book);
+
+        $book->refresh()->recalculateWordCount();
+    }
+
+    /** A second book, mid-draft, so the shelf is not a single card. */
+    private function secondBook(User $user): void
+    {
+        $book = $user->books()->create([
+            'title' => 'The Quiet Hours',
+            'subtitle' => 'A Memoir of Night Shifts',
+            'author_name' => 'Demo Author',
+            'genre' => 'Memoir',
+            'book_type' => 'memoir',
+            'started_with' => 'idea',
+            'journey_stage' => 'create',
+            'description' => 'A second book, part written, so the shelf shows more than one thing.',
+            'target_words' => 60000,
+            'cover' => ['palette' => 4],
+        ]);
+
+        $part = $this->part($book, 'Part I: Arrivals', 1);
+
+        $this->chapter($book, 1, 'The First Night', [
+            ['p', 'Nobody tells you that the hospital at three in the morning is quieter than your own house.'],
+            ['p', 'I learned the building by its sounds before I learned it by its corridors.'],
+        ], $part);
+
+        $this->chapter($book, 2, 'Handover', [
+            ['p', 'Everything that matters is said in the four minutes between shifts.'],
+        ], $part);
+
+        $book->refresh()->recalculateWordCount();
+    }
+
+    /** A third, barely started, which is what most books look like. */
+    private function thirdBook(User $user): void
+    {
+        $book = $user->books()->create([
+            'title' => 'Small Systems',
+            'subtitle' => 'Notes on Running Things That Work',
+            'author_name' => 'Demo Author',
+            'genre' => 'Technical',
+            'book_type' => 'technical',
+            'started_with' => 'outline',
+            'journey_stage' => 'plan',
+            'description' => 'An outline and a first chapter, which is the state most books are in.',
+            'target_words' => 45000,
+            'cover' => ['palette' => 2],
+        ]);
+
+        $this->chapter($book, 1, 'Why Small', [
+            ['p', 'Every system you cannot hold in your head will eventually be run by nobody.'],
+        ]);
+
+        $book->refresh()->recalculateWordCount();
     }
 }

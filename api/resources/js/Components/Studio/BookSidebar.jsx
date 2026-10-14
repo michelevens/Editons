@@ -137,22 +137,62 @@ export default function BookSidebar({ book, active, badges = {}, onSelect }) {
     );
 }
 
+/**
+ * The cover thumbnail.
+ *
+ * Draws the author's chosen palette and title when there is no uploaded
+ * artwork, rather than a grey "NO COVER" box. Every book has a cover in the
+ * sense that matters here — Cover Studio always has a palette selected — and
+ * the box was showing because nothing ever sent the field the card asked for.
+ */
+function BookCover({ cover, title }) {
+    if (cover?.url) {
+        return (
+            <img
+                src={cover.url}
+                alt=""
+                className="h-[73px] w-[46px] shrink-0 rounded-[3px] object-cover"
+            />
+        );
+    }
+
+    // No cover data at all: the caller has not been updated to send it, so
+    // fall back rather than render a blank rectangle.
+    if (!cover) {
+        return (
+            <div className="grid h-[73px] w-[46px] shrink-0 place-items-center rounded-[3px] bg-bg-sidebar-active text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-text-sidebar-muted">
+                No
+                <br />
+                cover
+            </div>
+        );
+    }
+
+    return (
+        <div
+            data-a="sidebar:cover"
+            className="flex h-[73px] w-[46px] shrink-0 flex-col justify-between overflow-hidden rounded-[3px] p-[5px]"
+            style={{
+                background: `linear-gradient(170deg, ${cover.from}, ${cover.to})`,
+                color: cover.ink,
+            }}
+        >
+            <span className="line-clamp-3 text-[5.5px] font-bold uppercase leading-[1.25] tracking-tight">
+                {cover.title || title}
+            </span>
+            {cover.author && (
+                <span className="truncate text-[4.5px] font-semibold uppercase tracking-wide opacity-90">
+                    {cover.author}
+                </span>
+            )}
+        </div>
+    );
+}
+
 function BookCard({ book }) {
     return (
         <div className="flex gap-3 border-b border-border-sidebar px-[18px] py-4">
-            {book.cover_url ? (
-                <img
-                    src={book.cover_url}
-                    alt=""
-                    className="h-[73px] w-[46px] shrink-0 rounded-[3px] object-cover"
-                />
-            ) : (
-                <div className="grid h-[73px] w-[46px] shrink-0 place-items-center rounded-[3px] bg-bg-sidebar-active text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-text-sidebar-muted">
-                    No
-                    <br />
-                    cover
-                </div>
-            )}
+            <BookCover cover={book.cover} title={book.title} />
 
             <div className="min-w-0 pt-0.5">
                 <p className="line-clamp-2 text-[13.5px] font-semibold leading-[1.25] text-white">

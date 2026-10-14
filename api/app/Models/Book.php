@@ -27,6 +27,18 @@ class Book extends Model
         'description', 'target_words', 'settings',
         'layout', 'cover', 'meta', 'list_price', 'isbn', 'rights',
         'launch_date', 'launch_tasks', 'notes', 'marketing_kit',
+        'studio', 'book_type', 'started_with', 'assistance',
+        'journey_stage', 'journey_tasks',
+    ];
+
+    /** The two product experiences. Academic Studio is not built yet. */
+    public const STUDIOS = ['author', 'academic'];
+
+    /** How much the author wants the AI to do. */
+    public const ASSISTANCE = ['author_led', 'coach', 'collaborative'];
+
+    public const JOURNEY_STAGES = [
+        'discover', 'plan', 'create', 'improve', 'design', 'publish',
     ];
 
     /** Interior layout, with the defaults the Design screen opens on. */
@@ -76,6 +88,35 @@ class Book extends Model
         return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
     }
 
+    /**
+     * The cover, as anything showing a thumbnail needs it.
+     *
+     * Returns the uploaded artwork's URL when there is one, and otherwise the
+     * palette the author chose, so a book with no uploaded image still has a
+     * cover rather than a grey box saying NO COVER. The sidebar asked for
+     * `cover_url` and nothing ever produced it, so every book in the product
+     * showed that box — the demo one and everyone else's.
+     *
+     * @return array<string, mixed>
+     */
+    public function coverFor(): array
+    {
+        $cover = $this->cover ?? [];
+        $palettes = \App\Publishing\AccessibilityAudit::PALETTES;
+        $palette = $palettes[$cover['palette'] ?? 0] ?? $palettes[0];
+
+        return [
+            'url' => isset($cover['artwork'])
+                ? \Illuminate\Support\Facades\Storage::disk('public')->url($cover['artwork'])
+                : null,
+            'title' => $cover['title'] ?? $this->title,
+            'author' => $cover['author'] ?? $this->author_name,
+            'from' => $palette['from'],
+            'to' => $palette['to'],
+            'ink' => $palette['ink'],
+        ];
+    }
+
     /** Layout with defaults applied, so the Design screen never reads null. */
     public function layout(): array
     {
@@ -99,6 +140,7 @@ class Book extends Model
             'launch_date' => 'date',
             'launch_tasks' => 'array',
             'marketing_kit' => 'array',
+            'journey_tasks' => 'array',
             'list_price' => 'decimal:2',
             'word_count' => 'integer',
         ];
