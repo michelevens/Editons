@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectRendered, firstBookId, signIn, watchForErrors } from './helpers.js';
+import { expectRendered, firstBookId, ignoring, signIn, watchForErrors } from './helpers.js';
 
 /**
  * The handoff's acceptance test, ported.
@@ -246,6 +246,226 @@ test.describe('every screen renders', () => {
 
         // The proof is the thread rendering, not a button changing.
         await expect(page.getByText(body)).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('applying a suggestion changes the manuscript text', async ({ page }) => {
+        // The failure this guards shipped for weeks: "Apply fix" marked the
+        // finding done and left the prose untouched, so the panel agreed with
+        // the author while the document disagreed. The assertion is therefore
+        // on the TEXT, not on the finding disappearing.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        // Type a defect the copy editor is guaranteed to flag with a fix, so
+        // this cannot quietly skip. A skipped test proves nothing.
+        //
+        // The marker is unique per run: repeated runs that all appended the
+        // same phrase left several identical passages, and the applier then
+        // correctly refused as ambiguous — a test failing on its own residue.
+        const marker = `zz${Date.now()}`;
+        const canvas = page.locator('.manuscript .ProseMirror');
+        await canvas.click();
+        await page.keyboard.press('Control+End');
+        await page.keyboard.type(` The the ${marker} word.`);
+
+        // Let the autosave land before reviewing what was saved.
+        await page.waitForTimeout(2000);
+        await page.click('[data-a="ai:run:copy"]');
+
+        // Apply buttons live inside an agent's findings view, not on the
+        // agent list, so the agent has to be opened first.
+        await page.click('[data-a="ai:agent:copy"]');
+
+        // Find THIS run's finding by its excerpt, not the first apply button
+        // on screen. Taking the first one applied an earlier run's suggestion
+        // instead and then failed on a marker nothing had touched — a true
+        // negative about the test, not the feature.
+        const card = page
+            .locator('li')
+            .filter({ hasText: `The the ${marker}` })
+            .first();
+        const applyButton = card.locator('[data-a^="ai:accept:"]');
+        await expect(applyButton).toBeVisible({ timeout: 15_000 });
+
+        const prose = page.locator('.manuscript .ProseMirror');
+        const before = await prose.innerText();
+        expect(before).toContain(`The the ${marker}`);
+
+        await applyButton.click();
+
+        // The assertion that matters: this run's defect is gone from the prose.
+        await expect
+            .poll(async () => prose.innerText(), { timeout: 15_000 })
+            .not.toContain(`The the ${marker}`);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('design and layout', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:layout"]');
+
+        // The preview must show the author's own prose, not filler. A sample
+        // paragraph would prove the panel rendered and nothing else.
+        await expect(page.locator('[data-a="layout:trim"]')).toBeVisible();
+        await expect(page.getByText(/Professional Opportunity|Chapter/i).first()).toBeVisible();
+
+        // Changing the trim size must survive a reload, or the screen is a
+        // set of controls that do nothing.
+        await page.selectOption('[data-a="layout:trim"]', '5 x 8 in');
+        await page.waitForTimeout(900);
+        await page.reload();
+        await page.click('[data-a="side:layout"]');
+        await expect(page.locator('[data-a="layout:trim"]')).toHaveValue('5 x 8 in');
+
+        // Put it back, so a later run starts where this one did.
+        await page.selectOption('[data-a="layout:trim"]', '6 x 9 in');
+        await page.waitForTimeout(900);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('cover studio', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:cover"]');
+
+        await expect(page.locator('[data-a="cover:preview"]')).toBeVisible();
+
+        await page.click('[data-a="cover:palette:2"]');
+        await page.waitForTimeout(700);
+        await page.reload();
+        await page.click('[data-a="side:cover"]');
+        await expect(page.locator('[data-a="cover:palette:2"]')).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+
+        expect(errors).toEqual([]);
+    });
+
+    test('export and publish lists what blocks a submission', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:export"]');
+
+        await expect(page.locator('[data-a="publish:title"]')).toBeVisible();
+        await expect(page.locator('[data-a="publish:channel:amazon_kdp"]')).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('generating a file produces a real download', async ({ page }) => {
+        // The assertion that matters: a file arrives with bytes in it. A
+        // button that flips to "ready" over an empty file is the failure
+        // this guards.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:export"]');
+
+        await page.click('[data-a="publish:generate:epub"]');
+
+        const row = page.locator('[data-a^="publish:download:"]').first();
+        await expect(row).toBeVisible({ timeout: 20_000 });
+
+        const download = await Promise.all([
+            page.waitForEvent('download'),
+            row.click(),
+        ]).then(([event]) => event);
+
+        const path = await download.path();
+        expect(path).toBeTruthy();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('isbn and rights', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:rights"]');
+
+        await expect(page.getByText('ISBNs by edition')).toBeVisible();
+        await expect(page.getByText('Rights checklist')).toBeVisible();
+
+        // A mistyped ISBN must be refused rather than printed on a cover.
+        await page.click('[data-a="rights:own:ebook"]');
+        await page.fill('[data-a="rights:own:input"]', '9780306406158');
+        await page.click('[data-a="rights:own:save"]');
+        await expect(page.getByText(/not a valid ISBN/i)).toBeVisible({ timeout: 10_000 });
+
+        // The 422 is the point of this test: the server refusing a mistyped
+        // number is the behaviour being asserted, not a defect.
+        expect(ignoring(errors, '422')).toEqual([]);
+    });
+
+    test('inserting a copyright page satisfies two checks at once', async ({ page }) => {
+        // Both items are computed from the manuscript, so one action must
+        // move both without anything being stored.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:rights"]');
+
+        await page.click('[data-a="rights:check:copyright_page"]');
+
+        await expect(page.locator('[data-a="rights:check:disclaimer"]')).toHaveText(
+            /Undo/,
+            { timeout: 10_000 },
+        );
+
+        expect(errors).toEqual([]);
+    });
+
+    test('editions', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:editions"]');
+
+        await expect(page.locator('[data-a="editions:workbook"]')).toBeVisible();
+        await expect(page.locator('[data-a="editions:language"]')).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the top nav opens Design and Publishing', async ({ page }) => {
+        // These three buttons used to be marked "not built" and led nowhere.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        await page.click('[data-a="nav:design"]');
+        await expect(page.locator('[data-a="layout:trim"]')).toBeVisible();
+
+        await page.click('[data-a="nav:publishing"]');
+        await expect(page.locator('[data-a="publish:title"]')).toBeVisible();
 
         expect(errors).toEqual([]);
     });

@@ -6,6 +6,11 @@ import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import { BottomRow } from '@/Components/Studio/BottomCards';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
+import CoverPanel from '@/Components/Studio/CoverPanel';
+import EditionsPanel from '@/Components/Studio/EditionsPanel';
+import LayoutPanel from '@/Components/Studio/LayoutPanel';
+import PublishPanel from '@/Components/Studio/PublishPanel';
+import RightsPanel from '@/Components/Studio/RightsPanel';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
@@ -142,9 +147,44 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     };
 
     const resolve = async (finding, status) => {
-        const res = await window.axios.patch(`/findings/${finding.id}`, { status });
-        setFindings(res.data.findings);
-        notify(status === 'accepted' ? 'Finding applied.' : 'Finding resolved.');
+        try {
+            const res = await window.axios.patch(`/findings/${finding.id}`, { status });
+
+            setFindings(res.data.findings);
+
+            // An applied suggestion rewrites the chapter, so the editor has
+            // to re-read it. Without the revision bump it would keep showing
+            // the text as it was before the fix.
+            if (res.data.applied && res.data.content) {
+                setSection((value) => ({
+                    ...value,
+                    content: res.data.content,
+                    word_count: res.data.word_count,
+                    revision: (value.revision ?? 0) + 1,
+                }));
+                setBookWords((words) => words);
+                load();
+            }
+
+            notify(
+                status === 'accepted'
+                    ? res.data.applied
+                        ? 'Fix applied to the chapter.'
+                        : 'Finding marked as handled.'
+                    : 'Finding dismissed.',
+            );
+        } catch (failure) {
+            // 409 means the passage moved or is ambiguous and nothing was
+            // changed. Saying so beats letting the finding vanish.
+            notify(
+                failure.response?.data?.message ??
+                    'That could not be applied.',
+            );
+
+            if (failure.response?.data?.findings) {
+                setFindings(failure.response.data.findings);
+            }
+        }
     };
 
     const restore = async (versionId) => {
@@ -262,7 +302,9 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         setPanelOpen(false);
     };
 
-    const liveNav = ['writing', 'ai', 'books', 'research', 'analytics'].includes(nav);
+    const liveNav = [
+        'writing', 'ai', 'books', 'research', 'analytics', 'design', 'publishing',
+    ].includes(nav);
     const effectivePane = nav === 'research' ? 'research' : pane;
     const isStudio = liveNav && effectivePane === 'manuscript';
     const openFindings = findings.filter((f) => f.status === 'open');
@@ -293,6 +335,13 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 onSelect={(item) => {
                     setNav(item.key);
                     setSidebarOpen(false);
+
+                    // The top nav names an area; the pane is where that area
+                    // actually opens. Without this, choosing Design would
+                    // leave whatever pane was already showing.
+                    if (NAV_LANDING[item.key]) {
+                        setPane(NAV_LANDING[item.key]);
+                    }
                 }}
                 user={auth?.user}
                 onOpenPalette={() => notify('The command palette is not built yet.')}
@@ -353,6 +402,26 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             what="This area of the studio has no engine behind it yet."
                             milestone={milestoneFor(nav)}
                         />
+                    ) : effectivePane === 'layout' ? (
+                        <Panel>
+                            <LayoutPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
+                    ) : effectivePane === 'cover' ? (
+                        <Panel>
+                            <CoverPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
+                    ) : effectivePane === 'export' ? (
+                        <Panel>
+                            <PublishPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
+                    ) : effectivePane === 'rights' ? (
+                        <Panel>
+                            <RightsPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
+                    ) : effectivePane === 'editions' ? (
+                        <Panel>
+                            <EditionsPanel bookId={book.id} onNotify={notify} />
+                        </Panel>
                     ) : effectivePane === 'research' ? (
                         <Panel>
                             <ResearchLibrary bookId={book.id} onChanged={refreshLibrary} />
@@ -519,7 +588,16 @@ const PANE_LABELS = {
     layout: 'Design & Layout',
     cover: 'Cover Studio',
     export: 'Export & Publish',
+    rights: 'ISBN & Rights',
+    editions: 'Editions',
     distribution: 'Sales & Distribution',
+};
+
+/** Where a top-nav area opens. */
+const NAV_LANDING = {
+    design: 'layout',
+    publishing: 'export',
+    writing: 'manuscript',
 };
 
 const labelFor = (key) => NAV_LABELS[key] ?? key;

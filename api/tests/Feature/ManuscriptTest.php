@@ -202,3 +202,69 @@ it('rejects a parent section from another book', function () {
         ])
         ->assertNotFound();
 });
+
+it('accepts the unload save a beacon sends over POST', function () {
+    // navigator.sendBeacon can only issue POST, and it is what carries a
+    // writer's last edit when they close the tab. Against the PUT-only route
+    // this returned 405 and the edit was lost — silently, because a beacon
+    // has no response to inspect. This is the one save path where a failure
+    // is unrecoverable, so it is tested directly.
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    $section = ManuscriptSection::factory()->for($book)->create();
+
+    $this->actingAs($user)
+        ->postJson("/sections/{$section->id}/content", [
+            'content' => ['type' => 'doc', 'content' => [[
+                'type' => 'paragraph',
+                'content' => [['type' => 'text', 'text' => 'The last thing they typed.']],
+            ]]],
+        ])
+        ->assertOk();
+
+    expect($section->fresh()->plainText())->toBe('The last thing they typed.');
+});
+
+it('still refuses a beacon save from somebody who cannot edit the chapter', function () {
+    // A second verb on the same action must not be a second authorisation
+    // path. It routes to the same controller method, and this proves it.
+    $owner = User::factory()->create();
+    $stranger = User::factory()->create();
+    $section = ManuscriptSection::factory()
+        ->for(Book::factory()->for($owner))
+        ->create();
+
+    $this->actingAs($stranger)
+        ->postJson("/sections/{$section->id}/content", [
+            'content' => ['type' => 'doc', 'content' => []],
+        ])
+        ->assertForbidden();
+});
+
+it('accepts a beacon body carrying the token, with no CSRF header', function () {
+    // Exactly what navigator.sendBeacon sends: a JSON body with `_token` in
+    // it and no headers at all. The CSRF middleware is left switched on,
+    // because this endpoint rewrites a manuscript and exempting it to make a
+    // beacon work would be the wrong trade.
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    $section = ManuscriptSection::factory()->for($book)->create();
+
+    $this->withMiddleware()
+        ->actingAs($user)
+        ->call(
+            'POST',
+            "/sections/{$section->id}/content",
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode([
+                'content' => doc('Saved as the tab closed.'),
+                '_token' => csrf_token(),
+            ]),
+        )
+        ->assertOk();
+
+    expect($section->fresh()->plainText())->toBe('Saved as the tab closed.');
+});

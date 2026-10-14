@@ -25,6 +25,33 @@ class Book extends Model
     protected $fillable = [
         'title', 'subtitle', 'author_name', 'genre', 'language', 'status',
         'description', 'target_words', 'settings',
+        'layout', 'cover', 'meta', 'list_price', 'isbn', 'rights',
+    ];
+
+    /** Interior layout, with the defaults the Design screen opens on. */
+    public const DEFAULT_LAYOUT = [
+        'trim' => '6 x 9 in',
+        'margins' => 'Standard',
+        'font' => 'serif',
+        'size' => 11.0,
+        'leading' => 1.45,
+        'dropcap' => false,
+        'headers' => true,
+    ];
+
+    /** Print trim sizes offered on the Design screen. */
+    public const TRIMS = ['5 x 8 in', '5.5 x 8.5 in', '6 x 9 in', '7 x 10 in', '8.5 x 11 in'];
+
+    /** Formats that each need their own ISBN. */
+    public const EDITION_FORMATS = ['ebook', 'paperback', 'hardcover', 'large_print', 'audiobook'];
+
+    public const EDITION_TYPES = ['workbook', 'translation', 'large_print'];
+
+    /** Manual rights attestations, all false until the author ticks them. */
+    public const DEFAULT_RIGHTS = [
+        'registered_copyright' => false,
+        'permissions_cleared' => false,
+        'image_licenses' => false,
     ];
 
     /** Per-book writing preferences, with their defaults. */
@@ -48,12 +75,59 @@ class Book extends Model
         return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
     }
 
+    /** Layout with defaults applied, so the Design screen never reads null. */
+    public function layout(): array
+    {
+        return array_merge(self::DEFAULT_LAYOUT, $this->layout ?? []);
+    }
+
+    /** Rights attestations with defaults applied. */
+    public function rights(): array
+    {
+        return array_merge(self::DEFAULT_RIGHTS, $this->rights ?? []);
+    }
+
     protected function casts(): array
     {
         return [
             'settings' => 'array',
+            'layout' => 'array',
+            'cover' => 'array',
+            'meta' => 'array',
+            'rights' => 'array',
+            'list_price' => 'decimal:2',
             'word_count' => 'integer',
         ];
+    }
+
+    /** Stores this book is offered in. */
+    public function channels(): HasMany
+    {
+        return $this->hasMany(BookChannel::class);
+    }
+
+    /** Generated files, newest first. Append-only, so this is a history. */
+    public function exports(): HasMany
+    {
+        return $this->hasMany(BookExport::class)->latest();
+    }
+
+    /** ISBNs assigned to this book's editions. */
+    public function isbns(): HasMany
+    {
+        return $this->hasMany(Isbn::class);
+    }
+
+    /** The book this edition was derived from, if any. */
+    public function parentBook(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_book_id');
+    }
+
+    /** Editions derived from this book. */
+    public function editions(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_book_id');
     }
 
     public function user(): BelongsTo

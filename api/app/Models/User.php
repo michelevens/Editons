@@ -75,6 +75,18 @@ class User extends Authenticatable
         return $this->hasMany(Book::class);
     }
 
+    /**
+     * ISBNs in this account, assigned and unassigned.
+     *
+     * They belong to the account rather than to a book: you buy a block, then
+     * assign numbers to editions as you publish them. The unassigned rows are
+     * the pool the ISBN screen draws from.
+     */
+    public function isbns(): HasMany
+    {
+        return $this->hasMany(Isbn::class);
+    }
+
     /** Memberships of books belonging to somebody else. */
     public function bookMemberships(): HasMany
     {

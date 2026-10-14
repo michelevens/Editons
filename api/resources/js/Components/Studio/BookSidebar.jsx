@@ -37,9 +37,11 @@ export const SIDEBAR_GROUPS = [
     {
         group: 'PUBLISHING',
         items: [
-            { key: 'layout', label: 'Design & Layout', icon: 'layout', ready: false },
-            { key: 'cover', label: 'Cover Studio', icon: 'cover', ready: false },
-            { key: 'export', label: 'Export & Publish', icon: 'exp', ready: false },
+            { key: 'layout', label: 'Design & Layout', icon: 'layout', ready: true },
+            { key: 'cover', label: 'Cover Studio', icon: 'cover', ready: true },
+            { key: 'export', label: 'Export & Publish', icon: 'exp', ready: true },
+            { key: 'rights', label: 'ISBN & Rights', icon: 'cite', ready: true },
+            { key: 'editions', label: 'Editions', icon: 'lib', ready: true },
             { key: 'distribution', label: 'Sales & Distribution', icon: 'sales', ready: false },
         ],
     },

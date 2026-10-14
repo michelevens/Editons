@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewRunner;
+use App\Editorial\SuggestionApplier;
 use App\Models\EditorialFinding;
 use App\Models\ManuscriptSection;
 use Illuminate\Http\JsonResponse;
@@ -63,13 +64,42 @@ class EditorialController extends Controller
             'status' => ['required', 'in:accepted,dismissed'],
         ]);
 
+        // Accepting a suggestion must actually change the manuscript.
+        // Recording the decision and leaving the prose alone would make the
+        // panel agree with the author while the document disagreed.
+        $applied = null;
+
+        if ($data['status'] === 'accepted' && $finding->suggestion) {
+            try {
+                app(SuggestionApplier::class)->apply($finding, $request->user()->id);
+                $applied = true;
+            } catch (\RuntimeException $e) {
+                // The passage moved or is ambiguous. Say so and leave the
+                // finding open, rather than closing it over an edit that did
+                // not happen.
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'findings' => $this->findingsFor($finding->section),
+                ], 409);
+            }
+        }
+
         $finding->update([
             'status' => $data['status'],
             'resolved_by' => $request->user()->id,
             'resolved_at' => now(),
         ]);
 
-        return response()->json(['findings' => $this->findingsFor($finding->section)]);
+        $section = $finding->section->fresh();
+
+        return response()->json([
+            'findings' => $this->findingsFor($section),
+            'applied' => $applied,
+            // The client needs the rewritten chapter, or the editor goes on
+            // showing the text as it was before the fix.
+            'content' => $applied ? $section->content : null,
+            'word_count' => $applied ? $section->word_count : null,
+        ]);
     }
 
     /** @return array<int, array<string, mixed>> */

@@ -115,14 +115,23 @@ class FakeDriver implements EditorialDriver
         // Doubled words — "the the" — which spellcheckers routinely miss.
         if (preg_match_all('/\b(\w+)\s+\1\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
             foreach ($m[0] as $hit) {
+                // The excerpt carries trailing context, not just the repeated
+                // pair.
+                //
+                // "The the" alone is not unique in a book that says it twice,
+                // and an ambiguous anchor cannot be applied — the suggestion
+                // is then permanently un-actionable. Widening makes it
+                // locatable.
+                [$excerpt, $replacement] = $this->widen($text, $hit[0], $hit[1]);
+
                 $out[] = new Finding(
                     severity: 'warning',
                     title: 'Repeated word',
                     detail: 'The same word appears twice in a row.',
-                    excerpt: $hit[0],
-                    suggestion: explode(' ', $hit[0])[0],
+                    excerpt: $excerpt,
+                    suggestion: $replacement,
                     fromOffset: $hit[1],
-                    toOffset: $hit[1] + mb_strlen($hit[0]),
+                    toOffset: $hit[1] + mb_strlen($excerpt),
                 );
             }
         }
@@ -330,5 +339,49 @@ class FakeDriver implements EditorialDriver
         $start = max(0, $offset - $pad);
 
         return $this->clip(mb_substr($text, $start, $length + $pad * 2));
+    }
+
+    /**
+     * Extend a match with trailing context until it is unique in the text.
+     *
+     * Returns the widened excerpt and the matching replacement. An anchor
+     * that appears twice cannot be applied — the application has no way to
+     * know which occurrence was meant — so a suggestion with an ambiguous
+     * excerpt is permanently un-actionable.
+     *
+     * Grows a few words at a time rather than character by character, so the
+     * excerpt stays something a person would recognise as a phrase, and stops
+     * after ten: an anchor longer than that is more likely to go stale from an
+     * unrelated edit than to disambiguate anything.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function widen(string $text, string $match, int $offset): array
+    {
+        $repeated = explode(' ', $match)[0];
+
+        if (substr_count($text, $match) <= 1) {
+            return [$match, $repeated];
+        }
+
+        $tail = mb_substr($text, $offset + mb_strlen($match));
+
+        foreach ([3, 6, 10] as $words) {
+            if (! preg_match('/^(\s+\S+){1,'.$words.'}/', $tail, $found)) {
+                break;
+            }
+
+            $extra = rtrim($found[0]);
+            $candidate = $match.$extra;
+
+            if (substr_count($text, $candidate) === 1) {
+                return [$candidate, $repeated.$extra];
+            }
+        }
+
+        // Still ambiguous. Returning the plain match is the honest answer:
+        // the applier refuses it rather than rewriting a passage it cannot
+        // identify.
+        return [$match, $repeated];
     }
 }

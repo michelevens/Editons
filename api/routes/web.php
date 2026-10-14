@@ -13,6 +13,10 @@ use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\BookController;
+use App\Http\Controllers\DesignController;
+use App\Http\Controllers\EditionsController;
+use App\Http\Controllers\PublishingController;
+use App\Http\Controllers\RightsController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -70,6 +74,18 @@ Route::middleware('auth')->group(function () {
 
     Route::put('/sections/{section}/content', [ManuscriptSectionController::class, 'save'])
         ->name('sections.save');
+    /*
+     | The same save, over POST, for navigator.sendBeacon.
+     |
+     | A beacon can only issue POST, and it is what carries the last edit when
+     | a writer closes the tab. Against the PUT-only route it got a 405 and
+     | the edit was lost — silently, because a beacon has no response to
+     | check. This is the one path where losing a save is unrecoverable, so it
+     | gets its own verb rather than relying on method spoofing the beacon
+     | cannot send either.
+     */
+    Route::post('/sections/{section}/content', [ManuscriptSectionController::class, 'save'])
+        ->name('sections.save.beacon');
     Route::get('/sections/{section}/versions', [ManuscriptSectionController::class, 'versions'])
         ->name('sections.versions');
     Route::post('/sections/{section}/versions/{version}/restore', [ManuscriptSectionController::class, 'restore'])
@@ -233,4 +249,77 @@ Route::middleware('auth')->group(function () {
         ->name('comments.resolve');
     Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])
         ->name('comments.destroy');
+});
+
+/*
+ | Design & Layout, and Cover Studio.
+ |
+ | Reading is gated on view so a reviewer can see how the book will set;
+ | changing it needs update, because layout is the author's decision.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/design', [DesignController::class, 'show'])
+        ->name('design.show');
+    Route::patch('/books/{book}/layout', [DesignController::class, 'updateLayout'])
+        ->name('design.layout');
+    Route::post('/books/{book}/layout/reset', [DesignController::class, 'resetLayout'])
+        ->name('design.layout.reset');
+    Route::patch('/books/{book}/cover', [DesignController::class, 'updateCover'])
+        ->name('design.cover');
+    Route::post('/books/{book}/cover/artwork', [DesignController::class, 'uploadArtwork'])
+        ->name('design.cover.artwork');
+    Route::delete('/books/{book}/cover/artwork', [DesignController::class, 'removeArtwork'])
+        ->name('design.cover.artwork.destroy');
+});
+
+/*
+ | Export & Publish. Every write needs update: submitting a book to a store
+ | under the author's name is not a reviewer's call. Downloads need only view,
+ | since a reviewer reading a proof is the point of inviting them.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/publishing', [PublishingController::class, 'show'])
+        ->name('publishing.show');
+    Route::patch('/books/{book}/publishing', [PublishingController::class, 'update'])
+        ->name('publishing.update');
+    Route::post('/books/{book}/channels', [PublishingController::class, 'toggleChannel'])
+        ->name('publishing.channels');
+    Route::post('/books/{book}/submit', [PublishingController::class, 'submit'])
+        ->name('publishing.submit');
+    Route::post('/books/{book}/channels/{channel}/unpublish', [PublishingController::class, 'unpublish'])
+        ->name('publishing.unpublish');
+    Route::post('/books/{book}/exports', [PublishingController::class, 'generate'])
+        ->name('publishing.generate');
+    Route::get('/books/{book}/exports/{export}/download', [PublishingController::class, 'download'])
+        ->name('publishing.download');
+});
+
+/*
+ | ISBN & Rights. The pool belongs to the account, so adding to it is not
+ | scoped to a book.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/rights', [RightsController::class, 'show'])
+        ->name('rights.show');
+    Route::post('/books/{book}/isbns', [RightsController::class, 'assign'])
+        ->name('rights.isbn.assign');
+    Route::delete('/books/{book}/isbns/{isbn}', [RightsController::class, 'unassign'])
+        ->name('rights.isbn.unassign');
+    Route::post('/isbns', [RightsController::class, 'addToPool'])
+        ->name('rights.isbn.pool');
+    Route::patch('/books/{book}/rights', [RightsController::class, 'updateRights'])
+        ->name('rights.update');
+    Route::post('/books/{book}/copyright-page', [RightsController::class, 'insertCopyrightPage'])
+        ->name('rights.copyright');
+});
+
+/*
+ | Editions. Creating one makes a new book, which is an owner's decision, so
+ | the controller gates on manage rather than update.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/editions', [EditionsController::class, 'index'])
+        ->name('editions.index');
+    Route::post('/books/{book}/editions', [EditionsController::class, 'store'])
+        ->name('editions.store');
 });

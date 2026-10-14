@@ -15,6 +15,17 @@ const AUTOSAVE_DEBOUNCE_MS = 1500;
 /** Average adult reading speed, for the footer estimate. */
 const WORDS_PER_MINUTE = 240;
 
+/**
+ * The session's CSRF token, from the meta tag in app.blade.php.
+ *
+ * Not the XSRF-TOKEN cookie: that holds an encrypted value, which Laravel
+ * only decrypts for the X-XSRF-TOKEN header. A `_token` field in the body is
+ * compared against the raw session token, so it has to come from here.
+ */
+function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+}
+
 export default function ManuscriptEditor({ section, onSaved }) {
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
@@ -99,11 +110,24 @@ export default function ManuscriptEditor({ section, onSaved }) {
                 clearTimeout(timer.current);
                 if (editor && status === 'dirty') {
                     // Keepalive so the request survives the page unloading.
+                    //
+                    // The token travels in the body because sendBeacon cannot
+                    // set headers, and Laravel reads `_token` from there.
+                    // Without it the save is rejected as CSRF and the last
+                    // edit is lost — silently, since a beacon has no response
+                    // to check. Exempting the route instead would drop CSRF
+                    // on an endpoint that rewrites a manuscript.
                     navigator.sendBeacon?.(
                         `/sections/${sectionId.current}/content`,
-                        new Blob([JSON.stringify({ content: editor.getJSON() })], {
-                            type: 'application/json',
-                        }),
+                        new Blob(
+                            [
+                                JSON.stringify({
+                                    content: editor.getJSON(),
+                                    _token: csrfToken(),
+                                }),
+                            ],
+                            { type: 'application/json' },
+                        ),
                     );
                 }
             }

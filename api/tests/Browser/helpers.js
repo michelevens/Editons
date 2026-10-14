@@ -59,6 +59,20 @@ export function watchForErrors(page) {
     return errors;
 }
 
+/**
+ * Drop console noise a test provoked on purpose.
+ *
+ * A test that submits a bad ISBN to prove the server refuses it will see the
+ * browser log that 4xx. Filtering at the assertion keeps the watcher strict
+ * everywhere else: the exemption is named by the test that earned it, rather
+ * than widened for all of them.
+ */
+export function ignoring(errors, ...patterns) {
+    return errors.filter(
+        (error) => !patterns.some((pattern) => error.includes(pattern)),
+    );
+}
+
 /** Sign in through the real form, so the session is the one a user gets. */
 export async function signIn(page) {
     await page.goto('/login');

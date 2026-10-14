@@ -1,0 +1,628 @@
+<?php
+
+use App\Models\Book;
+use App\Models\BookExport;
+use App\Models\ManuscriptSection;
+use App\Models\User;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * The publishing chain over HTTP.
+ *
+ * The authorisation tests matter most: a reviewer invited to comment must not
+ * be able to submit somebody's book to a store under their name.
+ */
+function chapteredBook(User $owner, array $attributes = []): Book
+{
+    $book = $owner->books()->create(array_merge([
+        'title' => 'A Practical Guide',
+        'author_name' => 'A Writer',
+        'list_price' => 14.99,
+        'meta' => [
+            'description' => str_repeat('A clear and useful description. ', 6),
+            'category' => 'Business & Economics / Small Business',
+        ],
+    ], $attributes));
+
+    ManuscriptSection::factory()->for($book)->create([
+        'title' => 'Chapter One',
+        'type' => 'chapter',
+        'position' => 0,
+        'content' => ['type' => 'doc', 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Prose that belongs in a book.']],
+        ]]],
+    ]);
+
+    $book->forceFill(['word_count' => 20_000])->save();
+
+    return $book->fresh();
+}
+
+// --- Publishing ---------------------------------------------------------
+
+it('shows the publishing screen with blockers listed up front', function () {
+    // An author should be able to see what is left to do before trying, not
+    // only after a rejected submission.
+    $user = User::factory()->create();
+    $book = chapteredBook($user, ['meta' => []]);
+
+    $response = $this->actingAs($user)
+        ->getJson("/books/{$book->id}/publishing")
+        ->assertOk();
+
+    expect($response->json('blockers'))->toHaveKey('description')
+        ->and($response->json('formats'))->toHaveCount(count(BookExport::FORMATS))
+        ->and($response->json('channels'))->not->toBeEmpty();
+});
+
+it('saves store metadata', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/publishing", [
+            'description' => str_repeat('A new description for the listing. ', 5),
+            'category' => 'Medical / Practice Management',
+            'list_price' => 19.99,
+        ])
+        ->assertOk();
+
+    $book->refresh();
+
+    expect($book->meta['category'])->toBe('Medical / Practice Management')
+        ->and((float) $book->list_price)->toBe(19.99);
+});
+
+it('refuses a category that is not in the store taxonomy', function () {
+    // A typed category is a rejected submission, so it is a fixed list.
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/publishing", ['list_price' => -5])
+        ->assertStatus(422);
+});
+
+it('will not submit a book that is not ready, and says why per field', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user, ['meta' => [], 'list_price' => null]);
+    $book->channels()->create(['channel' => 'kobo', 'format' => 'ebook']);
+
+    $response = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/submit")
+        ->assertStatus(422);
+
+    expect($response->json('errors'))->toHaveKeys(['description', 'category', 'list_price']);
+});
+
+it('submits to the selected stores and marks them in review, not live', function () {
+    // A store decides when a book goes on sale. Claiming live would put a
+    // date on the screen that never happened.
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+    $book->channels()->create(['channel' => 'amazon_kdp', 'format' => 'ebook']);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/submit")
+        ->assertOk();
+
+    $channel = $book->channels()->first();
+
+    expect($channel->status)->toBe('in_review')
+        ->and($channel->submitted_at)->not->toBeNull()
+        ->and($channel->went_live_at)->toBeNull()
+        ->and($book->fresh()->status)->toBe('in_review');
+});
+
+it('refuses to submit when no store is selected', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/submit")
+        ->assertStatus(422);
+});
+
+it('turns a store on and off', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/channels", ['channel' => 'kobo', 'enabled' => true])
+        ->assertOk();
+
+    expect($book->channels()->count())->toBe(1);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/channels", ['channel' => 'kobo', 'enabled' => false])
+        ->assertOk();
+
+    expect($book->channels()->count())->toBe(0);
+});
+
+it('will not unselect a store the book is live in', function () {
+    // The listing stays up until the store is told. Unticking a box must not
+    // imply the book was withdrawn.
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $channel = $book->channels()->create(['channel' => 'kobo', 'format' => 'ebook']);
+    $channel->forceFill([
+        'status' => 'live',
+        'submitted_at' => now()->subWeek(),
+        'went_live_at' => now()->subDay(),
+    ])->save();
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/channels", ['channel' => 'kobo', 'enabled' => false])
+        ->assertStatus(422);
+
+    expect($book->channels()->count())->toBe(1);
+});
+
+it('unpublishes a live book from one store', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $channel = $book->channels()->create(['channel' => 'kobo', 'format' => 'ebook']);
+    $channel->forceFill([
+        'status' => 'live',
+        'submitted_at' => now()->subWeek(),
+        'went_live_at' => now()->subDay(),
+    ])->save();
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/channels/{$channel->id}/unpublish")
+        ->assertOk();
+
+    expect($channel->fresh()->status)->toBe('unpublished')
+        ->and($channel->fresh()->went_live_at)->toBeNull()
+        // Kept: it is a record of what happened.
+        ->and($channel->fresh()->submitted_at)->not->toBeNull();
+});
+
+it('generates a file and lists it in history', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $response = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/exports", ['format' => 'epub'])
+        ->assertOk();
+
+    expect($response->json('export.status'))->toBe('ready')
+        ->and($response->json('book.exports'))->toHaveCount(1);
+});
+
+it('explains an empty manuscript rather than failing with a 500', function () {
+    $user = User::factory()->create();
+    $book = $user->books()->create(['title' => 'Nothing Yet']);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/exports", ['format' => 'epub'])
+        ->assertStatus(422)
+        ->assertJsonFragment(['message' => 'There is nothing to export yet. Write a chapter first.']);
+});
+
+it('downloads a generated file', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $export = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/exports", ['format' => 'md'])
+        ->json('export.id');
+
+    $this->actingAs($user)
+        ->get("/books/{$book->id}/exports/{$export}/download")
+        ->assertOk()
+        ->assertDownload();
+});
+
+it('will not serve another author\'s export', function () {
+    // These are unpublished manuscripts. A guessable id must not hand one
+    // to somebody else.
+    $owner = User::factory()->create();
+    $stranger = User::factory()->create();
+    $book = chapteredBook($owner);
+
+    $export = $this->actingAs($owner)
+        ->postJson("/books/{$book->id}/exports", ['format' => 'md'])
+        ->json('export.id');
+
+    $this->actingAs($stranger)
+        ->get("/books/{$book->id}/exports/{$export}/download")
+        ->assertForbidden();
+});
+
+it('will not serve an export belonging to a different book', function () {
+    $user = User::factory()->create();
+    $first = chapteredBook($user);
+    $second = chapteredBook($user, ['title' => 'Another Book']);
+
+    $export = $this->actingAs($user)
+        ->postJson("/books/{$first->id}/exports", ['format' => 'md'])
+        ->json('export.id');
+
+    $this->actingAs($user)
+        ->get("/books/{$second->id}/exports/{$export}/download")
+        ->assertNotFound();
+});
+
+it('stops a reviewer from submitting somebody else\'s book', function () {
+    // The whole point of the reviewer role: read and comment, not publish.
+    $owner = User::factory()->create();
+    $reviewer = User::factory()->create();
+    $book = chapteredBook($owner);
+    $book->channels()->create(['channel' => 'kobo', 'format' => 'ebook']);
+
+    $book->members()->create([
+        'user_id' => $reviewer->id,
+        'email' => $reviewer->email,
+        'role' => 'reviewer',
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($reviewer)
+        ->postJson("/books/{$book->id}/submit")
+        ->assertForbidden();
+
+    expect($book->channels()->first()->status)->toBe('not_submitted');
+});
+
+it('lets a reviewer read the publishing screen but not change it', function () {
+    $owner = User::factory()->create();
+    $reviewer = User::factory()->create();
+    $book = chapteredBook($owner);
+
+    $book->members()->create([
+        'user_id' => $reviewer->id,
+        'email' => $reviewer->email,
+        'role' => 'reviewer',
+        'status' => 'active',
+    ]);
+
+    // Reading the screen is an update-gated action here, because it reports
+    // submission state and blockers. A reviewer has no business there.
+    $this->actingAs($reviewer)
+        ->getJson("/books/{$book->id}/publishing")
+        ->assertForbidden();
+});
+
+// --- Design -------------------------------------------------------------
+
+it('shows layout with defaults and a real chapter to preview', function () {
+    // Filler prose tells an author nothing about how their book will set.
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $response = $this->actingAs($user)
+        ->getJson("/books/{$book->id}/design")
+        ->assertOk();
+
+    expect($response->json('layout.trim'))->toBe('6 x 9 in')
+        ->and($response->json('preview.html'))->toContain('Prose that belongs in a book')
+        ->and($response->json('palettes'))->not->toBeEmpty();
+});
+
+it('saves a layout change', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/layout", [
+            'trim' => '5 x 8 in',
+            'size' => 10.5,
+            'dropcap' => true,
+        ])
+        ->assertOk();
+
+    expect($book->fresh()->layout())
+        ->toMatchArray(['trim' => '5 x 8 in', 'size' => 10.5, 'dropcap' => true]);
+});
+
+it('refuses a font size that would make a print interior unreadable', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/layout", ['size' => 42])
+        ->assertStatus(422);
+});
+
+it('resets layout to the defaults', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+    $book->update(['layout' => ['trim' => '8.5 x 11 in', 'size' => 14]]);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/layout/reset")
+        ->assertOk();
+
+    // toEqual rather than toBe: the point is the values, and a jsonb round
+    // trip returns 11 where the constant says 11.0.
+    expect($book->fresh()->layout())->toEqual(Book::DEFAULT_LAYOUT);
+});
+
+it('saves cover text and palette', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/cover", [
+            'title' => 'A PRACTICAL GUIDE',
+            'palette' => 2,
+        ])
+        ->assertOk();
+
+    expect($book->fresh()->cover)
+        ->toMatchArray(['title' => 'A PRACTICAL GUIDE', 'palette' => 2]);
+});
+
+it('rejects an SVG upload, which can carry script', function () {
+    // Laravel's `image` rule accepts SVG. A cover is served back to anyone
+    // viewing the book, so the allowed types are named explicitly.
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/cover/artwork", [
+            'artwork' => \Illuminate\Http\UploadedFile::fake()
+                ->createWithContent('cover.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+        ])
+        ->assertStatus(422);
+});
+
+// --- Rights -------------------------------------------------------------
+
+it('lists every edition format and the unassigned pool', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+    $user->isbns()->create(['isbn' => '9780306406157']);
+
+    $response = $this->actingAs($user)
+        ->getJson("/books/{$book->id}/rights")
+        ->assertOk();
+
+    expect($response->json('editions'))->toHaveCount(count(Book::EDITION_FORMATS))
+        ->and($response->json('pool'))->toHaveCount(1)
+        ->and($response->json('checklist'))->not->toBeEmpty();
+});
+
+it('assigns a pooled ISBN to an edition', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+    $isbn = $user->isbns()->create(['isbn' => '9780306406157']);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/isbns", [
+            'edition_format' => 'ebook',
+            'isbn_id' => $isbn->id,
+        ])
+        ->assertOk();
+
+    expect($isbn->fresh()->book_id)->toBe($book->id)
+        // The ebook number goes into the EPUB and the store listing.
+        ->and($book->fresh()->isbn)->toBe('9780306406157');
+});
+
+it('will not assign a number from somebody else\'s pool', function () {
+    $user = User::factory()->create();
+    $stranger = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $theirs = $stranger->isbns()->create(['isbn' => '9780306406157']);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/isbns", [
+            'edition_format' => 'ebook',
+            'isbn_id' => $theirs->id,
+        ])
+        ->assertNotFound();
+
+    expect($theirs->fresh()->book_id)->toBeNull();
+});
+
+it('rejects a mistyped ISBN by its checksum', function () {
+    // A wrong number on a cover points readers at a different book.
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/isbns", [
+            'edition_format' => 'ebook',
+            'isbn' => '9780306406158',
+        ])
+        ->assertStatus(422);
+});
+
+it('refuses a second ISBN for the same edition', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/isbns", [
+        'edition_format' => 'ebook', 'isbn' => '9780306406157',
+    ])->assertOk();
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/isbns", [
+        'edition_format' => 'ebook', 'isbn' => '9781861972712',
+    ])->assertStatus(422);
+});
+
+it('returns an unassigned number to the pool', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+    $isbn = $user->isbns()->create(['isbn' => '9780306406157']);
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/isbns", [
+        'edition_format' => 'ebook', 'isbn_id' => $isbn->id,
+    ])->assertOk();
+
+    $this->actingAs($user)
+        ->deleteJson("/books/{$book->id}/isbns/{$isbn->id}")
+        ->assertOk();
+
+    expect($isbn->fresh()->book_id)->toBeNull()
+        ->and($isbn->fresh()->edition_format)->toBeNull()
+        ->and($book->fresh()->isbn)->toBeNull();
+});
+
+it('adds a batch to the pool and reports the ones it rejected', function () {
+    // Pasting ten numbers and losing nine to one typo would be worse than
+    // reporting partial success.
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->postJson('/isbns', ['isbns' => [
+            '9780306406157',
+            '9780306406158',
+            '978-1-861972-71-2',
+        ]])
+        ->assertOk();
+
+    expect($response->json('added'))->toBe(2)
+        ->and($response->json('rejected'))->toHaveCount(1);
+});
+
+it('inserts a copyright page and sees the checklist update', function () {
+    // The two computed items are derived from the manuscript, so inserting
+    // the page must satisfy both without storing anything.
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $response = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/copyright-page")
+        ->assertOk();
+
+    $checklist = collect($response->json('checklist'))->keyBy('key');
+
+    expect($checklist['copyright_page']['done'])->toBeTrue()
+        ->and($checklist['disclaimer']['done'])->toBeTrue()
+        ->and($book->sections()->where('type', 'front_matter')->count())->toBe(1);
+});
+
+it('replaces the copyright page rather than adding a second', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/copyright-page")->assertOk();
+    $this->actingAs($user)->postJson("/books/{$book->id}/copyright-page")->assertOk();
+
+    expect($book->sections()->where('title', 'Copyright')->count())->toBe(1);
+});
+
+it('records a rights attestation', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/rights", [
+            'key' => 'registered_copyright',
+            'value' => true,
+        ])
+        ->assertOk();
+
+    expect($book->fresh()->rights()['registered_copyright'])->toBeTrue();
+});
+
+// --- Editions -----------------------------------------------------------
+
+it('builds a workbook with an exercise per heading', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $response = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])
+        ->assertCreated();
+
+    $edition = Book::find($response->json('edition.id'));
+
+    expect($edition->edition_type)->toBe('workbook')
+        ->and($edition->parent_book_id)->toBe($book->id)
+        ->and($edition->sections()->count())->toBe(1)
+        ->and($edition->sections()->first()->plainText())->toContain('Work through this');
+});
+
+it('builds a large-print edition with 14pt type and wide margins', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $response = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'large_print'])
+        ->assertCreated();
+
+    $edition = Book::find($response->json('edition.id'));
+
+    expect($edition->layout())
+        ->toMatchArray(['size' => 14.0, 'margins' => 'Wide', 'trim' => '7 x 10 in']);
+});
+
+it('starts a translation in the chosen language with the text copied in', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $response = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", [
+            'type' => 'translation',
+            'language' => 'Spanish',
+        ])
+        ->assertCreated();
+
+    $edition = Book::find($response->json('edition.id'));
+
+    expect($edition->language)->toBe('Spanish')
+        ->and($edition->sections()->first()->plainText())
+        ->toContain('Prose that belongs in a book');
+});
+
+it('requires a language for a translation', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'translation'])
+        ->assertStatus(422);
+});
+
+it('refuses to make an edition of an empty book', function () {
+    $user = User::factory()->create();
+    $book = $user->books()->create(['title' => 'Nothing Yet']);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])
+        ->assertStatus(422);
+});
+
+it('stops an editor from creating a new book on the owner\'s shelf', function () {
+    // An edition is a whole new book. That is an owner's decision.
+    $owner = User::factory()->create();
+    $editor = User::factory()->create();
+    $book = chapteredBook($owner);
+
+    $book->members()->create([
+        'user_id' => $editor->id,
+        'email' => $editor->email,
+        'role' => 'editor',
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($editor)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])
+        ->assertForbidden();
+});
+
+it('lists editions of a book and what a book was derived from', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $editionId = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])
+        ->json('edition.id');
+
+    expect($this->actingAs($user)->getJson("/books/{$book->id}/editions")->json('editions'))
+        ->toHaveCount(1);
+
+    expect($this->actingAs($user)->getJson("/books/{$editionId}/editions")->json('derived_from.id'))
+        ->toBe($book->id);
+});
