@@ -77,14 +77,19 @@ export default function ManuscriptEditor({ section, onSaved }) {
     // Swap content when the binder selects a different chapter. Without this
     // the editor keeps the previous chapter's text and the next autosave
     // writes it over the newly opened one.
+    // Also keyed on a revision counter, not only the id. Content can be
+    // replaced underneath this component without the chapter changing — a
+    // template insertion, a restored version — and keying on the id alone
+    // left the editor showing text the database no longer held.
     useEffect(() => {
         sectionId.current = section?.id;
         setWordCount(section?.word_count ?? 0);
         setStatus('idle');
+
         if (editor && section) {
             editor.commands.setContent(section.content ?? '', { emitUpdate: false });
         }
-    }, [section?.id, editor]);
+    }, [section?.id, section?.revision, editor]);
 
     // Flush a pending save when the component goes away, so switching
     // chapters or closing the tab does not drop the last edit.

@@ -153,6 +153,50 @@ test.describe('every screen renders', () => {
         expect(errors).toEqual([]);
     });
 
+    test('a template inserts into the open chapter', async ({ page }) => {
+        // The insertion goes through the normal save path, so the proof is
+        // that the chapter is longer afterwards — not that a button changed.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const words = page.locator('[data-a="side:manuscript"]').first();
+        await expect(words).toBeVisible();
+
+        const before = await page.locator('.manuscript').innerText();
+
+        await page.click('[data-a="side:templates"]');
+        await expect(page.getByRole('heading', { name: /templates/i })).toBeVisible();
+        await page.click('[data-a="templates:insert:checklist"]');
+
+        await page.click('[data-a="side:manuscript"]');
+        await expect
+            .poll(async () => (await page.locator('.manuscript').innerText()).length, {
+                timeout: 15_000,
+            })
+            .toBeGreaterThan(before.length);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('analytics charts real history', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="nav:analytics"]');
+        await expectRendered(page, { minText: 200 });
+
+        await expect(page.getByRole('heading', { name: /analytics/i })).toBeVisible();
+        await expect(page.getByText(/words written per day/i)).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
     test('writing studio', async ({ page }) => {
         const errors = watchForErrors(page);
 

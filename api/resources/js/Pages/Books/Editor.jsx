@@ -9,6 +9,7 @@ import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
+import TemplatesPanel from '@/Components/Studio/TemplatesPanel';
 import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
@@ -160,6 +161,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             ...current,
             content: res.data.content,
             word_count: res.data.word_count,
+            revision: (current.revision ?? 0) + 1,
         }));
 
         load();
@@ -216,6 +218,36 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             },
             { preserveScroll: true, onFinish: () => setAdding(false) },
         );
+    };
+
+    /**
+     * Append a template's blocks to the open chapter.
+     *
+     * Goes through the same save endpoint as typing, so the insertion is
+     * versioned and revertible rather than a special kind of edit.
+     */
+    const insertTemplate = async (blocks) => {
+        if (!section) return;
+
+        const current = section.content?.content ?? [];
+        const content = { type: 'doc', content: [...current, ...blocks] };
+
+        const res = await window.axios.put(`/sections/${section.id}/content`, {
+            content,
+            reason: 'manual',
+        });
+
+        setSection((value) => ({
+            ...value,
+            content,
+            word_count: res.data.word_count,
+            // Forces the editor to re-read: the chapter has not changed, but
+            // its content has.
+            revision: (value.revision ?? 0) + 1,
+        }));
+        setBookWords(res.data.book_word_count);
+        notify('Block inserted at the end of the chapter.');
+        load();
     };
 
     const refreshLibrary = useCallback(async () => {
@@ -330,6 +362,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     ) : effectivePane === 'terms' ? (
                         <Panel>
                             <ConsistencyPanel bookId={book.id} onOpenSection={openSection} />
+                        </Panel>
+                    ) : effectivePane === 'templates' ? (
+                        <Panel>
+                            <TemplatesPanel section={section} onInsert={insertTemplate} />
                         </Panel>
                     ) : effectivePane === 'workflow' ? (
                         <Panel>

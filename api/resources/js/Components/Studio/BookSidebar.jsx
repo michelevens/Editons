@@ -21,7 +21,7 @@ export const SIDEBAR_GROUPS = [
             { key: 'terms', label: 'Characters & Terms', icon: 'users', ready: true },
             { key: 'references', label: 'References & Citations', icon: 'refs', ready: true },
             { key: 'notes', label: 'Notes', icon: 'note', ready: false },
-            { key: 'templates', label: 'Templates', icon: 'tmpl', ready: false },
+            { key: 'templates', label: 'Templates', icon: 'tmpl', ready: true },
             { key: 'settings', label: 'Book Settings', icon: 'gear', ready: true },
         ],
     },
