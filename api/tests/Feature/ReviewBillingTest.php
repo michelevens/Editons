@@ -104,7 +104,7 @@ it('does not charge a run with no account behind it', function () {
 
 it('refuses over HTTP before the work starts when the balance is short', function () {
     // Told up front rather than watching a review begin and fail.
-    $user = User::factory()->create(['plan' => 'studio']);
+    $user = User::factory()->broke()->create();
     $section = reviewable($user);
 
     $this->actingAs($user)

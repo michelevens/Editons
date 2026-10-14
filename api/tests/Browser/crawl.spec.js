@@ -616,3 +616,85 @@ test.describe('the book sidebar', () => {
         }
     });
 });
+
+/*
+ * Plans & billing, and the credit strip.
+ *
+ * Every figure comes from the ledger, so these assert real movement rather
+ * than that a number is present.
+ */
+test.describe('billing', () => {
+    test('the billing screen renders from real ledger data', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        await page.goto('/billing');
+        await expectRendered(page, { minText: 300 });
+
+        await expect(page.getByRole('heading', { name: /plans & billing/i })).toBeVisible();
+        await expect(page.getByText('What things cost')).toBeVisible();
+        await expect(page.getByText(/credits used per day/i)).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the credit strip shows in the studio and links to billing', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const strip = page.locator('[data-a="credits:strip"]');
+        await expect(strip).toBeVisible({ timeout: 15_000 });
+        await expect(strip).toContainText(/credits/i);
+
+        await page.click('[data-a="credits:billing"]');
+        await expect(page).toHaveURL(/\/billing$/);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the studio still lays out with the strip above it', async ({ page }) => {
+        // The strip changed main into a flex column, which is exactly the kind of
+        // change that silently collapses a pane to zero height.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const canvas = page.locator('.manuscript');
+        await expect(canvas).toBeVisible();
+
+        const box = await canvas.boundingBox();
+        expect(box.height, 'the manuscript pane collapsed').toBeGreaterThan(200);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('running an editor moves the balance', async ({ page }) => {
+        // The whole point of charging: the number goes down, and the strip shows
+        // it without a reload.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const strip = page.locator('[data-a="credits:strip"]');
+        await expect(strip).toBeVisible({ timeout: 15_000 });
+
+        const read = async () => {
+            const text = await strip.innerText();
+            return Number(text.match(/([\d,]+)\s+credits/)[1].replace(/,/g, ''));
+        };
+
+        const before = await read();
+        await page.click('[data-a="ai:run:copy"]');
+
+        await expect.poll(read, { timeout: 20_000 }).toBeLessThan(before);
+
+        expect(errors).toEqual([]);
+    });
+});

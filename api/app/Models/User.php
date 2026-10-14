@@ -59,6 +59,10 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            // Without this it comes back as a string and every date method
+            // on it fails at runtime, which is how the monthly allowance
+            // broke the moment anything read it.
+            'credits_granted_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

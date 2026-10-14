@@ -54,13 +54,34 @@ class UserFactory extends Factory
      */
     public function subscribed(string $plan = 'studio', int $credits = 10_000): static
     {
-        return $this->state(fn () => ['plan' => $plan])
-            ->afterCreating(function (User $user) use ($credits) {
-                $user->creditTransactions()->create([
-                    'amount' => $credits,
-                    'kind' => 'grant',
-                    'label' => 'test_fixture',
-                ]);
-            });
+        return $this->state(fn () => [
+            'plan' => $plan,
+            // Marked as already granted for this month, so the monthly
+            // allowance does not land on top of the fixture and make the
+            // balance something the test did not ask for.
+            'credits_granted_at' => now(),
+        ])->afterCreating(function (User $user) use ($credits) {
+            $user->creditTransactions()->create([
+                'amount' => $credits,
+                'kind' => 'grant',
+                'label' => 'test_fixture',
+            ]);
+        });
+    }
+
+    /**
+     * A plan with an empty ledger, and no allowance waiting to be granted.
+     *
+     * For the tests that are about being refused. Without the timestamp the
+     * first balance read grants the monthly allowance and the account can
+     * suddenly afford everything, which is right in production and useless
+     * in a test about running out.
+     */
+    public function broke(string $plan = 'studio'): static
+    {
+        return $this->state(fn () => [
+            'plan' => $plan,
+            'credits_granted_at' => now(),
+        ]);
     }
 }

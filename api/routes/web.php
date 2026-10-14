@@ -12,6 +12,7 @@ use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ResearchController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
@@ -322,4 +323,14 @@ Route::middleware('auth')->group(function () {
         ->name('editions.index');
     Route::post('/books/{book}/editions', [EditionsController::class, 'store'])
         ->name('editions.store');
+});
+
+/*
+ | Plans & Billing. Account-level, so nothing here is scoped to a book.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/billing', [BillingController::class, 'show'])
+        ->name('billing.show');
+    Route::get('/billing/summary', [BillingController::class, 'summary'])
+        ->name('billing.summary');
 });

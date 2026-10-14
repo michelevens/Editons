@@ -19,7 +19,10 @@ use Illuminate\Validation\ValidationException;
  */
 class Entitlements
 {
-    public function __construct(private readonly CreditLedger $ledger) {}
+    public function __construct(
+        private readonly CreditLedger $ledger,
+        private readonly MonthlyAllowance $allowance,
+    ) {}
 
     public function tier(User $user): int
     {
@@ -90,6 +93,11 @@ class Entitlements
      */
     public function assertCanAfford(User $user, string $label): void
     {
+        // Before the balance is judged. An account whose allowance has not
+        // been granted yet is not out of credits, and refusing it would be
+        // wrong rather than merely unhelpful.
+        $this->allowance->ensureGranted($user);
+
         $cost = CreditLedger::costOf($label);
         $balance = $this->ledger->balanceFor($user);
 
@@ -110,6 +118,8 @@ class Entitlements
      */
     public function summaryFor(User $user): array
     {
+        $this->allowance->ensureGranted($user);
+
         $limits = $user->planLimits();
         $balance = $this->ledger->balanceFor($user);
         $monthly = (int) ($limits['credits'] ?? 0);

@@ -107,7 +107,10 @@ it('allows everything on the top plan', function () {
 // --- Credit gating ------------------------------------------------------
 
 it('refuses an action the balance will not cover, and says by how much', function () {
-    $user = User::factory()->create(['plan' => 'studio']);
+    // broke(): an account on a plan whose allowance has already been granted
+    // this month, so the balance stays at zero rather than being topped up
+    // by the first read.
+    $user = User::factory()->broke()->create();
 
     try {
         app(Entitlements::class)->assertCanAfford($user, 'agent_run');

@@ -6,6 +6,7 @@ import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import { BottomRow } from '@/Components/Studio/BottomCards';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
+import CreditStrip from '@/Components/Studio/CreditStrip';
 import CoverPanel from '@/Components/Studio/CoverPanel';
 import EditionsPanel from '@/Components/Studio/EditionsPanel';
 import LayoutPanel from '@/Components/Studio/LayoutPanel';
@@ -40,6 +41,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const [versions, setVersions] = useState([]);
     const [findings, setFindings] = useState([]);
     const [library, setLibrary] = useState(sources ?? []);
+
+    // The balance the server returned with the last review, handed to the
+    // credit strip so it moves with the spend rather than a request behind it.
+    const [credits, setCredits] = useState(null);
 
     const [running, setRunning] = useState(null);
     const [reviewProgress, setReviewProgress] = useState(null);
@@ -99,6 +104,19 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 agent,
             });
             setFindings(res.data.findings);
+            setCredits(res.data.billing?.credits ?? null);
+        } catch (error) {
+            // Previously this had no catch, so a refusal — the plan does not
+            // include this agent, or the balance will not cover it — failed
+            // silently and the spinner just stopped. The server's message
+            // names the plan or the shortfall, so it is worth showing.
+            const refusal = error.response?.data?.errors;
+
+            notify(
+                refusal?.agent?.[0]
+                    ?? refusal?.credits?.[0]
+                    ?? 'That review could not be run.',
+            );
         } finally {
             setRunning(null);
         }
@@ -130,8 +148,17 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 );
                 latest = res.data.findings;
                 setFindings(latest);
-            } catch {
-                notify(`${agent.label} could not finish. The rest still ran.`);
+                setCredits(res.data.billing?.credits ?? null);
+            } catch (error) {
+                const refusal = error.response?.data?.errors;
+
+                // A refusal is worth naming: "could not finish" reads like a
+                // fault when the real reason is the plan or the balance.
+                notify(
+                    refusal?.agent?.[0]
+                        ?? refusal?.credits?.[0]
+                        ?? `${agent.label} could not finish. The rest still ran.`,
+                );
             }
         }
 
@@ -394,7 +421,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     />
                 )}
 
-                <main className="min-w-0 flex-1 overflow-hidden p-[11px]">
+                <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-[11px]">
+                    {/* Above the panes: this is where credits are spent, so
+                        this is where the balance belongs. */}
+                    <CreditStrip balance={credits} />
+
                     {nav === 'analytics' ? (
                         <Panel>
                             <AnalyticsPanel bookId={book.id} onOpenSection={openSection} />
@@ -460,7 +491,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             milestone="a later milestone"
                         />
                     ) : (
-                        <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-[11px]">
+                        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-[11px]">
                             <div className="grid min-h-0 gap-[10px] [grid-template-columns:268px_minmax(0,1fr)] xl:[grid-template-columns:268px_minmax(0,1fr)_392px]">
                                 <ManuscriptOutline
                                     nodes={binder}
@@ -541,8 +572,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 }
 
 function Panel({ children }) {
+    // min-h-0 flex-1 rather than h-full: main is a flex column now that the
+    // credit strip sits above the panes, and h-full in a flex child measures
+    // against the wrong box.
     return (
-        <div className="h-full overflow-y-auto rounded-panel border border-border-default bg-bg-surface">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-panel border border-border-default bg-bg-surface">
             {children}
         </div>
     );
