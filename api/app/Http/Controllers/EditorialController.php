@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Billing\Entitlements;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewRunner;
 use App\Editorial\SuggestionApplier;
@@ -12,7 +13,10 @@ use Illuminate\Http\Request;
 
 class EditorialController extends Controller
 {
-    public function __construct(private readonly ReviewRunner $runner) {}
+    public function __construct(
+        private readonly ReviewRunner $runner,
+        private readonly Entitlements $entitlements,
+    ) {}
 
     /** Run one agent over a section. */
     public function review(Request $request, ManuscriptSection $section): JsonResponse
@@ -26,6 +30,12 @@ class EditorialController extends Controller
         $agent = EditorialAgent::tryFrom($data['agent']);
         abort_unless($agent, 422, 'Unknown editorial agent.');
 
+        // Both checks before any work starts, so an author is told up front
+        // rather than watching a review begin and then fail. The spend itself
+        // re-checks the balance under a lock.
+        $this->entitlements->assertCanRunAgent($request->user(), $agent);
+        $this->entitlements->assertCanAfford($request->user(), $agent->costLabel());
+
         $review = $this->runner->run($section, $agent, $request->user()->id);
 
         return response()->json([
@@ -36,6 +46,9 @@ class EditorialController extends Controller
                 'error' => $review->error,
             ],
             'findings' => $this->findingsFor($section),
+            // Returned so the credit strip updates with the result rather
+            // than needing a second request to notice the spend.
+            'billing' => $this->entitlements->summaryFor($request->user()->fresh()),
         ]);
     }
 

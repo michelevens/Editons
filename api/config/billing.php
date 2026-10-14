@@ -29,6 +29,13 @@ return [
     | prototype gates them in the client, which is a usability hint, not a
     | control. `null` means unlimited.
     |
+    | `formats` names what the exporter actually builds (App\Models\BookExport
+    | ::FORMATS), not the handoff's aspirational list. It previously carried
+    | 'kpf' and 'large_print', which nothing produces, and omitted 'md',
+    | which everything does — so markdown was unavailable on every plan,
+    | including Studio. A pricing table promising a format that cannot be
+    | generated is worse than a shorter one.
+    |
     */
 
     'plans' => [
@@ -38,6 +45,8 @@ return [
             'credits' => 100,
             'books' => 1,
             'seats' => 2,
+            // Enough to finish and publish a book. The free plan is meant
+            // to be a real trial, not a demo with the export disabled.
             'formats' => ['pdf', 'epub'],
             'tier' => 0,
         ],
@@ -47,7 +56,7 @@ return [
             'credits' => 1000,
             'books' => 10,
             'seats' => 5,
-            'formats' => ['pdf', 'epub', 'docx', 'html'],
+            'formats' => ['pdf', 'epub', 'docx', 'md'],
             'tier' => 1,
         ],
         'studio' => [
@@ -56,7 +65,7 @@ return [
             'credits' => 5000,
             'books' => null,
             'seats' => null,
-            'formats' => ['pdf', 'epub', 'docx', 'html', 'kpf', 'large_print'],
+            'formats' => ['pdf', 'epub', 'docx', 'md', 'html'],
             'tier' => 2,
         ],
     ],

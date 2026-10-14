@@ -183,7 +183,9 @@ it('unpublishes a live book from one store', function () {
 });
 
 it('generates a file and lists it in history', function () {
-    $user = User::factory()->create();
+    // EPUB is on every plan, but subscribed() keeps this about export
+    // history rather than entitlements.
+    $user = User::factory()->subscribed()->create();
     $book = chapteredBook($user);
 
     $response = $this->actingAs($user)
@@ -205,7 +207,9 @@ it('explains an empty manuscript rather than failing with a 500', function () {
 });
 
 it('downloads a generated file', function () {
-    $user = User::factory()->create();
+    // subscribed(): markdown is not on the free plan's format list, so
+    // generating it is refused before there is anything to download.
+    $user = User::factory()->subscribed()->create();
     $book = chapteredBook($user);
 
     $export = $this->actingAs($user)
@@ -221,7 +225,9 @@ it('downloads a generated file', function () {
 it('will not serve another author\'s export', function () {
     // These are unpublished manuscripts. A guessable id must not hand one
     // to somebody else.
-    $owner = User::factory()->create();
+    // subscribed(): markdown needs a plan that includes it, or the export
+    // is refused and there is nothing to attempt to steal.
+    $owner = User::factory()->subscribed()->create();
     $stranger = User::factory()->create();
     $book = chapteredBook($owner);
 
@@ -235,7 +241,7 @@ it('will not serve another author\'s export', function () {
 });
 
 it('will not serve an export belonging to a different book', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed()->create();
     $first = chapteredBook($user);
     $second = chapteredBook($user, ['title' => 'Another Book']);
 

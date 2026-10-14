@@ -122,7 +122,9 @@ it('marks a finding stale once its text is gone', function () {
 });
 
 it('runs a review over HTTP and returns the findings', function () {
-    $user = User::factory()->create();
+    // subscribed(): fact_checker is a specialist agent, so it needs a plan
+    // that includes it and a balance that covers it.
+    $user = User::factory()->subscribed()->create();
     $s = ManuscriptSection::factory()
         ->for(Book::factory()->for($user))
         ->create(['content' => prose('Roughly 47 percent of practices close early.')]);
@@ -154,7 +156,7 @@ it('refuses to review a section in a book you do not own', function () {
 });
 
 it('records who resolved a finding and when', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed()->create();
     $s = ManuscriptSection::factory()
         ->for(Book::factory()->for($user))
         ->create(['content' => prose('Roughly 47 percent close early.')]);

@@ -9,7 +9,10 @@ use App\Models\User;
 
 function bookWithFindings(): array
 {
-    $user = User::factory()->create();
+    // subscribed(): the fixture runs a specialist agent for real, which is
+    // now gated on plan tier and costs credits. The default factory user is
+    // on the free plan with an empty ledger.
+    $user = User::factory()->subscribed()->create();
     $book = Book::factory()->for($user)->create();
     $book->sections()->delete();
 

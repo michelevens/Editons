@@ -2,10 +2,13 @@
 
 namespace App\Editorial;
 
+use App\Billing\CreditLedger;
 use App\Editorial\Contracts\EditorialDriver;
+use App\Models\CreditTransaction;
 use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -21,7 +24,10 @@ use Throwable;
  */
 class ReviewRunner
 {
-    public function __construct(private readonly EditorialDriver $driver) {}
+    public function __construct(
+        private readonly EditorialDriver $driver,
+        private readonly CreditLedger $ledger,
+    ) {}
 
     public function run(
         ManuscriptSection $section,
@@ -39,17 +45,26 @@ class ReviewRunner
             'section_version' => $section->versions()->max('version_number'),
         ]);
 
+        $charge = null;
+
         try {
             $text = $section->plainText();
 
             if (trim($text) === '') {
                 // An empty chapter is not an error, and inventing findings for
                 // it would be worse than returning none.
+                // Not charged: there was nothing to review, and billing for
+                // a no-op is the kind of small dishonesty that loses trust.
                 return tap($review)->update([
                     'status' => 'completed',
                     'completed_at' => now(),
                 ]);
             }
+
+            // Charged before the provider is called, so two reviews started
+            // at once cannot both spend the last of a balance — the ledger
+            // takes a row lock to make that true.
+            $charge = $this->charge($userId, $agent, $review);
 
             $result = $this->driver->review($agent, $text);
 
@@ -95,8 +110,35 @@ class ReviewRunner
                 'error' => mb_substr($e->getMessage(), 0, 500),
                 'completed_at' => now(),
             ]);
+
+            // Give the credits back. Charging for work that did not happen is
+            // the one billing bug an author will never forgive, and the
+            // refund is idempotent so a retried handler cannot double it.
+            if ($charge) {
+                $this->ledger->refund($charge, 'Review failed');
+            }
         }
 
         return $review->refresh();
+    }
+
+    /**
+     * Debit the account for one agent run.
+     *
+     * A run with no user attached is not charged: there is no account to
+     * charge, and guessing one would bill the wrong person. That path is
+     * seeders and internal tooling, never a request.
+     */
+    private function charge(?int $userId, EditorialAgent $agent, EditorialReview $review): ?CreditTransaction
+    {
+        if (! $userId || ! $user = User::find($userId)) {
+            return null;
+        }
+
+        return $this->ledger->spend(
+            user: $user,
+            label: $agent->costLabel(),
+            subject: $review,
+        );
     }
 }

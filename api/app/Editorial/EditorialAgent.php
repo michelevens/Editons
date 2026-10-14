@@ -47,13 +47,49 @@ enum EditorialAgent: string
         };
     }
 
-    /** @return array<int, array<string, string>> */
+    /**
+     * The lowest plan tier that may run this agent.
+     *
+     * The general editors are on every plan: an author who cannot run a copy
+     * edit has no product. The specialist reviewers are what the paid tiers
+     * are for, which matches the plan table in config/billing.php.
+     */
+    public function minimumTier(): int
+    {
+        return match ($this) {
+            self::SubjectMatter => 2,
+            self::FactChecker, self::Consistency => 1,
+            default => 0,
+        };
+    }
+
+    /**
+     * Whether this is a specialist reviewer, which costs more to run.
+     *
+     * Derived from the tier rather than listed separately, so the two cannot
+     * drift apart.
+     */
+    public function isSpecialist(): bool
+    {
+        return $this->minimumTier() > 0;
+    }
+
+    /** The credit cost label for one run of this agent. */
+    public function costLabel(): string
+    {
+        return $this->isSpecialist() ? 'specialist_run' : 'agent_run';
+    }
+
+    /** @return array<int, array<string, mixed>> */
     public static function catalogue(): array
     {
         return array_map(fn (self $a) => [
             'value' => $a->value,
             'label' => $a->label(),
             'description' => $a->description(),
+            'specialist' => $a->isSpecialist(),
+            'minimum_tier' => $a->minimumTier(),
+            'cost' => config("billing.costs.{$a->costLabel()}"),
         ], self::cases());
     }
 }

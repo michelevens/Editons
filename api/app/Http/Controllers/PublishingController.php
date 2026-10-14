@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
+use App\Billing\Entitlements;
 use App\Publishing\Exporter;
 use App\Publishing\SubmissionCheck;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +26,7 @@ class PublishingController extends Controller
     public function __construct(
         private readonly Exporter $exporter,
         private readonly SubmissionCheck $check,
+        private readonly Entitlements $entitlements,
     ) {}
 
     public function show(Book $book): JsonResponse
@@ -179,6 +181,10 @@ class PublishingController extends Controller
             'format' => ['required', 'string', 'in:'.implode(',', array_keys(BookExport::FORMATS))],
         ]);
 
+        // The plan decides which formats are available. The method existed
+        // and nothing called it, so every plan could export everything.
+        $this->entitlements->assertCanExport($request->user(), $this->planFormat($data['format']));
+
         try {
             $export = $this->exporter->generate($book, $data['format'], $request->user()->id);
         } catch (Throwable $e) {
@@ -257,6 +263,9 @@ class PublishingController extends Controller
                     'format' => $key,
                     'label' => $meta[0],
                     'description' => $meta[2],
+                    // Shown as locked rather than hidden: an author should be
+                    // able to see what a paid plan would give them.
+                    'available' => $book->user->canExportFormat($this->planFormat($key)),
                 ])
                 ->values()
                 ->all(),
@@ -281,6 +290,22 @@ class PublishingController extends Controller
             'size' => $export->byte_size ? $this->humanSize($export->byte_size) : null,
             'created_at' => $export->created_at->diffForHumans(),
         ];
+    }
+
+    /**
+     * Map an export format to the name the plan table uses.
+     *
+     * config/billing.php lists plain extensions, because that is what an
+     * author recognises on a pricing page; the exporter's keys describe the
+     * file it builds. Translating here keeps the pricing table readable
+     * rather than renaming its entries to match internals.
+     */
+    private function planFormat(string $format): string
+    {
+        return match ($format) {
+            'pdf_print' => 'pdf',
+            default => $format,
+        };
     }
 
     private function humanSize(int $bytes): string

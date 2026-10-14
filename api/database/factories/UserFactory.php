@@ -42,4 +42,25 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    /**
+     * An account on a paid plan with credits to spend.
+     *
+     * A test exercising a feature should not have to know what it costs, but
+     * it does have to be able to afford it: the default factory user is on
+     * the free plan with an empty ledger, which is correct and is exactly
+     * what makes an unprepared test fail now that plans are enforced. Asking
+     * for this state states the intent.
+     */
+    public function subscribed(string $plan = 'studio', int $credits = 10_000): static
+    {
+        return $this->state(fn () => ['plan' => $plan])
+            ->afterCreating(function (User $user) use ($credits) {
+                $user->creditTransactions()->create([
+                    'amount' => $credits,
+                    'kind' => 'grant',
+                    'label' => 'test_fixture',
+                ]);
+            });
+    }
 }
