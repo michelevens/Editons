@@ -349,9 +349,16 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             />
 
             <div className="flex min-h-0 flex-1">
-                {/* Static at >=1024, off-canvas below. */}
+                {/*
+                  * Static at >=1024, off-canvas below.
+                  *
+                  * flex + min-h-0 so this wrapper is bounded by the shell
+                  * rather than by its content. Without it the sidebar grew
+                  * past the viewport on a short screen, its own scroll area
+                  * never engaged, and the last items were unreachable.
+                  */}
                 <div
-                    className={`max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:pt-[54px] max-lg:transition-transform ${
+                    className={`flex min-h-0 max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:pt-[54px] max-lg:transition-transform ${
                         sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'
                     }`}
                 >

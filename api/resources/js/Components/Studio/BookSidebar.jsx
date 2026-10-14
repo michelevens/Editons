@@ -49,10 +49,22 @@ export const SIDEBAR_GROUPS = [
 
 export default function BookSidebar({ book, active, badges = {}, onSelect }) {
     return (
-        <aside className="flex w-[223px] shrink-0 flex-col overflow-y-auto rounded-tr-panel bg-bg-sidebar pb-4">
+        <aside className="flex w-[223px] shrink-0 flex-col overflow-hidden rounded-tr-panel bg-bg-sidebar">
+            {/* Pinned: the book being worked on should not scroll out of
+                sight, and keeping it out of the scroll area leaves more of
+                the list reachable. */}
             <BookCard book={book} />
 
-            <nav className="mt-1" aria-label="Book">
+            {/*
+             * The nav scrolls, not the whole sidebar.
+             *
+             * The studio shell is a fixed-height app frame, so unlike
+             * Overview there is no page scroll to fall back on. With the list
+             * longer than a 768px-tall viewport the last items sat below the
+             * fold with nothing to indicate they existed — the scrollbar only
+             * appeared on hover. `sidebar-scroll` keeps it visible.
+             */}
+            <nav className="sidebar-scroll mt-1 min-h-0 flex-1 overflow-y-auto pb-4" aria-label="Book">
                 {SIDEBAR_GROUPS.map((section, index) => (
                     <div key={section.group ?? index}>
                         {section.group && (

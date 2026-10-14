@@ -540,3 +540,79 @@ test.describe('controls', () => {
         expect(errors).toEqual([]);
     });
 });
+
+/*
+ * The sidebar's scroll area.
+ *
+ * The studio is a fixed-height shell, so a list longer than the viewport has
+ * no page scroll to fall back on. These assert the whole list stays reachable
+ * on a short screen, which is where the last items were stranded below the
+ * fold once Editions and ISBN & Rights were added.
+ */
+test.describe('the book sidebar', () => {
+    test('every sidebar item is reachable on a short viewport', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await page.setViewportSize({ width: 1440, height: 720 });
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        // The item the fold used to cut off.
+        const last = page.locator('[data-a="side:distribution"]');
+
+        await last.scrollIntoViewIfNeeded();
+        await expect(last).toBeInViewport();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the book card stays put while the list scrolls', async ({ page }) => {
+        // The book being worked on should not scroll out of sight.
+        await page.setViewportSize({ width: 1440, height: 720 });
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const card = page.getByText('Building an Independent Practice').first();
+        const before = await card.boundingBox();
+
+        await page.locator('[data-a="side:distribution"]').scrollIntoViewIfNeeded();
+
+        const after = await card.boundingBox();
+
+        expect(after.y).toBe(before.y);
+    });
+
+    test('the sidebar scrolls on its own, without moving the studio', async ({ page }) => {
+        // The shell must not scroll as a whole: that would drag the manuscript
+        // and the AI panel out of position.
+        await page.setViewportSize({ width: 1440, height: 720 });
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const header = page.locator('header').first();
+        const before = await header.boundingBox();
+
+        await page.locator('[data-a="side:distribution"]').scrollIntoViewIfNeeded();
+
+        expect((await header.boundingBox()).y).toBe(before.y);
+    });
+
+    test('the same is true on Overview and Settings', async ({ page }) => {
+        // Three pages share the sidebar inside three different shells, so the
+        // fix has to hold in all of them.
+        await page.setViewportSize({ width: 1440, height: 720 });
+        await signIn(page);
+        const id = await firstBookId(page);
+
+        for (const path of [`/books/${id}/overview`, `/books/${id}/settings`]) {
+            await page.goto(path);
+
+            const last = page.locator('[data-a="side:distribution"]');
+            await last.scrollIntoViewIfNeeded();
+            await expect(last, `${path} clips the end of the list`).toBeInViewport();
+        }
+    });
+});

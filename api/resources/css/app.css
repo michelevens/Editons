@@ -125,3 +125,42 @@
     padding: 14px 16px;
     max-width: 400px;
 }
+
+/*
+ * The book sidebar's scroll area.
+ *
+ * The studio is a fixed-height app shell, so the sidebar has no page scroll
+ * to fall back on the way the Overview page does. On a short viewport the
+ * last items in the list sat below the fold with nothing to suggest they
+ * were there, because the scrollbar only appeared while hovering.
+ *
+ * A permanently visible, slim track is the honest version: the list is
+ * longer than the space, and the control that reveals the rest is always on
+ * screen. Narrow enough not to crowd a 223px column.
+ */
+.sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-sidebar) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background: var(--color-border-sidebar);
+    border-radius: 4px;
+    /* Inset so the thumb reads as floating in the column rather than
+       butting against the content. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-secondary);
+    background-clip: content-box;
+}
