@@ -1,10 +1,12 @@
 import ManuscriptEditor from '@/Components/Editor/ManuscriptEditor';
 import AIEditorPanel from '@/Components/Studio/AIEditorPanel';
+import AiEditorScreen from '@/Components/Studio/AiEditorScreen';
 import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import { BottomRow } from '@/Components/Studio/BottomCards';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
+import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
 import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -302,15 +304,23 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 )}
 
                 <main className="min-w-0 flex-1 overflow-hidden p-[11px]">
-                    {!liveNav ? (
+                    {nav === 'ai' ? (
+                        <Panel>
+                            <AiEditorScreen bookId={book.id} onOpenSection={openSection} />
+                        </Panel>
+                    ) : !liveNav ? (
                         <NotBuilt
                             title={labelFor(nav)}
                             what="This area of the studio has no engine behind it yet."
                             milestone={milestoneFor(nav)}
                         />
-                    ) : effectivePane === 'research' || effectivePane === 'references' ? (
+                    ) : effectivePane === 'research' ? (
                         <Panel>
                             <ResearchLibrary bookId={book.id} onChanged={refreshLibrary} />
+                        </Panel>
+                    ) : effectivePane === 'references' ? (
+                        <Panel>
+                            <ReferencesPanel bookId={book.id} onOpenSection={openSection} />
                         </Panel>
                     ) : effectivePane === 'terms' ? (
                         <Panel>

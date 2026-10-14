@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\EditorialController;
+use App\Http\Controllers\AiEditorController;
 use App\Http\Controllers\ConsistencyController;
+use App\Http\Controllers\ReferencesController;
 use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\ImportController;
@@ -160,4 +162,20 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/settings', [BookController::class, 'settings'])
         ->name('books.settings');
+});
+
+/*
+ | Book-wide editorial and reference screens.
+ |
+ | These answer questions the studio's per-chapter panels cannot: what is left
+ | across the whole book, and which sources are doing any work.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/findings', [AiEditorController::class, 'index'])
+        ->name('ai.index');
+    Route::patch('/findings/{finding}/reopen', [AiEditorController::class, 'reopen'])
+        ->name('ai.reopen');
+
+    Route::get('/books/{book}/references', [ReferencesController::class, 'show'])
+        ->name('references.show');
 });

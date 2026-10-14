@@ -118,6 +118,41 @@ test.describe('every screen renders', () => {
         expect(errors).toEqual([]);
     });
 
+    test('AI Editor gathers findings across the book', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="nav:ai"]');
+        await expectRendered(page, { minText: 200 });
+
+        await expect(page.getByRole('heading', { name: /ai editor/i })).toBeVisible();
+        await expect(page.locator('[data-a="ai-screen:status:open"]')).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('references renders a bibliography in each style', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:references"]');
+        await expectRendered(page, { minText: 150 });
+
+        await expect(page.getByText(/bibliography —/i)).toBeVisible();
+
+        // Switching style must re-render, not just change the select.
+        await page.selectOption('[data-a="references:style"]', 'MLA');
+        await expect(page.getByText(/bibliography — MLA/i)).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
     test('writing studio', async ({ page }) => {
         const errors = watchForErrors(page);
 
