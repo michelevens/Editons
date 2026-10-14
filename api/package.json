@@ -4,11 +4,14 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:browser": "playwright test",
+        "test:browser:ui": "playwright test --ui"
     },
     "devDependencies": {
         "@headlessui/react": "^2.0.0",
         "@inertiajs/react": "^2.0.0",
+        "@playwright/test": "^1.56.1",
         "@tailwindcss/vite": "^4.0.0",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.3.0",

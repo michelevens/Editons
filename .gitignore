@@ -14,3 +14,9 @@
 # Wrangler's local cache holds account identifiers and deploy state. It is
 # machine-local and this repository is public.
 .wrangler/
+
+# Playwright
+/api/test-results/
+/api/playwright-report/
+/api/blob-report/
+/api/.playwright/
