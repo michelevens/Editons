@@ -3,6 +3,8 @@
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\AiEditorController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\ReferencesController;
 use App\Http\Controllers\OverviewController;
@@ -188,3 +190,31 @@ Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/analytics', [AnalyticsController::class, 'show'])
         ->name('analytics.show');
 });
+
+/*
+ | Collaborators. Invitations are by email address, because the person being
+ | invited usually has no account yet.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/members', [TeamController::class, 'index'])
+        ->name('team.index');
+    Route::post('/books/{book}/members', [TeamController::class, 'invite'])
+        ->name('team.invite');
+    Route::patch('/members/{member}', [TeamController::class, 'update'])
+        ->name('team.update');
+    Route::post('/members/{member}/resend', [TeamController::class, 'resend'])
+        ->name('team.resend');
+    Route::delete('/members/{member}', [TeamController::class, 'destroy'])
+        ->name('team.destroy');
+});
+
+/*
+ | Accepting an invitation. Outside the auth group: the whole point is that
+ | the recipient may not have an account yet, so this has to be reachable
+ | signed out and then send them to register.
+ */
+Route::get('/invitations/{token}', [InvitationController::class, 'show'])
+    ->name('invitations.show');
+Route::post('/invitations/{token}', [InvitationController::class, 'accept'])
+    ->middleware('auth')
+    ->name('invitations.accept');

@@ -80,6 +80,12 @@ class Book extends Model
             ->orderBy('position');
     }
 
+    /** Everyone other than the owner who can reach this book. */
+    public function members(): HasMany
+    {
+        return $this->hasMany(BookMember::class);
+    }
+
     /** The book's research library. */
     public function sources(): HasMany
     {

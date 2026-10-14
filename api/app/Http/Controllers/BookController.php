@@ -24,7 +24,9 @@ class BookController extends Controller
     {
         $filter = $request->string('filter')->toString() ?: 'active';
 
-        $all = $request->user()->books()
+        // Owned AND shared. A collaborator who accepted an invitation and
+        // then found an empty shelf would have no way into the book.
+        $all = $request->user()->accessibleBooks()
             ->withCount('sections')
             ->orderByDesc('updated_at')
             ->get();

@@ -74,4 +74,28 @@ class User extends Authenticatable
     {
         return $this->hasMany(Book::class);
     }
+
+    /** Memberships of books belonging to somebody else. */
+    public function bookMemberships(): HasMany
+    {
+        return $this->hasMany(BookMember::class);
+    }
+
+    /**
+     * Every book this person can open: their own, plus any they have
+     * accepted an invitation to.
+     *
+     * A query rather than a relation, because it unions two different
+     * ownership paths. Without it an invited collaborator accepts and finds
+     * an empty shelf, which is the whole feature failing quietly.
+     */
+    public function accessibleBooks()
+    {
+        return Book::query()
+            ->where(fn ($query) => $query
+                ->where('user_id', $this->id)
+                ->orWhereHas('members', fn ($members) => $members
+                    ->where('user_id', $this->id)
+                    ->where('status', 'active')));
+    }
 }

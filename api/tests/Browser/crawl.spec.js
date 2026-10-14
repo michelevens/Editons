@@ -197,6 +197,40 @@ test.describe('every screen renders', () => {
         expect(errors).toEqual([]);
     });
 
+    test('team members invites and shows the link', async ({ page }) => {
+        // Nothing is emailed, so the link appearing IS the feature. A test
+        // that only checked for a success toast would pass while the person
+        // invited had no way in.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:team"]');
+        await expect(page.getByRole('heading', { name: /team members/i })).toBeVisible();
+
+        const email = `invitee${Date.now()}@example.com`;
+        await page.fill('[data-a="team:email"]', email);
+        await page.selectOption('[data-a="team:role"]', 'viewer');
+        await page.click('[data-a="team:invite"]');
+
+        await expect(page.getByText(email)).toBeVisible();
+        await expect(page.getByText(/copy invite link/i).first()).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('an unknown invitation link says so', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await page.goto('/invitations/not-a-real-token');
+        await expectRendered(page, { minText: 80 });
+        await expect(page.getByText(/do not recognise this link/i)).toBeVisible();
+
+        expect(errors).toEqual([]);
+    });
+
     test('writing studio', async ({ page }) => {
         const errors = watchForErrors(page);
 

@@ -9,6 +9,7 @@ import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
+import TeamPanel from '@/Components/Studio/TeamPanel';
 import TemplatesPanel from '@/Components/Studio/TemplatesPanel';
 import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -362,6 +363,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     ) : effectivePane === 'terms' ? (
                         <Panel>
                             <ConsistencyPanel bookId={book.id} onOpenSection={openSection} />
+                        </Panel>
+                    ) : effectivePane === 'team' ? (
+                        <Panel>
+                            <TeamPanel bookId={book.id} />
                         </Panel>
                     ) : effectivePane === 'templates' ? (
                         <Panel>

@@ -31,7 +31,7 @@ export const SIDEBAR_GROUPS = [
             { key: 'comments', label: 'Comments', icon: 'chat', ready: false },
             { key: 'suggestions', label: 'Suggestions', icon: 'sugg', ready: true },
             { key: 'workflow', label: 'Review Workflow', icon: 'flow', ready: true },
-            { key: 'team', label: 'Team Members', icon: 'users', ready: false },
+            { key: 'team', label: 'Team Members', icon: 'users', ready: true },
         ],
     },
     {
