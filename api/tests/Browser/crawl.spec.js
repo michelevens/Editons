@@ -65,6 +65,59 @@ test.describe('every screen renders', () => {
         expect(errors).toEqual([]);
     });
 
+    test('book settings', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+
+        await page.goto(`/books/${id}/settings`);
+        await expectRendered(page, { minText: 200 });
+
+        await expect(page.getByRole('heading', { name: /book settings/i })).toBeVisible();
+        // The three writing toggles are switches, not checkboxes, so they are
+        // asserted by role — which also proves the aria wiring.
+        await expect(page.getByRole('switch')).toHaveCount(3);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('a writing preference saves and survives a reload', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/settings`);
+
+        const autosave = page.getByRole('switch', { name: /autosave/i });
+        const before = await autosave.getAttribute('aria-checked');
+
+        await autosave.click();
+        await page.waitForTimeout(900);
+        await page.reload();
+
+        await expect(page.getByRole('switch', { name: /autosave/i })).toHaveAttribute(
+            'aria-checked',
+            before === 'true' ? 'false' : 'true',
+        );
+
+        expect(errors).toEqual([]);
+    });
+
+    test('shelf filters', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        await page.goto('/books');
+        await expectRendered(page);
+
+        await page.click('[data-a="books:filter:archived"]');
+        await page.waitForURL(/filter=archived/);
+        await expectRendered(page, { minText: 100 });
+
+        expect(errors).toEqual([]);
+    });
+
     test('writing studio', async ({ page }) => {
         const errors = watchForErrors(page);
 

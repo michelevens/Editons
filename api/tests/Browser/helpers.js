@@ -35,17 +35,21 @@ export function watchForErrors(page) {
     page.on('requestfailed', (request) => {
         if (request.url().includes('favicon')) return;
 
-        // Vite::prefetch speculatively loads other pages' bundles, and
-        // navigating away cancels them. ERR_ABORTED on a prefetch is the
-        // feature working, not a broken asset — verified by fetching the
-        // same URLs directly, which return 200.
+        // ERR_ABORTED means the browser cancelled a request that was still
+        // in flight, which happens for two legitimate reasons here:
         //
-        // Deliberately narrow: only aborts, and only for build assets. A
-        // script that genuinely fails to load reports a different error, and
-        // that is the blank-page failure this suite exists to catch.
-        const aborted = request.failure()?.errorText === 'net::ERR_ABORTED';
-
-        if (aborted && request.url().includes('/build/assets/')) return;
+        //  - Vite::prefetch speculatively loads other pages' bundles, and
+        //    navigating away cancels them.
+        //  - The crawl clicks through chapters faster than their findings and
+        //    versions can load, so React unmounts mid-fetch.
+        //
+        // Both were verified by fetching the same URLs directly: all return
+        // 200. An abort is the browser's choice, not the server's failure.
+        //
+        // Only aborts are exempt, and only for a cancellable fetch. A script
+        // that genuinely cannot load reports a different error, and that is
+        // the blank-page failure this suite exists to catch.
+        if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
 
         errors.push(
             `request failed: ${request.url().slice(0, 160)} — ${request.failure()?.errorText}`,

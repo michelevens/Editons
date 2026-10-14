@@ -22,7 +22,7 @@ export const SIDEBAR_GROUPS = [
             { key: 'references', label: 'References & Citations', icon: 'refs', ready: true },
             { key: 'notes', label: 'Notes', icon: 'note', ready: false },
             { key: 'templates', label: 'Templates', icon: 'tmpl', ready: false },
-            { key: 'settings', label: 'Book Settings', icon: 'gear', ready: false },
+            { key: 'settings', label: 'Book Settings', icon: 'gear', ready: true },
         ],
     },
     {

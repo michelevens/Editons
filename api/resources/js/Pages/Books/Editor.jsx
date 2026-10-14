@@ -280,6 +280,12 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 return;
                             }
 
+                            if (item.key === 'settings') {
+                                router.get(route('books.settings', book.id));
+
+                                return;
+                            }
+
                             setNav('writing');
                             setPane(item.key);
                             setSidebarOpen(false);

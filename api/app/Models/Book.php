@@ -20,11 +20,18 @@ class Book extends Model
     use HasFactory;
     use SoftDeletes;
 
-    public const STATUSES = ['draft', 'in_review', 'published'];
+    public const STATUSES = ['draft', 'in_review', 'published', 'archived'];
 
     protected $fillable = [
-        'title', 'subtitle', 'author_name', 'genre', 'status', 'description',
-        'target_words',
+        'title', 'subtitle', 'author_name', 'genre', 'language', 'status',
+        'description', 'target_words', 'settings',
+    ];
+
+    /** Per-book writing preferences, with their defaults. */
+    public const DEFAULT_SETTINGS = [
+        'autosave' => true,
+        'inline_ai' => true,
+        'review_on_save' => false,
     ];
 
     /**
@@ -35,9 +42,16 @@ class Book extends Model
      * reassigned to someone else's account. word_count is derived from
      * section content and would be a lie if a client could set it.
      */
+    /** Settings with defaults applied, so a missing key is never undefined. */
+    public function settings(): array
+    {
+        return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
+    }
+
     protected function casts(): array
     {
         return [
+            'settings' => 'array',
             'word_count' => 'integer',
         ];
     }

@@ -152,3 +152,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/sections/{section}/reviewer', [WorkflowController::class, 'assign'])
         ->name('workflow.assign');
 });
+
+/*
+ | Book settings. A full page rather than a studio pane: it changes the book's
+ | identity and can archive it, which is not something to do from a side panel.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/settings', [BookController::class, 'settings'])
+        ->name('books.settings');
+});
