@@ -26,7 +26,12 @@ class ManuscriptSection extends Model
     /** Gap between sibling positions, so a drop between two needs no renumber. */
     public const POSITION_STEP = 10;
 
-    protected $fillable = ['type', 'title', 'subtitle', 'content', 'position'];
+    protected $fillable = [
+        'type', 'title', 'subtitle', 'content', 'position', 'status', 'reviewer_id',
+    ];
+
+    /** The review states a chapter moves through, in board order. */
+    public const STATUSES = ['draft', 'review', 'revisions', 'approved'];
 
     protected function casts(): array
     {
@@ -58,6 +63,12 @@ class ManuscriptSection extends Model
     }
 
     /** Claims in this section and the sources backing them. */
+    /** Who is reviewing this chapter, for the workflow board. */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
     public function citations(): HasMany
     {
         return $this->hasMany(Citation::class);

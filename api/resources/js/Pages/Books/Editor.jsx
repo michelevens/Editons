@@ -6,6 +6,7 @@ import { BottomRow } from '@/Components/Studio/BottomCards';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
+import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -21,7 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
  * explicit empty state. Hiding them would make the product impossible to
  * evaluate; faking them would misrepresent it.
  */
-export default function Editor({ book, binder, activeSection, agents, sources }) {
+export default function Editor({ book, binder, activeSection, agents, sources, pane: initialPane }) {
     const { auth } = usePage().props;
 
     const [section, setSection] = useState(activeSection);
@@ -36,7 +37,7 @@ export default function Editor({ book, binder, activeSection, agents, sources })
     const [toast, setToast] = useState(null);
 
     const [nav, setNav] = useState('writing');
-    const [pane, setPane] = useState('manuscript');
+    const [pane, setPane] = useState(initialPane ?? 'manuscript');
     const [leftTab, setLeftTab] = useState('Manuscript');
     const [panelOpen, setPanelOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -273,6 +274,12 @@ export default function Editor({ book, binder, activeSection, agents, sources })
                         active={liveNav ? effectivePane : null}
                         badges={{ suggestions: openFindings.length }}
                         onSelect={(item) => {
+                            if (item.key === 'overview') {
+                                router.get(route('books.overview', book.id));
+
+                                return;
+                            }
+
                             setNav('writing');
                             setPane(item.key);
                             setSidebarOpen(false);
@@ -302,6 +309,10 @@ export default function Editor({ book, binder, activeSection, agents, sources })
                     ) : effectivePane === 'terms' ? (
                         <Panel>
                             <ConsistencyPanel bookId={book.id} onOpenSection={openSection} />
+                        </Panel>
+                    ) : effectivePane === 'workflow' ? (
+                        <Panel>
+                            <WorkflowBoard bookId={book.id} onOpenSection={openSection} />
                         </Panel>
                     ) : !isStudio ? (
                         <NotBuilt

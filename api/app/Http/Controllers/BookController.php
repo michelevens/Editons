@@ -92,6 +92,10 @@ class BookController extends Controller
             // The panel renders whatever agents exist, so adding one is a
             // single enum case rather than an edit in two languages.
             'agents' => EditorialAgent::catalogue(),
+            // Which pane to open on arrival, so Overview can link straight to
+            // a section of the studio rather than always landing on the
+            // manuscript.
+            'pane' => $request->string('pane')->toString() ?: null,
             // The bottom-row Research card needs the library on first paint;
             // fetching it after mount would flash an empty card on every
             // chapter change.

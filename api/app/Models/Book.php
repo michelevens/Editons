@@ -24,6 +24,7 @@ class Book extends Model
 
     protected $fillable = [
         'title', 'subtitle', 'author_name', 'genre', 'status', 'description',
+        'target_words',
     ];
 
     /**

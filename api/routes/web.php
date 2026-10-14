@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\ConsistencyController;
+use App\Http\Controllers\OverviewController;
+use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\BookController;
@@ -129,4 +131,24 @@ Route::middleware('auth')->group(function () {
         ->name('books.import');
     Route::get('/books/{book}/export.md', [ImportController::class, 'export'])
         ->name('books.export');
+});
+
+/*
+ | Book overview and review workflow.
+ |
+ | Overview is a full page because it is where an author lands; the workflow
+ | board answers with JSON because it lives inside the studio shell.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/overview', [OverviewController::class, 'show'])
+        ->name('books.overview');
+    Route::patch('/books/{book}/overview', [OverviewController::class, 'update'])
+        ->name('books.overview.update');
+
+    Route::get('/books/{book}/workflow', [WorkflowController::class, 'show'])
+        ->name('workflow.show');
+    Route::patch('/sections/{section}/status', [WorkflowController::class, 'move'])
+        ->name('workflow.move');
+    Route::patch('/sections/{section}/reviewer', [WorkflowController::class, 'assign'])
+        ->name('workflow.assign');
 });

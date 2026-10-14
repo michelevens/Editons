@@ -15,7 +15,7 @@ export const SIDEBAR_GROUPS = [
     {
         group: null,
         items: [
-            { key: 'overview', label: 'Overview', icon: 'home', ready: false },
+            { key: 'overview', label: 'Overview', icon: 'home', ready: true },
             { key: 'manuscript', label: 'Manuscript', icon: 'doc', ready: true },
             { key: 'research', label: 'Research Library', icon: 'lib', ready: true },
             { key: 'terms', label: 'Characters & Terms', icon: 'users', ready: true },
@@ -30,7 +30,7 @@ export const SIDEBAR_GROUPS = [
         items: [
             { key: 'comments', label: 'Comments', icon: 'chat', ready: false },
             { key: 'suggestions', label: 'Suggestions', icon: 'sugg', ready: true },
-            { key: 'workflow', label: 'Review Workflow', icon: 'flow', ready: false },
+            { key: 'workflow', label: 'Review Workflow', icon: 'flow', ready: true },
             { key: 'team', label: 'Team Members', icon: 'users', ready: false },
         ],
     },
