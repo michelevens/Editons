@@ -18,7 +18,7 @@ export const TOP_NAV = [
     { key: 'design', label: 'Design', ready: false },
     { key: 'publishing', label: 'Publishing', ready: false },
     { key: 'sales', label: 'Sales', ready: false },
-    { key: 'analytics', label: 'Analytics', ready: false },
+    { key: 'analytics', label: 'Analytics', ready: true },
 ];
 
 export default function AppHeader({

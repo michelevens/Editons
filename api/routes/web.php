@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\AiEditorController;
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\ReferencesController;
 use App\Http\Controllers\OverviewController;
@@ -178,4 +179,12 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/books/{book}/references', [ReferencesController::class, 'show'])
         ->name('references.show');
+});
+
+/*
+ | Analytics, computed from version history rather than generated.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/analytics', [AnalyticsController::class, 'show'])
+        ->name('analytics.show');
 });

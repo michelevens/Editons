@@ -1,6 +1,7 @@
 import ManuscriptEditor from '@/Components/Editor/ManuscriptEditor';
 import AIEditorPanel from '@/Components/Studio/AIEditorPanel';
 import AiEditorScreen from '@/Components/Studio/AiEditorScreen';
+import AnalyticsPanel from '@/Components/Studio/AnalyticsPanel';
 import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import { BottomRow } from '@/Components/Studio/BottomCards';
@@ -228,7 +229,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         setPanelOpen(false);
     };
 
-    const liveNav = ['writing', 'ai', 'books', 'research'].includes(nav);
+    const liveNav = ['writing', 'ai', 'books', 'research', 'analytics'].includes(nav);
     const effectivePane = nav === 'research' ? 'research' : pane;
     const isStudio = liveNav && effectivePane === 'manuscript';
     const openFindings = findings.filter((f) => f.status === 'open');
@@ -304,7 +305,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 )}
 
                 <main className="min-w-0 flex-1 overflow-hidden p-[11px]">
-                    {nav === 'ai' ? (
+                    {nav === 'analytics' ? (
+                        <Panel>
+                            <AnalyticsPanel bookId={book.id} onOpenSection={openSection} />
+                        </Panel>
+                    ) : nav === 'ai' ? (
                         <Panel>
                             <AiEditorScreen bookId={book.id} onOpenSection={openSection} />
                         </Panel>
