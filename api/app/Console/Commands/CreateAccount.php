@@ -51,10 +51,18 @@ class CreateAccount extends Command
          *
          * `railway ssh -- php artisan ...` re-parses the command in a remote
          * shell, which splits --name="Nageley J. Michel, APRN" on its spaces
-         * and fails with "too many arguments". An env var crosses that
-         * boundary intact.
+         * and fails with "too many arguments". Quoting does not survive
+         * either, nor does an env var assigned the same way.
+         *
+         * ACCOUNT_NAME_B64 does: base64 has no spaces, quotes or shell
+         * metacharacters, so it crosses every boundary unchanged. Plain
+         * ACCOUNT_NAME still works where only one shell is involved.
          */
-        $name = $this->option('name') ?: env('ACCOUNT_NAME');
+        $encoded = env('ACCOUNT_NAME_B64');
+
+        $name = $this->option('name')
+            ?: ($encoded ? base64_decode($encoded, true) : null)
+            ?: env('ACCOUNT_NAME');
 
         $user->name = $name ?: ($user->name ?: 'Author');
         $user->password = Hash::make($password);
