@@ -231,6 +231,35 @@ class Coach
                         .number_format($book->target_words).'. More chapters, or a lower target.',
                 ]];
             }
+
+            return [];
+        }
+
+        /*
+         * Every chapter has words in it, and the book is still far short.
+         *
+         * This case was silent, because the projection above only ran while
+         * chapters remained empty. A book that looks finished — nothing
+         * blank, nothing outstanding — at a fraction of its target is
+         * exactly when an author needs telling, since every other signal in
+         * the product says there is nothing left to do.
+         *
+         * Said as a question about which number is wrong, because either
+         * answer is legitimate: the draft may be thin, or the target may
+         * have been a guess.
+         */
+        if ($book->word_count < $book->target_words * 0.75) {
+            $short = $book->target_words - $book->word_count;
+
+            return [[
+                'key' => 'short_of_target',
+                'note' => 'Every chapter has something in it, and the book is '
+                    .number_format($short).' words short',
+                'detail' => number_format($book->word_count).' against a target of '
+                    .number_format($book->target_words).'. At '
+                    .number_format((int) $pace).' words a chapter these read as outlines '
+                    .'rather than finished chapters — unless the target was the guess.',
+            ]];
         }
 
         return [];

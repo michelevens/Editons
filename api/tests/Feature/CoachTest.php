@@ -302,3 +302,34 @@ it('is quiet about an ordinary chapter', function () {
 
     expect(app(Coach::class)->forSection($ordinary))->toBe([]);
 });
+
+it('speaks up about a book that looks finished but is far short', function () {
+    // The case that was silent: nothing blank, nothing outstanding, and a
+    // fraction of the target. Every other signal in the product says there
+    // is nothing left to do, which is when the author most needs telling.
+    $user = User::factory()->create();
+    $book = coachedBook($user, ['target_words' => 90000]);
+
+    foreach (range(1, 20) as $n) {
+        chapter($book, "Chapter {$n}", 240, $n * 100);
+    }
+
+    $book->forceFill(['word_count' => 4800])->save();
+
+    expect(collect(app(Coach::class)->forBook($book->fresh()))->pluck('key'))
+        ->toContain('short_of_target');
+});
+
+it('says nothing when a finished book is near its target', function () {
+    $user = User::factory()->create();
+    $book = coachedBook($user, ['target_words' => 60000]);
+
+    foreach (range(1, 20) as $n) {
+        chapter($book, "Chapter {$n}", 3000, $n * 100);
+    }
+
+    $book->forceFill(['word_count' => 60000])->save();
+
+    expect(collect(app(Coach::class)->forBook($book->fresh()))->pluck('key'))
+        ->not->toContain('short_of_target');
+});

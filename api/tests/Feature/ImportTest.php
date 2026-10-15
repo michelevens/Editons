@@ -20,7 +20,10 @@ it('splits a manuscript into one section per heading', function () {
     [$book, $report] = importBook("# One\n\nBody one.\n\n# Two\n\nBody two.");
 
     expect($report->sections)->toBe(2)
-        ->and($book->sections()->pluck('title')->all())->toBe(['One', 'Two']);
+        // orderBy, not pluck alone: the assertion is about order, and a
+        // query that does not ask for one returns rows however Postgres
+        // finds them. This passed alone and failed in the full suite.
+        ->and($book->sections()->orderBy('position')->pluck('title')->all())->toBe(['One', 'Two']);
 });
 
 it('keeps text that appears before the first heading', function () {

@@ -154,7 +154,7 @@ it('replaces an earlier outline rather than appending to it', function () {
         'outline' => "Corrected\nAlso corrected",
     ]);
 
-    expect($book->sections()->pluck('title')->all())
+    expect($book->sections()->orderBy('position')->pluck('title')->all())
         ->toBe(['Corrected', 'Also corrected']);
 });
 
