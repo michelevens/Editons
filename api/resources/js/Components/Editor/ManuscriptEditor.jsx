@@ -74,7 +74,7 @@ export default function ManuscriptEditor({ section, onSaved }) {
                 setStatus('dirty');
                 clearTimeout(timer.current);
                 timer.current = setTimeout(
-                    () => save(editor.getJSON()),
+                    () => editor.isDestroyed || save(editor.getJSON()),
                     AUTOSAVE_DEBOUNCE_MS,
                 );
             },
@@ -97,7 +97,12 @@ export default function ManuscriptEditor({ section, onSaved }) {
         setWordCount(section?.word_count ?? 0);
         setStatus('idle');
 
-        if (editor && section) {
+        // isDestroyed as well as null. Tiptap 3 tears the editor down when
+        // the pane unmounts — switching to the Outline subtab does it — and
+        // this effect can still run against the stale instance afterwards.
+        // Reaching for `.commands` on a destroyed editor throws, React
+        // unmounts the tree, and the whole studio goes blank.
+        if (editor && ! editor.isDestroyed && section) {
             editor.commands.setContent(section.content ?? '', { emitUpdate: false });
         }
     }, [section?.id, section?.revision, editor]);
@@ -108,7 +113,12 @@ export default function ManuscriptEditor({ section, onSaved }) {
         return () => {
             if (timer.current) {
                 clearTimeout(timer.current);
-                if (editor && status === 'dirty') {
+                // isDestroyed matters most here: this runs DURING teardown,
+                // which is exactly when Tiptap has already disposed of the
+                // editor. Reading getJSON() off a destroyed instance throws
+                // inside a cleanup function, where React cannot recover —
+                // and the unsaved edit this exists to rescue is lost with it.
+                if (editor && ! editor.isDestroyed && status === 'dirty') {
                     // Keepalive so the request survives the page unloading.
                     //
                     // The token travels in the body because sendBeacon cannot
@@ -140,7 +150,9 @@ export default function ManuscriptEditor({ section, onSaved }) {
             if ((e.metaKey || e.ctrlKey) && e.key === 's') {
                 e.preventDefault();
                 clearTimeout(timer.current);
-                if (editor) save(editor.getJSON(), 'manual');
+                if (editor && ! editor.isDestroyed) {
+                    save(editor.getJSON(), 'manual');
+                }
             }
         };
         window.addEventListener('keydown', onKey);

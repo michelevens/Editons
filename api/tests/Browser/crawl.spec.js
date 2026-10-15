@@ -1074,3 +1074,65 @@ test.describe('cross-origin writes', () => {
         expect(errors).toEqual([]);
     });
 });
+
+/*
+ * The editor surviving its own teardown.
+ *
+ * Tiptap 3 destroys the editor when its pane unmounts. Effects and cleanup
+ * functions can still run against the stale instance afterwards, and
+ * touching `.commands` or `.getJSON()` on a destroyed editor throws — inside
+ * a cleanup, where React cannot recover, so the whole studio goes blank.
+ *
+ * Reported from use: switching to the Outline subtab and adding a chapter
+ * emptied the page.
+ */
+test.describe('the editor teardown', () => {
+    test('adding a chapter from the Outline subtab does not blank the page', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await flagshipBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await expect(page.locator('.manuscript')).toBeVisible({ timeout: 25_000 });
+
+        await page.click('[data-a="outline:tab:Outline"]');
+        await page.click('[data-a="outline:add"]');
+
+        // The assertion is that the page still has content. A 200 and an
+        // intact #app both held while the body was empty.
+        await expect
+            .poll(async () => (await page.locator('body').innerText()).trim().length, {
+                timeout: 20_000,
+            })
+            .toBeGreaterThan(200);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('switching subtabs with unsaved text keeps the text', async ({ page }) => {
+        // The same teardown path, on the one that matters: the unload save
+        // runs DURING disposal, and losing it loses the author's words.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await flagshipBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await expect(page.locator('.manuscript')).toBeVisible({ timeout: 25_000 });
+
+        const marker = `teardown ${Date.now()}`;
+        const canvas = page.locator('.manuscript .ProseMirror');
+        await canvas.click();
+        await page.keyboard.press('Control+End');
+        await page.keyboard.type(` ${marker}`);
+
+        await page.click('[data-a="outline:tab:Outline"]');
+        await page.waitForTimeout(2500);
+        await page.click('[data-a="outline:tab:Manuscript"]');
+
+        await expect
+            .poll(async () => (await canvas.innerText()).includes(marker), { timeout: 20_000 })
+            .toBe(true);
+
+        expect(errors).toEqual([]);
+    });
+});
