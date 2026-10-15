@@ -121,8 +121,6 @@ Still open from the directive, in the order they are worth doing:
     shape — chapter balance, stubs, pace against a target the author set.
     It cannot judge prose and never claims to; that is what the agents are
     for, and they are run deliberately. See app/Journey/Coach.php.
-  - §7 the Book Director needs manuscript memory first. An agent that sees
-    one section cannot reason about a book.
   - §4 six more genres, and per-genre interview questions and publishing
     guidance.
 
@@ -170,8 +168,38 @@ Starting methods, in the order they earn their place:
 
 ### Milestone D — the Book Director
 
-Needs manuscript memory first: an agent that sees one section cannot reason
-about a book. That is a real piece of engineering, not a prompt.
+Done. ManuscriptMemory indexes the whole book — one summarised row per
+chapter with counts, position, headings, opening and closing sentence — and
+BookDirector reasons over that index.
+
+It is an index rather than a transcript on purpose: a 90,000-word manuscript
+reduces to a few kilobytes of structure, which is what makes whole-book
+reasoning affordable and is the same approach ConsistencyIndex already took.
+
+What it reports is what no per-section agent can see: a part carrying far
+more than the lightest, chapters far from the book's own median, stubs
+across the book, the same opening gesture three or more times, and a
+numbered forward reference pointing past the end of the book. Each finding
+names the chapters it compared so the author can disagree with it.
+
+Free and deterministic, like Coach, and for the same reason. It cannot judge
+an argument and says so in the panel.
+
+Found while building it, and worth recording:
+
+  - config/billing.php prices `book_review` at 40 credits, BillingController
+    names it twice and CreditStrip displays it. **Nothing had ever spent it.**
+    There was no whole-book code path at all.
+  - "Run Full Editorial Review" ran the seven per-section agents over the one
+    open chapter, labelled itself `Reviewing ${section.title}`, and finished
+    with "nothing open on this chapter". The name promised the book; the code
+    did a chapter. It is now "Review this chapter", with "Review the whole
+    book" beside it doing what the old name claimed.
+  - The Developmental Editor — whose stated job is structure, pacing and
+    argument — judged a chapter against a hardcoded "1,500–5,000 words" and
+    could not see the nineteen chapters beside it. That constant is still
+    there for the per-chapter case; the book-level judgement now comes from
+    the type's own range and the book's own median.
 
 ---
 

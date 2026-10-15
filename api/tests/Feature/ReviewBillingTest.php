@@ -5,6 +5,7 @@ use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewRunner;
 use App\Models\Book;
+use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
 use App\Models\User;
 use RuntimeException;
@@ -112,7 +113,7 @@ it('refuses over HTTP before the work starts when the balance is short', functio
         ->assertStatus(422)
         ->assertJsonValidationErrors('credits');
 
-    expect(App\Models\EditorialReview::where('manuscript_section_id', $section->id)->count())
+    expect(EditorialReview::where('manuscript_section_id', $section->id)->count())
         ->toBe(0);
 });
 
@@ -157,4 +158,45 @@ it('does not let two concurrent reviews spend the same last credits', function (
 
     expect($blocked->status)->toBe('failed')
         ->and(app(CreditLedger::class)->balanceFor($user))->toBe(0);
+});
+
+it('does not price work that nothing performs, without saying so', function () {
+    /*
+     * The drift this catches.
+     *
+     * config/billing.php priced book_review at 40 credits, BillingController
+     * named it twice and CreditStrip showed it to every author, while no code
+     * path spent it — the button that appeared to be the whole-book review
+     * ran the per-section agents over one chapter. A price is a promise, and
+     * that one had nothing behind it.
+     *
+     * A cost may legitimately exist before its feature does, as long as the
+     * product is not implying otherwise. Those are listed here deliberately:
+     * each belongs to a screen that says "Not built yet" in the UI. Adding to
+     * this list should be a decision somebody makes on purpose, not something
+     * that happens by forgetting.
+     */
+    $awaitingFeature = [
+        'narrate_chapter',  // Audiobook Studio — marked not built
+        'generate_course',  // Course Builder — marked not built
+        'cover_generate',   // Cover Studio — marked not built
+    ];
+
+    $app = collect(File::allFiles(app_path()))
+        ->map(fn ($file) => $file->getContents())
+        ->implode("\n");
+
+    foreach (array_keys(config('billing.costs')) as $label) {
+        if (in_array($label, $awaitingFeature, true)) {
+            continue;
+        }
+
+        $this->assertStringContainsString(
+            "'{$label}'",
+            $app,
+            "config/billing.php prices [{$label}] and nothing in app/ spends it. "
+                .'Either wire it up, or add it to $awaitingFeature with the screen '
+                .'that tells the author it is not built.',
+        );
+    }
 });

@@ -175,10 +175,12 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
         const open = latest.filter((f) => f.status === 'open').length;
 
+        // Names the chapter, because that is what ran. The button beside it
+        // is the one that reads the book.
         notify(
             open === 0
-                ? 'Review finished. Nothing open on this chapter.'
-                : `Review finished. ${open} open finding${open === 1 ? '' : 's'}.`,
+                ? `Nothing open on ${section.title}.`
+                : `${section.title}: ${open} open finding${open === 1 ? '' : 's'}.`,
         );
     };
 

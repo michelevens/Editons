@@ -276,3 +276,34 @@ until a test asserted that no chapter is an orphan.
 Use `forceFill` for `parent_id`, and assert the shape rather than the row
 count when testing anything that builds a tree. A test that counts chapters
 passes happily while the hierarchy is flat.
+
+---
+
+## ADR-0013 — The whole-book review is free, and `book_review` stays unspent
+
+`config/billing.php` has priced `book_review` at 40 credits since the billing
+table was written. `BillingController` names it twice, `CreditStrip` shows it
+to every author. **Nothing has ever spent it** — until the Book Director there
+was no whole-book code path at all, and the button named "Run Full Editorial
+Review" ran the seven per-section agents over the one open chapter.
+
+The Director is deterministic: it reads an index of the manuscript — counts,
+positions, headings, opening and closing sentences — and compares a book
+against its own medians and its type's published norms. That is arithmetic.
+Charging 40 credits for arithmetic is the kind of small dishonesty this
+codebase has avoided everywhere else, so `/books/{book}/direct` is free and
+has no entitlement gate.
+
+The price stays in the table deliberately. It is reserved for the version that
+sends the manuscript to a provider and gets back a judgement about the
+argument — the thing heuristics genuinely cannot do. When that ships it will
+spend `book_review`, and the free structural pass will remain beside it.
+
+Two consequences worth knowing:
+
+- A test asserts the Director costs nothing. If a provider is wired into this
+  path later, that test should fail and be *changed* deliberately, not deleted.
+- An unspent cost in `config/billing.php` is not evidence a feature exists.
+  Two guard tests already check the billing table against reality; neither
+  caught this, because both check formats and plans rather than whether
+  anything debits a given label.

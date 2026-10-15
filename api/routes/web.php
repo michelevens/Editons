@@ -107,6 +107,11 @@ Route::middleware('auth')->group(function () {
  * client.
  */
 Route::middleware('auth')->group(function () {
+    // The whole book at once: the structural review no per-section agent
+    // can produce. Free, so no entitlement gate — see EditorialController.
+    Route::get('/books/{book}/direct', [EditorialController::class, 'direct'])
+        ->name('books.direct');
+
     Route::post('/sections/{section}/review', [EditorialController::class, 'review'])
         ->name('editorial.review');
     Route::get('/sections/{section}/findings', [EditorialController::class, 'findings'])

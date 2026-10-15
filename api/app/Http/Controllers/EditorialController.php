@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Billing\Entitlements;
+use App\Editorial\BookDirector;
 use App\Editorial\EditorialAgent;
+use App\Editorial\ManuscriptMemory;
 use App\Editorial\ReviewRunner;
 use App\Editorial\SuggestionApplier;
+use App\Models\Book;
 use App\Models\EditorialFinding;
 use App\Models\ManuscriptSection;
 use Illuminate\Http\JsonResponse;
@@ -16,7 +19,43 @@ class EditorialController extends Controller
     public function __construct(
         private readonly ReviewRunner $runner,
         private readonly Entitlements $entitlements,
+        private readonly BookDirector $director,
     ) {}
+
+    /**
+     * Review the whole book.
+     *
+     * The thing the seven per-section agents cannot do. Each of them takes
+     * one chapter's text, so the Developmental Editor — whose job is
+     * "structure, pacing and argument" — judged a chapter against a
+     * hardcoded word range and could not see the nineteen beside it.
+     *
+     * Free, and deliberately so. config/billing.php prices book_review at 40
+     * credits and nothing has ever spent it; charging that for heuristics
+     * over an index would be charging for arithmetic. The priced path stays
+     * reserved for a provider reading the actual prose.
+     *
+     * Findings are returned rather than stored: they belong to the book as it
+     * is right now, and a structural observation saved against a chapter
+     * would outlive the shape that produced it.
+     */
+    public function direct(Book $book): JsonResponse
+    {
+        $this->authorize('view', $book);
+
+        $findings = $this->director->review($book);
+
+        return response()->json([
+            'findings' => array_map(fn ($f) => [
+                'severity' => $f->severity,
+                'title' => $f->title,
+                'detail' => $f->detail,
+            ], $findings),
+            // Said plainly, because an empty list has two very different
+            // meanings and the panel must not show the wrong one.
+            'enough_to_review' => ManuscriptMemory::of($book)->isSubstantial(),
+        ]);
+    }
 
     /** Run one agent over a section. */
     public function review(Request $request, ManuscriptSection $section): JsonResponse

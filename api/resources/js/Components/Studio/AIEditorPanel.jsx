@@ -48,6 +48,26 @@ export default function AIEditorPanel({
     const [openAgent, setOpenAgent] = useState(null);
     const [commentCount, setCommentCount] = useState(0);
 
+    // The whole-book review lives here rather than on the Editor page: it is
+    // the only consumer of this state, and bookId is already to hand.
+    const [directing, setDirecting] = useState(false);
+    const [direction, setDirection] = useState(null);
+
+    const direct = async () => {
+        if (!bookId || directing) return;
+
+        setDirecting(true);
+
+        try {
+            const { data } = await window.axios.get(`/books/${bookId}/direct`);
+            setDirection(data);
+        } catch {
+            setDirection({ findings: [], enough_to_review: true });
+        } finally {
+            setDirecting(false);
+        }
+    };
+
     const open = findings.filter((f) => f.status === 'open');
 
     const tabs = [
@@ -114,6 +134,9 @@ export default function AIEditorPanel({
                             onRunAgent={onRunAgent}
                             onRunFullReview={onRunFullReview}
                             onOpenAgent={setOpenAgent}
+                            onDirect={direct}
+                            directing={directing}
+                            direction={direction}
                         />
                     ))}
 
@@ -150,6 +173,9 @@ function AgentList({
     onRunAgent,
     onRunFullReview,
     onOpenAgent,
+    onDirect,
+    directing,
+    direction,
 }) {
     // The mockup's four tiles, each counted from real findings.
     const tiles = [
@@ -181,10 +207,20 @@ function AgentList({
 
     return (
         <div className="p-3.5">
+            {/*
+             * Two buttons, because there are two different reviews and this
+             * was one button claiming to be both.
+             *
+             * "Run Full Editorial Review" ran seven agents over the one open
+             * chapter and finished by saying "nothing open on this chapter".
+             * The name promised the book; the code did a chapter. It is now
+             * named for what it does, and the whole-book review sits beside
+             * it doing what the old name promised.
+             */}
             <button
                 data-a="ai:run-full"
                 onClick={onRunFullReview}
-                disabled={Boolean(reviewProgress)}
+                disabled={Boolean(reviewProgress) || directing}
                 className="flex h-[38px] w-full items-center justify-center gap-2 rounded-control bg-gradient-to-r from-ai-gradient-from to-ai-gradient-to text-[13px] font-semibold text-white shadow-floatingButton transition hover:opacity-95 disabled:opacity-80"
             >
                 {reviewProgress ? (
@@ -195,10 +231,65 @@ function AgentList({
                 ) : (
                     <>
                         <Icon name="heart" size={16} />
-                        Run Full Editorial Review
+                        Review this chapter
                     </>
                 )}
             </button>
+
+            <button
+                data-a="ai:direct"
+                onClick={onDirect}
+                disabled={Boolean(reviewProgress) || directing}
+                title="Structure, pacing and balance across every chapter"
+                className="mt-2 flex h-[34px] w-full items-center justify-center gap-2 rounded-control border border-border-default text-[12.5px] font-semibold text-text-secondary transition hover:border-brand-primary/40 hover:text-text-primary disabled:opacity-60"
+            >
+                {directing ? (
+                    <>
+                        <Spinner dark />
+                        Reading the whole book…
+                    </>
+                ) : (
+                    'Review the whole book'
+                )}
+            </button>
+
+            {direction && (
+                <div className="mt-3 rounded-tile border border-border-default bg-bg-surface p-3">
+                    <p className="text-[12px] font-semibold text-text-primary">
+                        The whole book
+                    </p>
+
+                    {direction.findings.length === 0 ? (
+                        <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
+                            {direction.enough_to_review
+                                ? 'Nothing structural to raise. Shape, pacing and balance all read evenly.'
+                                : 'Not enough written yet to say anything about the book’s shape. Three chapters with words in them is the point this becomes useful.'}
+                        </p>
+                    ) : (
+                        <ul className="mt-1.5 divide-y divide-border-divider">
+                            {direction.findings.map((finding, index) => (
+                                <li
+                                    key={index}
+                                    data-a="ai:direct:finding"
+                                    className="py-2"
+                                >
+                                    <p className="text-[11.5px] font-medium text-text-primary">
+                                        {finding.title}
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] leading-relaxed text-text-secondary">
+                                        {finding.detail}
+                                    </p>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    <p className="mt-2 text-[10.5px] leading-relaxed text-text-secondary">
+                        Read from every chapter’s shape, not its prose. Free — judging the
+                        writing itself is what the agents above are for.
+                    </p>
+                </div>
+            )}
 
             <div className="mb-2.5 mt-4 flex items-baseline justify-between">
                 <h3 className="text-[14px] font-semibold text-text-primary">
