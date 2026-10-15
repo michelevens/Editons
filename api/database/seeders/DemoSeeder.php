@@ -158,7 +158,16 @@ class DemoSeeder extends Seeder
         array $blocks,
         ?ManuscriptSection $part = null,
     ): void {
-        $content = [['type' => 'heading', 'attrs' => ['level' => 1], 'content' => [
+        /*
+         * A chapter with no prose gets no heading either.
+         *
+         * The heading was written unconditionally, so a chapter deliberately
+         * left unwritten still carried two to four words — enough that the
+         * binder, the Coach and the Book Director all counted it as started.
+         * A planned-but-unwritten chapter has to read as empty, because that
+         * is the state the whole journey model is about.
+         */
+        $content = $blocks === [] ? [] : [['type' => 'heading', 'attrs' => ['level' => 1], 'content' => [
             ['type' => 'text', 'text' => "{$number}. {$title}"],
         ]]];
 
@@ -600,7 +609,20 @@ class DemoSeeder extends Seeder
         $book->refresh()->recalculateWordCount();
     }
 
-    /** A second book, mid-draft, so the shelf is not a single card. */
+    /**
+     * The second book: a memoir, part written.
+     *
+     * Deliberately unfinished. The shelf needs a book mid-draft as well as a
+     * complete one, because that is the state nearly every real manuscript is
+     * in, and it is what the Coach, the Book Director and the journey stages
+     * are mostly looking at. Eight chapters are written; Part III is named and
+     * empty, which is the honest shape of a draft - the plan runs ahead of
+     * the prose.
+     *
+     * First person, past tense, short sentences. The voice is the point of a
+     * memoir, and a demo that reads like documentation proves nothing about
+     * the editor.
+     */
     private function secondBook(User $user): void
     {
         $book = $user->books()->create([
@@ -612,25 +634,121 @@ class DemoSeeder extends Seeder
             'started_with' => 'idea',
             'journey_stage' => 'create',
             'description' => 'A second book, part written, so the shelf shows more than one thing.',
+            'premise' => 'Eleven years of night shifts, and what the dark hours taught me about the people in them.',
+            'audience' => 'Anybody who has worked while the rest of the world slept, and the people who waited up for them.',
+            'promise' => 'An honest account of what the night does to a person, without making it heroic or tragic.',
             'target_words' => 60000,
             'cover' => ['palette' => 4],
         ]);
 
-        $part = $this->part($book, 'Part I: Arrivals', 1);
+        $this->matter($book, 'front_matter', 'Author Note', -2, [
+            ['p', 'Names and details have been changed throughout, except my own. Where I have described a patient it is a composite drawn from several, and nobody in this book would recognise themselves from the outside.'],
+            ['p', 'I have not tidied the chronology. It happened roughly in this order, and where my memory and the record disagree I have said so.'],
+        ]);
 
-        $this->chapter($book, 1, 'The First Night', [
-            ['p', 'Nobody tells you that the hospital at three in the morning is quieter than your own house.'],
-            ['p', 'I learned the building by its sounds before I learned it by its corridors.'],
-        ], $part);
+        $structure = [
+            'Part I: Arrivals' => [
+                ['The First Night', [
+                    ['p', 'Nobody tells you that the hospital at three in the morning is quieter than your own house.'],
+                    ['p', 'I learned the building by its sounds before I learned it by its corridors. The lift on the east side announced itself two floors early. The doors on Ward 6 had a particular sigh. By the end of the first month I could stand at the nurses station with my eyes shut and tell you roughly where everyone was.'],
+                    ['p', 'That first shift I did almost nothing useful. I followed a woman called Ruth, who had been doing nights for nineteen years, and I asked questions she had clearly been asked a thousand times. She answered all of them as though it were the first.'],
+                    ['p', 'At four she made tea without being asked and put a mug in front of me. I had not noticed I was shaking. She said that for the first week your body thinks you are dying, and after that it gives up arguing. She was right about the week. She was wrong about the arguing, which never entirely stops.'],
+                ]],
+                ['Handover', [
+                    ['p', 'Everything that matters is said in the four minutes between shifts.'],
+                    ['p', 'You arrive at ten and the day staff are already standing, coats half on, and what they tell you in those four minutes is the difference between a night that works and a night that does not. Bay three is confused but settles if you leave the light on. The man in six has a daughter who rings at midnight and she is frightened, not rude. Nobody writes that down. It is not the kind of thing the notes have a box for.'],
+                    ['p', 'I got good at handover long before I got good at anything clinical. It is listening, mostly, and knowing which half-sentence to ask about before the person saying it reaches the door.'],
+                    ['p', 'The worst handover I ever took was eleven minutes long and told me nothing. The best was ninety seconds. The difference is not brevity, it is whether the person has decided in advance what I need to know, and most people have not, because they are tired and they want to go home. I stopped resenting that somewhere around year three.'],
+                ]],
+                ['What the Body Learns', [
+                    ['p', 'By the third month I could sleep at ten in the morning with the sun full on the curtains.'],
+                    ['p', 'The trick, if it is a trick, is that you stop treating it as a thing to be managed and start treating it as the shape of your life. People offered me advice constantly. Blackout blinds, no caffeine after two, a particular kind of eye mask. All of it slightly helpful and none of it the point. The point is that you are awake in a world built for people who are not, and no amount of eye mask fixes that.'],
+                    ['p', 'What actually changed was that I stopped apologising for it. I stopped saying sorry, I work nights, as though it were a condition. It is a job. Somebody has to be there at four in the morning, and for eleven years it was me.'],
+                    ['p', 'There is a cost and I am not going to pretend otherwise. I know what the research says about shift work and I have read enough of it to be frightened in a general sort of way. But the alternative on offer was not a healthier life. It was a different job, and I did not want a different job.'],
+                ]],
+                ['The People Who Wait Up', [
+                    ['p', 'My sister phoned at six one morning, after I had been home an hour, to ask whether I was dead.'],
+                    ['p', 'She had not meant it quite like that. What she meant was that I had not answered anything for two days and she had run out of other explanations. I had been asleep, then at work, then asleep. From the outside it looked like a person vanishing slowly.'],
+                    ['p', 'There is a particular kind of relationship that survives night work and a particular kind that does not. The ones that survive are the ones where somebody is willing to meet you at eight in the morning for what is dinner to you and breakfast to them, and not make it strange.'],
+                    ['p', 'My mother never adjusted. She rang at eleven in the morning for eleven years, every time apologising, every time forgetting again by the following week. I stopped correcting her eventually. There are worse things than being woken by somebody who wants to know how you are.'],
+                ]],
+                ['Three in the Morning', [
+                    ['p', 'The hours are not interchangeable. Everyone who works nights knows this and nobody outside quite believes it.'],
+                    ['p', 'Ten to one is ordinary, just late. One to three is the quiet, the hours this book is named for, when the building settles and the work is steady and you can think. Three to five is the bad stretch, the hours when people deteriorate, when confusion arrives, when the body of whoever is working has decided it has been patient enough.'],
+                    ['p', 'Five to seven is easier, oddly. Something in the light coming up does half the work for you. I have watched a ward that was unmanageable at four become perfectly calm at half past five with nothing changed except the sky.'],
+                    ['p', 'I have never seen this written down in any guidance, and every night nurse I have ever asked knows it immediately. That gap between what the work actually involves and what gets recorded about it is most of what this book is about.'],
+                ]],
+            ],
+            'Part II: The Long Middle' => [
+                ['Mrs Addison', [
+                    ['p', 'She was eighty-one, she was dying, and she wanted to talk about the war.'],
+                    ['p', 'Not her war. Her fathers. She had been four when he came back and she had spent seventy-seven years trying to work out what had happened to him in between. She told me the same six facts most nights for a fortnight, and each time she arranged them slightly differently, as though one of the arrangements might finally explain it.'],
+                    ['p', 'I was not doing anything medically useful during those conversations. I want to be clear about that, because there is a temptation in this kind of book to make everything matter. It did not matter. It was just that she was awake and frightened and I was awake and there.'],
+                    ['p', 'She died on a Tuesday, during the day, when I was asleep. I heard at handover. Four minutes, half a sentence, and on to bay three.'],
+                ]],
+                ['The Thing Nobody Teaches', [
+                    ['p', 'How to tell somebody at four in the morning that the person they love has died.'],
+                    ['p', 'There is training for it now, which is better than nothing. There was not much then. What I learned, I learned by standing slightly behind Ruth and watching her do it, and what she did was mostly to be unhurried. She sat down. She did not start with the word. She let the silence after it be as long as it needed to be, which is longer than anybody comfortable would allow.'],
+                    ['p', 'The mistake I made for years was filling that silence. It comes from kindness and it is still a mistake. The silence is where the person is doing the only work that matters in that moment, and talking into it is taking the room back.'],
+                    ['p', 'What helped, in the end, was being told by somebody I trusted that I was allowed to find it difficult. Not that it would get easier, which is the thing people usually say and which is only partly true. That it was supposed to be hard, and that finding it hard was not evidence I was bad at it.'],
+                ]],
+                ['Running on Nothing', [
+                    ['p', 'The eighth consecutive night is a different job from the first.'],
+                    ['p', 'I do not mean that it is harder, though it is. I mean the work itself changes character. You stop assessing and start pattern-matching. You become quick, and quickness is not the same as competence, and the gap between them is where mistakes live.'],
+                    ['p', 'I made two that I still think about. Neither caused harm, which is luck rather than skill, and both happened in the second half of a long run of nights when I was confident and tired at the same time. That is the dangerous combination. Tired and uncertain makes you careful. Tired and certain makes you fast.'],
+                    ['p', 'The rota is built by somebody who has never worked one, using software that treats the eighth night and the first as the same unit of staffing. I raised it twice. I was told, both times and politely, that the numbers worked. They did work. That was never the thing I was asking about.'],
+                ]],
+            ],
+        ];
 
-        $this->chapter($book, 2, 'Handover', [
-            ['p', 'Everything that matters is said in the four minutes between shifts.'],
-        ], $part);
+        $number = 0;
+
+        foreach ($structure as $partTitle => $chapters) {
+            $part = $this->part($book, $partTitle, $number + 1);
+
+            foreach ($chapters as [$title, $blocks]) {
+                $this->chapter($book, ++$number, $title, $blocks, $part);
+            }
+        }
+
+        // Where the author stopped: titles without prose. This is also what
+        // gives the Coach and the Book Director something real to find.
+        $planned = $this->part($book, 'Part III: Leaving', $number + 1);
+
+        foreach ([
+            'The Decision',
+            'Telling Ruth',
+            'The Last Night',
+            'Daylight',
+            'What I Miss',
+        ] as $title) {
+            $this->chapter($book, ++$number, $title, [], $planned);
+        }
+
+        $this->matter(
+            $book,
+            'back_matter',
+            'Acknowledgements',
+            ($number + 1) * ManuscriptSection::POSITION_STEP,
+            [['p', 'To Ruth, who taught me the job, and who would be embarrassed by this paragraph.']],
+        );
 
         $book->refresh()->recalculateWordCount();
     }
 
-    /** A third, barely started, which is what most books look like. */
+    /**
+     * The third book: an outline with the opening chapters written.
+     *
+     * The state most books are actually in, and a different one from the
+     * other two: a complete plan, the first few chapters drafted, and
+     * everything after that a title. It is what the journey's Plan stage
+     * looks like when it has been done properly, and it gives the Book
+     * Director a book whose shape is sound but whose prose stops.
+     *
+     * Second person and imperative, which is how technical writing reads.
+     * Each chapter carries h2 sections and h3 subsections, so the binder tree
+     * and the exporter have real structure to work with.
+     */
     private function thirdBook(User $user): void
     {
         $book = $user->books()->create([
@@ -640,14 +758,86 @@ class DemoSeeder extends Seeder
             'genre' => 'Technical',
             'book_type' => 'technical',
             'started_with' => 'outline',
-            'journey_stage' => 'plan',
-            'description' => 'An outline and a first chapter, which is the state most books are in.',
+            'journey_stage' => 'create',
+            'description' => 'An outline with the opening chapters written, which is the state most books are in.',
+            'premise' => 'How to build systems small enough that one person can still explain them.',
+            'audience' => 'Engineers who have inherited something nobody understands and do not want to build the next one.',
+            'promise' => 'A set of decisions you can make early that keep a system explainable for years.',
             'target_words' => 45000,
             'cover' => ['palette' => 2],
         ]);
 
-        $this->chapter($book, 1, 'Why Small', [
-            ['p', 'Every system you cannot hold in your head will eventually be run by nobody.'],
+        $this->matter($book, 'front_matter', 'Preface', -3, [
+            ['p', 'This book is short on purpose. A long book about keeping things small would be an odd thing to hand somebody.'],
+            ['p', 'Everything here comes from systems I have run badly first. Where I am confident, I say so. Where it is a preference rather than a finding, I say that too.'],
+        ]);
+
+        $this->matter($book, 'front_matter', 'How to Use This Book', -2, [
+            ['p', 'Read chapter one, then skip to whichever chapter names the problem you have this week. The chapters do not build on each other and are not meant to be read in order.'],
+        ]);
+
+        $structure = [
+            ['Why Small', [
+                ['h2', '1.1 The Limit of What You Can Hold'],
+                ['p', 'Every system you cannot hold in your head will eventually be run by nobody.'],
+                ['p', 'Not literally nobody. There will be a name in a rota and somebody paid to be responsible. But the person who understood why it was built that way has gone, and what remains is a set of behaviours nobody can explain and nobody dares change. That is what running a system badly looks like from the inside, and it rarely announces itself.'],
+                ['h3', '1.1.1 The test'],
+                ['p', 'Can you draw it on one side of paper, from memory, and have somebody else recognise it? If not, you do not have a system. You have an accumulation.'],
+                ['h2', '1.2 What Small Buys You'],
+                ['p', 'Fewer moving parts, fewer interactions between them, and the ability to reason about a change before you make it. None of that is free: small systems do less, and the work they do not do has to go somewhere.'],
+                ['p', 'The trade is usually worth making anyway, because the cost of a large system is paid every day by whoever is on call, and the cost of a small one is paid once, by whoever had to say no.'],
+            ]],
+            ['One Thing at a Time', [
+                ['h2', '2.1 The Component That Does Two Jobs'],
+                ['p', 'A queue that also stores state, a cache that is also the source of truth, a script that both deploys and migrates. Each one of these starts as a reasonable economy and ends as the thing nobody will touch.'],
+                ['p', 'The failure is not that doing two jobs is slow. It is that the two jobs have different reasons to change, and so the component is pulled in two directions by people who never speak to each other.'],
+                ['h3', '2.1.1 Spotting it early'],
+                ['p', 'Listen for the word also. If the sentence describing a component needs an also in the middle, you are describing two components that happen to share a deployment.'],
+                ['h2', '2.2 When Two Jobs Is Correct'],
+                ['p', 'When the two jobs genuinely change together and always will. This is rarer than it feels at the time, and the honest way to check is to ask who would file the ticket for each job. If it is two different people in two different teams, you have your answer.'],
+            ]],
+            ['Make It Boring', [
+                ['h2', '3.1 Choosing Dull Technology'],
+                ['p', 'The interesting choice is the one you will be explaining at two in the morning to somebody who was not there when you made it.'],
+                ['p', 'Dull technology has documentation written by people who are not enthusiasts, failure modes somebody else has already hit, and a hiring pool. It is also, usually, slower and less elegant. That is the trade, stated plainly, and it is almost always worth it for anything that has to still be running in five years.'],
+                ['h3', '3.1.1 Where to spend the novelty budget'],
+                ['p', 'On the part of the system that is actually your problem, and nowhere else. If your interesting problem is scheduling, then the scheduler can be interesting and the database must be boring.'],
+                ['h2', '3.2 Boring Is Not the Same as Old'],
+                ['p', 'Dull means well understood, not unmaintained. A dependency nobody has released in four years is not boring, it is abandoned, and the distinction matters most at exactly the moment you discover it.'],
+            ]],
+        ];
+
+        $number = 0;
+
+        foreach ($structure as [$title, $blocks]) {
+            $this->chapter($book, ++$number, $title, $blocks);
+        }
+
+        // The rest of the plan: named, ordered, and not yet written. This is
+        // the half of a manuscript that usually exists only in somebody's
+        // notes app, and the reason the outline importer exists.
+        foreach ([
+            'Observability Before Features',
+            'The Runbook Is the Design',
+            'Failure Modes You Chose',
+            'Backups Nobody Has Restored',
+            'Deployment as a Habit',
+            'Dependencies and Their Owners',
+            'The On-Call Experience',
+            'Writing It Down',
+            'Handing It Over',
+        ] as $title) {
+            $this->chapter($book, ++$number, $title, []);
+        }
+
+        $end = ($number + 1) * ManuscriptSection::POSITION_STEP;
+
+        $this->matter($book, 'back_matter', 'Glossary', $end, [
+            ['p', 'Terms used here in a narrower sense than the industry uses them.'],
+        ]);
+
+        $this->matter($book, 'back_matter', 'Index', $end + 1, [
+            ['p', 'Generated at export, from the headings.'],
         ]);
 
         $book->refresh()->recalculateWordCount();

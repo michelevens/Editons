@@ -20,3 +20,11 @@
 /api/playwright-report/
 /api/blob-report/
 /api/.playwright/
+
+# Source material for books, including unpublished research.
+#
+# Book-ideas/ holds manuscripts and data belonging to real people — the DNP
+# capstone in here names its author, her supervising professor, and the
+# facility the project ran in. None of it is the application's to distribute,
+# and `railway up` would otherwise ship it to a deployed service.
+/Book-ideas/

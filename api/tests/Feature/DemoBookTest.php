@@ -141,3 +141,57 @@ it('reads as an evenly paced book', function () {
         ->and($keys)->not->toContain('uneven')
         ->and($keys)->not->toContain('unstarted');
 });
+
+it('shows three books in three different states', function () {
+    // The shelf exists to demonstrate the product, and three books all in the
+    // same state demonstrates one thing three times. Each of these is a stage
+    // the journey model is about: finished draft, part written, outline with
+    // the opening chapters done.
+    $user = $this->book->user;
+
+    $states = $user->books()->get()->mapWithKeys(function (Book $book) {
+        $chapters = $book->sections()->where('type', 'chapter')->count();
+        $written = $book->sections()->where('type', 'chapter')->where('word_count', '>', 0)->count();
+
+        return [$book->title => [$written, $chapters]];
+    });
+
+    expect($states)->toHaveCount(3);
+
+    // Every chapter written.
+    expect($states['Building an Independent Practice'][0])
+        ->toBe($states['Building an Independent Practice'][1]);
+
+    // Part written, and genuinely part: some chapters have nothing in them.
+    [$written, $chapters] = $states['The Quiet Hours'];
+    expect($written)->toBeGreaterThan(0)->and($written)->toBeLessThan($chapters);
+
+    [$written, $chapters] = $states['Small Systems'];
+    expect($written)->toBeGreaterThan(0)->and($written)->toBeLessThan($chapters);
+});
+
+it('leaves an unwritten chapter genuinely empty', function () {
+    // The heading was written unconditionally, so a chapter deliberately left
+    // unwritten still carried two to four words and the binder, the Coach and
+    // the Director all counted it as started.
+    $book = $this->book->user->books()->where('title', 'The Quiet Hours')->firstOrFail();
+
+    $planned = $book->sections()
+        ->where('type', 'chapter')
+        ->where('title', 'The Last Night')
+        ->firstOrFail();
+
+    expect($planned->word_count)->toBe(0)
+        ->and(trim($planned->plainText()))->toBe('');
+});
+
+it('gives the Coach nothing to complain about that is not true', function () {
+    // The demo is the product's shop window, so the Coach must not report
+    // stubs in a book whose short chapters were a seeding artefact rather
+    // than a real pacing problem.
+    foreach ($this->book->user->books()->get() as $book) {
+        $keys = collect(app(Coach::class)->forBook($book))->pluck('key');
+
+        expect($keys)->not->toContain('stubs', "[{$book->title}] reports stub chapters.");
+    }
+});
