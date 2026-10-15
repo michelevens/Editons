@@ -11,8 +11,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 use Inertia\Response;
 
 class BookController extends Controller
@@ -208,7 +208,15 @@ class BookController extends Controller
             ],
             // The panel renders whatever agents exist, so adding one is a
             // single enum case rather than an edit in two languages.
-            'agents' => EditorialAgent::catalogue(),
+            //
+            // Ordered for this kind of book: config/booktypes.php names the
+            // reviewers that matter most for each type, and until now that
+            // list had no consumer at all. Ordering only — every agent stays
+            // available, because an author wanting the accessibility check on
+            // a memoir should not have to change the book's type to reach it.
+            'agents' => EditorialAgent::catalogue(
+                BookType::find($book->book_type)?->agents() ?? [],
+            ),
             // Which pane to open on arrival, so Overview can link straight to
             // a section of the studio rather than always landing on the
             // manuscript.

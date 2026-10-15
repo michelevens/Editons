@@ -383,6 +383,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     }
                 }}
                 user={auth?.user}
+                account={auth?.account}
                 onOpenPalette={() => notify('The command palette is not built yet.')}
                 onOpenNotifications={() => notify('Notifications are not built yet.')}
             />

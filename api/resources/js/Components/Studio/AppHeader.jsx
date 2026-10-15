@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import Icon from './Icon';
+import UserMenu from './UserMenu';
 
 /**
  * The product header: logo, top nav, search, bell, avatar.
@@ -25,6 +26,7 @@ export default function AppHeader({
     active,
     onSelect,
     user,
+    account,
     unread = 0,
     onOpenPalette,
     onOpenNotifications,
@@ -125,24 +127,11 @@ export default function AppHeader({
                     )}
                 </button>
 
-                <span
-                    className="grid h-[37px] w-[37px] shrink-0 place-items-center overflow-hidden rounded-full bg-brand-primary-subtle text-[12.5px] font-semibold text-brand-primary"
-                    title={user?.name}
-                >
-                    {initials(user?.name)}
-                </span>
+                {/* Was a <span> with a title attribute, which meant billing,
+                    the profile and sign out were unreachable from anywhere
+                    in the studio. */}
+                <UserMenu user={user} account={account} />
             </div>
         </header>
     );
-}
-
-function initials(name) {
-    if (!name) return '?';
-
-    return name
-        .trim()
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase() ?? '')
-        .join('');
 }

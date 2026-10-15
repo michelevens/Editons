@@ -24,6 +24,7 @@ export default function Edit({ mustVerifyEmail, status, author, book_types: book
             <AppHeader
                 active="books"
                 user={auth?.user}
+                account={auth?.account}
                 onSelect={() => router.get(route('books.index'))}
                 onOpenPalette={() => {}}
                 onOpenNotifications={() => {}}

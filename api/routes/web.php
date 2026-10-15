@@ -41,8 +41,26 @@ Route::get('/', function () {
     return redirect()->route(auth()->check() ? 'books.index' : 'login');
 });
 
+/*
+ | Where somebody lands after signing in, registering or verifying an email.
+ |
+ | Every auth controller Breeze ships redirects here — six of them — and this
+ | route rendered Breeze's stock "You're logged in!" page. So the first thing
+ | a new author saw after registering was an unstyled placeholder, not the
+ | product. Correcting it here fixes all six paths at once, and keeps the
+ | route name those controllers already reference.
+ |
+ | Somebody with no books goes to Quick Start, which asks one question and
+ | opens the editor. Somebody with books goes to their shelf. Neither is a
+ | dashboard, because this product does not have one and inventing a screen
+ | of empty figures for a new account would be a worse welcome than either.
+ */
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    return redirect()->route(
+        auth()->user()->books()->where('status', '!=', 'archived')->exists()
+            ? 'books.index'
+            : 'books.quick',
+    );
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Billing\Entitlements;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -33,6 +34,33 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+
+                /*
+                 * Plan and credits for the account menu.
+                 *
+                 * summaryFor() has carried a `credits_pct` field since it was
+                 * written, commented "for the little bar in the account
+                 * menu" — a menu that did not exist. The avatar in the studio
+                 * header was a <span>, so there was no way to reach billing,
+                 * the profile or even sign out without typing a URL.
+                 *
+                 * Lazily evaluated: this runs on every Inertia response, and
+                 * summaryFor() grants the monthly allowance and sums the
+                 * ledger. Closures are resolved only when the page actually
+                 * asks for the prop.
+                 */
+                'account' => $request->user()
+                    ? fn () => array_merge(
+                        app(Entitlements::class)->summaryFor($request->user()),
+                        // Counted here rather than in summaryFor(), which the
+                        // credit strip and every review response also use: a
+                        // count added there would run on each of them to
+                        // serve a line only this menu shows.
+                        ['books_active' => $request->user()->books()
+                            ->where('status', '!=', 'archived')
+                            ->count()],
+                    )
+                    : null,
             ],
 
             // Demo credentials, shown on the login page.

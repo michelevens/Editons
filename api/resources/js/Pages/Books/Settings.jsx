@@ -24,6 +24,7 @@ export default function Settings({ book, genres, languages, can_archive: canArch
             <AppHeader
                 active="writing"
                 user={auth?.user}
+                account={auth?.account}
                 onSelect={(item) =>
                     item.key === 'books'
                         ? router.get(route('books.index'))

@@ -39,6 +39,7 @@ export default function Index({
             <AppHeader
                 active="books"
                 user={auth?.user}
+                account={auth?.account}
                 onSelect={(item) => item.key === 'books' && router.get(route('books.index'))}
                 onOpenPalette={() => {}}
                 onOpenNotifications={() => {}}

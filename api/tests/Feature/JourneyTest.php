@@ -1,5 +1,6 @@
 <?php
 
+use App\Editorial\EditorialAgent;
 use App\Journey\BookType;
 use App\Journey\Scaffolder;
 use App\Models\Book;
@@ -43,7 +44,7 @@ it('keeps every range the right way round', function () {
 
 it('only names agents that exist', function () {
     // A typo here means a book type that asks for a reviewer nobody can run.
-    $known = array_column(App\Editorial\EditorialAgent::cases(), 'value');
+    $known = array_column(EditorialAgent::cases(), 'value');
 
     foreach (BookType::all() as $type) {
         foreach ($type->agents() as $agent) {
@@ -270,4 +271,80 @@ it('forgets the last section when it is deleted, rather than dangling', function
     $section->forceDelete();
 
     expect($book->fresh()->last_section_id)->toBeNull();
+});
+
+it('orders the editorial agents for the kind of book', function () {
+    // config/booktypes.php has always named the reviewers that matter most
+    // for each type, and nothing consumed the list: the editor received the
+    // enum's own order for every book, so the field's docblock described
+    // something no code did.
+    $user = User::factory()->create();
+    $book = $user->books()->create(['title' => 'A Cookbook', 'book_type' => 'cookbook']);
+
+    $agents = $this->actingAs($user)
+        ->get("/books/{$book->id}/edit")
+        ->viewData('page')['props']['agents'];
+
+    expect(array_column(array_slice($agents, 0, 3), 'value'))
+        ->toBe(BookType::findOrFail('cookbook')->agents());
+});
+
+it('still offers every agent, whatever the book is', function () {
+    // Ordering, never filtering. An author who wants the accessibility check
+    // on a memoir should not have to change the book's type to reach it.
+    //
+    // Asserted against the catalogue rather than by loading the editor once
+    // per type: the page-rendering version of this took so long across 15
+    // types that it timed out, and the claim is about the catalogue anyway.
+    foreach (BookType::all() as $type) {
+        expect(EditorialAgent::catalogue($type->agents()))->toHaveCount(
+            count(EditorialAgent::cases()),
+            "[{$type->key}] offers fewer agents than exist.",
+        );
+    }
+});
+
+it('never suggests a scaffold nobody asked for', function () {
+    /*
+     * The bug this caught, which I introduced.
+     *
+     * suggestedChapters() takes the midpoint of the range, so adding
+     * Devotional as [30, 365] made its default 198 chapters: a new author
+     * choosing that type would have watched the app build 198 sections
+     * before writing a word.
+     *
+     * A default an author has to delete from is worse than one they add to,
+     * so every type's suggestion stays within what somebody would plausibly
+     * accept untouched.
+     */
+    foreach (BookType::all() as $type) {
+        expect($type->suggestedChapters())->toBeLessThanOrEqual(
+            60,
+            "[{$type->key}] would scaffold {$type->suggestedChapters()} chapters by default.",
+        );
+    }
+});
+
+it('marks which agents suit this book', function () {
+    $user = User::factory()->create();
+    $book = $user->books()->create(['title' => 'A Life', 'book_type' => 'biography']);
+
+    $agents = collect($this->actingAs($user)
+        ->get("/books/{$book->id}/edit")
+        ->viewData('page')['props']['agents']);
+
+    expect($agents->where('suited', true)->pluck('value')->all())
+        ->toBe(BookType::findOrFail('biography')->agents());
+});
+
+it('falls back to the plain order for a book with no type', function () {
+    $user = User::factory()->create();
+    $book = $user->books()->create(['title' => 'Untyped', 'book_type' => null]);
+
+    $agents = $this->actingAs($user)
+        ->get("/books/{$book->id}/edit")
+        ->viewData('page')['props']['agents'];
+
+    expect(array_column($agents, 'value'))
+        ->toBe(array_column(EditorialAgent::cases(), 'value'));
 });

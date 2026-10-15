@@ -121,8 +121,11 @@ Still open from the directive, in the order they are worth doing:
     shape — chapter balance, stubs, pace against a target the author set.
     It cannot judge prose and never claims to; that is what the agents are
     for, and they are run deliberately. See app/Journey/Coach.php.
-  - §4 six more genres, and per-genre interview questions and publishing
-    guidance.
+  - §4 per-genre interview questions and publishing guidance. The 15 genres
+    themselves are done: biography, educational, devotional, self-help,
+    graphic novel and anthology joined the original nine, and the property
+    tests in JourneyTest cover a new genre the moment it exists — 41 tests,
+    382 assertions, six of them iterating BookType::all().
 
 25 tests cover the configuration and the scaffolder, asserting properties
 that hold for every type rather than checking one by hand — a genre added to
@@ -288,3 +291,38 @@ that needs it, since the distinction cannot be reconstructed afterwards.
 
 2 remains a one-line migration whenever citations need a style. 3 remains a
 note not to close a door: `BookMember.role` is still open-ended.
+
+---
+
+## 7. Things found by looking rather than building
+
+Each of these was shipped, plausible on screen, and wrong. They are recorded
+because the class of mistake repeats: a field with no consumer, a label that
+promises more than the code does, a default nobody tried.
+
+- **`config/booktypes.php` named preferred editorial agents per type, and
+  nothing read the list.** The editor received `EditorialAgent::catalogue()`
+  — all seven in enum order — for every book, so a cookbook led with the
+  developmental editor and a biography did not lead with the fact checker.
+  The field's own docblock said it "decides what a full review runs first".
+  Now it orders the catalogue; it still never filters, because an author who
+  wants the accessibility check on a memoir should not have to change the
+  book's type to reach it.
+
+- **Adding Devotional as `[30, 365]` chapters made its default 198.**
+  `suggestedChapters()` takes the midpoint, so a new author choosing that
+  type would have watched the app scaffold 198 sections before writing a
+  word. The range is now `[30, 90]`, defaulting to 60, and a test caps every
+  type's suggestion — a default somebody has to delete from is worse than one
+  they add to.
+
+- **The studio avatar was a `<span>`.** Billing, the profile and sign out were
+  unreachable from any studio page without typing a URL.
+  `Entitlements::summaryFor()` had carried a `credits_pct` field commented
+  "for the little bar in the account menu" since it was written — the data
+  was built for a menu nobody made.
+
+- **Every new author landed on Breeze's "You're logged in!" page.** Six auth
+  controllers redirect to `dashboard`, and that route rendered the stock
+  placeholder. It now sends somebody with no books to Quick Start and
+  everybody else to their shelf, which fixes all six paths at once.

@@ -133,4 +133,96 @@ return [
         'chapter_prompt' => 'What holds these poems together as a section?',
     ],
 
+    'biography' => [
+        'name' => 'Biography',
+        'blurb' => 'Somebody else’s life, researched and sourced.',
+        'words' => [80000, 120000],
+        'chapters' => [12, 25],
+        'parts' => true,
+        'front_matter' => ['Author’s Note'],
+        'back_matter' => ['Notes', 'Bibliography', 'Index'],
+        // Every claim is about a real person, which is both the research
+        // burden and the legal exposure.
+        'agents' => ['fact_checker', 'subject_matter', 'consistency'],
+        'chapter_prompt' => 'What period does this cover, and what does it reveal that the last chapter did not?',
+    ],
+
+    'educational' => [
+        'name' => 'Educational',
+        'blurb' => 'A textbook or course book, written to be taught from.',
+        'words' => [50000, 90000],
+        'chapters' => [10, 18],
+        'parts' => true,
+        'front_matter' => ['Preface', 'How to Use This Book'],
+        'back_matter' => ['Glossary', 'Answer Key', 'Index'],
+        'agents' => ['accessibility', 'consistency', 'fact_checker'],
+        'chapter_prompt' => 'What should a learner be able to do after this, and how will they know they can?',
+    ],
+
+    'devotional' => [
+        'name' => 'Devotional',
+        'blurb' => 'Short daily readings, usually dated or numbered.',
+        /*
+         * Many short entries rather than few long ones.
+         *
+         * Devotionals really do run from a month of readings to a full year,
+         * but that is not written as [30, 365] here: suggestedChapters()
+         * takes the midpoint, so that range made the default a 198-chapter
+         * scaffold and a new author choosing "Devotional" would have watched
+         * the app build 198 sections before they wrote a word.
+         *
+         * [30, 90] is the starting range instead — a month to a season,
+         * defaulting to 60. Longer books are reached by typing the number,
+         * which the new-book form already allows, and by adding entries as
+         * they are written. A default somebody has to delete from is worse
+         * than one they add to.
+         */
+        'words' => [20000, 45000],
+        'chapters' => [30, 90],
+        'parts' => true,
+        'front_matter' => ['How to Use This Book'],
+        'back_matter' => ['Index of Readings'],
+        'agents' => ['line', 'consistency', 'copy'],
+        'chapter_prompt' => 'What single thought should the reader carry into the day?',
+    ],
+
+    'self_help' => [
+        'name' => 'Self-help',
+        'blurb' => 'A book that asks the reader to change something and shows them how.',
+        'words' => [40000, 70000],
+        'chapters' => [8, 16],
+        'parts' => true,
+        'front_matter' => ['Introduction'],
+        'back_matter' => ['Conclusion', 'Resources', 'About the Author'],
+        'agents' => ['developmental', 'fact_checker', 'accessibility'],
+        'chapter_prompt' => 'What is the reader meant to do differently after this chapter?',
+    ],
+
+    'graphic_novel' => [
+        'name' => 'Graphic novel',
+        'blurb' => 'A script for an illustrated book, written page by page.',
+        // The word count is the script, not the finished book: dialogue and
+        // panel direction, with the art carrying everything else.
+        'words' => [5000, 25000],
+        'chapters' => [5, 30],
+        'parts' => true,
+        'front_matter' => [],
+        'back_matter' => ['Acknowledgements'],
+        'agents' => ['developmental', 'consistency', 'line'],
+        'chapter_prompt' => 'What happens on these pages, and what has to be shown rather than said?',
+    ],
+
+    'anthology' => [
+        'name' => 'Anthology',
+        'blurb' => 'A collection of pieces, often by more than one author.',
+        'words' => [40000, 90000],
+        'chapters' => [8, 30],
+        'parts' => true,
+        'front_matter' => ['Introduction'],
+        'back_matter' => ['Contributors', 'Acknowledgements'],
+        // Many hands means house style and attribution are the real risks.
+        'agents' => ['consistency', 'copy', 'line'],
+        'chapter_prompt' => 'Whose piece is this, and why does it belong beside the others?',
+    ],
+
 ];

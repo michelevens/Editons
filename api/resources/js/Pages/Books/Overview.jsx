@@ -23,6 +23,7 @@ export default function Overview({ book, stats, checklist }) {
             <AppHeader
                 active="writing"
                 user={auth?.user}
+                account={auth?.account}
                 onSelect={(item) =>
                     item.key === 'books'
                         ? router.get(route('books.index'))

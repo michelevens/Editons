@@ -35,6 +35,7 @@ export default function Billing({
                 active="books"
                 onSelect={() => router.get(route('books.index'))}
                 user={auth?.user}
+                account={auth?.account}
                 onOpenPalette={() => {}}
                 onOpenNotifications={() => {}}
             />

@@ -80,16 +80,52 @@ enum EditorialAgent: string
         return $this->isSpecialist() ? 'specialist_run' : 'agent_run';
     }
 
-    /** @return array<int, array<string, mixed>> */
-    public static function catalogue(): array
+    /**
+     * Every agent, optionally ordered for a kind of book.
+     *
+     * $preferred comes from config/booktypes.php, where each type names the
+     * reviewers that matter most for it — a cookbook wants consistency, a
+     * biography wants the fact checker. That list had no consumer: the
+     * editor received the enum's own order for every book, so the field's
+     * own docblock ("decides what a full review runs first") described
+     * something nothing did.
+     *
+     * Ordering, never filtering. Every agent stays available and runnable;
+     * a memoir author who wants the accessibility check should not have to
+     * change the book's type to reach it. The ones that matter for this book
+     * are simply first, and marked so the panel can say why.
+     *
+     * @param  array<int, string>  $preferred
+     * @return array<int, array<string, mixed>>
+     */
+    public static function catalogue(array $preferred = []): array
     {
-        return array_map(fn (self $a) => [
+        $rank = array_flip($preferred);
+
+        $agents = array_map(fn (self $a) => [
             'value' => $a->value,
             'label' => $a->label(),
             'description' => $a->description(),
             'specialist' => $a->isSpecialist(),
             'minimum_tier' => $a->minimumTier(),
             'cost' => config("billing.costs.{$a->costLabel()}"),
+            'suited' => isset($rank[$a->value]),
         ], self::cases());
+
+        // Stable within each group: preferred agents in the order the type
+        // named them, then everything else in the enum's order. usort is not
+        // guaranteed stable before PHP 8.0 and this relies on it, so the
+        // comparison falls back to the enum position rather than returning 0.
+        $position = array_flip(array_column(self::cases(), 'value'));
+
+        usort($agents, function (array $a, array $b) use ($rank, $position) {
+            $aRank = $rank[$a['value']] ?? PHP_INT_MAX;
+            $bRank = $rank[$b['value']] ?? PHP_INT_MAX;
+
+            return $aRank <=> $bRank
+                ?: $position[$a['value']] <=> $position[$b['value']];
+        });
+
+        return $agents;
     }
 }
