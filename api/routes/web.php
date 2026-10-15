@@ -416,4 +416,6 @@ Route::middleware('auth')->group(function () {
         ->name('journey.assistance');
     Route::post('/books/{book}/outline', [JourneyController::class, 'outline'])
         ->name('journey.outline');
+    Route::post('/books/{book}/outline/import', [JourneyController::class, 'importOutline'])
+        ->name('journey.outline.import');
 });

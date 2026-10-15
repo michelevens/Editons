@@ -85,10 +85,37 @@ That slice is the first milestone and it is what gets built first.
       `journey_stage`, `journey_tasks`, `last_section_id`.
 - [x] AI provenance in version history (`ai_suggestion`), so an AI-use
       declaration can be honest. See §6 decision 4.
-- [ ] New-book flow UI: method → genre → scale → assistance → scaffold.
-      Alongside the existing New book button, not replacing it: "just give
-      me an empty book" stays one click.
-- [ ] Resume: reopening returns to the section the author left.
+- [x] New-book flow UI: genre → scale → assistance → scaffold. Alongside
+      the existing New book button, not replacing it: "just give me an
+      empty book" stays one click.
+- [x] Discover: premise, audience and promise, with the stage advancing
+      when the first is answered.
+- [x] Outline generation: chapter names from the author's premise and the
+      arc that kind of book follows. Never overwrites a title they wrote.
+- [x] Resume: reopening returns to the section the author left.
+- [x] "What to do next": one action, computed from the manuscript.
+- [x] Author profile: identity, preferences, plan, account.
+
+Milestone A is done. The §11 slice runs end to end — start a book, choose
+a kind, say what it is about, generate chapter names, open one, write,
+save, come back to where you were.
+
+Still open from the directive, in the order they are worth doing:
+
+  - §3 starting methods. Five of twelve work: blank, template, idea,
+    manuscript import, outline import. The other seven are listed with what
+    each still needs, in config/startingmethods.php — a method offered but
+    not working is worse than one that says plainly it is not ready.
+    Dictation needs a speech provider and a per-minute cost nobody has set;
+    the interview needs a real provider behind the editorial seam.
+  - §6 Quick Start and Guided Journey. The data is shared already, so these
+    are presentations of what exists rather than new engines.
+  - §5 assistance levels are stored and selectable but inert: coach does
+    not yet coach, collaborative does not yet draft.
+  - §7 the Book Director needs manuscript memory first. An agent that sees
+    one section cannot reason about a book.
+  - §4 six more genres, and per-genre interview questions and publishing
+    guidance.
 
 25 tests cover the configuration and the scaffolder, asserting properties
 that hold for every type rather than checking one by hand — a genre added to
@@ -198,5 +225,11 @@ AI-written text was *accepted into the manuscript* — and that is exactly what
 an integrity declaration has to state. `ManuscriptVersion.reason` can carry
 it. Reconstructing it retroactively is impossible.
 
-Of these, 1 and 4 are done before the vertical slice ships. 2 is a one-line
-migration at any point. 3 is a note not to close a door.
+**Status.** 1 and 4 are done. `books.studio` exists with a CHECK constraint,
+defaulting to `author`. AI-accepted text is recorded as `ai_suggestion` in
+version history rather than `manual`, which is what makes an AI-use
+declaration answerable — and the reason it was worth doing before the feature
+that needs it, since the distinction cannot be reconstructed afterwards.
+
+2 remains a one-line migration whenever citations need a style. 3 remains a
+note not to close a door: `BookMember.role` is still open-ended.

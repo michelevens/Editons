@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Journey\BookType;
 use App\Journey\OutlineBuilder;
+use App\Journey\OutlineImporter;
 use App\Models\Book;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +22,10 @@ use Throwable;
  */
 class JourneyController extends Controller
 {
-    public function __construct(private readonly OutlineBuilder $outliner) {}
+    public function __construct(
+        private readonly OutlineBuilder $outliner,
+        private readonly OutlineImporter $importer,
+    ) {}
 
     public function show(Book $book): JsonResponse
     {
@@ -108,6 +112,35 @@ class JourneyController extends Controller
         ]));
     }
 
+    /**
+     * Import an outline the author already has.
+     *
+     * Free, like generating one: it rearranges text they pasted in.
+     */
+    public function importOutline(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'outline' => ['required', 'string', 'max:20000'],
+        ]);
+
+        try {
+            $created = $this->importer->import($book, $data['outline']);
+        } catch (Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        // An imported outline is a plan, so the stage follows.
+        if (in_array($book->journey_stage, ['discover', 'plan'], true)) {
+            $book->update(['journey_stage' => 'plan']);
+        }
+
+        return response()->json(array_merge($this->payload($book->fresh()), [
+            'created' => $created,
+        ]));
+    }
+
     /** @return array<string, mixed> */
     private function payload(Book $book): array
     {
@@ -141,6 +174,14 @@ class JourneyController extends Controller
                 'target' => $book->target_words,
             ],
             'next' => $this->nextAction($book, $chapters, $written),
+            // Every way in, with the honest answer about which work today.
+            'starting_methods' => collect(config('startingmethods'))
+                ->map(fn (array $method, string $key) => array_merge(
+                    ['key' => $key],
+                    $method,
+                ))
+                ->values()
+                ->all(),
         ];
     }
 
