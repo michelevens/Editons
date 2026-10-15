@@ -20,7 +20,11 @@ export default defineConfig({
     workers: 1,
     fullyParallel: false,
     reporter: process.env.CI ? 'github' : 'list',
-    timeout: 45_000,
+    // 90s: the demo shelf now holds three books and the worked example has
+    // 29 sections, so a test that signs in, finds a specific book, opens the
+    // studio and runs a generator does real work before it asserts anything.
+    // The old 45s was tuned against a two-chapter book.
+    timeout: 90_000,
     expect: { timeout: 10_000 },
 
     use: {

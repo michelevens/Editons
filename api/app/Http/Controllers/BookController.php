@@ -3,16 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Editorial\EditorialAgent;
+use App\Journey\BookType;
+use App\Journey\Scaffolder;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Illuminate\Validation\Rule;
 use Inertia\Response;
 
 class BookController extends Controller
 {
+    public function __construct(private readonly Scaffolder $scaffolder) {}
+
     /**
      * The author's shelf.
      *
@@ -61,6 +67,12 @@ class BookController extends Controller
                 'updated_at' => $b->updated_at->diffForHumans(),
                 'cover' => $b->coverFor(),
             ]),
+            // The guided flow's options. Sent with the shelf so choosing a
+            // type needs no extra request.
+            'book_types' => array_map(
+                fn (BookType $type) => $type->toArray(),
+                BookType::all(),
+            ),
             'can_create' => $request->user()->canCreateBook(),
             'plan' => $request->user()->planLimits(),
         ]);
@@ -74,6 +86,16 @@ class BookController extends Controller
             'author_name' => ['nullable', 'string', 'max:255'],
             'genre' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:5000'],
+
+            // The guided flow sends these. All optional, because the plain
+            // "New book" button still works and must stay one click — an
+            // author who knows what they are doing should not be walked
+            // through a wizard to get an empty page.
+            'book_type' => ['nullable', 'string', Rule::in(array_keys(config('booktypes')))],
+            'chapters' => ['nullable', 'integer', 'min:1', 'max:60'],
+            'target_words' => ['nullable', 'integer', 'min:100', 'max:500000'],
+            'assistance' => ['nullable', Rule::in(Book::ASSISTANCE)],
+            'started_with' => ['nullable', 'string', 'max:40'],
         ]);
 
         // The plan limit is enforced here, not only in the UI. A disabled
@@ -84,14 +106,31 @@ class BookController extends Controller
             'This plan does not allow another book. Archive one, or upgrade.',
         );
 
-        $book = DB::transaction(function () use ($request, $data) {
+        $type = BookType::find($data['book_type'] ?? null);
+
+        $book = DB::transaction(function () use ($request, $data, $type) {
             // Ownership from the session, never from input — see the Book
             // model's note on why user_id is not fillable.
-            $book = $request->user()->books()->create($data);
+            $book = $request->user()->books()->create(array_merge(
+                Arr::except($data, ['chapters']),
+                $type ? [
+                    // A book that knows its type starts past Discover: the
+                    // question that stage asks has just been answered.
+                    'journey_stage' => 'plan',
+                    'target_words' => $data['target_words'] ?? $type->suggestedWords(),
+                ] : [],
+            ));
 
-            // A book with an empty binder has nowhere to type, and the editor
-            // would render a three-pane shell around nothing. One chapter is
-            // the smallest thing that makes the product usable on arrival.
+            if ($type) {
+                $this->scaffolder->build($book, $type, $data['chapters'] ?? null);
+
+                return $book;
+            }
+
+            // No type chosen: the plain path. A book with an empty binder has
+            // nowhere to type, and the editor would render a three-pane shell
+            // around nothing. One chapter is the smallest thing that makes the
+            // product usable on arrival.
             $book->sections()->create([
                 'type' => 'chapter',
                 'title' => 'Chapter 1',

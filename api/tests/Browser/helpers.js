@@ -116,3 +116,24 @@ export async function firstBookId(page) {
 
     return match[1];
 }
+
+/**
+ * The demo account's worked example, by name.
+ *
+ * firstBookId returns whatever sorts first, which is fine for "does this
+ * screen render" but wrong for anything that depends on the manuscript —
+ * the shelf now holds three books, and two of them are deliberately thin.
+ * A test about reviewing prose needs the book that has prose.
+ */
+export async function flagshipBookId(page) {
+    await page.goto('/books');
+
+    const card = page.locator('li').filter({ hasText: 'Building an Independent Practice' });
+    const href = await card.locator('a[href*="/edit"]').first().getAttribute('href');
+
+    const match = href?.match(/books\/(\d+)/);
+
+    if (!match) throw new Error('The demo example book was not found.');
+
+    return match[1];
+}

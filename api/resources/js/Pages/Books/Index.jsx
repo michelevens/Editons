@@ -10,7 +10,14 @@ import { useState } from 'react';
  * an archived book is still the author's and still readable, which is what
  * restoring it from here depends on.
  */
-export default function Index({ books, filter, counts, can_create: canCreate, plan }) {
+export default function Index({
+    books,
+    filter,
+    counts,
+    can_create: canCreate,
+    plan,
+    book_types: bookTypes = [],
+}) {
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
 
@@ -74,7 +81,12 @@ export default function Index({ books, filter, counts, can_create: canCreate, pl
                         </p>
                     )}
 
-                    {creating && <NewBookForm onDone={() => setCreating(false)} />}
+                    {creating && (
+                        <NewBookForm
+                            bookTypes={bookTypes}
+                            onDone={() => setCreating(false)}
+                        />
+                    )}
 
                     <nav className="mt-6 flex flex-wrap gap-1.5">
                         {filters.map((item) => (
@@ -305,12 +317,47 @@ function EmptyShelf({ filter }) {
     );
 }
 
-function NewBookForm({ onDone }) {
+/**
+ * Starting a book.
+ *
+ * Two steps, not a wizard. The first asks what the book is; the second asks
+ * how big and how much help. Both have a way past them, because an author who
+ * knows what they want should not be walked through questions to reach an
+ * empty page — "Skip, just make the book" is always one click away.
+ *
+ * The lengths shown are published trade norms, labelled as typical and
+ * editable. They are a starting point to argue with, not a prediction.
+ */
+function NewBookForm({ onDone, bookTypes }) {
+    const [step, setStep] = useState('what');
+
     const { data, setData, post, processing, errors, reset } = useForm({
         title: '',
         subtitle: '',
-        genre: 'Nonfiction',
+        genre: '',
+        book_type: '',
+        chapters: '',
+        target_words: '',
+        assistance: 'author_led',
+        started_with: 'blank',
     });
+
+    const chosen = bookTypes.find((type) => type.key === data.book_type);
+
+    const choose = (type) => {
+        // Picking a type fills the scale fields with its typical values, so
+        // the second step opens with sensible numbers rather than empty boxes.
+        setData((current) => ({
+            ...current,
+            book_type: type.key,
+            genre: type.name,
+            chapters: type.suggested_chapters,
+            target_words: type.suggested_words,
+            started_with: 'template',
+        }));
+
+        setStep('scale');
+    };
 
     const submit = (event) => {
         event.preventDefault();
@@ -326,18 +373,19 @@ function NewBookForm({ onDone }) {
     return (
         <form
             onSubmit={submit}
-            className="mt-5 grid gap-4 rounded-panel border border-border-default bg-bg-surface p-5 sm:grid-cols-2"
+            data-a="books:new:form"
+            className="mt-5 rounded-panel border border-border-default bg-bg-surface p-5"
         >
-            <label className="sm:col-span-2">
+            <label className="block">
                 <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                    Title
+                    What is the book called?
                 </span>
                 <input
                     value={data.title}
                     data-a="books:new:title"
                     required
                     autoFocus
-                    placeholder="What is it called?"
+                    placeholder="A working title is fine — you can change it later"
                     onChange={(event) => setData('title', event.target.value)}
                     className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
                 />
@@ -348,47 +396,204 @@ function NewBookForm({ onDone }) {
                 )}
             </label>
 
-            <label>
-                <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                    Subtitle
-                </span>
-                <input
-                    value={data.subtitle}
-                    data-a="books:new:subtitle"
-                    onChange={(event) => setData('subtitle', event.target.value)}
-                    className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
-                />
-            </label>
+            {step === 'what' ? (
+                <>
+                    <p className="mt-5 mb-2 text-[12.5px] font-semibold text-text-primary">
+                        What kind of book is it?
+                    </p>
+                    <p className="mb-3 text-[11.5px] text-text-secondary">
+                        This sets up the structure and decides which editors matter most.
+                        You can change it at any point.
+                    </p>
 
-            <label>
-                <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                    Genre
-                </span>
-                <select
-                    value={data.genre}
-                    data-a="books:new:genre"
-                    onChange={(event) => setData('genre', event.target.value)}
-                    className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
-                >
-                    {['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'].map((genre) => (
-                        <option key={genre}>{genre}</option>
-                    ))}
-                </select>
-            </label>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {bookTypes.map((type) => (
+                            <button
+                                key={type.key}
+                                type="button"
+                                data-a={`books:new:type:${type.key}`}
+                                onClick={() => choose(type)}
+                                className="rounded-tile border border-border-default p-3 text-left transition hover:border-brand-primary hover:bg-brand-primary/[0.03]"
+                            >
+                                <span className="block text-[12.5px] font-semibold text-text-primary">
+                                    {type.name}
+                                </span>
+                                <span className="mt-0.5 block text-[11px] leading-snug text-text-secondary">
+                                    {type.blurb}
+                                </span>
+                                <span className="mt-1.5 block text-[10.5px] text-text-secondary">
+                                    Typically {type.words[0].toLocaleString()}–
+                                    {type.words[1].toLocaleString()} words,{' '}
+                                    {type.chapters[0]}–{type.chapters[1]} chapters
+                                </span>
+                            </button>
+                        ))}
+                    </div>
 
-            <div className="sm:col-span-2">
-                <button
-                    disabled={processing}
-                    data-a="books:new:save"
-                    className="h-[38px] rounded-control bg-text-primary px-4 text-[13.5px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-                >
-                    {processing ? 'Creating…' : 'Create book'}
-                </button>
-                <p className="mt-2 text-[11.5px] text-text-secondary">
-                    A first chapter is created with it, so there is somewhere to
-                    type straight away.
-                </p>
-            </div>
+                    <div className="mt-4 flex items-center gap-3 border-t border-border-divider pt-3">
+                        <button
+                            type="submit"
+                            data-a="books:new:skip"
+                            disabled={processing || !data.title.trim()}
+                            className="text-[12.5px] font-semibold text-brand-primary hover:underline disabled:opacity-50"
+                        >
+                            Skip — just make the book
+                        </button>
+                        <span className="text-[11.5px] text-text-secondary">
+                            One empty chapter, nothing else.
+                        </span>
+
+                        <button
+                            type="button"
+                            data-a="books:new:cancel"
+                            onClick={onDone}
+                            className="ml-auto text-[12.5px] text-text-secondary hover:text-text-primary"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </>
+            ) : (
+                <>
+                    <div className="mt-5 flex items-baseline gap-2">
+                        <p className="text-[12.5px] font-semibold text-text-primary">
+                            {chosen?.name}
+                        </p>
+                        <button
+                            type="button"
+                            data-a="books:new:back"
+                            onClick={() => setStep('what')}
+                            className="text-[11.5px] text-brand-primary hover:underline"
+                        >
+                            Change
+                        </button>
+                    </div>
+
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                        <label>
+                            <span className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                                How many chapters?
+                            </span>
+                            <input
+                                type="number"
+                                min="1"
+                                max="60"
+                                value={data.chapters}
+                                data-a="books:new:chapters"
+                                onChange={(event) => setData('chapters', event.target.value)}
+                                className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
+                            />
+                            <span className="mt-1 block text-[10.5px] text-text-secondary">
+                                {chosen?.chapters[0]}–{chosen?.chapters[1]} is typical. Add
+                                or remove them whenever you like.
+                            </span>
+                        </label>
+
+                        <label>
+                            <span className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                                Roughly how many words?
+                            </span>
+                            <input
+                                type="number"
+                                min="100"
+                                step="1000"
+                                value={data.target_words}
+                                data-a="books:new:words"
+                                onChange={(event) => setData('target_words', event.target.value)}
+                                className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
+                            />
+                            <span className="mt-1 block text-[10.5px] text-text-secondary">
+                                {chosen?.words[0].toLocaleString()}–
+                                {chosen?.words[1].toLocaleString()} is typical for this kind
+                                of book. It is a target, not a limit.
+                            </span>
+                        </label>
+                    </div>
+
+                    <p className="mt-5 mb-2 text-[12.5px] font-semibold text-text-primary">
+                        How much help do you want?
+                    </p>
+
+                    <div className="grid gap-2 sm:grid-cols-3">
+                        {ASSISTANCE.map((level) => (
+                            <button
+                                key={level.key}
+                                type="button"
+                                data-a={`books:new:assistance:${level.key}`}
+                                aria-pressed={data.assistance === level.key}
+                                onClick={() => setData('assistance', level.key)}
+                                className={`rounded-tile border p-3 text-left transition ${
+                                    data.assistance === level.key
+                                        ? 'border-brand-primary bg-brand-primary/[0.04]'
+                                        : 'border-border-default hover:border-border-input'
+                                }`}
+                            >
+                                <span className="block text-[12.5px] font-semibold text-text-primary">
+                                    {level.name}
+                                </span>
+                                <span className="mt-0.5 block text-[11px] leading-snug text-text-secondary">
+                                    {level.blurb}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <p className="mt-2 text-[11px] leading-relaxed text-text-secondary">
+                        Whatever you pick, nothing is written into your manuscript without
+                        you accepting it, and every AI edit is marked as one in your
+                        version history. You can change this at any time.
+                    </p>
+
+                    <div className="mt-4 flex items-center gap-3 border-t border-border-divider pt-3">
+                        <button
+                            type="submit"
+                            data-a="books:new:create"
+                            disabled={processing || !data.title.trim()}
+                            className="h-[38px] rounded-control bg-brand-primary px-4 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                        >
+                            {processing ? 'Setting it up…' : 'Create the book'}
+                        </button>
+
+                        <span className="text-[11.5px] text-text-secondary">
+                            {data.chapters || chosen?.suggested_chapters} empty chapters,
+                            ready to write into.
+                        </span>
+
+                        <button
+                            type="button"
+                            data-a="books:new:cancel"
+                            onClick={onDone}
+                            className="ml-auto text-[12.5px] text-text-secondary hover:text-text-primary"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </>
+            )}
         </form>
     );
 }
+
+/**
+ * How much the AI does.
+ *
+ * Author-led first and selected by default: the level somebody has not
+ * chosen should be the one that does least on their behalf.
+ */
+const ASSISTANCE = [
+    {
+        key: 'author_led',
+        name: 'I write',
+        blurb: 'You write. The editors run when you ask them to.',
+    },
+    {
+        key: 'coach',
+        name: 'Coach me',
+        blurb: 'Questions, structure and suggestions as you go — but the words are yours.',
+    },
+    {
+        key: 'collaborative',
+        name: 'Draft with me',
+        blurb: 'Drafts passages from your notes and outline, for you to accept or reject.',
+    },
+];

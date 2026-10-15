@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectRendered, firstBookId, ignoring, signIn, watchForErrors } from './helpers.js';
+import { expectRendered, firstBookId, flagshipBookId, ignoring, signIn, watchForErrors } from './helpers.js';
 
 /**
  * The handoff's acceptance test, ported.
@@ -258,7 +258,8 @@ test.describe('every screen renders', () => {
         const errors = watchForErrors(page);
 
         await signIn(page);
-        const id = await firstBookId(page);
+        // The worked example: this test needs a manuscript to review.
+        const id = await flagshipBookId(page);
         await page.goto(`/books/${id}/edit`);
 
         // Type a defect the copy editor is guaranteed to flag with a fix, so
@@ -574,7 +575,9 @@ test.describe('the book sidebar', () => {
         const id = await firstBookId(page);
         await page.goto(`/books/${id}/edit`);
 
-        const card = page.getByText('Building an Independent Practice').first();
+        // The card itself, not its title: the shelf has three books now and
+        // which one opens first is not this test's concern.
+        const card = page.locator('aside img, aside [data-a="sidebar:cover"]').first();
         const before = await card.boundingBox();
 
         await page.locator('[data-a="side:distribution"]').scrollIntoViewIfNeeded();
@@ -642,7 +645,9 @@ test.describe('billing', () => {
         const errors = watchForErrors(page);
 
         await signIn(page);
-        const id = await firstBookId(page);
+        // Needs a book with prose in it: a review of an empty chapter is not
+        // charged, so the balance would correctly not move.
+        const id = await flagshipBookId(page);
         await page.goto(`/books/${id}/edit`);
 
         const strip = page.locator('[data-a="credits:strip"]');
@@ -932,7 +937,9 @@ test.describe('growth and brand', () => {
         const errors = watchForErrors(page);
 
         await signIn(page);
-        const id = await firstBookId(page);
+        // The kit is built from the author's own sentences, so this needs
+        // the book that has some.
+        const id = await flagshipBookId(page);
         await page.goto(`/books/${id}/edit`);
         await page.click('[data-a="side:marketing"]');
 
