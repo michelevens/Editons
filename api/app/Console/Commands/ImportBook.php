@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\DB;
 class ImportBook extends Command
 {
     protected $signature = 'book:import
-        {file : Path to the JSON manuscript}
+        {file? : Path to the JSON manuscript, or omit to read stdin}
         {--email= : The account to import into}
         {--dry-run : Report what would be written without writing it}';
 
@@ -35,13 +35,24 @@ class ImportBook extends Command
     {
         $path = $this->argument('file');
 
-        if (! is_file($path)) {
+        /*
+         * stdin is the route that works over `railway ssh`.
+         *
+         * A manuscript is far too large to pass as a shell argument, and the
+         * remote shell re-parses anything that is. Piping it in avoids both
+         * limits, and keeps the file off the deployed container's disk.
+         */
+        if ($path === null || $path === '-') {
+            $json = stream_get_contents(STDIN);
+        } elseif (is_file($path)) {
+            $json = file_get_contents($path);
+        } else {
             $this->error("No such file: {$path}");
 
             return self::FAILURE;
         }
 
-        $data = json_decode(file_get_contents($path), true);
+        $data = json_decode($json, true);
 
         if (! is_array($data) || ! isset($data['title'], $data['sections'])) {
             $this->error('That file is not a manuscript: it needs a title and sections.');
