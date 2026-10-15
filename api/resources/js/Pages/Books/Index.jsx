@@ -74,6 +74,22 @@ export default function Index({
                         </button>
                     </header>
 
+                    {/*
+                     * The simplest door, for somebody who wants to type
+                     * rather than answer questions about the book first.
+                     * A quiet link rather than a second button: the full
+                     * form is the right default for most people here.
+                     */}
+                    {canCreate && !creating && (
+                        <button
+                            data-a="books:quick"
+                            onClick={() => router.get(route('books.quick'))}
+                            className="mt-2.5 text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
+                        >
+                            Or just start writing
+                        </button>
+                    )}
+
                     {!canCreate && (
                         <p className="mt-3 rounded-control bg-status-warning-bg px-3.5 py-2.5 text-[12.5px] text-status-warning">
                             The {plan.name} plan allows {plan.books} book

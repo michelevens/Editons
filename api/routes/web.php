@@ -1,30 +1,30 @@
 <?php
 
-use App\Http\Controllers\EditorialController;
+use App\Http\Controllers\AccessibilityController;
 use App\Http\Controllers\AiEditorController;
 use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\CommentController;
-use App\Http\Controllers\InvitationController;
-use App\Http\Controllers\TeamController;
-use App\Http\Controllers\ConsistencyController;
-use App\Http\Controllers\ReferencesController;
-use App\Http\Controllers\OverviewController;
-use App\Http\Controllers\WorkflowController;
-use App\Http\Controllers\ImportController;
-use App\Http\Controllers\ResearchController;
-use App\Http\Controllers\AccessibilityController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BookController;
+use App\Http\Controllers\CommentController;
+use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
-use App\Http\Controllers\PublishingController;
+use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\GrowthController;
+use App\Http\Controllers\ImportController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
+use App\Http\Controllers\ManuscriptSectionController;
+use App\Http\Controllers\OverviewController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublishingController;
+use App\Http\Controllers\ReferencesController;
+use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
-use App\Http\Controllers\ManuscriptSectionController;
-use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TeamController;
+use App\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -408,6 +408,11 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/journey', [JourneyController::class, 'show'])
         ->name('journey.show');
+
+    // The Guided Journey interface. A route rather than a mode, for the same
+    // reason Quick Start is one: which door suits somebody is theirs to pick.
+    Route::get('/books/{book}/guided', [JourneyController::class, 'guided'])
+        ->name('journey.guided');
     Route::patch('/books/{book}/idea', [JourneyController::class, 'saveIdea'])
         ->name('journey.idea');
     Route::patch('/books/{book}/stage', [JourneyController::class, 'setStage'])

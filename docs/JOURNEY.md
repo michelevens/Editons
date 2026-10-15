@@ -108,8 +108,6 @@ Still open from the directive, in the order they are worth doing:
     not working is worse than one that says plainly it is not ready.
     Dictation needs a speech provider and a per-minute cost nobody has set;
     the interview needs a real provider behind the editorial seam.
-  - §6 Quick Start and Guided Journey. The data is shared already, so these
-    are presentations of what exists rather than new engines.
   - §5 assistance levels are stored and selectable but inert: coach does
     not yet coach, collaborative does not yet draft.
   - §7 the Book Director needs manuscript memory first. An agent that sees
@@ -123,11 +121,29 @@ the config is covered the moment it exists.
 
 ### Milestone B — the journey made visible
 
-- The six stages as a real model with per-stage tasks, skippable and
-  reorderable.
-- Guided Journey interface: the same data, presented as a path.
-- Quick Start: one screen, one button, straight into writing.
-- Interface switching, sharing one manuscript and one history.
+Done. All three interfaces exist and share one manuscript, one set of
+sections and one version history.
+
+- The six stages as a real model, skippable and revisitable in any order.
+  Whether a stage is *done* is computed from the manuscript rather than
+  ticked by the author: a checklist somebody can satisfy without doing the
+  work is decorative.
+- Guided Journey interface (`/books/{book}/guided`): the stages, the single
+  next action, the Discover questions, the assistance levels and outline
+  import, all rendered from JourneyController's payload. A Pest test asserts
+  the page props equal what the JSON endpoint returns, so the guided view
+  cannot drift into its own idea of progress.
+- Quick Start (`/start`): one screen, one question, straight into writing.
+- Interface switching: Overview links to Guided, My Books links to Quick
+  Start, and both link back to the studio.
+
+Two things found while building it, both worth remembering:
+
+  - Quick Start and the journey endpoints had shipped as routes nothing in
+    the app linked to, which is indistinguishable from not shipping them. A
+    test now asserts both doors are linked from a page an author reaches.
+  - A new Inertia page returns 500 until `npm run build` regenerates the
+    manifest. The error names the manifest, not the page.
 
 ### Milestone C — more ways in
 

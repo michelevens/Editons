@@ -59,14 +59,33 @@ export default function Overview({ book, stats, checklist }) {
                                 </p>
                             </div>
 
-                            <button
-                                data-a="overview:open-manuscript"
-                                onClick={() => open('manuscript')}
-                                className="flex h-[40px] shrink-0 items-center gap-2 rounded-control bg-brand-primary px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover"
-                            >
-                                Open manuscript
-                                <Icon name="right" size={16} strokeWidth={2.2} />
-                            </button>
+                            <div className="flex shrink-0 items-center gap-2.5">
+                                {/*
+                                 * The guided view of the same book: the
+                                 * stages, and one thing to do next. Offered
+                                 * beside the manuscript rather than instead
+                                 * of it, because which one an author wants
+                                 * depends on the day.
+                                 */}
+                                <button
+                                    data-a="overview:guided"
+                                    onClick={() =>
+                                        router.get(route('journey.guided', book.id))
+                                    }
+                                    className="flex h-[40px] items-center gap-2 rounded-control border border-border-default bg-bg-surface px-4 text-[14px] font-semibold text-text-secondary transition hover:border-brand-primary/40 hover:text-text-primary"
+                                >
+                                    Guided
+                                </button>
+
+                                <button
+                                    data-a="overview:open-manuscript"
+                                    onClick={() => open('manuscript')}
+                                    className="flex h-[40px] items-center gap-2 rounded-control bg-brand-primary px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover"
+                                >
+                                    Open manuscript
+                                    <Icon name="right" size={16} strokeWidth={2.2} />
+                                </button>
+                            </div>
                         </header>
 
                         <Kpis stats={stats} onOpen={open} />

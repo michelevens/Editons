@@ -9,6 +9,8 @@ use App\Models\Book;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
 use Throwable;
 
 /**
@@ -32,6 +34,30 @@ class JourneyController extends Controller
         $this->authorize('view', $book);
 
         return response()->json($this->payload($book));
+    }
+
+    /**
+     * The Guided Journey: the third interface.
+     *
+     * Rendered server-side rather than fetched, like every other page here,
+     * so the author never sees an empty frame fill in. It presents exactly
+     * what show() returns — the same stages, the same single next action —
+     * because a guided view that computed its own idea of progress would
+     * drift from the studio's within a week.
+     */
+    public function guided(Book $book): Response
+    {
+        $this->authorize('view', $book);
+
+        return Inertia::render('Books/Guided', [
+            'book' => [
+                'id' => $book->id,
+                'title' => $book->title,
+                'subtitle' => $book->subtitle,
+                'word_count' => $book->word_count,
+            ],
+            'journey' => $this->payload($book),
+        ]);
     }
 
     /** The Discover stage: what the book is, who it is for, what it promises. */
