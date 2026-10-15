@@ -160,3 +160,44 @@ test.describe('coaching', () => {
         expect(errors).toEqual([]);
     });
 });
+
+test('renders what the server sends, not what it first sent', async ({ page }) => {
+    /*
+     * The production failure this guards.
+     *
+     * The guided page took its journey from useState(initial), which
+     * captures props once. On a real book the server returned a coaching
+     * note and the page showed none.
+     *
+     * Asserted by comparing the page against the endpoint rather than by
+     * navigating: two earlier versions of this test passed against the
+     * broken code, one because page.reload() remounts the component and one
+     * because goBack() restores Inertia's cached history state. Both proved
+     * something true and irrelevant.
+     */
+    const errors = watchForErrors(page);
+
+    await signIn(page);
+    const id = await firstBookId(page);
+    await page.goto(`/books/${id}/guided`);
+    await expectRendered(page);
+
+    await expectSurvives(page, () => page.click('[data-a="guided:assist:coach"]'));
+
+    const fromServer = await page.evaluate(async (bookId) => {
+        const response = await fetch(`/books/${bookId}/journey`, {
+            headers: { Accept: 'application/json' },
+        });
+
+        return (await response.json()).coaching.map((note) => note.key);
+    }, id);
+
+    const onPage = await page
+        .locator('[data-a^="guided:coach:"]')
+        .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-a').split(':').pop()));
+
+    expect(onPage, 'the page is showing different coaching from the server')
+        .toEqual(fromServer);
+
+    expect(errors).toEqual([]);
+});

@@ -1,6 +1,6 @@
 import Icon from '@/Components/Studio/Icon';
 import { Head, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * The Guided Journey: the third interface.
@@ -22,6 +22,20 @@ export default function Guided({ book, journey: initial }) {
     const { auth } = usePage().props;
 
     const [journey, setJourney] = useState(initial);
+
+    /*
+     * Follow the server when it sends a new journey.
+     *
+     * useState captures its argument once. Inertia reuses the component
+     * across visits rather than remounting it, so after a reload — or a
+     * back-navigation, or any visit that re-renders this page — the screen
+     * kept showing the journey from the first render and ignored everything
+     * the server sent afterwards.
+     *
+     * Found on a real book: the payload carried a coaching note, the page
+     * showed none, and the server was right.
+     */
+    useEffect(() => setJourney(initial), [initial]);
     const [busy, setBusy] = useState(null);
     const [note, setNote] = useState(null);
 
