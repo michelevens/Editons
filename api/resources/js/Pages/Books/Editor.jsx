@@ -53,6 +53,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // credit strip so it moves with the spend rather than a request behind it.
     const [credits, setCredits] = useState(null);
 
+    const [binderOpen, setBinderOpen] = useState(false);
+
     const [running, setRunning] = useState(null);
     const [reviewProgress, setReviewProgress] = useState(null);
     const [adding, setAdding] = useState(false);
@@ -546,19 +548,28 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             milestone="a later milestone"
                         />
                     ) : (
-                        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-[11px]">
-                            <div className="grid min-h-0 gap-[10px] [grid-template-columns:268px_minmax(0,1fr)] xl:[grid-template-columns:268px_minmax(0,1fr)_392px]">
-                                <ManuscriptOutline
-                                    nodes={binder}
-                                    activeId={section?.id}
-                                    tab={leftTab}
-                                    onTab={setLeftTab}
-                                    onSelect={openSection}
-                                    onAddChapter={addChapter}
-                                    adding={adding}
-                                />
+                        <div className="grid min-h-0 flex-1 gap-[11px] md:grid-rows-[minmax(0,1fr)_auto]">
+                            {/*
+                              * On a phone the manuscript is the whole screen.
+                              * The binder and the AI panel become drawers,
+                              * reached from the bar at the bottom, because a
+                              * 268px column beside a 390px viewport leaves
+                              * nothing to write in — which is what it did.
+                              */}
+                            <div className="grid min-h-0 gap-[10px] md:[grid-template-columns:268px_minmax(0,1fr)] xl:[grid-template-columns:268px_minmax(0,1fr)_392px]">
+                                <div className="flex min-h-0 max-md:hidden">
+                                    <ManuscriptOutline
+                                        nodes={binder}
+                                        activeId={section?.id}
+                                        tab={leftTab}
+                                        onTab={setLeftTab}
+                                        onSelect={openSection}
+                                        onAddChapter={addChapter}
+                                        adding={adding}
+                                    />
+                                </div>
 
-                                <section className="manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface">
+                                <section className="manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface max-xl:pb-12">
                                     <ManuscriptEditor section={section} onSaved={onSaved} />
                                 </section>
 
@@ -567,7 +578,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 </div>
                             </div>
 
-                            <div className="h-[236px] min-h-0">
+                            {/* The bottom row is four cards of context. On a
+                                phone that is four screens of scrolling before
+                                the manuscript, so it waits for the tablet
+                                breakpoint. */}
+                            <div className="h-[236px] min-h-0 max-md:hidden">
                                 <BottomRow
                                     bookId={book.id}
                                     sources={library}
@@ -586,10 +601,22 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             {isStudio && (
                 <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center gap-2 xl:hidden">
                     <button
+                        data-a="mobile:menu"
                         onClick={() => setSidebarOpen(true)}
                         className="pointer-events-auto rounded-badge bg-bg-sidebar px-4 py-2 text-[12px] font-semibold text-white shadow-popover lg:hidden"
                     >
                         Menu
+                    </button>
+
+                    {/* The binder leaves the grid below md, so it needs a way
+                        back. Without this the only chapter reachable on a
+                        phone is whichever one happened to open. */}
+                    <button
+                        data-a="mobile:chapters"
+                        onClick={() => setBinderOpen(true)}
+                        className="pointer-events-auto rounded-badge bg-bg-sidebar px-4 py-2 text-[12px] font-semibold text-white shadow-popover md:hidden"
+                    >
+                        Chapters
                     </button>
                     <button
                         onClick={() => setPanelOpen(true)}
@@ -598,6 +625,31 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         AI Editor
                         {openFindings.length > 0 && ` (${openFindings.length})`}
                     </button>
+                </div>
+            )}
+
+            {binderOpen && (
+                <div className="fixed inset-0 z-40 flex md:hidden">
+                    <div className="flex h-full w-[min(86vw,320px)] flex-col bg-bg-app p-2 shadow-popover">
+                        <ManuscriptOutline
+                            nodes={binder}
+                            activeId={section?.id}
+                            tab={leftTab}
+                            onTab={setLeftTab}
+                            onSelect={(id) => {
+                                openSection(id);
+                                setBinderOpen(false);
+                            }}
+                            onAddChapter={addChapter}
+                            adding={adding}
+                        />
+                    </div>
+
+                    <button
+                        aria-label="Close chapters"
+                        onClick={() => setBinderOpen(false)}
+                        className="flex-1 bg-black/25"
+                    />
                 </div>
             )}
 

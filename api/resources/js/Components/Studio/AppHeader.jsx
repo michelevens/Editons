@@ -30,7 +30,7 @@ export default function AppHeader({
     onOpenNotifications,
 }) {
     return (
-        <header className="flex h-[54px] shrink-0 items-center border-b border-border-default bg-bg-surface px-5">
+        <header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-border-default bg-bg-surface px-3 sm:px-5">
             {/*
               * The brand mark, from ecrivain-brand-assets. The symbol is the
               * packaged SVG rather than the icon set's `lib` glyph, so the
@@ -102,7 +102,7 @@ export default function AppHeader({
                 <button
                     data-a="palette:open"
                     onClick={onOpenPalette}
-                    className="flex h-[33px] w-[206px] items-center gap-2 rounded-control border border-border-input px-2.5 text-left text-[12.5px] text-text-secondary transition hover:border-brand-primary/40"
+                    className="hidden h-[33px] w-[206px] items-center gap-2 rounded-control border border-border-input px-2.5 text-left text-[12.5px] text-text-secondary transition hover:border-brand-primary/40 sm:flex"
                 >
                     <Icon name="search" size={15} />
                     <span className="flex-1">Search...</span>

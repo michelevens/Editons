@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectRendered, firstBookId, flagshipBookId, ignoring, signIn, watchForErrors } from './helpers.js';
+import { expectRendered, expectSurvives, firstBookId, flagshipBookId, ignoring, signIn, watchForErrors } from './helpers.js';
 
 /**
  * The handoff's acceptance test, ported.
@@ -1132,6 +1132,114 @@ test.describe('the editor teardown', () => {
         await expect
             .poll(async () => (await canvas.innerText()).includes(marker), { timeout: 20_000 })
             .toBe(true);
+
+        expect(errors).toEqual([]);
+    });
+});
+
+/*
+ * On a phone.
+ *
+ * The studio is a three-column grid with a 268px binder. At 390px that left
+ * a sliver to write in and a toolbar crushed into a vertical column — the
+ * manuscript, which is the whole point, was the least usable thing on screen.
+ */
+test.describe('mobile', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('the manuscript gets the screen', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await flagshipBookId(page);
+        await page.goto(`/books/${id}/edit`);
+
+        const canvas = page.locator('.manuscript');
+        await expect(canvas).toBeVisible({ timeout: 25_000 });
+
+        const box = await canvas.boundingBox();
+
+        // Most of the width, not a column beside a binder.
+        expect(box.width, 'the editor is too narrow to write in').toBeGreaterThan(300);
+
+        expect(errors).toEqual([]);
+    });
+
+    test('nothing scrolls sideways', async ({ page }) => {
+        // A horizontal scrollbar on a phone means something is laid out for
+        // a screen that is not there.
+        await signIn(page);
+        const id = await flagshipBookId(page);
+
+        for (const path of ['/books', `/books/${id}/edit`, '/profile', '/billing']) {
+            await page.goto(path);
+            await page.waitForTimeout(1200);
+
+            const overflow = await page.evaluate(
+                () => document.body.scrollWidth - window.innerWidth,
+            );
+
+            expect(overflow, `${path} scrolls sideways by ${overflow}px`).toBeLessThanOrEqual(1);
+        }
+    });
+
+    test('every chapter is still reachable', async ({ page }) => {
+        // The binder leaves the grid below md. Without the drawer the only
+        // chapter reachable on a phone is whichever one happened to open.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await flagshipBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await expect(page.locator('.manuscript')).toBeVisible({ timeout: 25_000 });
+
+        await page.click('[data-a="mobile:chapters"]');
+
+        // By its text rather than by selector: the desktop outline is still
+        // in the DOM, hidden rather than unmounted, so a data-a match finds
+        // the invisible copy. What matters is that a chapter is on screen
+        // and can be opened.
+        // .last(): the desktop outline is still in the DOM, hidden rather
+        // than unmounted, and comes first. The drawer renders after it.
+        const chapter = page.getByText('Chapter 12', { exact: true }).last();
+        await expect(chapter).toBeVisible({ timeout: 15_000 });
+
+        await chapter.click();
+
+        // The drawer closes and that chapter is now the one open.
+        await expect(chapter).toBeHidden({ timeout: 10_000 });
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the AI panel is reachable', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await flagshipBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await expect(page.locator('.manuscript')).toBeVisible({ timeout: 25_000 });
+
+        await page.click('[data-a="mobile:menu"]');
+        await expect(page.locator('[data-a="side:manuscript"]')).toBeVisible({
+            timeout: 10_000,
+        });
+
+        expect(errors).toEqual([]);
+    });
+
+    test('the shelf stacks', async ({ page }) => {
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        await page.goto('/books');
+
+        const cards = page.locator('li').filter({ hasText: 'words' });
+        await expect(cards.first()).toBeVisible({ timeout: 15_000 });
+
+        // Stacked, not side by side: each card takes most of the width.
+        const box = await cards.first().boundingBox();
+        expect(box.width).toBeGreaterThan(300);
 
         expect(errors).toEqual([]);
     });

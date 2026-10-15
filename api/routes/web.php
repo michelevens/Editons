@@ -419,3 +419,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/books/{book}/outline/import', [JourneyController::class, 'importOutline'])
         ->name('journey.outline.import');
 });
+
+/*
+ | Quick Start: one screen, one question, straight into writing.
+ |
+ | A route rather than a mode, because which door somebody prefers is theirs
+ | to choose and should not need switching into. Same books, same sections,
+ | same version history as the studio.
+ */
+Route::get('/start', [BookController::class, 'quickStart'])
+    ->middleware('auth')
+    ->name('books.quick');

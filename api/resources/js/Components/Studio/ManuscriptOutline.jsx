@@ -55,7 +55,10 @@ export default function ManuscriptOutline({
     }, [nodes, query]);
 
     return (
-        <aside className="flex min-h-0 w-[268px] shrink-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface">
+        // w-full inside its container, capped at the design's 268px. As a
+        // fixed width it overflowed the mobile drawer and the rows fell off
+        // the side of the screen.
+        <aside className="flex h-full min-h-0 w-full max-w-[268px] shrink-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface md:w-[268px]">
             <div className="flex shrink-0 bg-bg-subtle" role="tablist">
                 {TABS.map((t) => {
                     const isActive = tab === t.key;

@@ -101,6 +101,29 @@ export async function expectRendered(page, { minText = 50 } = {}) {
     expect(text.length, `page rendered only ${text.length} characters`).toBeGreaterThan(minText);
 }
 
+/**
+ * Assert the page is still rendered after doing something to it.
+ *
+ * expectRendered is called once, on arrival. The blank-page bug that
+ * prompted this happened on a CLICK: the body went to zero characters while
+ * #app stayed attached and the response stayed 200, so every signal the
+ * suite watched said the page was fine.
+ *
+ * Wrap any interaction that unmounts a pane — switching tabs, adding a
+ * section, restoring a version — and the failure is caught where it
+ * happens rather than at the next assertion that happens to need text.
+ */
+export async function expectSurvives(page, action, { minText = 200 } = {}) {
+    await action();
+
+    await expect
+        .poll(async () => (await page.locator('body').innerText()).trim().length, {
+            timeout: 15_000,
+            message: 'the page went blank after that interaction',
+        })
+        .toBeGreaterThan(minText);
+}
+
 /** The id of the demo account's first book. */
 export async function firstBookId(page) {
     await page.goto('/books');

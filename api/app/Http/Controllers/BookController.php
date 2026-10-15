@@ -81,6 +81,38 @@ class BookController extends Controller
         ]);
     }
 
+    /**
+     * Quick Start: one question, straight into writing.
+     *
+     * The same books and the same history as the studio — a different door
+     * into one building, not a second building. Which door somebody prefers
+     * is theirs to choose, so this is a route rather than a mode they have
+     * to be switched into.
+     */
+    public function quickStart(Request $request): Response
+    {
+        return Inertia::render('Books/QuickStart', [
+            'recent' => $request->user()->books()
+                ->where('status', '!=', 'archived')
+                ->latest('updated_at')
+                ->limit(3)
+                ->get()
+                ->map(fn (Book $book) => [
+                    'id' => $book->id,
+                    'title' => $book->title,
+                    'word_count' => $book->word_count,
+                    // Where they stopped, named — "Back to Chapter 7" is a
+                    // more useful offer than "Open".
+                    'resume' => $book->last_section_id
+                        ? $book->sections()
+                            ->whereKey($book->last_section_id)
+                            ->value('title')
+                        : null,
+                ])
+                ->all(),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
