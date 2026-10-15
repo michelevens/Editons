@@ -4,14 +4,21 @@ import Icon from './Icon';
 /**
  * The bottom row: Research Library, Design Preview, Cover Studio, Export.
  *
- * HANDOFF.md components 7-10. Research is wired to the real library. The
- * other three have no engine yet — Design and Cover need a typesetting and
- * image pipeline, Export needs the Milestone 3 renderers — so they say so
- * rather than showing a sample spread and a Validate button that does
- * nothing. Width ratios come from tokens.layout.bottomCards.
+ * HANDOFF.md components 7-10. Research and Export are wired to real
+ * engines. Design and Cover still need a typesetting and an image pipeline,
+ * so they say so rather than showing a sample spread that misrepresents what
+ * the app does.
+ *
+ * Export said the same thing until it stopped being true: EPUB, DOCX,
+ * Markdown and print-ready HTML have all generated for some time, and the
+ * card was still telling authors the renderers did not exist. A placeholder
+ * that outlives its feature is worse than no card, because it talks an
+ * author out of trying something that works.
+ *
+ * Width ratios come from tokens.layout.bottomCards.
  */
 
-export function BottomRow({ bookId, sources, onOpenLibrary, onAddSource }) {
+export function BottomRow({ bookId, sources, onOpenLibrary, onAddSource, onOpenExport }) {
     return (
         <div className="grid h-full min-h-0 gap-[10px] [grid-template-columns:repeat(2,minmax(0,1fr))] lg:[grid-template-columns:217fr_371fr_188fr_210fr]">
             <ResearchCard
@@ -29,12 +36,66 @@ export function BottomRow({ bookId, sources, onOpenLibrary, onAddSource }) {
                 what="A live cover editor with colour schemes and artwork upload."
                 needs="image storage"
             />
-            <PlaceholderCard
-                title="Export & Publish"
-                what="Print-ready PDF, EPUB 3, DOCX and HTML, each validated before release."
-                needs="the export renderers"
-            />
+            <ExportCard onOpen={onOpenExport} />
         </div>
+    );
+}
+
+/**
+ * Export, which is real.
+ *
+ * Deliberately does not generate from here: a click that silently spends
+ * nothing but takes a few seconds, with no format chosen, is worse than a
+ * door into the panel where the formats and their costs are visible.
+ */
+function ExportCard({ onOpen }) {
+    return (
+        <Card
+            title="Export & Publish"
+            action={
+                <button
+                    data-a="bottom:export"
+                    onClick={onOpen}
+                    className="text-[11.5px] font-semibold text-brand-primary hover:underline"
+                >
+                    Open
+                </button>
+            }
+        >
+            <div className="p-3">
+                <p className="text-[11.5px] leading-relaxed text-text-secondary">
+                    EPUB 3, Word, Markdown and print-ready HTML, generated from the
+                    manuscript as it stands.
+                </p>
+
+                <ul className="mt-2.5 space-y-1">
+                    {[
+                        ['EPUB 3', 'Kindle, Apple Books, Kobo'],
+                        ['Word', 'editors and co-authors'],
+                        ['Markdown', 'plain text, structure kept'],
+                        ['Print-ready HTML', 'print to PDF at your trim size'],
+                    ].map(([name, what]) => (
+                        <li key={name} className="flex items-baseline gap-1.5">
+                            <Icon
+                                name="check"
+                                size={12}
+                                strokeWidth={2.6}
+                                className="shrink-0 translate-y-px text-status-success"
+                            />
+                            <span className="text-[11px] text-text-primary">{name}</span>
+                            <span className="truncate text-[10.5px] text-text-secondary">
+                                {what}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+
+                <p className="mt-2.5 text-[10.5px] leading-relaxed text-text-secondary">
+                    A real PDF renderer is still to come — the print-ready file is HTML
+                    paginated at your trim size, which a browser prints to PDF.
+                </p>
+            </div>
+        </Card>
     );
 }
 

@@ -205,13 +205,40 @@ class PublishingController extends Controller
      * Served through here rather than from a public URL: these are unpublished
      * manuscripts, and a guessable path would hand one to anybody.
      */
-    public function download(Book $book, BookExport $export): StreamedResponse
+    public function download(Request $request, Book $book, BookExport $export): StreamedResponse
     {
         $this->authorize('view', $book);
 
         abort_unless($export->book_id === $book->id, 404);
-        abort_unless($export->status === 'ready' && $export->path, 404);
-        abort_unless(Storage::disk('local')->exists($export->path), 404, 'That file is no longer on disk.');
+        abort_unless($export->status === 'ready', 404);
+
+        /*
+         * Rebuild if the file has gone.
+         *
+         * Exports are written to the container's local disk, which is
+         * ephemeral: every deploy replaces the container and takes every
+         * previously generated file with it. An author who exported on
+         * Tuesday and clicked download on Wednesday got a bare 404, with
+         * the export still listed as ready.
+         *
+         * No object storage is configured, so the honest fix is to notice
+         * the file is missing and regenerate it rather than reporting the
+         * book as unavailable. Generation takes well under a second for a
+         * manuscript of any realistic size, and the alternative — telling
+         * somebody their finished export no longer exists — is worse.
+         *
+         * When a persistent disk or S3 is configured this branch stops
+         * firing on its own, and the test below still passes.
+         */
+        if (! $export->path || ! Storage::disk('local')->exists($export->path)) {
+            $export = $this->exporter->generate($book, $export->format, $request->user()->id);
+
+            abort_unless(
+                $export->status === 'ready' && $export->path && Storage::disk('local')->exists($export->path),
+                503,
+                'That file could not be rebuilt. Try generating it again.',
+            );
+        }
 
         return Storage::disk('local')->download(
             $export->path,

@@ -4,6 +4,8 @@ use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Publishing\Exporter;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -374,7 +376,7 @@ it('rejects an SVG upload, which can carry script', function () {
 
     $this->actingAs($user)
         ->postJson("/books/{$book->id}/cover/artwork", [
-            'artwork' => \Illuminate\Http\UploadedFile::fake()
+            'artwork' => UploadedFile::fake()
                 ->createWithContent('cover.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
         ])
         ->assertStatus(422);
@@ -631,4 +633,67 @@ it('lists editions of a book and what a book was derived from', function () {
 
     expect($this->actingAs($user)->getJson("/books/{$editionId}/editions")->json('derived_from.id'))
         ->toBe($book->id);
+});
+
+it('rebuilds an export whose file has gone', function () {
+    /*
+     * The 404 an author actually hit.
+     *
+     * Exports are written to the container's local disk, which is
+     * ephemeral: a deploy replaces the container and takes every generated
+     * file with it, while the export row stays in the database marked
+     * ready. Clicking download on a file generated before the last deploy
+     * returned a bare 404 with no explanation.
+     *
+     * No object storage is configured, so the download path now notices the
+     * file is missing and regenerates it.
+     */
+    $user = User::factory()->create(['plan' => 'studio']);
+    $book = chapteredBook($user);
+
+    $export = app(Exporter::class)->generate($book, 'md', $user->id);
+
+    expect($export->status)->toBe('ready');
+
+    // Simulate the deploy that took the file away.
+    Storage::disk('local')->delete($export->path);
+    expect(Storage::disk('local')->exists($export->path))->toBeFalse();
+
+    $response = $this->actingAs($user)
+        ->get("/books/{$book->id}/exports/{$export->id}/download");
+
+    $response->assertOk();
+
+    expect($response->headers->get('content-disposition'))->toContain('.md');
+});
+
+it('still refuses a download for somebody else\'s book', function () {
+    // The rebuild path must not become a way around ownership.
+    $owner = User::factory()->create(['plan' => 'studio']);
+    $book = chapteredBook($owner);
+
+    $export = app(Exporter::class)->generate($book, 'md', $owner->id);
+    Storage::disk('local')->delete($export->path);
+
+    $this->actingAs(User::factory()->create())
+        ->get("/books/{$book->id}/exports/{$export->id}/download")
+        ->assertForbidden();
+});
+
+it('does not offer a format as unbuilt when it builds', function () {
+    /*
+     * The stale placeholder.
+     *
+     * The bottom-row card said "Not built yet — needs the export renderers"
+     * long after EPUB, DOCX, Markdown and HTML all generated. A placeholder
+     * that outlives its feature talks an author out of trying something
+     * that works.
+     */
+    $cards = file_get_contents(resource_path('js/Components/Studio/BottomCards.jsx'));
+
+    $this->assertStringNotContainsString(
+        'the export renderers',
+        $cards,
+        'The export card still claims the renderers do not exist.',
+    );
 });

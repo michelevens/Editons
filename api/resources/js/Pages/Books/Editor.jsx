@@ -609,6 +609,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                     sources={library}
                                     onOpenLibrary={openLibrary}
                                     onAddSource={openLibrary}
+                                    onOpenExport={() => setPane('export')}
                                 />
                             </div>
                         </div>
