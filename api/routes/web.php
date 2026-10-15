@@ -19,6 +19,7 @@ use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\PublishingController;
 use App\Http\Controllers\GrowthController;
+use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
@@ -395,4 +396,24 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/books/{book}/coming-soon/{screen}', [GrowthController::class, 'locked'])
         ->name('growth.locked');
+});
+
+/*
+ | The writing journey: where the author is, and what to do next.
+ |
+ | Stages are a path rather than a wizard — any of them can be opened at any
+ | point, because a product that refuses to let somebody revisit Discover in
+ | chapter nine has misunderstood how writing works.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/journey', [JourneyController::class, 'show'])
+        ->name('journey.show');
+    Route::patch('/books/{book}/idea', [JourneyController::class, 'saveIdea'])
+        ->name('journey.idea');
+    Route::patch('/books/{book}/stage', [JourneyController::class, 'setStage'])
+        ->name('journey.stage');
+    Route::patch('/books/{book}/assistance', [JourneyController::class, 'setAssistance'])
+        ->name('journey.assistance');
+    Route::post('/books/{book}/outline', [JourneyController::class, 'outline'])
+        ->name('journey.outline');
 });

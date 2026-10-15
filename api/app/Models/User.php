@@ -12,7 +12,15 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Cashier\Billable;
 
-#[Fillable(['name', 'email', 'password'])]
+/*
+ * `plan`, `credits_granted_at` and Cashier's columns are deliberately absent:
+ * what somebody is subscribed to and when their allowance was granted are
+ * decided by the billing code, never by a profile form.
+ */
+#[Fillable([
+    'name', 'email', 'password',
+    'author_name', 'bio', 'website', 'default_book_type', 'daily_word_goal',
+])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {

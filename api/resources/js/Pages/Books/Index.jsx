@@ -17,6 +17,7 @@ export default function Index({
     can_create: canCreate,
     plan,
     book_types: bookTypes = [],
+    default_book_type: defaultBookType = null,
 }) {
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
@@ -84,6 +85,7 @@ export default function Index({
                     {creating && (
                         <NewBookForm
                             bookTypes={bookTypes}
+                            defaultBookType={defaultBookType}
                             onDone={() => setCreating(false)}
                         />
                     )}
@@ -328,18 +330,23 @@ function EmptyShelf({ filter }) {
  * The lengths shown are published trade norms, labelled as typical and
  * editable. They are a starting point to argue with, not a prediction.
  */
-function NewBookForm({ onDone, bookTypes }) {
-    const [step, setStep] = useState('what');
+function NewBookForm({ onDone, bookTypes, defaultBookType }) {
+    // An author who writes one kind of book has said so in their profile.
+    // Opening on the scale step skips a question they have already answered,
+    // and "Change" is right there if this book is different.
+    const preset = bookTypes.find((type) => type.key === defaultBookType);
+
+    const [step, setStep] = useState(preset ? 'scale' : 'what');
 
     const { data, setData, post, processing, errors, reset } = useForm({
         title: '',
         subtitle: '',
-        genre: '',
-        book_type: '',
-        chapters: '',
-        target_words: '',
+        genre: preset?.name ?? '',
+        book_type: preset?.key ?? '',
+        chapters: preset?.suggested_chapters ?? '',
+        target_words: preset?.suggested_words ?? '',
         assistance: 'author_led',
-        started_with: 'blank',
+        started_with: preset ? 'template' : 'blank',
     });
 
     const chosen = bookTypes.find((type) => type.key === data.book_type);

@@ -73,6 +73,9 @@ class BookController extends Controller
                 fn (BookType $type) => $type->toArray(),
                 BookType::all(),
             ),
+            // The author's usual kind of book, so the flow opens on it
+            // rather than asking a question they have already answered.
+            'default_book_type' => $request->user()->default_book_type,
             'can_create' => $request->user()->canCreateBook(),
             'plan' => $request->user()->planLimits(),
         ]);
@@ -158,6 +161,8 @@ class BookController extends Controller
         $book->load(['rootSections.children']);
 
         $active = $this->resolveActiveSection($book, $request->integer('section'));
+
+        $this->rememberPlace($book, $active);
 
         return Inertia::render('Books/Editor', [
             'book' => [
@@ -273,12 +278,38 @@ class BookController extends Controller
     }
 
     /** Which section opens: the requested one, or the first writable node. */
+    /**
+     * Which section to open.
+     *
+     * In order: the one asked for, the one the author last worked in, then
+     * the first. Resuming where you stopped is the difference between
+     * picking a book up and finding your place in it again — on a
+     * twenty-chapter manuscript, landing on chapter one every time means
+     * hunting for your own work.
+     *
+     * A part is never resumed into: it holds chapters rather than prose, so
+     * there is nothing to type in.
+     */
     private function resolveActiveSection(Book $book, ?int $requested): ?ManuscriptSection
     {
         if ($requested) {
             $match = $book->sections()->whereKey($requested)->first();
+
             if ($match) {
                 return $match;
+            }
+        }
+
+        if ($book->last_section_id) {
+            $last = $book->sections()
+                ->whereKey($book->last_section_id)
+                ->where('type', '!=', 'part')
+                ->first();
+
+            // Gone if the section was deleted, which the foreign key already
+            // nulls — this also covers one that became a part.
+            if ($last) {
+                return $last;
             }
         }
 
@@ -286,6 +317,22 @@ class BookController extends Controller
             ->where('type', '!=', 'part')
             ->orderBy('position')
             ->first();
+    }
+
+    /**
+     * Remember where the author is.
+     *
+     * forceFill because this is the server recording what happened, not a
+     * field a request may claim. Saved quietly: it is a bookmark, and a
+     * failure to move it should never interrupt writing.
+     */
+    private function rememberPlace(Book $book, ?ManuscriptSection $section): void
+    {
+        if (! $section || $book->last_section_id === $section->id) {
+            return;
+        }
+
+        $book->forceFill(['last_section_id' => $section->id])->saveQuietly();
     }
 
     /** @return array<string, mixed> */

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Billing\CreditLedger;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Journey\BookType;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,9 +20,35 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+        $limits = $user->planLimits();
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'author' => [
+                'author_name' => $user->author_name,
+                'bio' => $user->bio,
+                'website' => $user->website,
+                'default_book_type' => $user->default_book_type,
+                'daily_word_goal' => $user->daily_word_goal,
+            ],
+            'book_types' => array_map(
+                fn (BookType $type) => ['key' => $type->key, 'name' => $type->name()],
+                BookType::all(),
+            ),
+            // Shown here as well as on Plans & Billing: an author checking
+            // their own details should not have to go somewhere else to see
+            // what they are paying for.
+            'plan' => [
+                'key' => $user->plan,
+                'name' => $limits['name'],
+                'price' => $limits['price'],
+                'credits' => app(CreditLedger::class)->balanceFor($user),
+                'monthly_credits' => $limits['credits'],
+                'books' => $user->books()->count(),
+                'book_limit' => $limits['books'],
+            ],
         ]);
     }
 

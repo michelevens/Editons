@@ -29,6 +29,7 @@ class Book extends Model
         'launch_date', 'launch_tasks', 'notes', 'marketing_kit',
         'studio', 'book_type', 'started_with', 'assistance',
         'journey_stage', 'journey_tasks',
+        'premise', 'audience', 'promise',
     ];
 
     /** The two product experiences. Academic Studio is not built yet. */
@@ -156,6 +157,21 @@ class Book extends Model
     public function exports(): HasMany
     {
         return $this->hasMany(BookExport::class)->latest();
+    }
+
+    /**
+     * How many editorial reviews have been run across this book.
+     *
+     * Through the sections, because a review belongs to a chapter rather than
+     * to the book. Used to tell whether the Improve stage has been started at
+     * all, which is a different question from how many findings are open.
+     */
+    public function reviewsCount(): int
+    {
+        return EditorialReview::whereIn(
+            'manuscript_section_id',
+            $this->sections()->select('id'),
+        )->count();
     }
 
     /** People reading the book before launch, to review it. */

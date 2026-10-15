@@ -45,19 +45,10 @@ export default function UpdatePasswordForm({ className = '' }) {
     };
 
     return (
+        // No header: the enclosing Box on the profile page carries the
+        // title and the explanation, and two of each read as a mistake.
         <section className={className}>
-            <header>
-                <h2 className="text-lg font-medium text-gray-900">
-                    Update Password
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-600">
-                    Ensure your account is using a long, random password to stay
-                    secure.
-                </p>
-            </header>
-
-            <form onSubmit={updatePassword} className="mt-6 space-y-6">
+            <form onSubmit={updatePassword} className="space-y-4">
                 <div>
                     <InputLabel
                         htmlFor="current_password"
@@ -131,7 +122,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         leave="transition ease-in-out"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-gray-600">
+                        <p className="text-[12.5px] text-status-success">
                             Saved.
                         </p>
                     </Transition>
