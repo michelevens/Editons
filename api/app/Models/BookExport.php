@@ -23,7 +23,20 @@ class BookExport extends Model
     /** format => [label, extension, description]. */
     public const FORMATS = [
         'epub' => ['EPUB', 'epub', 'For Kindle, Apple Books, Kobo and most stores'],
-        'pdf_print' => ['Print PDF', 'pdf', 'Press-ready interior at your trim size'],
+        /*
+         * Print-ready HTML, not a PDF.
+         *
+         * This was labelled "Print PDF" with a .pdf extension and produced
+         * an HTML file: no PDF library is installed and printable() emits
+         * HTML with @page CSS. The file would not open in any PDF reader,
+         * which is worse than not offering the format.
+         *
+         * The output is genuinely useful — paginated at the chosen trim
+         * size, ready for a browser's Print to PDF — so it is kept and
+         * named for what it is. A real PDF renderer is a dependency
+         * decision, and when one is added this becomes 'pdf' again.
+         */
+        'pdf_print' => ['Print-ready HTML', 'html', 'Paginated at your trim size — print to PDF from a browser'],
         'docx' => ['Word document', 'docx', 'For editors and co-authors who mark up in Word'],
         'md' => ['Markdown', 'md', 'Plain text with structure preserved'],
         'html' => ['HTML', 'html', 'A single file for the web'],

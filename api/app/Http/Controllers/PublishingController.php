@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Billing\Entitlements;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
-use App\Billing\Entitlements;
 use App\Publishing\Exporter;
 use App\Publishing\SubmissionCheck;
 use Illuminate\Http\JsonResponse;
@@ -303,6 +303,16 @@ class PublishingController extends Controller
     private function planFormat(string $format): string
     {
         return match ($format) {
+            /*
+             * Still 'pdf' here, deliberately.
+             *
+             * This maps to the ENTITLEMENT key in config/billing.php, where
+             * the free plan allows ['pdf', 'epub']. The output is now
+             * correctly named print-ready HTML (see BookExport::FORMATS),
+             * but changing this line would silently remove the format from
+             * the free plan, which is a pricing change rather than a naming
+             * fix.
+             */
             'pdf_print' => 'pdf',
             default => $format,
         };

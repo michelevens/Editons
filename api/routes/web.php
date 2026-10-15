@@ -182,6 +182,18 @@ Route::middleware('auth')->group(function () {
         ->name('books.import');
     Route::get('/books/{book}/export.md', [ImportController::class, 'export'])
         ->name('books.export');
+
+    /*
+     | The native format: the only export that round-trips.
+     |
+     | EPUB and DOCX are reading formats, Markdown flattens the binder tree,
+     | HTML is one document. None of them come back as the same book. See
+     | App\Publishing\PortableBook.
+     */
+    Route::get('/books/{book}/export.ecrivain', [ImportController::class, 'portableExport'])
+        ->name('books.portable.export');
+    Route::post('/books/import', [ImportController::class, 'portableImport'])
+        ->name('books.portable.import');
 });
 
 /*
