@@ -121,8 +121,8 @@ Still open from the directive, in the order they are worth doing:
     shape — chapter balance, stubs, pace against a target the author set.
     It cannot judge prose and never claims to; that is what the agents are
     for, and they are run deliberately. See app/Journey/Coach.php.
-  - §4 per-genre interview questions and publishing guidance. The 15 genres
-    themselves are done: biography, educational, devotional, self-help,
+  - §4 per-genre publishing guidance. The genres and their interview
+    questions are done: biography, educational, devotional, self-help,
     graphic novel and anthology joined the original nine, and the property
     tests in JourneyTest cover a new genre the moment it exists — 41 tests,
     382 assertions, six of them iterating BookType::all().
@@ -326,3 +326,15 @@ promises more than the code does, a default nobody tried.
   controllers redirect to `dashboard`, and that route rendered the stock
   placeholder. It now sends somebody with no books to Quick Start and
   everybody else to their shelf, which fixes all six paths at once.
+
+- **Every guided book creation was silently blocked.** The target-words input
+  carried `min="100" step="1000"`, making the valid values 100, 1100, 2100…
+  All fifteen genres suggest round numbers — 38,000 for a cookbook, 65,000 for
+  nonfiction — so `checkValidity()` was false for every one of them and the
+  browser refused to submit with no message anywhere. "Create the book" did
+  nothing at all.
+
+  Invisible to the whole Pest suite, which POSTs directly and never runs HTML5
+  validation. Only a browser can catch this class of bug, so the guard is a
+  Playwright test that walks every genre and asserts the form is submittable;
+  it was verified by restoring the old `step` and watching it fail.

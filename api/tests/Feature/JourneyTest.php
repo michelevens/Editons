@@ -348,3 +348,94 @@ it('falls back to the plain order for a book with no type', function () {
     expect(array_column($agents, 'value'))
         ->toBe(array_column(EditorialAgent::cases(), 'value'));
 });
+
+it('asks every genre its own three questions', function () {
+    // The point of per-genre questions: a generic "What is it about?" gets a
+    // generic answer. Property-based, so a genre added later is covered the
+    // moment it exists.
+    $seen = [];
+
+    foreach (BookType::all() as $type) {
+        $questions = $type->questions();
+
+        expect($questions)->toHaveKeys(['premise', 'audience', 'promise']);
+
+        foreach ($questions as $field => $question) {
+            expect(trim($question))->not->toBeEmpty("[{$type->key}.{$field}] is empty.");
+
+            $this->assertStringEndsWith(
+                '?',
+                $question,
+                "[{$type->key}.{$field}] is not phrased as a question.",
+            );
+        }
+
+        $seen[] = $questions['premise'];
+    }
+
+    // Distinct wording, not the same sentence fifteen times with a different
+    // noun — that would be the generic version wearing a costume.
+    expect(count(array_unique($seen)))->toBe(count($seen));
+});
+
+it('never asks a genre the neutral question by accident', function () {
+    // The fallback exists for a book with no type. A configured genre
+    // reaching it means its questions block is missing.
+    foreach (BookType::all() as $type) {
+        expect($type->questions())->not->toBe(
+            BookType::NEUTRAL_QUESTIONS,
+            "[{$type->key}] falls back to the neutral wording.",
+        );
+    }
+});
+
+it('asks something sensible when the book has no type', function () {
+    $user = User::factory()->create();
+    $book = $user->books()->create(['title' => 'Untyped', 'book_type' => null]);
+
+    $questions = $this->actingAs($user)
+        ->getJson("/books/{$book->id}/journey")
+        ->json('questions');
+
+    expect($questions)->toBe(BookType::NEUTRAL_QUESTIONS);
+});
+
+it('phrases the questions for the kind of book', function () {
+    $user = User::factory()->create();
+    $book = $user->books()->create(['title' => 'Recipes', 'book_type' => 'cookbook']);
+
+    $questions = $this->actingAs($user)
+        ->getJson("/books/{$book->id}/journey")
+        ->json('questions');
+
+    expect($questions['premise'])->toBe(BookType::findOrFail('cookbook')->questions()['premise'])
+        ->and($questions['premise'])->not->toBe(BookType::NEUTRAL_QUESTIONS['premise']);
+});
+
+it('keeps a premise given while making the book', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post('/books', [
+        'title' => 'Weeknight Cooking',
+        'book_type' => 'cookbook',
+        'premise' => 'Thirty recipes you can finish in the time rice takes.',
+    ])->assertRedirect();
+
+    $book = $user->books()->first();
+
+    expect($book->premise)->toBe('Thirty recipes you can finish in the time rice takes.')
+        ->and($book->journey_stage)->toBe('plan');
+});
+
+it('leaves a book without a premise in Discover', function () {
+    // The stage must not claim Discover is behind the author when the
+    // question that stage asks is still unanswered.
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post('/books', [
+        'title' => 'Untitled Cookbook',
+        'book_type' => 'cookbook',
+    ]);
+
+    expect($user->books()->first()->journey_stage)->toBe('discover');
+});

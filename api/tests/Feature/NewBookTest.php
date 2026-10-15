@@ -11,7 +11,6 @@ use App\Models\User;
  * author who knows what they want should not be walked through questions to
  * reach an empty page, and these tests hold both paths open.
  */
-
 it('still makes a plain book with one chapter', function () {
     // The one-click path. If this breaks, the flow has quietly become
     // mandatory.
@@ -48,9 +47,31 @@ it('scaffolds a book when a type is chosen', function () {
         ->and($book->sections()->where('type', 'front_matter')->count())->toBeGreaterThan(0);
 });
 
-it('moves past Discover once the book knows what it is', function () {
-    // The question that stage asks has just been answered, so leaving the
-    // author there would ask it twice.
+it('moves past Discover once the book knows what it is about', function () {
+    /*
+     * Changed deliberately from "knows what it is".
+     *
+     * Choosing a type used to move the book straight to Plan, on the
+     * reasoning that Discover's question had been answered. It had not:
+     * stages() computes Discover's `done` from the premise, so the book sat
+     * in Plan while Discover showed incomplete — the current stage pointing
+     * past work the product itself said was unfinished.
+     *
+     * The new-book form now asks the premise in the genre's own words, so
+     * answering it there moves the book on and skipping it does not.
+     */
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post('/books', [
+        'title' => 'A Guided Book',
+        'book_type' => 'memoir',
+        'premise' => 'The year I stopped answering the phone.',
+    ]);
+
+    expect($user->books()->first()->journey_stage)->toBe('plan');
+});
+
+it('keeps a book whose premise is still unanswered in Discover', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)->post('/books', [
@@ -58,7 +79,17 @@ it('moves past Discover once the book knows what it is', function () {
         'book_type' => 'memoir',
     ]);
 
-    expect($user->books()->first()->journey_stage)->toBe('plan');
+    $book = $user->books()->first();
+
+    // The stage and what the stage list reports must agree.
+    expect($book->journey_stage)->toBe('discover');
+
+    $stages = collect($this->actingAs($user)
+        ->getJson("/books/{$book->id}/journey")
+        ->json('stages'))->keyBy('key');
+
+    expect($stages['discover']['current'])->toBeTrue()
+        ->and($stages['discover']['done'])->toBeFalse();
 });
 
 it('takes the type\'s typical length when none is given', function () {

@@ -131,6 +131,11 @@ class BookController extends Controller
             'target_words' => ['nullable', 'integer', 'min:100', 'max:500000'],
             'assistance' => ['nullable', Rule::in(Book::ASSISTANCE)],
             'started_with' => ['nullable', 'string', 'max:40'],
+            // Asked at creation in the genre's own words, because the moment
+            // somebody has just chosen "Cookbook" is the moment "What ties
+            // these recipes together?" is easiest to answer. Optional: it is
+            // also the moment somebody wants to get on with it.
+            'premise' => ['nullable', 'string', 'max:2000'],
         ]);
 
         // The plan limit is enforced here, not only in the UI. A disabled
@@ -149,9 +154,13 @@ class BookController extends Controller
             $book = $request->user()->books()->create(array_merge(
                 Arr::except($data, ['chapters']),
                 $type ? [
-                    // A book that knows its type starts past Discover: the
-                    // question that stage asks has just been answered.
-                    'journey_stage' => 'plan',
+                    // A book that knows its type and its premise starts past
+                    // Discover. Without a premise it stays there, because
+                    // that is the question Discover asks and it is still
+                    // unanswered — the stage must not claim otherwise.
+                    'journey_stage' => trim((string) ($data['premise'] ?? '')) !== ''
+                        ? 'plan'
+                        : 'discover',
                     'target_words' => $data['target_words'] ?? $type->suggestedWords(),
                 ] : [],
             ));

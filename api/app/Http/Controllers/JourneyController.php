@@ -190,6 +190,10 @@ class JourneyController extends Controller
                 'audience' => $book->audience,
                 'promise' => $book->promise,
             ],
+            // Phrased for the kind of book, falling back to the neutral
+            // wording when there is no type yet. Always present, so the
+            // screen never has to decide what to ask.
+            'questions' => $type?->questions() ?? BookType::NEUTRAL_QUESTIONS,
             'type' => $type?->toArray(),
             'book_types' => array_map(
                 fn (BookType $t) => ['key' => $t->key, 'name' => $t->name(), 'blurb' => $t->blurb()],

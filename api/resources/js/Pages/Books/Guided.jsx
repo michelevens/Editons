@@ -346,24 +346,32 @@ function Idea({ book, journey, send, busy, say }) {
                 answering eventually and can wait.
             </p>
 
+            {/*
+             * The questions are phrased for the kind of book: a novelist and
+             * a cookbook author are both answering "what is this", but
+             * "What happens, and to whom?" and "What ties these recipes
+             * together?" are not the same question, and the generic version
+             * gets a generic answer. The server always sends all three, so
+             * this never has to decide what to ask.
+             */}
             <div className="mt-4 space-y-3.5">
                 <Field
                     name="premise"
-                    label="What is it about?"
+                    label={journey.questions.premise}
                     hint="A sentence is enough."
                     value={idea.premise ?? ''}
                     onChange={set('premise')}
                 />
                 <Field
                     name="audience"
-                    label="Who is it for?"
+                    label={journey.questions.audience}
                     hint="Optional."
                     value={idea.audience ?? ''}
                     onChange={set('audience')}
                 />
                 <Field
                     name="promise"
-                    label="What does the reader get?"
+                    label={journey.questions.promise}
                     hint="Optional."
                     value={idea.promise ?? ''}
                     onChange={set('promise')}

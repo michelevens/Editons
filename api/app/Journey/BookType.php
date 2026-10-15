@@ -124,6 +124,32 @@ class BookType
         return $this->config['agents'] ?? [];
     }
 
+    /**
+     * The three Discover questions, in this genre's own terms.
+     *
+     * The fields are the same everywhere — premise, audience, promise — and
+     * only the wording changes. A novelist and a cookbook author are both
+     * answering "what is this", but "What happens, and to whom?" and "What
+     * ties these recipes together?" are not the same question, and a generic
+     * "What is it about?" gets a generic answer.
+     *
+     * Falls back to the neutral phrasing, so a type that omits them still
+     * asks something sensible rather than nothing.
+     *
+     * @return array{premise: string, audience: string, promise: string}
+     */
+    public function questions(): array
+    {
+        return array_merge(self::NEUTRAL_QUESTIONS, $this->config['questions'] ?? []);
+    }
+
+    /** What Discover asks when the book has no type yet. */
+    public const NEUTRAL_QUESTIONS = [
+        'premise' => 'What is it about?',
+        'audience' => 'Who is it for?',
+        'promise' => 'What does the reader get?',
+    ];
+
     /** The line each scaffolded chapter opens with. */
     public function chapterPrompt(): string
     {
@@ -145,6 +171,7 @@ class BookType
             'front_matter' => $this->frontMatter(),
             'back_matter' => $this->backMatter(),
             'agents' => $this->agents(),
+            'questions' => $this->questions(),
         ];
     }
 }

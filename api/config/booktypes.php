@@ -33,6 +33,12 @@ return [
         'front_matter' => ['Introduction'],
         'back_matter' => ['Conclusion', 'References', 'About the Author'],
         'agents' => ['fact_checker', 'developmental', 'copy'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What is the argument, in a sentence?',
+            'audience' => 'Who needs to hear it, and what do they already believe?',
+            'promise' => 'What can they do afterwards that they could not before?',
+        ],
         'chapter_prompt' => 'What does the reader need to understand here, and what should they be able to do afterwards?',
     ],
 
@@ -46,6 +52,12 @@ return [
         'back_matter' => ['Acknowledgements'],
         // Memoir names real people, which is where the legal exposure is.
         'agents' => ['line', 'developmental', 'subject_matter'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'Which part of your life is this, and why that part?',
+            'audience' => 'Who is reading it who was not there?',
+            'promise' => 'What should they understand by the end that they did not at the start?',
+        ],
         'chapter_prompt' => 'Whose scene is this, and what changes by the end of it?',
     ],
 
@@ -58,6 +70,12 @@ return [
         'front_matter' => [],
         'back_matter' => ['Acknowledgements'],
         'agents' => ['developmental', 'line', 'consistency'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What happens, and to whom?',
+            'audience' => 'Who reads this kind of book, and what do they come for?',
+            'promise' => 'What should the last page leave them with?',
+        ],
         'chapter_prompt' => 'What does the viewpoint character want in this scene, and what stops them?',
     ],
 
@@ -70,6 +88,12 @@ return [
         'front_matter' => ['Introduction'],
         'back_matter' => ['Conclusion', 'Notes', 'About the Author'],
         'agents' => ['fact_checker', 'developmental', 'copy'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What is the method or the claim?',
+            'audience' => 'Who is the reader, and what is their job?',
+            'promise' => 'What should they be doing differently on Monday?',
+        ],
         'chapter_prompt' => 'What is the one idea here, and what evidence carries it?',
     ],
 
@@ -82,6 +106,12 @@ return [
         'front_matter' => ['Preface', 'How to Use This Book'],
         'back_matter' => ['Glossary', 'Index'],
         'agents' => ['consistency', 'accessibility', 'copy'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What does this teach, and for which version or tool?',
+            'audience' => 'What does the reader already know before chapter one?',
+            'promise' => 'What should they be able to build or fix afterwards?',
+        ],
         'chapter_prompt' => 'What can the reader do after this chapter that they could not before?',
     ],
 
@@ -94,6 +124,12 @@ return [
         'front_matter' => ['Abstract', 'Acknowledgements'],
         'back_matter' => ['Bibliography', 'Appendices', 'Index'],
         'agents' => ['fact_checker', 'consistency', 'subject_matter'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What is the thesis, stated as a claim somebody could dispute?',
+            'audience' => 'Which field is this for, and which conversation in it?',
+            'promise' => 'What does it establish that the literature did not?',
+        ],
         'chapter_prompt' => 'What claim does this chapter establish, and on what evidence?',
     ],
 
@@ -106,6 +142,12 @@ return [
         'front_matter' => [],
         'back_matter' => [],
         'agents' => ['accessibility', 'line', 'copy'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What happens in the story?',
+            'audience' => 'What age is this for, and is it read aloud or alone?',
+            'promise' => 'What do you want them feeling at the end?',
+        ],
         'chapter_prompt' => 'What happens on this spread, and what will the picture show?',
     ],
 
@@ -118,6 +160,12 @@ return [
         'front_matter' => ['Introduction', 'Before You Start'],
         'back_matter' => ['Index'],
         'agents' => ['consistency', 'copy', 'accessibility'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What ties these recipes together?',
+            'audience' => 'Who is cooking from this, and how much do they already know?',
+            'promise' => 'What should they be able to cook confidently afterwards?',
+        ],
         'chapter_prompt' => 'Which recipes belong together here, and why?',
     ],
 
@@ -130,6 +178,12 @@ return [
         'front_matter' => [],
         'back_matter' => ['Notes', 'Acknowledgements'],
         'agents' => ['line', 'consistency'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What is this collection circling around?',
+            'audience' => 'Who is it for, and how will they come across it?',
+            'promise' => 'What should stay with them after they close it?',
+        ],
         'chapter_prompt' => 'What holds these poems together as a section?',
     ],
 
@@ -144,6 +198,12 @@ return [
         // Every claim is about a real person, which is both the research
         // burden and the legal exposure.
         'agents' => ['fact_checker', 'subject_matter', 'consistency'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'Whose life is this, and which part of it?',
+            'audience' => 'Who is reading, and what do they already think they know?',
+            'promise' => 'What should they understand about this person that they did not?',
+        ],
         'chapter_prompt' => 'What period does this cover, and what does it reveal that the last chapter did not?',
     ],
 
@@ -156,6 +216,12 @@ return [
         'front_matter' => ['Preface', 'How to Use This Book'],
         'back_matter' => ['Glossary', 'Answer Key', 'Index'],
         'agents' => ['accessibility', 'consistency', 'fact_checker'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What subject does this cover, and at what level?',
+            'audience' => 'Who is teaching from it, and who is learning from it?',
+            'promise' => 'What should a learner be able to do by the end?',
+        ],
         'chapter_prompt' => 'What should a learner be able to do after this, and how will they know they can?',
     ],
 
@@ -183,6 +249,12 @@ return [
         'front_matter' => ['How to Use This Book'],
         'back_matter' => ['Index of Readings'],
         'agents' => ['line', 'consistency', 'copy'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What is the thread running through the readings?',
+            'audience' => 'Who is reading this, and at what point in their day?',
+            'promise' => 'What should they carry out of each reading?',
+        ],
         'chapter_prompt' => 'What single thought should the reader carry into the day?',
     ],
 
@@ -195,6 +267,12 @@ return [
         'front_matter' => ['Introduction'],
         'back_matter' => ['Conclusion', 'Resources', 'About the Author'],
         'agents' => ['developmental', 'fact_checker', 'accessibility'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What problem does this solve?',
+            'audience' => 'Who has that problem, and what have they already tried?',
+            'promise' => 'What does their life look like if it works?',
+        ],
         'chapter_prompt' => 'What is the reader meant to do differently after this chapter?',
     ],
 
@@ -209,6 +287,12 @@ return [
         'front_matter' => [],
         'back_matter' => ['Acknowledgements'],
         'agents' => ['developmental', 'consistency', 'line'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What is the story, and what does the art carry that the words do not?',
+            'audience' => 'Who reads this, and in what format will they read it?',
+            'promise' => 'What should the final page land as?',
+        ],
         'chapter_prompt' => 'What happens on these pages, and what has to be shown rather than said?',
     ],
 
@@ -222,6 +306,12 @@ return [
         'back_matter' => ['Contributors', 'Acknowledgements'],
         // Many hands means house style and attribution are the real risks.
         'agents' => ['consistency', 'copy', 'line'],
+        // The Discover questions, in this genre's own terms.
+        'questions' => [
+            'premise' => 'What holds these pieces together?',
+            'audience' => 'Who is reading, and will they read it straight through?',
+            'promise' => 'What should the collection add up to?',
+        ],
         'chapter_prompt' => 'Whose piece is this, and why does it belong beside the others?',
     ],
 

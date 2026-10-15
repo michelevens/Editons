@@ -364,6 +364,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
         target_words: preset?.suggested_words ?? '',
         assistance: 'author_led',
         started_with: preset ? 'template' : 'blank',
+        premise: '',
     });
 
     const chosen = bookTypes.find((type) => type.key === data.book_type);
@@ -520,7 +521,23 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             <input
                                 type="number"
                                 min="100"
-                                step="1000"
+                                /*
+                                 * step="any", not 1000.
+                                 *
+                                 * With min="100" a step of 1000 makes the
+                                 * valid values 100, 1100, 2100… and every
+                                 * one of the fifteen genres suggests a round
+                                 * number — 38,000 for a cookbook, 65,000 for
+                                 * nonfiction. None of them are on that
+                                 * ladder, so checkValidity() was false and
+                                 * the browser blocked submit silently: the
+                                 * "Create the book" button did nothing, with
+                                 * no message anywhere.
+                                 *
+                                 * Invisible to the Pest tests, which POST
+                                 * directly and never run HTML5 validation.
+                                 */
+                                step="any"
                                 value={data.target_words}
                                 data-a="books:new:words"
                                 onChange={(event) => setData('target_words', event.target.value)}
@@ -533,6 +550,33 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             </span>
                         </label>
                     </div>
+
+                    {/*
+                     * The one Discover question, in this genre's own words.
+                     *
+                     * Asked here because the moment somebody has just chosen
+                     * "Cookbook" is the moment "What ties these recipes
+                     * together?" is easiest to answer. Optional — it is also
+                     * the moment somebody wants to get on with it, and the
+                     * same question waits in the guided view.
+                     */}
+                    <label className="mt-5 block">
+                        <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
+                            {chosen?.questions?.premise ?? 'What is it about?'}
+                        </span>
+                        <textarea
+                            rows={2}
+                            value={data.premise}
+                            data-a="books:new:premise"
+                            placeholder="A sentence is enough — or skip it and come back."
+                            onChange={(event) => setData('premise', event.target.value)}
+                            className="w-full resize-y rounded-control border border-border-input px-3 py-2 text-[13.5px] leading-relaxed focus:border-brand-primary focus:ring-0"
+                        />
+                        <span className="mt-1 block text-[10.5px] text-text-secondary">
+                            This is what names your chapters later, and what the editors
+                            read the book against.
+                        </span>
+                    </label>
 
                     <p className="mt-5 mb-2 text-[12.5px] font-semibold text-text-primary">
                         How much help do you want?
