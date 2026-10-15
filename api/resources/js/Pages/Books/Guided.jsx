@@ -157,6 +157,42 @@ export default function Guided({ book, journey: initial }) {
                     </section>
                 )}
 
+                {/*
+                 * Coaching, when the author asked for it.
+                 *
+                 * Empty unless the assistance level is "Coach me", which is
+                 * what makes that choice mean something. Every note names
+                 * the number it noticed, so none of them is encouragement.
+                 */}
+                {journey.coaching.length > 0 && (
+                    <section className="mt-6 rounded-panel border border-border-default bg-bg-surface p-5">
+                        <h2 className="text-[15px] font-semibold text-text-primary">
+                            What I notice
+                        </h2>
+                        <p className="mt-0.5 text-[11.5px] text-text-secondary">
+                            From the manuscript as it stands. Nothing here reads your prose —
+                            the editorial agents do that, when you ask them to.
+                        </p>
+
+                        <ul className="mt-3.5 divide-y divide-border-divider">
+                            {journey.coaching.map((note) => (
+                                <li
+                                    key={note.key}
+                                    data-a={`guided:coach:${note.key}`}
+                                    className="py-2.5"
+                                >
+                                    <p className="text-[13.5px] font-medium text-text-primary">
+                                        {note.note}
+                                    </p>
+                                    <p className="mt-0.5 text-[12px] leading-relaxed text-text-secondary">
+                                        {note.detail}
+                                    </p>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+
                 {/* What exists, counted from the manuscript. */}
                 <section className="mt-6 grid gap-3 sm:grid-cols-3">
                     <Figure label="Words" value={progress.words.toLocaleString()} />

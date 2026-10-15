@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Journey\BookType;
+use App\Journey\Coach;
 use App\Journey\OutlineBuilder;
 use App\Journey\OutlineImporter;
 use App\Models\Book;
@@ -27,6 +28,7 @@ class JourneyController extends Controller
     public function __construct(
         private readonly OutlineBuilder $outliner,
         private readonly OutlineImporter $importer,
+        private readonly Coach $coach,
     ) {}
 
     public function show(Book $book): JsonResponse
@@ -200,6 +202,18 @@ class JourneyController extends Controller
                 'target' => $book->target_words,
             ],
             'next' => $this->nextAction($book, $chapters, $written),
+            /*
+             * Coaching, but only for an author who asked for it.
+             *
+             * This is what makes the assistance level more than a stored
+             * string: choosing "Coach me" changes what the screen says, and
+             * choosing "I write" leaves it silent. Free and computed from
+             * the manuscript — see Coach for why it does not call a
+             * provider.
+             */
+            'coaching' => $book->assistance === 'coach'
+                ? $this->coach->forBook($book)
+                : [],
             // Every way in, with the honest answer about which work today.
             'starting_methods' => collect(config('startingmethods'))
                 ->map(fn (array $method, string $key) => array_merge(

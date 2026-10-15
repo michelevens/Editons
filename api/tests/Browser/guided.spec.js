@@ -139,3 +139,24 @@ test.describe('guided journey', () => {
         expect(errors).toEqual([]);
     });
 });
+
+test.describe('coaching', () => {
+    test('appears when asked for and goes quiet when not', async ({ page }) => {
+        // The whole point of the assistance level: choosing it has to change
+        // what is on screen, with no other step.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/guided`);
+        await expectRendered(page);
+
+        await expectSurvives(page, () => page.click('[data-a="guided:assist:coach"]'));
+        await expect(page.getByRole('heading', { name: 'What I notice' })).toBeVisible();
+
+        await expectSurvives(page, () => page.click('[data-a="guided:assist:author_led"]'));
+        await expect(page.getByRole('heading', { name: 'What I notice' })).toBeHidden();
+
+        expect(errors).toEqual([]);
+    });
+});

@@ -108,8 +108,19 @@ Still open from the directive, in the order they are worth doing:
     not working is worse than one that says plainly it is not ready.
     Dictation needs a speech provider and a per-minute cost nobody has set;
     the interview needs a real provider behind the editorial seam.
-  - §5 assistance levels are stored and selectable but inert: coach does
-    not yet coach, collaborative does not yet draft.
+  - §5 assistance levels. `author_led` and `coach` are real: choosing
+    "Coach me" makes the guided screen show observations about the
+    manuscript, and choosing "I write" makes it silent. `collaborative`
+    is still inert — drafting passages needs a generative provider, which
+    is a provider decision rather than wiring.
+
+    Coaching is computed, not generated, and the reason is billing: an
+    editorial agent run costs credits, so coaching that called one each
+    time somebody paused would spend a balance without being asked. So it
+    compares the manuscript against itself and against the type's typical
+    shape — chapter balance, stubs, pace against a target the author set.
+    It cannot judge prose and never claims to; that is what the agents are
+    for, and they are run deliberately. See app/Journey/Coach.php.
   - §7 the Book Director needs manuscript memory first. An agent that sees
     one section cannot reason about a book.
   - §4 six more genres, and per-genre interview questions and publishing
