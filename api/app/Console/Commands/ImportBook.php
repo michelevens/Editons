@@ -95,6 +95,18 @@ class ImportBook extends Command
                 'journey_stage', 'assistance', 'started_with',
             ])));
 
+            /*
+             * Clear artwork the manuscript does not bring with it.
+             *
+             * firstOrNew matches on title, so re-importing into a row that
+             * once held a different book inherits its cover record — and the
+             * uploaded file is long gone, so every page load 404s on an
+             * image nobody can see. Observed on a real import.
+             */
+            if (! isset($data['cover'])) {
+                $book->cover = null;
+            }
+
             $book->save();
 
             // Replace rather than append: the JSON is the whole manuscript,
