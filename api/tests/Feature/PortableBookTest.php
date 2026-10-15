@@ -449,3 +449,33 @@ it('keeps what Markdown export loses', function () {
     expect($viaMarkdown->fresh()->sections()->where('type', 'part')->count())
         ->toBe(0, 'Markdown import has started keeping parts — update this test and the native format docs.');
 });
+
+it('declares the extensions it cannot run without', function () {
+    /*
+     * The bug this guards, found only in production.
+     *
+     * EPUB, DOCX and the .ecrivain format are all ZIP archives, and the
+     * deployed container did not have ext-zip. Every one of those exports
+     * returned "Class ZipArchive not found" while the whole local suite
+     * passed, because this machine's PHP has the extension and the
+     * builder had no reason to install it.
+     *
+     * composer.json now requires it, which is what makes the builder
+     * install it. This asserts the declaration stays, since removing it
+     * breaks production and nothing else.
+     */
+    $composer = json_decode(file_get_contents(base_path('composer.json')), true);
+
+    foreach (['ext-zip'] as $extension) {
+        // assertArrayHasKey, not toHaveKey: Pest's second argument is an
+        // expected VALUE, so the message would be compared against '*'.
+        $this->assertArrayHasKey(
+            $extension,
+            $composer['require'],
+            "composer.json does not require {$extension}, so a deployment may not have it.",
+        );
+    }
+
+    // And it is genuinely needed: these formats cannot be built without it.
+    expect(class_exists(ZipArchive::class))->toBeTrue();
+});
