@@ -307,3 +307,38 @@ Two consequences worth knowing:
   Two guard tests already check the billing table against reality; neither
   caught this, because both check formats and plans rather than whether
   anything debits a given label.
+
+
+---
+
+## ADR-0014 — Two Laravel services, and both need the same extensions
+
+`app.ecrivain.ai` and `api.ecrivain.ai` are **separate Railway services**
+running the same codebase: `ecrivain-app` and `ecrivain-api`. The browser
+talks to `ecrivain-app`, which proxies data calls to `ecrivain-api`.
+
+This cost most of an afternoon. EPUB, DOCX and the native `.ecrivain` export
+all returned `Class "ZipArchive" not found` in production. `composer.json`
+gained `ext-zip`, `RAILPACK_PHP_EXTENSIONS=zip` was set, the service was
+redeployed and `railway ssh -- php -m` reported `zip` present — and the
+failures continued, because every one of those fixes had been applied to
+`ecrivain-api` while the requests were being served by `ecrivain-app`.
+
+The signal that finally located it: a temporary diagnostic route deployed to
+`ecrivain-api` returned 404 when fetched through `app.ecrivain.ai`, after
+clearing the route cache. Code deployed to one service is not running on the
+other.
+
+So:
+
+- **Any build-level change — a PHP extension, a system package, an
+  environment variable that affects the build — must be applied to both
+  services.** A deploy to one is half a deploy.
+- `railway ssh` connects to whichever service is named, and its `php -m` says
+  nothing about the other one.
+- When production behaves differently from local and a fix appears not to
+  take, check *which service* is answering before assuming the fix is wrong.
+
+The underlying reason none of this was caught earlier is that the local test
+suite runs on a machine whose PHP has `ext-zip`. A missing extension is
+invisible to every test that is not run against the deployed container.
