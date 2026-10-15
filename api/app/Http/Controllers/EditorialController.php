@@ -8,6 +8,7 @@ use App\Editorial\EditorialAgent;
 use App\Editorial\ManuscriptMemory;
 use App\Editorial\ReviewRunner;
 use App\Editorial\SuggestionApplier;
+use App\Journey\Coach;
 use App\Models\Book;
 use App\Models\EditorialFinding;
 use App\Models\ManuscriptSection;
@@ -20,6 +21,7 @@ class EditorialController extends Controller
         private readonly ReviewRunner $runner,
         private readonly Entitlements $entitlements,
         private readonly BookDirector $director,
+        private readonly Coach $coach,
     ) {}
 
     /**
@@ -96,7 +98,27 @@ class EditorialController extends Controller
     {
         $this->authorize('view', $section);
 
-        return response()->json(['findings' => $this->findingsFor($section)]);
+        return response()->json([
+            'findings' => $this->findingsFor($section),
+            /*
+             * Coaching for the chapter the author is actually in.
+             *
+             * Coach::forSection() was written and tested and nothing called
+             * it: the book-level notes shipped to the guided screen while the
+             * per-chapter ones, which are the only kind useful *while
+             * writing*, reached nobody.
+             *
+             * Carried on the findings response rather than its own endpoint,
+             * because the editor already fetches this every time a chapter
+             * opens. A second request would make the same trip for data this
+             * one can hand over for nothing.
+             *
+             * Still gated on the assistance level, so "I write" stays silent.
+             */
+            'coaching' => $section->book->assistance === 'coach'
+                ? $this->coach->forSection($section)
+                : [],
+        ]);
     }
 
     /**

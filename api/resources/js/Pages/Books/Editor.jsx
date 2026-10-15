@@ -9,6 +9,7 @@ import AccessibilityPanel from '@/Components/Studio/AccessibilityPanel';
 import CommentsPanel from '@/Components/Studio/CommentsPanel';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import CreditStrip from '@/Components/Studio/CreditStrip';
+import CoachStrip from '@/Components/Studio/CoachStrip';
 import CoverPanel from '@/Components/Studio/CoverPanel';
 import EditionsPanel from '@/Components/Studio/EditionsPanel';
 import LaunchPanel from '@/Components/Studio/LaunchPanel';
@@ -47,6 +48,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const [bookWords, setBookWords] = useState(book.word_count);
     const [versions, setVersions] = useState([]);
     const [findings, setFindings] = useState([]);
+
+    // Observations about the chapter in front of the author, for somebody who
+    // asked to be coached. Empty for everybody else.
+    const [coaching, setCoaching] = useState([]);
     const [library, setLibrary] = useState(sources ?? []);
 
     // The balance the server returned with the last review, handed to the
@@ -83,6 +88,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
         setVersions(v.data.versions);
         setFindings(f.data.findings);
+
+        // Arrives with the findings rather than on its own request: the
+        // editor already makes this call every time a chapter opens.
+        setCoaching(f.data.coaching ?? []);
     }, [section?.id]);
 
     useEffect(() => {
@@ -574,6 +583,15 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
                                 <section className="manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface max-xl:pb-12">
                                     <ManuscriptEditor section={section} onSaved={onSaved} />
+
+                                    {/* Under the manuscript, where somebody
+                                        writing will meet it without going
+                                        looking. Empty unless they asked to be
+                                        coached. */}
+                                    <CoachStrip
+                                        notes={coaching}
+                                        onDismiss={() => setCoaching([])}
+                                    />
                                 </section>
 
                                 <div className="flex min-h-0 max-xl:hidden">

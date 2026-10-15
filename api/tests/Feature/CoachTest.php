@@ -5,6 +5,7 @@ use App\Journey\Coach;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use Illuminate\Support\Facades\File;
 
 /**
  * Coaching.
@@ -332,4 +333,84 @@ it('says nothing when a finished book is near its target', function () {
 
     expect(collect(app(Coach::class)->forBook($book->fresh()))->pluck('key'))
         ->not->toContain('short_of_target');
+});
+
+// --- Coaching while writing ---------------------------------------------
+
+it('coaches the chapter the author is actually in', function () {
+    // forSection() was written, tested, and had no caller for its whole
+    // life: the book-level notes shipped while the per-chapter ones — the
+    // only kind useful while writing — reached nobody.
+    $user = User::factory()->create();
+    $book = coachedBook($user);
+
+    foreach (range(1, 5) as $n) {
+        chapter($book, "Chapter {$n}", 2000, $n * 100);
+    }
+
+    $stub = chapter($book, 'Barely There', 40, 600);
+
+    $coaching = $this->actingAs($user)
+        ->getJson("/sections/{$stub->id}/findings")
+        ->assertOk()
+        ->json('coaching');
+
+    expect(collect($coaching)->pluck('key'))->toContain('stub');
+});
+
+it('stays silent in the editor for an author who did not ask', function () {
+    $user = User::factory()->create();
+    $book = coachedBook($user, ['assistance' => 'author_led']);
+    $section = chapter($book, 'Empty', 0, 100);
+
+    expect($this->actingAs($user)->getJson("/sections/{$section->id}/findings")->json('coaching'))
+        ->toBe([]);
+});
+
+it('says nothing about an ordinary chapter while writing it', function () {
+    // The case that decides whether this is help or noise.
+    $user = User::factory()->create();
+    $book = coachedBook($user);
+
+    foreach (range(1, 5) as $n) {
+        chapter($book, "Chapter {$n}", 1500, $n * 100);
+    }
+
+    $ordinary = $book->sections()->where('title', 'Chapter 3')->first();
+
+    expect($this->actingAs($user)->getJson("/sections/{$ordinary->id}/findings")->json('coaching'))
+        ->toBe([]);
+});
+
+it('costs nothing to coach a chapter', function () {
+    $user = User::factory()->subscribed('studio', 100)->create();
+    $book = coachedBook($user);
+    $section = chapter($book, 'A Chapter', 40, 100);
+
+    $this->actingAs($user)->getJson("/sections/{$section->id}/findings")->assertOk();
+
+    expect(app(CreditLedger::class)->balanceFor($user))->toBe(100);
+});
+
+it('keeps every Coach method wired to something', function () {
+    /*
+     * The recurring failure this guards.
+     *
+     * Four times in this codebase a method has been written, tested, and
+     * never called: forSection(), the journey endpoints, Quick Start's
+     * route, and the book type's agent list. A unit test passes either way,
+     * which is exactly why it keeps happening.
+     */
+    $app = collect(File::allFiles(app_path()))
+        ->reject(fn ($file) => str_contains($file->getPathname(), 'Journey'.DIRECTORY_SEPARATOR.'Coach.php'))
+        ->map(fn ($file) => $file->getContents())
+        ->implode("\n");
+
+    foreach (['forBook', 'forSection'] as $method) {
+        $this->assertStringContainsString(
+            "->{$method}(",
+            $app,
+            "Coach::{$method}() has no caller, so nobody ever sees what it produces.",
+        );
+    }
 });

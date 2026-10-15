@@ -338,3 +338,15 @@ promises more than the code does, a default nobody tried.
   validation. Only a browser can catch this class of bug, so the guard is a
   Playwright test that walks every genre and asserts the form is submittable;
   it was verified by restoring the old `step` and watching it fail.
+
+- **`Coach::forSection()` was written, tested, and never called.** The
+  book-level notes reached the guided screen while the per-chapter ones — the
+  only kind useful *while writing* — reached nobody. It now rides on the
+  findings response the editor already fetches when a chapter opens, and
+  surfaces as a one-line strip under the manuscript.
+
+  That is the fourth time in this work a method or route has shipped with no
+  consumer: the journey endpoints, Quick Start's route, the book type's agent
+  list, and this. A unit test passes either way, which is exactly why it keeps
+  happening. `CoachTest` now asserts every public Coach method has a caller in
+  `app/`, verified by removing the wiring and watching it fail.
