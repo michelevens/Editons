@@ -1,4 +1,4 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 /**
@@ -148,8 +148,21 @@ export default function QuickStart({ recent }) {
                 </div>
 
                 {auth?.user && (
-                    <p className="mt-6 text-[11px] text-text-secondary">
-                        Signed in as {auth.user.email}
+                    <p className="mt-6 flex flex-wrap items-center gap-1.5 text-[11px] text-text-secondary">
+                        <span>Signed in as {auth.user.email}</span>
+
+                        {/* This screen has no studio header, so without this
+                            a newly registered author — who lands here — had
+                            no way to sign out at all. */}
+                        <Link
+                            as="button"
+                            method="post"
+                            href={route('logout')}
+                            data-a="quick:signout"
+                            className="font-semibold text-brand-primary hover:underline"
+                        >
+                            Sign out
+                        </Link>
                     </p>
                 )}
             </div>

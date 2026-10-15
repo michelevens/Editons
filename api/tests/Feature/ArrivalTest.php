@@ -98,6 +98,14 @@ it('shares nothing about an account to somebody signed out', function () {
     expect($auth['account'])->toBeNull();
 });
 
+it('lets a newly registered author sign out of the screen they land on', function () {
+    // Quick Start has no studio header, and it is exactly where registration
+    // sends somebody — so without its own link a new account had no way out.
+    $quick = file_get_contents(resource_path('js/Pages/Books/QuickStart.jsx'));
+
+    $this->assertStringContainsString("route('logout')", $quick, 'Quick Start offers no way to sign out.');
+});
+
 it('keeps the menu reachable from the studio header', function () {
     // The regression this guards: the avatar was markup with no behaviour,
     // and sign out was unreachable without typing a URL. Asserted against

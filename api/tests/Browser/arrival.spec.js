@@ -29,6 +29,11 @@ test.describe('arrival', () => {
         await expect(page.getByText('What are you writing?')).toBeVisible();
         await expect(page.getByText("You're logged in!")).toHaveCount(0);
 
+        // And a way back out. This screen has no studio header, so a new
+        // account could not sign out from the page registration sends it to.
+        await page.click('[data-a="quick:signout"]');
+        await page.waitForURL(/\/login$/);
+
         expect(errors).toEqual([]);
     });
 
