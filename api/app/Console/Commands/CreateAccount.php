@@ -22,7 +22,7 @@ class CreateAccount extends Command
 {
     protected $signature = 'account:create
         {email : The address to sign in with}
-        {--name= : The display name}
+        {--name= : The display name, or set ACCOUNT_NAME to avoid shell quoting}
         {--plan=free : The plan to put them on}
         {--show-password : Print the generated password once}';
 
@@ -46,7 +46,17 @@ class CreateAccount extends Command
         // whatever machine ran the command.
         $password = Str::password(20, symbols: false);
 
-        $user->name = $this->option('name') ?: ($user->name ?: 'Author');
+        /*
+         * The name can come from the environment.
+         *
+         * `railway ssh -- php artisan ...` re-parses the command in a remote
+         * shell, which splits --name="Nageley J. Michel, APRN" on its spaces
+         * and fails with "too many arguments". An env var crosses that
+         * boundary intact.
+         */
+        $name = $this->option('name') ?: env('ACCOUNT_NAME');
+
+        $user->name = $name ?: ($user->name ?: 'Author');
         $user->password = Hash::make($password);
         $user->plan = $this->option('plan');
 
