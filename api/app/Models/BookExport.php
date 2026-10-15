@@ -23,6 +23,7 @@ class BookExport extends Model
     /** format => [label, extension, description]. */
     public const FORMATS = [
         'epub' => ['EPUB', 'epub', 'For Kindle, Apple Books, Kobo and most stores'],
+        'pdf' => ['PDF', 'pdf', 'A real PDF, paginated at your trim size'],
         /*
          * Print-ready HTML, not a PDF.
          *

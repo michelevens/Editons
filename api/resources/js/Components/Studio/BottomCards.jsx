@@ -64,12 +64,14 @@ function ExportCard({ onOpen }) {
         >
             <div className="p-3">
                 <p className="text-[11.5px] leading-relaxed text-text-secondary">
-                    EPUB 3, Word, Markdown and print-ready HTML, generated from the
-                    manuscript as it stands.
+                    PDF, EPUB 3, Word, Markdown and HTML, generated from the
+                    manuscript as it stands — with its title page, contents and
+                    parts.
                 </p>
 
                 <ul className="mt-2.5 space-y-1">
                     {[
+                        ['PDF', 'paginated at your trim size'],
                         ['EPUB 3', 'Kindle, Apple Books, Kobo'],
                         ['Word', 'editors and co-authors'],
                         ['Markdown', 'plain text, structure kept'],
@@ -91,8 +93,8 @@ function ExportCard({ onOpen }) {
                 </ul>
 
                 <p className="mt-2.5 text-[10.5px] leading-relaxed text-text-secondary">
-                    A real PDF renderer is still to come — the print-ready file is HTML
-                    paginated at your trim size, which a browser prints to PDF.
+                    Rendered, not typeset: good enough for a reader, a reviewer or a
+                    print service, and not a substitute for a designer.
                 </p>
             </div>
         </Card>

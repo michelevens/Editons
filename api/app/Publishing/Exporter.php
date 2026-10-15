@@ -5,6 +5,9 @@ namespace App\Publishing;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\ManuscriptSection;
+use Dompdf\Dompdf;
+use Dompdf\Options;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -54,6 +57,7 @@ class Exporter
         try {
             $path = match ($format) {
                 'epub' => $this->epub($book, $sections, $export),
+                'pdf' => $this->pdf($book, $sections, $export),
                 'pdf_print' => $this->printable($book, $sections, $export),
                 'docx' => $this->docx($book, $sections, $export),
                 'md' => $this->markdown($book, $sections, $export),
@@ -83,7 +87,7 @@ class Exporter
      * A part is a container holding chapters, so exporting it would emit its
      * title twice — once as the part and once as the chapter beneath it.
      *
-     * @return \Illuminate\Support\Collection<int, ManuscriptSection>
+     * @return Collection<int, ManuscriptSection>
      */
     private function chapters(Book $book)
     {
@@ -93,6 +97,88 @@ class Exporter
             ->reject(fn (ManuscriptSection $section) => $section->isContainer())
             ->filter(fn (ManuscriptSection $section) => trim($section->plainText()) !== '')
             ->values();
+    }
+
+    /**
+     * Everything that belongs in the finished book, parts included.
+     *
+     * chapters() drops containers, because a part has no prose of its own
+     * and every renderer below wants text to lay out. That is right for the
+     * body and wrong for the book: an author who arranged twenty chapters
+     * into five parts got an export with no parts in it, and no way to tell
+     * where one ended and the next began.
+     *
+     * A part survives here as a title with no body — a part-title page,
+     * which is what it is in a printed book.
+     */
+    private function structure(Book $book)
+    {
+        return $book->sections()
+            ->orderBy('position')
+            ->get()
+            ->filter(fn (ManuscriptSection $s) => $s->type === 'part'
+                || trim($s->plainText()) !== '')
+            ->values();
+    }
+
+    /**
+     * The table of contents, as a list of entries.
+     *
+     * Parts are depth 0 and everything else depth 1, so a renderer can
+     * indent without knowing anything about the binder.
+     *
+     * @return array<int, array{title: string, id: string, depth: int, part: bool}>
+     */
+    private function contents($sections): array
+    {
+        $entries = [];
+        $n = 0;
+
+        foreach ($sections as $section) {
+            $entries[] = [
+                'title' => $section->title,
+                'id' => 'sec-'.(++$n),
+                'depth' => $section->type === 'part' ? 0 : 1,
+                'part' => $section->type === 'part',
+            ];
+        }
+
+        return $entries;
+    }
+
+    /** The contents page, as HTML. */
+    private function contentsHtml(array $entries): string
+    {
+        if (count($entries) < 2) {
+            return '';
+        }
+
+        $items = '';
+
+        foreach ($entries as $entry) {
+            $class = $entry['part'] ? ' class="toc-part"' : '';
+            $items .= '<li'.$class.'><a href="#'.e($entry['id']).'">'
+                .e($entry['title']).'</a></li>'."\n";
+        }
+
+        return '<nav class="toc" id="contents"><h1>Contents</h1><ol>'."\n"
+            .$items.'</ol></nav>'."\n";
+    }
+
+    /**
+     * One section as HTML, with an anchor the contents can reach.
+     *
+     * A part renders as its title alone: it is a divider, not a chapter.
+     */
+    private function structuredHtml(ManuscriptSection $section, string $id): string
+    {
+        if ($section->type === 'part') {
+            return '<section class="part" id="'.e($id).'">'
+                .'<h1 class="part-title">'.e($section->title).'</h1></section>'."\n";
+        }
+
+        return '<section id="'.e($id).'">'."\n"
+            .$this->chapterHtml($section)."\n".'</section>'."\n";
     }
 
     /**
@@ -160,7 +246,7 @@ class Exporter
         return "{$slug}-{$export->id}.".$export->extension();
     }
 
-    /** @param \Illuminate\Support\Collection<int, ManuscriptSection> $sections */
+    /** @param Collection<int, ManuscriptSection> $sections */
     private function markdown(Book $book, $sections, BookExport $export): string
     {
         $parts = ["# {$book->title}"];
@@ -186,16 +272,75 @@ class Exporter
         return $this->put($book, $export, implode("\n\n", $parts)."\n");
     }
 
-    /** @param \Illuminate\Support\Collection<int, ManuscriptSection> $sections */
+    /** @param Collection<int, ManuscriptSection> $sections */
     private function singleHtml(Book $book, $sections, BookExport $export): string
     {
-        $body = '';
+        // The whole book, not just its prose: a title page, a contents list,
+        // and the parts the binder arranged the chapters into.
+        $sections = $this->structure($book);
+        $entries = $this->contents($sections);
 
-        foreach ($sections as $section) {
-            $body .= '<section>'."\n".$this->chapterHtml($section)."</section>\n";
+        $body = $this->titlePageHtml($book).$this->contentsHtml($entries);
+
+        foreach ($sections as $i => $section) {
+            $body .= $this->structuredHtml($section, $entries[$i]['id']);
         }
 
         return $this->put($book, $export, $this->page($book, $body, standalone: true));
+    }
+
+    /**
+     * A real PDF.
+     *
+     * The product priced and named a Print PDF for a long time while
+     * producing an HTML file with a .pdf extension, because no renderer was
+     * installed. dompdf now renders the same print-ready HTML the
+     * printable() path builds, so the two stay in step: fix the layout once
+     * and both improve.
+     *
+     * dompdf is not a typesetting engine and will not match InDesign. It
+     * paginates, honours the trim size, and produces a file a press or a
+     * reader will accept, which is the gap that mattered.
+     */
+    private function pdf(Book $book, $sections, BookExport $export): string
+    {
+        $layout = $book->layout();
+        [$width, $height] = $this->trimInches($layout['trim']);
+
+        $html = $this->buildPrintable($book);
+
+        $dompdf = new Dompdf(new Options([
+            // No remote fetching: a manuscript is untrusted input, and a
+            // renderer that follows URLs in it is a request forgery waiting
+            // to happen.
+            'isRemoteEnabled' => false,
+            'isHtml5ParserEnabled' => true,
+            'defaultMediaType' => 'print',
+            'chroot' => storage_path('app'),
+        ]));
+
+        $dompdf->setPaper([0, 0, $width * 72, $height * 72]);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->render();
+
+        return $this->put($book, $export, (string) $dompdf->output());
+    }
+
+    /** The title page: what a reader opens to. */
+    private function titlePageHtml(Book $book): string
+    {
+        $html = '<section class="title-page">'."\n"
+            .'<h1 class="book-title">'.e($book->title).'</h1>'."\n";
+
+        if ($book->subtitle) {
+            $html .= '<p class="book-subtitle">'.e($book->subtitle).'</p>'."\n";
+        }
+
+        if ($book->author_name) {
+            $html .= '<p class="book-author">'.e($book->author_name).'</p>'."\n";
+        }
+
+        return $html.'</section>'."\n";
     }
 
     /**
@@ -207,9 +352,18 @@ class Exporter
      * own trim size, which a browser's Print to PDF turns into the real
      * thing. The format is labelled accordingly rather than overpromising.
      *
-     * @param \Illuminate\Support\Collection<int, ManuscriptSection> $sections
+     * @param  Collection<int, ManuscriptSection>  $sections
      */
     private function printable(Book $book, $sections, BookExport $export): string
+    {
+        return $this->put($book, $export, $this->buildPrintable($book));
+    }
+
+    /**
+     * Print-ready HTML: the trim size, the margins, the type, and the
+     * whole book including its parts and contents.
+     */
+    private function buildPrintable(Book $book): string
     {
         $layout = $book->layout();
         [$width, $height] = $this->trimInches($layout['trim']);
@@ -232,6 +386,18 @@ class Exporter
         p { margin: 0; text-indent: 1.5em; text-align: justify; hyphens: auto; }
         h1 + p, h2 + p, blockquote p { text-indent: 0; }
         img { max-width: 100%; }
+        .title-page { text-align: center; page-break-after: always; padding-top: 25%; }
+        .book-title { font-size: 2em; margin: 0 0 .4em; page-break-before: avoid; }
+        .book-subtitle { font-style: italic; text-indent: 0; margin: 0 0 3em; }
+        .book-author { text-indent: 0; letter-spacing: .08em; text-transform: uppercase; }
+        .toc { page-break-after: always; }
+        .toc h1 { page-break-before: avoid; }
+        .toc ol { list-style: none; padding: 0; }
+        .toc li { margin: .3em 0 .3em 1.2em; text-indent: 0; }
+        .toc li.toc-part { margin-left: 0; font-weight: 700; margin-top: 1em; }
+        .toc a { text-decoration: none; color: inherit; }
+        .part { page-break-before: always; text-align: center; padding-top: 30%; }
+        .part-title { font-size: 1.6em; letter-spacing: .04em; page-break-before: avoid; }
         CSS;
 
         if ($layout['dropcap']) {
@@ -242,13 +408,17 @@ class Exporter
             $css .= "\n@page { @top-center { content: '".addslashes($book->title)."'; font-size: 9pt; } }";
         }
 
-        $body = '';
+        // Parts, a title page and a contents list, like the HTML export.
+        $sections = $this->structure($book);
+        $entries = $this->contents($sections);
 
-        foreach ($sections as $section) {
-            $body .= $this->chapterHtml($section);
+        $body = $this->titlePageHtml($book).$this->contentsHtml($entries);
+
+        foreach ($sections as $i => $section) {
+            $body .= $this->structuredHtml($section, $entries[$i]['id']);
         }
 
-        return $this->put($book, $export, $this->page($book, $body, standalone: true, css: $css));
+        return $this->page($book, $body, standalone: true, css: $css);
     }
 
     /**
@@ -258,7 +428,7 @@ class Exporter
      * prompts a repair dialog, which is where an author stops trusting the
      * export.
      *
-     * @param \Illuminate\Support\Collection<int, ManuscriptSection> $sections
+     * @param  Collection<int, ManuscriptSection>  $sections
      */
     private function docx(Book $book, $sections, BookExport $export): string
     {
@@ -340,7 +510,7 @@ class Exporter
     /**
      * A valid EPUB 3 container.
      *
-     * @param \Illuminate\Support\Collection<int, ManuscriptSection> $sections
+     * @param  Collection<int, ManuscriptSection>  $sections
      */
     private function epub(Book $book, $sections, BookExport $export): string
     {
@@ -354,13 +524,19 @@ class Exporter
         $spine = '';
         $nav = '';
 
+        // The whole book, parts included: a reader opening the contents of
+        // an EPUB should see the same structure the binder shows.
+        $sections = $this->structure($book);
+
         foreach ($sections as $index => $section) {
             $id = 'ch'.($index + 1);
             $name = "OEBPS/{$id}.xhtml";
 
             $files[$name] = $this->xhtml(
                 $section->title,
-                $this->chapterHtml($section),
+                $section->type === 'part'
+                    ? '<section class="part"><h1 class="part-title">'.e($section->title).'</h1></section>'
+                    : $this->chapterHtml($section),
                 $language,
             );
 
@@ -449,6 +625,17 @@ class Exporter
                font-family: Georgia, 'Times New Roman', serif; line-height: 1.6; }
         h1 { font-size: 1.8em; margin: 2em 0 1em; }
         img { max-width: 100%; height: auto; }
+        .title-page { text-align: center; margin: 4em 0 5em; }
+        .book-title { font-size: 2.4em; margin: 0 0 .3em; }
+        .book-subtitle { font-size: 1.15em; font-style: italic; margin: 0 0 2em; }
+        .book-author { font-size: 1em; letter-spacing: .08em; text-transform: uppercase; }
+        .toc { margin: 0 0 4em; }
+        .toc ol { list-style: none; padding: 0; }
+        .toc li { margin: .35em 0 .35em 1.5em; }
+        .toc li.toc-part { margin-left: 0; font-weight: 700; margin-top: 1.2em; }
+        .toc a { text-decoration: none; color: inherit; }
+        .part { text-align: center; margin: 5em 0 3em; }
+        .part-title { font-size: 1.6em; letter-spacing: .04em; }
         CSS;
 
         return '<!doctype html>'."\n".'<html lang="'.e($language).'">'."\n"
