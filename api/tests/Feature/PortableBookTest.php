@@ -1,5 +1,7 @@
 <?php
 
+use App\Import\MarkdownExporter;
+use App\Import\MarkdownImporter;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Models\User;
@@ -389,4 +391,61 @@ it('still enforces the plan limit on import', function () {
 
 it('requires signing in to import', function () {
     $this->post('/books/import')->assertRedirect('/login');
+});
+
+it('keeps what Markdown export loses', function () {
+    /*
+     * The measurement that justifies a native format.
+     *
+     * Markdown is a fine reading format and a lossy manuscript format: it
+     * splits on every heading, so a chapter with h2 sections becomes several
+     * sections, and the binder tree disappears entirely. Measured on a real
+     * book, 29 sections became 143 and all five parts were lost.
+     *
+     * This asserts the difference rather than describing it, so a future
+     * change to either path has to keep the native format the lossless one.
+     */
+    $user = User::factory()->create();
+    $book = portableBook($user);
+
+    $part = portableSection($book, 'part', 'Part One', 10);
+
+    $chapter = $book->sections()->create([
+        'type' => 'chapter',
+        'title' => 'A Chapter With Sections',
+        'position' => 20,
+        'content' => ['type' => 'doc', 'content' => [
+            ['type' => 'heading', 'attrs' => ['level' => 1], 'content' => [['type' => 'text', 'text' => 'A Chapter With Sections']]],
+            ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Opening prose for the chapter.']]],
+            ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => [['type' => 'text', 'text' => '1.1 A Section']]],
+            ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'More prose beneath the section heading.']]],
+        ]],
+    ]);
+
+    $chapter->forceFill([
+        'parent_id' => $part->id,
+        'word_count' => ManuscriptSection::countWords($chapter->content),
+    ])->save();
+
+    $book->refresh()->recalculateWordCount();
+    $original = $book->fresh();
+
+    // Native: identical.
+    $native = roundTrip($original);
+
+    expect($native->sections()->count())->toBe($original->sections()->count())
+        ->and($native->sections()->where('type', 'part')->count())->toBe(1)
+        ->and($native->sections()->whereNotNull('parent_id')->count())->toBe(1)
+        ->and($native->word_count)->toBe($original->word_count);
+
+    // Markdown: structurally lossy. Asserted as a known limitation, not a
+    // bug — it is why the native format exists.
+    $markdown = app(MarkdownExporter::class)->book($original);
+
+    $viaMarkdown = $user->books()->create(['title' => 'Via Markdown']);
+    $viaMarkdown->sections()->delete();
+    app(MarkdownImporter::class)->import($viaMarkdown, $markdown, $user->id);
+
+    expect($viaMarkdown->fresh()->sections()->where('type', 'part')->count())
+        ->toBe(0, 'Markdown import has started keeping parts — update this test and the native format docs.');
 });
