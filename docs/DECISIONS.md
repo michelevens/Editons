@@ -342,3 +342,49 @@ So:
 The underlying reason none of this was caught earlier is that the local test
 suite runs on a machine whose PHP has `ext-zip`. A missing extension is
 invisible to every test that is not run against the deployed container.
+
+
+---
+
+## ADR-0015 — The printed book is typeset, not printed from a web page
+
+The first real PDF (dompdf over the print-ready HTML) was a PDF but not a
+book. It was set in Times, because dompdf only knows fonts it has been
+given; it had no page numbers or running heads, because dompdf ignores
+`@page` margin boxes; and chapters ran on from one another, because
+`h1:first-of-type` matched every chapter's heading.
+
+`App\Publishing\PrintBook` now owns the printed interior, for both the PDF
+and the print-ready HTML:
+
+- **Type.** EB Garamond and Source Sans 3 ship in `api/resources/fonts`,
+  both under the SIL Open Font License (texts alongside), and are
+  registered with dompdf at render time and subset into the PDF. dompdf's
+  metrics cache lives in `storage/fonts`, which is gitignored.
+- **Book structure.** Half-title, title page, copyright page, dedication,
+  contents with page numbers, part pages on the recto with a blank verso,
+  chapter openers with a label and small-capped opening words, running
+  heads (book on the verso, chapter on the recto) and folios counted from
+  the first page of the text.
+- **Two passes.** Every block starts a page, so its length cannot change
+  between passes. Pass one measures where each block lands; the blanks and
+  contents numbers are computed from that; pass two renders and records
+  where each block actually landed. A test asserts the two agree, which is
+  what keeps the contents honest.
+- **Hyphenation.** `vanderlee/syllable` (MIT, TeX patterns for en, fr, es,
+  de, pt) inserts soft hyphens into running text. Justified type without
+  hyphenation opens rivers between the words. Headings and code are never
+  hyphenated; tags and entities are never touched.
+- **Line height.** dompdf multiplies CSS line height by the font's own
+  ascender-to-descender height. Garamond's is 1.3 em where Times' is 0.9, so
+  the PDF divides by the measured factor. The print HTML keeps the author's
+  leading as written, since browsers do not need the correction.
+
+Known limits, all dompdf's: margins are symmetric rather than mirrored for
+a gutter (it parses `@page :left/:right` but only applies the base rule),
+there is no true small-caps face (spaced capitals stand in), and negative
+`text-indent` is ignored, so reference lists cannot hang. A long book takes
+seconds to render, twice; a 100k-word book will want to move to a queued
+job. If print quality needs to go further, the next step is a typesetting
+engine (WeasyPrint or Paged.js in headless Chromium) behind the same
+`PrintBook` interface, not more CSS.

@@ -5,8 +5,6 @@ namespace App\Publishing;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\ManuscriptSection;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -27,7 +25,10 @@ use ZipArchive;
  */
 class Exporter
 {
-    public function __construct(private readonly DocumentRenderer $renderer) {}
+    public function __construct(
+        private readonly DocumentRenderer $renderer,
+        private readonly PrintBook $print,
+    ) {}
 
     /**
      * Generate one file and record it.
@@ -290,40 +291,17 @@ class Exporter
     }
 
     /**
-     * A real PDF.
+     * A real PDF, typeset as a printed book.
      *
-     * The product priced and named a Print PDF for a long time while
-     * producing an HTML file with a .pdf extension, because no renderer was
-     * installed. dompdf now renders the same print-ready HTML the
-     * printable() path builds, so the two stay in step: fix the layout once
-     * and both improve.
-     *
-     * dompdf is not a typesetting engine and will not match InDesign. It
-     * paginates, honours the trim size, and produces a file a press or a
-     * reader will accept, which is the gap that mattered.
+     * dompdf renders it; PrintBook does the book design. The print-ready
+     * HTML is made from the same pages, so fix the layout once and both
+     * improve.
      */
     private function pdf(Book $book, $sections, BookExport $export): string
     {
-        $layout = $book->layout();
-        [$width, $height] = $this->trimInches($layout['trim']);
-
-        $html = $this->buildPrintable($book);
-
-        $dompdf = new Dompdf(new Options([
-            // No remote fetching: a manuscript is untrusted input, and a
-            // renderer that follows URLs in it is a request forgery waiting
-            // to happen.
-            'isRemoteEnabled' => false,
-            'isHtml5ParserEnabled' => true,
-            'defaultMediaType' => 'print',
-            'chroot' => storage_path('app'),
-        ]));
-
-        $dompdf->setPaper([0, 0, $width * 72, $height * 72]);
-        $dompdf->loadHtml($html, 'UTF-8');
-        $dompdf->render();
-
-        return $this->put($book, $export, (string) $dompdf->output());
+        return $this->put($book, $export, $this->print->pdf(
+            $book, $this->structure($book), $this->languageCode($book->language),
+        ));
     }
 
     /** The title page: what a reader opens to. */
@@ -344,81 +322,16 @@ class Exporter
     }
 
     /**
-     * A print-ready interior as HTML with @page rules.
-     *
-     * Not a binary PDF: producing one needs a headless renderer that is not
-     * installed here, and shipping a file named .pdf that is not a PDF would
-     * be rejected by every store. This is the printable source at the book's
-     * own trim size, which a browser's Print to PDF turns into the real
-     * thing. The format is labelled accordingly rather than overpromising.
+     * A print-ready interior as HTML with @page rules: the PDF's pages,
+     * for an author who would rather print from a browser.
      *
      * @param  Collection<int, ManuscriptSection>  $sections
      */
     private function printable(Book $book, $sections, BookExport $export): string
     {
-        return $this->put($book, $export, $this->buildPrintable($book));
-    }
-
-    /**
-     * Print-ready HTML: the trim size, the margins, the type, and the
-     * whole book including its parts and contents.
-     */
-    private function buildPrintable(Book $book): string
-    {
-        $layout = $book->layout();
-        [$width, $height] = $this->trimInches($layout['trim']);
-
-        $margin = match ($layout['margins']) {
-            'Narrow' => '0.5in',
-            'Wide' => '1in',
-            default => '0.75in',
-        };
-
-        $font = $layout['font'] === 'sans'
-            ? "'Helvetica Neue', Arial, sans-serif"
-            : "'Source Serif 4', Georgia, serif";
-
-        $css = <<<CSS
-        @page { size: {$width}in {$height}in; margin: {$margin}; }
-        body { font-family: {$font}; font-size: {$layout['size']}pt; line-height: {$layout['leading']}; }
-        h1 { page-break-before: always; font-size: 1.8em; margin: 0 0 1em; }
-        h1:first-of-type { page-break-before: avoid; }
-        p { margin: 0; text-indent: 1.5em; text-align: justify; hyphens: auto; }
-        h1 + p, h2 + p, blockquote p { text-indent: 0; }
-        img { max-width: 100%; }
-        .title-page { text-align: center; page-break-after: always; padding-top: 25%; }
-        .book-title { font-size: 2em; margin: 0 0 .4em; page-break-before: avoid; }
-        .book-subtitle { font-style: italic; text-indent: 0; margin: 0 0 3em; }
-        .book-author { text-indent: 0; letter-spacing: .08em; text-transform: uppercase; }
-        .toc { page-break-after: always; }
-        .toc h1 { page-break-before: avoid; }
-        .toc ol { list-style: none; padding: 0; }
-        .toc li { margin: .3em 0 .3em 1.2em; text-indent: 0; }
-        .toc li.toc-part { margin-left: 0; font-weight: 700; margin-top: 1em; }
-        .toc a { text-decoration: none; color: inherit; }
-        .part { page-break-before: always; text-align: center; padding-top: 30%; }
-        .part-title { font-size: 1.6em; letter-spacing: .04em; page-break-before: avoid; }
-        CSS;
-
-        if ($layout['dropcap']) {
-            $css .= "\nh1 + p::first-letter { float: left; font-size: 3.2em; line-height: .85; padding: .05em .08em 0 0; }";
-        }
-
-        if ($layout['headers']) {
-            $css .= "\n@page { @top-center { content: '".addslashes($book->title)."'; font-size: 9pt; } }";
-        }
-
-        // Parts, a title page and a contents list, like the HTML export.
-        $sections = $this->structure($book);
-        $entries = $this->contents($sections);
-
-        $body = $this->titlePageHtml($book).$this->contentsHtml($entries);
-
-        foreach ($sections as $i => $section) {
-            $body .= $this->structuredHtml($section, $entries[$i]['id']);
-        }
-
-        return $this->page($book, $body, standalone: true, css: $css);
+        return $this->put($book, $export, $this->print->html(
+            $book, $this->structure($book), $this->languageCode($book->language),
+        ));
     }
 
     /**
@@ -662,16 +575,6 @@ class Exporter
             'English (UK)' => 'en-GB',
             default => 'en-US',
         };
-    }
-
-    /** @return array{0: float, 1: float} inches */
-    private function trimInches(string $trim): array
-    {
-        if (preg_match('/([\d.]+)\s*x\s*([\d.]+)/', $trim, $found)) {
-            return [(float) $found[1], (float) $found[2]];
-        }
-
-        return [6.0, 9.0];
     }
 
     private function put(Book $book, BookExport $export, string $contents): string
