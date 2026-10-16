@@ -26,7 +26,7 @@ function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
 
-export default function ManuscriptEditor({ section, onSaved }) {
+export default function ManuscriptEditor({ section, onSaved, autosave = true }) {
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
 
@@ -34,6 +34,9 @@ export default function ManuscriptEditor({ section, onSaved }) {
     // retrigger the effect that wires the editor up.
     const timer = useRef(null);
     const sectionId = useRef(section?.id);
+    const autosaveRef = useRef(autosave);
+
+    autosaveRef.current = autosave;
 
     const save = useCallback(
         async (json, reason = 'autosave') => {
@@ -59,24 +62,40 @@ export default function ManuscriptEditor({ section, onSaved }) {
 
     const editor = useEditor(
         {
+            // Tiptap 3 no longer re-renders on every transaction, so the
+            // toolbar's pressed states and block menu froze at whatever they
+            // were when something else last rendered: Bold worked, but never
+            // looked like it had.
+            shouldRerenderOnTransaction: true,
             extensions: [
                 StarterKit.configure({
                     heading: { levels: [1, 2, 3] },
                 }),
             ],
             content: section?.content ?? '',
-            editorProps: {
-                attributes: {
-                    class: 'prose prose-slate max-w-none focus:outline-none min-h-[60vh] px-2 py-4',
-                },
-            },
             onUpdate: ({ editor }) => {
                 setStatus('dirty');
                 clearTimeout(timer.current);
+
+                // With autosave off the edit waits for Ctrl/Cmd+S. A truthy
+                // timer still marks it pending, so the flush on leaving the
+                // chapter runs and turning autosave off never loses work to a
+                // closed tab.
+                if (!autosaveRef.current) {
+                    timer.current = true;
+
+                    return;
+                }
+
                 timer.current = setTimeout(
                     () => editor.isDestroyed || save(editor.getJSON()),
                     AUTOSAVE_DEBOUNCE_MS,
                 );
+            },
+            editorProps: {
+                attributes: {
+                    class: 'prose prose-slate max-w-none focus:outline-none min-h-[60vh] px-2 py-4',
+                },
             },
             // Tiptap 3 renders on the client only; without this React warns
             // about a hydration mismatch on the server-rendered shell.
@@ -150,6 +169,7 @@ export default function ManuscriptEditor({ section, onSaved }) {
             if ((e.metaKey || e.ctrlKey) && e.key === 's') {
                 e.preventDefault();
                 clearTimeout(timer.current);
+                timer.current = null;
                 if (editor && ! editor.isDestroyed) {
                     save(editor.getJSON(), 'manual');
                 }

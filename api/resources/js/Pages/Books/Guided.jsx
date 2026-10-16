@@ -1,4 +1,5 @@
 import Icon from '@/Components/Studio/Icon';
+import { goTo } from '@/Components/Studio/navigation';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
@@ -60,8 +61,25 @@ export default function Guided({ book, journey: initial }) {
         }
     };
 
-    const openStage = (stage) =>
-        send('patch', `/books/${book.id}/stage`, { stage }, `stage:${stage}`);
+    /**
+     * Mark the stage, then take the author to where its work is done.
+     *
+     * This used to only move the "Here" badge, so "Go there" went nowhere.
+     * Discover is answered on this page; every other stage has a studio
+     * screen.
+     */
+    const openStage = async (stage) => {
+        const data = await send('patch', `/books/${book.id}/stage`, { stage }, `stage:${stage}`);
+
+        if (!data) return;
+
+        if (STAGE_SCREEN[stage]) {
+            goTo(book.id, STAGE_SCREEN[stage]);
+        } else {
+            document.getElementById('the-idea')?.scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('premise')?.focus({ preventScroll: true });
+        }
+    };
 
     const { progress, next } = journey;
     const pct = progress.chapters
@@ -351,7 +369,7 @@ function Idea({ book, journey, send, busy, say }) {
     };
 
     return (
-        <section className="mt-9">
+        <section id="the-idea" className="mt-9">
             <h2 className="font-display text-[17px] font-bold tracking-[-0.015em] text-text-primary">
                 What the book is
             </h2>
@@ -418,6 +436,7 @@ function Field({ name, label, hint, value, onChange }) {
             <span className="text-[13px] font-semibold text-text-primary">{label}</span>
             <span className="ml-1.5 text-[11.5px] text-text-secondary">{hint}</span>
             <textarea
+                id={name}
                 data-a={`guided:idea:${name}`}
                 rows={2}
                 value={value}
@@ -565,3 +584,12 @@ function ImportOutline({ book, send, busy, say }) {
         </section>
     );
 }
+
+/** Where each stage's work happens in the studio. Discover is on this page. */
+const STAGE_SCREEN = {
+    plan: 'manuscript',
+    create: 'manuscript',
+    improve: 'ai',
+    design: 'layout',
+    publish: 'export',
+};

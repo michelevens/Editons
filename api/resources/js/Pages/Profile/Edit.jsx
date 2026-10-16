@@ -25,9 +25,6 @@ export default function Edit({ mustVerifyEmail, status, author, book_types: book
                 active="books"
                 user={auth?.user}
                 account={auth?.account}
-                onSelect={() => router.get(route('books.index'))}
-                onOpenPalette={() => {}}
-                onOpenNotifications={() => {}}
             />
 
             <main className="min-h-0 flex-1 overflow-y-auto">

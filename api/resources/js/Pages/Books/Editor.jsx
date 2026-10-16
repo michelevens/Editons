@@ -26,8 +26,9 @@ import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
 import TeamPanel from '@/Components/Studio/TeamPanel';
 import TemplatesPanel from '@/Components/Studio/TemplatesPanel';
 import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
+import { destination } from '@/Components/Studio/navigation';
 import { Head, router, usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 /**
  * The Writing Studio.
@@ -65,8 +66,21 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const [adding, setAdding] = useState(false);
     const [toast, setToast] = useState(null);
 
-    const [nav, setNav] = useState('writing');
-    const [pane, setPane] = useState(initialPane ?? 'manuscript');
+    // ?pane= may name a top-nav area (ai, analytics...) as well as a
+    // sidebar screen; destination() knows which is which.
+    const [nav, setNav] = useState(() => destination(initialPane).nav);
+    const [pane, setPane] = useState(() => destination(initialPane).pane);
+
+    // The agent the AI Editor should open filtered to, from Analytics.
+    const [aiAgent, setAiAgent] = useState(null);
+
+    const go = useCallback((key) => {
+        const to = destination(key);
+        setAiAgent(null);
+        setNav(to.nav);
+        setPane(to.pane);
+        setSidebarOpen(false);
+    }, []);
     const [leftTab, setLeftTab] = useState('Manuscript');
     const [panelOpen, setPanelOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -107,12 +121,39 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         [versions.length, load],
     );
 
-    const openSection = (id) =>
-        router.get(
-            route('books.edit', book.id),
-            { section: id },
-            { preserveState: true, preserveScroll: true },
-        );
+    // Back to the manuscript as well: a chapter link inside a full-screen
+    // panel used to load the chapter behind the panel, so the click looked
+    // like it did nothing.
+    const openSection = useCallback(
+        (id) => {
+            setNav('writing');
+            setPane('manuscript');
+            setPanelOpen(false);
+            router.get(
+                route('books.edit', book.id),
+                { section: id },
+                { preserveState: true, preserveScroll: true },
+            );
+        },
+        [book.id],
+    );
+
+    const navigate = useCallback(
+        (key) => {
+            if (key === 'books') {
+                router.get(route('books.index'));
+            } else if (key === 'overview') {
+                router.get(route('books.overview', book.id));
+            } else if (key === 'settings') {
+                router.get(route('books.settings', book.id));
+            } else {
+                go(key);
+            }
+        },
+        [book.id, go],
+    );
+
+    const chapters = useMemo(() => flatten(binder), [binder]);
 
     const runAgent = async (agent) => {
         setRunning(agent);
@@ -380,21 +421,15 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
             <AppHeader
                 active={nav}
-                onSelect={(item) => {
-                    setNav(item.key);
-                    setSidebarOpen(false);
-
-                    // The top nav names an area; the pane is where that area
-                    // actually opens. Without this, choosing Design would
-                    // leave whatever pane was already showing.
-                    if (NAV_LANDING[item.key]) {
-                        setPane(NAV_LANDING[item.key]);
-                    }
-                }}
+                bookId={book.id}
+                // The top nav names an area; destination() says which pane
+                // it opens. "My Books" leaves the editor for the shelf.
+                onSelect={(item) => navigate(item.key)}
+                onNavigate={navigate}
+                chapters={chapters}
+                onOpenChapter={openSection}
                 user={auth?.user}
                 account={auth?.account}
-                onOpenPalette={() => notify('The command palette is not built yet.')}
-                onOpenNotifications={() => notify('Notifications are not built yet.')}
             />
 
             <div className="flex min-h-0 flex-1">
@@ -415,23 +450,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         book={{ ...book, word_count: bookWords }}
                         active={liveNav ? effectivePane : null}
                         badges={{ suggestions: openFindings.length }}
-                        onSelect={(item) => {
-                            if (item.key === 'overview') {
-                                router.get(route('books.overview', book.id));
-
-                                return;
-                            }
-
-                            if (item.key === 'settings') {
-                                router.get(route('books.settings', book.id));
-
-                                return;
-                            }
-
-                            setNav('writing');
-                            setPane(item.key);
-                            setSidebarOpen(false);
-                        }}
+                        onSelect={(item) => navigate(item.key)}
                     />
                 </div>
 
@@ -450,11 +469,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
                     {nav === 'analytics' ? (
                         <Panel>
-                            <AnalyticsPanel bookId={book.id} onOpenSection={openSection} />
+                            <AnalyticsPanel bookId={book.id} onOpenSection={openSection} onOpenFindings={(agent) => { go('ai'); setAiAgent(agent); }} />
                         </Panel>
                     ) : nav === 'ai' ? (
                         <Panel>
-                            <AiEditorScreen bookId={book.id} onOpenSection={openSection} />
+                            <AiEditorScreen bookId={book.id} onOpenSection={openSection} onNotify={notify} agent={aiAgent} />
                         </Panel>
                     ) : !liveNav ? (
                         <NotBuilt
@@ -574,7 +593,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         nodes={binder}
                                         activeId={section?.id}
                                         tab={leftTab}
-                                        onTab={setLeftTab}
+                                        onTab={(t) => (t === 'Notes' ? go('notes') : setLeftTab(t))}
                                         onSelect={openSection}
                                         onAddChapter={addChapter}
                                         adding={adding}
@@ -582,7 +601,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 </div>
 
                                 <section className="manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface max-xl:pb-12">
-                                    <ManuscriptEditor section={section} onSaved={onSaved} />
+                                    <ManuscriptEditor section={section} onSaved={onSaved} autosave={book.autosave ?? true} />
 
                                     {/* Under the manuscript, where somebody
                                         writing will meet it without going
@@ -605,11 +624,12 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 breakpoint. */}
                             <div className="h-[236px] min-h-0 max-md:hidden">
                                 <BottomRow
-                                    bookId={book.id}
                                     sources={library}
                                     onOpenLibrary={openLibrary}
                                     onAddSource={openLibrary}
-                                    onOpenExport={() => setPane('export')}
+                                    onOpenLayout={() => go('layout')}
+                                    onOpenCover={() => go('cover')}
+                                    onOpenExport={() => go('export')}
                                 />
                             </div>
                         </div>
@@ -657,7 +677,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             nodes={binder}
                             activeId={section?.id}
                             tab={leftTab}
-                            onTab={setLeftTab}
+                            onTab={(t) => (t === 'Notes' ? go('notes') : setLeftTab(t))}
                             onSelect={(id) => {
                                 openSection(id);
                                 setBinderOpen(false);
@@ -731,6 +751,16 @@ function NotBuilt({ title, what, milestone }) {
     );
 }
 
+/** Every section in reading order, for search. Parts are not chapters. */
+function flatten(nodes, out = []) {
+    for (const node of nodes ?? []) {
+        if (node.type !== 'part') out.push({ id: node.id, title: node.title });
+        flatten(node.children, out);
+    }
+
+    return out;
+}
+
 function countChapters(nodes) {
     return nodes.reduce(
         (total, node) =>
@@ -782,13 +812,6 @@ const LOCKED_SCREENS = {
     site: 'globe',
 };
 
-/** Where a top-nav area opens. */
-const NAV_LANDING = {
-    design: 'layout',
-    publishing: 'export',
-    sales: 'distribution',
-    writing: 'manuscript',
-};
 
 const labelFor = (key) => NAV_LABELS[key] ?? key;
 const paneLabel = (key) => PANE_LABELS[key] ?? key;

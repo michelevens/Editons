@@ -214,6 +214,9 @@ class BookController extends Controller
                 'status' => $book->status,
                 'word_count' => $book->word_count,
                 'cover' => $book->coverFor(),
+                // The Autosave switch in Book Settings was saved and never
+                // read; the editor needs it to honour it.
+                'autosave' => (bool) ($book->settings()['autosave'] ?? true),
             ],
             // The panel renders whatever agents exist, so adding one is a
             // single enum case rather than an edit in two languages.

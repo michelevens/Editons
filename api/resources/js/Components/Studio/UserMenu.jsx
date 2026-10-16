@@ -1,6 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import { goTo } from './navigation';
 
 /**
  * The account menu behind the avatar.
@@ -18,28 +19,24 @@ import Icon from './Icon';
  */
 
 /**
- * `route` is the destination, or null for something not built.
- * `plan` gates an item to a tier, matching the prototype's "Studio" badge.
+ * `route` is the destination; `book` items open a screen of the current book.
+ *
+ * Clients, Integrations, Audit log, Help center and Keyboard shortcuts were
+ * listed here with nowhere to go, so clicking them only closed the menu. They
+ * come back when they exist.
  */
 const ITEMS = [
-    [
-        { key: 'billing', label: 'Plans & billing', icon: 'card', route: 'billing.show' },
-        { key: 'clients', label: 'Clients', icon: 'brief', route: null, plan: 'Studio' },
-        { key: 'integrations', label: 'Integrations', icon: 'plug', route: null },
-        { key: 'audit', label: 'Audit log', icon: 'list', route: null },
-    ],
+    [{ key: 'billing', label: 'Plans & billing', icon: 'card', route: 'billing.show' }],
     [
         { key: 'books', label: 'My books', icon: 'doc', route: 'books.index' },
-        { key: 'team', label: 'Team members', icon: 'users', route: 'team.index' },
+        // Team is per book, so it needs one; called without, route()
+        // threw and the menu stayed open.
+        { key: 'team', label: 'Team members', icon: 'users', book: 'team' },
         { key: 'account', label: 'Account settings', icon: 'user', route: 'profile.edit' },
-    ],
-    [
-        { key: 'help', label: 'Help center', icon: 'help', route: null },
-        { key: 'shortcuts', label: 'Keyboard shortcuts', icon: 'lock', route: null },
     ],
 ];
 
-export default function UserMenu({ user, account }) {
+export default function UserMenu({ user, account, bookId = null }) {
     const [open, setOpen] = useState(false);
     const wrap = useRef(null);
 
@@ -127,10 +124,11 @@ export default function UserMenu({ user, account }) {
                             key={index}
                             className={index > 0 ? 'border-t border-border-divider py-1' : 'py-1'}
                         >
-                            {group.map((item) => (
+                            {group.filter((item) => !item.book || bookId).map((item) => (
                                 <MenuItem
                                     key={item.key}
                                     item={item}
+                                    bookId={bookId}
                                     onDone={() => setOpen(false)}
                                 />
                             ))}
@@ -156,34 +154,20 @@ export default function UserMenu({ user, account }) {
     );
 }
 
-function MenuItem({ item, onDone }) {
-    const ready = Boolean(item.route);
-
+function MenuItem({ item, bookId, onDone }) {
     return (
         <button
             data-a={`user:${item.key}`}
             role="menuitem"
-            title={ready ? undefined : 'Not built yet'}
             onClick={() => {
-                if (ready) router.get(route(item.route));
                 onDone();
+                if (item.book) goTo(bookId, item.book);
+                else router.get(route(item.route));
             }}
-            className={`flex h-[38px] w-full items-center gap-3 px-4 text-left text-[13.5px] transition hover:bg-bg-subtle ${
-                ready ? 'text-text-body' : 'text-text-secondary'
-            }`}
+            className="flex h-[38px] w-full items-center gap-3 px-4 text-left text-[13.5px] text-text-body transition hover:bg-bg-subtle"
         >
             <Icon name={item.icon} size={17} className="shrink-0 opacity-70" />
             <span className="flex-1 truncate">{item.label}</span>
-
-            {item.plan && (
-                <span className="shrink-0 rounded-badge bg-bg-subtle px-2 py-0.5 text-[10.5px] font-semibold text-text-secondary">
-                    {item.plan}
-                </span>
-            )}
-
-            {!ready && !item.plan && (
-                <span className="shrink-0 text-[9px] opacity-70">○</span>
-            )}
         </button>
     );
 }

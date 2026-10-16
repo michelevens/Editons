@@ -16,6 +16,10 @@ export default function LayoutPanel({ bookId, onNotify }) {
     // Sliders fire continuously. Without this, dragging the font size sends
     // a request per pixel and the preview arrives out of order.
     const pending = useRef(null);
+    // Every change since the last send. A single timer used to send only
+    // the last edit, so a second field typed within the debounce dropped
+    // the first, and the server's reply then put the old value back.
+    const queued = useRef({});
 
     const load = useCallback(async (id) => {
         const query = id ? `?section=${id}` : '';
@@ -33,15 +37,18 @@ export default function LayoutPanel({ bookId, onNotify }) {
         // trip behind it.
         setData((current) => ({ ...current, layout: { ...current.layout, ...changes } }));
 
+        queued.current = { ...queued.current, ...changes };
         clearTimeout(pending.current);
 
         const send = async () => {
+            const batch = queued.current;
+            queued.current = {};
             setBusy(true);
 
             try {
                 const response = await window.axios.patch(
                     `/books/${bookId}/layout${sectionId ? `?section=${sectionId}` : ''}`,
-                    changes,
+                    batch,
                 );
 
                 setData(response.data);

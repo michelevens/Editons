@@ -40,9 +40,6 @@ export default function Index({
                 active="books"
                 user={auth?.user}
                 account={auth?.account}
-                onSelect={(item) => item.key === 'books' && router.get(route('books.index'))}
-                onOpenPalette={() => {}}
-                onOpenNotifications={() => {}}
             />
 
             <main className="min-w-0 flex-1 overflow-y-auto">

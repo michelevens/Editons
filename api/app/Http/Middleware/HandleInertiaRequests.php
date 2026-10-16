@@ -63,6 +63,17 @@ class HandleInertiaRequests extends Middleware
                     : null,
             ],
 
+            // The book a page without one should open: the header's areas
+            // (AI Editor, Design...) are book screens, and on the shelf,
+            // billing or the profile they used to go nowhere. Lazy, like the
+            // account summary.
+            'recent_book_id' => $request->user()
+                ? fn () => $request->user()->books()
+                    ->where('status', '!=', 'archived')
+                    ->latest('updated_at')
+                    ->value('id')
+                : null,
+
             // Demo credentials, shown on the login page.
             //
             // This publishes a working password to anyone who loads the page,

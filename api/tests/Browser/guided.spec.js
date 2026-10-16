@@ -37,6 +37,9 @@ test.describe('guided journey', () => {
     });
 
     test('opening a stage does not blank the page', async ({ page }) => {
+        // Six round trips into the full studio, each with a 29-section book.
+        test.setTimeout(300_000);
+
         const errors = watchForErrors(page);
 
         await signIn(page);
@@ -45,13 +48,34 @@ test.describe('guided journey', () => {
         await expectRendered(page);
 
         // Every stage, because each re-renders from a fresh payload and any
-        // one of them could be the one that throws.
-        for (const stage of ['discover', 'plan', 'create', 'improve', 'design', 'publish']) {
+        // one of them could be the one that throws. A stage used to only
+        // move the "Here" badge; now it opens where its work is done, and
+        // Discover, which is answered on this page, stays here.
+        const screens = {
+            discover: null,
+            plan: 'manuscript',
+            create: 'manuscript',
+            improve: 'ai',
+            design: 'layout',
+            publish: 'export',
+        };
+
+        for (const [stage, pane] of Object.entries(screens)) {
+            await page.goto(`/books/${id}/guided`);
+            await expectRendered(page);
             await expectSurvives(page, () =>
                 page.click(`[data-a="guided:stage:${stage}"]`),
             );
+
+            if (pane) {
+                await page.waitForURL(new RegExp(`/books/${id}/edit\\?pane=${pane}$`));
+                await expectRendered(page);
+            } else {
+                await expect(page).toHaveURL(/\/guided$/);
+            }
         }
 
+        await page.goto(`/books/${id}/guided`);
         await expect(page.locator('[data-a="guided:stage:publish"]')).toHaveAttribute(
             'aria-current',
             'step',

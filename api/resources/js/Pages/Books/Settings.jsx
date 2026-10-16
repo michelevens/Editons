@@ -1,11 +1,12 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import Icon from '@/Components/Studio/Icon';
+import { goTo } from '@/Components/Studio/navigation';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 /**
- * Book Settings: the book's identity, three writing preferences, and archive.
+ * Book Settings: the book's identity, the autosave preference, and archive.
  *
  * Archive is a status rather than a delete, so an archived book is still the
  * author's and still readable — which is what the shelf's Archived filter
@@ -14,8 +15,7 @@ import { useState } from 'react';
 export default function Settings({ book, genres, languages, can_archive: canArchive }) {
     const { auth } = usePage().props;
 
-    const open = (pane) =>
-        router.get(route('books.edit', book.id), { pane });
+    const open = (key) => goTo(book.id, key);
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
@@ -25,13 +25,7 @@ export default function Settings({ book, genres, languages, can_archive: canArch
                 active="writing"
                 user={auth?.user}
                 account={auth?.account}
-                onSelect={(item) =>
-                    item.key === 'books'
-                        ? router.get(route('books.index'))
-                        : open('manuscript')
-                }
-                onOpenPalette={() => {}}
-                onOpenNotifications={() => {}}
+                bookId={book.id}
             />
 
             <div className="flex min-h-0 flex-1">
@@ -173,7 +167,7 @@ function DetailsForm({ book, genres, languages }) {
 }
 
 /**
- * The three writing toggles.
+ * The writing preference: autosave, which the editor honours.
  *
  * Each saves on change rather than waiting for a Save button: a switch that
  * needs confirming reads as broken, and these are preferences, not a form.
@@ -208,16 +202,8 @@ function WritingPreferences({ book }) {
             title: 'Autosave',
             detail: 'Save changes as you type. Turn off to save manually with Ctrl/Cmd+S.',
         },
-        {
-            key: 'inline_ai',
-            title: 'Inline AI suggestions',
-            detail: 'Highlight suggested edits in the manuscript as you write.',
-        },
-        {
-            key: 'review_on_save',
-            title: 'Review on save',
-            detail: 'Run a quick editorial review whenever a chapter is saved.',
-        },
+        // Inline AI suggestions and Review on save were listed here, saved,
+        // and read by nothing. They return when the editor does them.
     ];
 
     return (

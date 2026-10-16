@@ -12,6 +12,10 @@ export default function CoverPanel({ bookId, onNotify }) {
     const [busy, setBusy] = useState(false);
     const fileInput = useRef(null);
     const pending = useRef(null);
+    // Every change since the last send. A single timer used to send only
+    // the last edit, so a second field typed within the debounce dropped
+    // the first, and the server's reply then put the old value back.
+    const queued = useRef({});
 
     const load = useCallback(async () => {
         const response = await window.axios.get(`/books/${bookId}/design`);
@@ -25,11 +29,15 @@ export default function CoverPanel({ bookId, onNotify }) {
     const save = (changes, { immediate = false } = {}) => {
         setData((current) => ({ ...current, cover: { ...current.cover, ...changes } }));
 
+        queued.current = { ...queued.current, ...changes };
         clearTimeout(pending.current);
 
         const send = async () => {
+            const batch = queued.current;
+            queued.current = {};
+
             try {
-                const response = await window.axios.patch(`/books/${bookId}/cover`, changes);
+                const response = await window.axios.patch(`/books/${bookId}/cover`, batch);
                 setData(response.data);
             } catch (error) {
                 onNotify?.(error.response?.data?.message ?? 'That change was not saved.');

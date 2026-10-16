@@ -51,10 +51,10 @@ export const SIDEBAR_GROUPS = [
         group: 'GROW',
         items: [
             { key: 'launch', label: 'Launch Planner', icon: 'rocket', ready: true },
-            { key: 'audio', label: 'Audiobook Studio', icon: 'mic', ready: true },
-            { key: 'course', label: 'Course Builder', icon: 'cap', ready: true },
+            { key: 'audio', label: 'Audiobook Studio', icon: 'mic', ready: false },
+            { key: 'course', label: 'Course Builder', icon: 'cap', ready: false },
             { key: 'marketing', label: 'Marketing Kit', icon: 'mega', ready: true },
-            { key: 'site', label: 'Author Website', icon: 'globe', ready: true },
+            { key: 'site', label: 'Author Website', icon: 'globe', ready: false },
         ],
     },
 ];

@@ -1,9 +1,20 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
+import { SIDEBAR_GROUPS } from './BookSidebar';
+import CommandPalette from './CommandPalette';
 import Icon from './Icon';
+import { goTo } from './navigation';
 import UserMenu from './UserMenu';
 
 /**
- * The product header: logo, top nav, search, bell, avatar.
+ * The product header: logo, top nav, search, avatar.
+ *
+ * It navigates on its own: a page passes the book it is about (or none) and
+ * the header knows where each area opens. A page that switches panes in place
+ * — the editor — passes onSelect / onNavigate / onOpenChapter instead.
+ *
+ * The notification bell is gone until there are notifications to show: a
+ * bell that only ever said "not built" read as a broken button.
  *
  * Measurements come from HANDOFF.md's layout table (h54, nav gap 34, search
  * 206x33, avatar 37). Nav items that have no screen behind them yet are still
@@ -24,13 +35,73 @@ export const TOP_NAV = [
 
 export default function AppHeader({
     active,
+    bookId = null,
     onSelect,
+    onNavigate,
+    chapters = [],
+    onOpenChapter,
     user,
     account,
-    unread = 0,
-    onOpenPalette,
-    onOpenNotifications,
 }) {
+    const { recent_book_id: recentBookId } = usePage().props;
+    const book = bookId ?? recentBookId ?? null;
+    const [palette, setPalette] = useState(false);
+
+    const select = (item) => (onSelect ? onSelect(item) : goTo(book, item.key));
+    const navigate = (key) => (onNavigate ? onNavigate(key) : goTo(book, key));
+
+    // ⌘K / Ctrl+K from anywhere, as the label has always promised.
+    useEffect(() => {
+        const onKey = (event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                setPalette((open) => !open);
+            }
+        };
+
+        window.addEventListener('keydown', onKey);
+
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
+    const commands = useMemo(() => {
+        const list = TOP_NAV.map((item) => ({
+            key: `nav:${item.key}`,
+            label: item.label,
+            group: 'Go to',
+            icon: 'search',
+            run: () => select(item),
+        }));
+
+        if (book) {
+            for (const group of SIDEBAR_GROUPS) {
+                for (const item of group.items) {
+                    list.push({
+                        key: `side:${item.key}`,
+                        label: item.label,
+                        group: group.group
+                            ? group.group[0] + group.group.slice(1).toLowerCase()
+                            : 'Book',
+                        icon: item.icon,
+                        run: () => navigate(item.key),
+                    });
+                }
+            }
+        }
+
+        for (const chapter of chapters) {
+            list.push({
+                key: `chapter:${chapter.id}`,
+                label: chapter.title,
+                group: 'Chapter',
+                icon: 'doc',
+                run: () => onOpenChapter?.(chapter.id),
+            });
+        }
+
+        return list;
+    }, [book, chapters, onSelect, onNavigate, onOpenChapter]);
+
     return (
         <header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-border-default bg-bg-surface px-3 sm:px-5">
             {/*
@@ -77,7 +148,7 @@ export default function AppHeader({
                         <button
                             key={item.key}
                             data-a={`nav:${item.key}`}
-                            onClick={() => onSelect?.(item)}
+                            onClick={() => select(item)}
                             title={item.ready ? undefined : 'Not built yet'}
                             aria-current={isActive ? 'page' : undefined}
                             className={`relative whitespace-nowrap py-[17px] text-[14.5px] transition ${
@@ -103,7 +174,7 @@ export default function AppHeader({
             <div className="ml-auto flex items-center gap-3.5">
                 <button
                     data-a="palette:open"
-                    onClick={onOpenPalette}
+                    onClick={() => setPalette(true)}
                     className="hidden h-[33px] w-[206px] items-center gap-2 rounded-control border border-border-input px-2.5 text-left text-[12.5px] text-text-secondary transition hover:border-brand-primary/40 sm:flex"
                 >
                     <Icon name="search" size={15} />
@@ -113,25 +184,17 @@ export default function AppHeader({
                     </kbd>
                 </button>
 
-                <button
-                    data-a="bell:open"
-                    onClick={onOpenNotifications}
-                    className="relative text-text-body transition hover:text-text-primary"
-                    aria-label={
-                        unread > 0 ? `Notifications (${unread} unread)` : 'Notifications'
-                    }
-                >
-                    <Icon name="bell" size={20} />
-                    {unread > 0 && (
-                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-status-danger ring-2 ring-bg-surface" />
-                    )}
-                </button>
-
                 {/* Was a <span> with a title attribute, which meant billing,
                     the profile and sign out were unreachable from anywhere
                     in the studio. */}
-                <UserMenu user={user} account={account} />
+                <UserMenu user={user} account={account} bookId={book} />
             </div>
+
+            <CommandPalette
+                open={palette}
+                onClose={() => setPalette(false)}
+                commands={commands}
+            />
         </header>
     );
 }

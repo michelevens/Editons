@@ -15,9 +15,9 @@ const SEVERITY = {
     suggestion: { dot: 'bg-status-info', label: 'Suggestion' },
 };
 
-export default function AiEditorScreen({ bookId, onOpenSection }) {
+export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent = null }) {
     const [data, setData] = useState(null);
-    const [filters, setFilters] = useState({ agent: null, status: 'open' });
+    const [filters, setFilters] = useState({ agent, status: 'open' });
     const [busy, setBusy] = useState(null);
 
     const load = useCallback(async () => {
@@ -43,6 +43,11 @@ export default function AiEditorScreen({ bookId, onOpenSection }) {
         try {
             await window.axios.patch(`/findings/${finding.id}`, { status });
             await load();
+        } catch (error) {
+            // A refusal (the text moved, so the fix no longer applies) was
+            // silent: the button just stopped spinning.
+            onNotify?.(error.response?.data?.message ?? 'That finding could not be updated.');
+            await load();
         } finally {
             setBusy(null);
         }
@@ -52,7 +57,9 @@ export default function AiEditorScreen({ bookId, onOpenSection }) {
         setBusy(finding.id);
 
         try {
-            await window.axios.patch(`/findings/${finding.id}/reopen`);
+            await window.axios.patch(`/findings/${finding.id}/reopen`).catch((error) =>
+                onNotify?.(error.response?.data?.message ?? 'That finding could not be reopened.'),
+            );
             await load();
         } finally {
             setBusy(null);

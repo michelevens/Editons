@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
  * exists. A day's figure is the net change, which means deletions count
  * against it — an author who cut four thousand words did not write them.
  */
-export default function AnalyticsPanel({ bookId, onOpenSection }) {
+export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }) {
     const [data, setData] = useState(null);
 
     useEffect(() => {
@@ -106,6 +106,9 @@ export default function AnalyticsPanel({ bookId, onOpenSection }) {
                         label: agent.label,
                         value: agent.open,
                     }))}
+                    // Opens the AI Editor on that agent's findings; with no
+                    // onPick the bars rendered permanently disabled.
+                    onPick={onOpenFindings}
                     empty="Nothing open."
                     tone="warning"
                     format={(value) => value}

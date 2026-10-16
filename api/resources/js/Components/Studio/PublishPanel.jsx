@@ -13,6 +13,10 @@ export default function PublishPanel({ bookId, onNotify }) {
     const [data, setData] = useState(null);
     const [busy, setBusy] = useState(null);
     const pending = useRef(null);
+    // Every change since the last send. A single timer used to send only
+    // the last edit, so a second field typed within the debounce dropped
+    // the first, and the server's reply then put the old value back.
+    const queued = useRef({});
 
     const load = useCallback(async () => {
         const response = await window.axios.get(`/books/${bookId}/publishing`);
@@ -26,11 +30,15 @@ export default function PublishPanel({ bookId, onNotify }) {
     const save = (changes) => {
         setData((current) => ({ ...current, book: { ...current.book, ...changes } }));
 
+        queued.current = { ...queued.current, ...changes };
         clearTimeout(pending.current);
 
         pending.current = setTimeout(async () => {
+            const batch = queued.current;
+            queued.current = {};
+
             try {
-                const response = await window.axios.patch(`/books/${bookId}/publishing`, changes);
+                const response = await window.axios.patch(`/books/${bookId}/publishing`, batch);
                 setData(response.data);
             } catch (error) {
                 onNotify?.(error.response?.data?.message ?? 'That change was not saved.');

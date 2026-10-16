@@ -986,15 +986,20 @@ test.describe('growth and brand', () => {
         expect(errors).toEqual([]);
     });
 
-    test('every menu item is marked built, and opens', async ({ page }) => {
+    test('every menu item opens, and only the locked ones are marked', async ({ page }) => {
         const errors = watchForErrors(page);
 
         await signIn(page);
         const id = await firstBookId(page);
         await page.goto(`/books/${id}/edit`);
 
-        // No item carries the "not built" marker any more.
-        await expect(page.locator('[data-a^="side:"] [title="Not built yet"]')).toHaveCount(0);
+        // Only the three locked screens carry the "not built" marker. They
+        // were unmarked while the sidebar's legend promised a dot for
+        // anything unbuilt, so the legend described nothing.
+        await expect(page.locator('[data-a^="side:"][title="Not built yet"]')).toHaveCount(3);
+        for (const key of ['audio', 'course', 'site']) {
+            await expect(page.locator(`[data-a="side:${key}"]`)).toHaveAttribute('title', 'Not built yet');
+        }
 
         const keys = await page
             .locator('[data-a^="side:"]')

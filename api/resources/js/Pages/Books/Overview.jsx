@@ -1,6 +1,7 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import BookSidebar from '@/Components/Studio/BookSidebar';
 import Icon from '@/Components/Studio/Icon';
+import { goTo } from '@/Components/Studio/navigation';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 
 /**
@@ -13,8 +14,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 export default function Overview({ book, stats, checklist }) {
     const { auth } = usePage().props;
 
-    const open = (pane) =>
-        router.get(route('books.edit', book.id), {}, { data: { pane } });
+    const open = (key) => goTo(book.id, key);
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
@@ -24,13 +24,7 @@ export default function Overview({ book, stats, checklist }) {
                 active="writing"
                 user={auth?.user}
                 account={auth?.account}
-                onSelect={(item) =>
-                    item.key === 'books'
-                        ? router.get(route('books.index'))
-                        : open('manuscript')
-                }
-                onOpenPalette={() => {}}
-                onOpenNotifications={() => {}}
+                bookId={book.id}
             />
 
             <div className="flex min-h-0 flex-1">

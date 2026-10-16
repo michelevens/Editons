@@ -4,10 +4,10 @@ import Icon from './Icon';
 /**
  * The bottom row: Research Library, Design Preview, Cover Studio, Export.
  *
- * HANDOFF.md components 7-10. Research and Export are wired to real
- * engines. Design and Cover still need a typesetting and an image pipeline,
- * so they say so rather than showing a sample spread that misrepresents what
- * the app does.
+ * HANDOFF.md components 7-10. All four are doors into real screens.
+ *
+ * Design and Cover said "Not built yet" here long after Design & Layout and
+ * Cover Studio were built, which is the same mistake Export made first.
  *
  * Export said the same thing until it stopped being true: EPUB, DOCX,
  * Markdown and print-ready HTML have all generated for some time, and the
@@ -18,7 +18,7 @@ import Icon from './Icon';
  * Width ratios come from tokens.layout.bottomCards.
  */
 
-export function BottomRow({ bookId, sources, onOpenLibrary, onAddSource, onOpenExport }) {
+export function BottomRow({ sources, onOpenLibrary, onAddSource, onOpenLayout, onOpenCover, onOpenExport }) {
     return (
         <div className="grid h-full min-h-0 gap-[10px] [grid-template-columns:repeat(2,minmax(0,1fr))] lg:[grid-template-columns:217fr_371fr_188fr_210fr]">
             <ResearchCard
@@ -26,18 +26,42 @@ export function BottomRow({ bookId, sources, onOpenLibrary, onAddSource, onOpenE
                 onOpen={onOpenLibrary}
                 onAdd={onAddSource}
             />
-            <PlaceholderCard
-                title="Book Design Preview"
-                what="A two-page spread typeset from your real chapter text, at the trim size you choose."
-                needs="a typesetting pipeline"
+            <DoorCard
+                id="design"
+                title="Book Design"
+                onOpen={onOpenLayout}
+                text="Trim size, margins, typeface, size and leading, drop caps and running heads, previewed on your own chapter and used by the PDF."
             />
-            <PlaceholderCard
+            <DoorCard
+                id="cover"
                 title="Cover Studio"
-                what="A live cover editor with colour schemes and artwork upload."
-                needs="image storage"
+                onOpen={onOpenCover}
+                text="Title, author and colours for the front cover, with your own artwork uploaded."
             />
             <ExportCard onOpen={onOpenExport} />
         </div>
+    );
+}
+
+/** A card that opens the screen it describes. */
+function DoorCard({ id, title, text, onOpen }) {
+    return (
+        <Card
+            title={title}
+            action={
+                <button
+                    data-a={`bottom:${id}`}
+                    onClick={onOpen}
+                    className="text-[11.5px] font-semibold text-brand-primary hover:underline"
+                >
+                    Open
+                </button>
+            }
+        >
+            <button onClick={onOpen} className="block w-full p-3 text-left">
+                <p className="text-[11.5px] leading-relaxed text-text-secondary">{text}</p>
+            </button>
+        </Card>
     );
 }
 
@@ -71,7 +95,7 @@ function ExportCard({ onOpen }) {
 
                 <ul className="mt-2.5 space-y-1">
                     {[
-                        ['PDF', 'paginated at your trim size'],
+                        ['PDF', 'typeset as a book, at your trim size'],
                         ['EPUB 3', 'Kindle, Apple Books, Kobo'],
                         ['Word', 'editors and co-authors'],
                         ['Markdown', 'plain text, structure kept'],
@@ -93,8 +117,8 @@ function ExportCard({ onOpen }) {
                 </ul>
 
                 <p className="mt-2.5 text-[10.5px] leading-relaxed text-text-secondary">
-                    Rendered, not typeset: good enough for a reader, a reviewer or a
-                    print service, and not a substitute for a designer.
+                    Set in EB Garamond, with a contents page, running heads and
+                    hyphenation.
                 </p>
             </div>
         </Card>
@@ -117,10 +141,9 @@ function Card({ title, action, children }) {
 
 const FILTERS = [
     ['all', 'All'],
-    ['pdf', 'PDFs'],
+    ['pdf', 'Papers'],
     ['web', 'Web'],
     ['note', 'Notes'],
-    ['image', 'Images'],
 ];
 
 /** Maps a source's stored kind onto the card's filter buckets. */
@@ -137,7 +160,6 @@ const KIND_GLYPH = {
     pdf: { icon: 'fPdf', className: 'text-file-pdf' },
     web: { icon: 'fHtml', className: 'text-file-web' },
     note: { icon: 'note', className: 'text-text-secondary' },
-    image: { icon: 'image', className: 'text-file-html' },
 };
 
 function ResearchCard({ sources = [], onOpen, onAdd }) {
@@ -216,24 +238,6 @@ function ResearchCard({ sources = [], onOpen, onAdd }) {
                     })}
                 </ul>
             )}
-        </Card>
-    );
-}
-
-function PlaceholderCard({ title, what, needs }) {
-    return (
-        <Card title={title}>
-            <div className="grid h-full place-items-center px-3 py-4 text-center">
-                <div>
-                    <p className="text-[11px] leading-relaxed text-text-secondary">
-                        {what}
-                    </p>
-                    <p className="mt-2 text-[10px] leading-relaxed text-text-secondary/75">
-                        Not built yet — needs {needs}. Showing a sample here
-                        would misrepresent what the app can do.
-                    </p>
-                </div>
-            </div>
         </Card>
     );
 }

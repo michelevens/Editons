@@ -1,6 +1,6 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import Icon from '@/Components/Studio/Icon';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 
 /**
  * Plans & Billing.
@@ -33,11 +33,8 @@ export default function Billing({
 
             <AppHeader
                 active="books"
-                onSelect={() => router.get(route('books.index'))}
                 user={auth?.user}
                 account={auth?.account}
-                onOpenPalette={() => {}}
-                onOpenNotifications={() => {}}
             />
 
             <main className="min-h-0 flex-1 overflow-y-auto">

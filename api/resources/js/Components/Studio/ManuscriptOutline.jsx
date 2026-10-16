@@ -11,7 +11,9 @@ import Icon from './Icon';
 const TABS = [
     { key: 'Manuscript', ready: true },
     { key: 'Outline', ready: true },
-    { key: 'Notes', ready: false },
+    // Opens the Notes screen: the notes are the book's, not the outline's,
+    // and this tab said "not built" long after that screen existed.
+    { key: 'Notes', ready: true },
 ];
 
 export default function ManuscriptOutline({
@@ -91,12 +93,7 @@ export default function ManuscriptOutline({
                 })}
             </div>
 
-            {tab === 'Notes' ? (
-                <NotBuiltPanel
-                    title="Notes"
-                    what="Book-level notes kept beside the manuscript."
-                />
-            ) : (
+            {(
                 <>
                     <div className="flex shrink-0 items-center gap-2 px-3 py-3">
                         <div className="relative flex-1">
@@ -282,23 +279,6 @@ function OutlineTable({ nodes, onSelect }) {
                     ))}
                 </tbody>
             </table>
-        </div>
-    );
-}
-
-function NotBuiltPanel({ title, what }) {
-    return (
-        <div className="grid flex-1 place-items-center p-6 text-center">
-            <div>
-                <p className="text-[13px] font-semibold text-text-primary">{title}</p>
-                <p className="mt-1.5 text-[11.5px] leading-relaxed text-text-secondary">
-                    {what}
-                </p>
-                <p className="mt-3 text-[10.5px] leading-relaxed text-text-secondary/80">
-                    Deliberately empty. A mock-up here would misrepresent what
-                    the app can do.
-                </p>
-            </div>
         </div>
     );
 }
