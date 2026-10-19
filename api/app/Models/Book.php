@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Publishing\AccessibilityAudit;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -103,12 +104,14 @@ class Book extends Model
     public function coverFor(): array
     {
         $cover = $this->cover ?? [];
-        $palettes = \App\Publishing\AccessibilityAudit::PALETTES;
+        $palettes = AccessibilityAudit::PALETTES;
         $palette = $palettes[$cover['palette'] ?? 0] ?? $palettes[0];
 
         return [
+            // Through the app, since the bucket is private; versioned by the
+            // stored path so a new upload is never hidden by the cache.
             'url' => isset($cover['artwork'])
-                ? \Illuminate\Support\Facades\Storage::disk('public')->url($cover['artwork'])
+                ? route('design.cover.image', ['book' => $this->id, 'v' => substr(md5($cover['artwork']), 0, 10)])
                 : null,
             'title' => $cover['title'] ?? $this->title,
             'author' => $cover['author'] ?? $this->author_name,

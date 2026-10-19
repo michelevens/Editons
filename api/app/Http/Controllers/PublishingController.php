@@ -227,20 +227,20 @@ class PublishingController extends Controller
          * manuscript of any realistic size, and the alternative — telling
          * somebody their finished export no longer exists — is worse.
          *
-         * When a persistent disk or S3 is configured this branch stops
-         * firing on its own, and the test below still passes.
+         * With the files disk on the bucket this branch stops firing for
+         * new exports; it still rescues ones written before the bucket.
          */
-        if (! $export->path || ! Storage::disk('local')->exists($export->path)) {
+        if (! $export->path || ! Storage::disk('files')->exists($export->path)) {
             $export = $this->exporter->generate($book, $export->format, $request->user()->id);
 
             abort_unless(
-                $export->status === 'ready' && $export->path && Storage::disk('local')->exists($export->path),
+                $export->status === 'ready' && $export->path && Storage::disk('files')->exists($export->path),
                 503,
                 'That file could not be rebuilt. Try generating it again.',
             );
         }
 
-        return Storage::disk('local')->download(
+        return Storage::disk('files')->download(
             $export->path,
             basename($export->path),
         );

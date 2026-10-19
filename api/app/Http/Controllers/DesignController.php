@@ -8,6 +8,7 @@ use App\Publishing\DocumentRenderer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Design & Layout, and Cover Studio.
@@ -89,17 +90,39 @@ class DesignController extends Controller
 
         $previous = ($book->cover ?? [])['artwork'] ?? null;
 
-        $path = $request->file('artwork')->store("covers/book-{$book->id}", 'public');
+        // The files disk, not public: the public disk is the container's,
+        // and an uploaded cover vanished at the next deploy.
+        $path = $request->file('artwork')->store("covers/book-{$book->id}", 'files');
 
         $book->update(['cover' => array_merge($book->cover ?? [], ['artwork' => $path])]);
 
         // Delete the old file only once the new one is stored, so a failed
         // upload does not leave the book with no cover at all.
         if ($previous && $previous !== $path) {
-            Storage::disk('public')->delete($previous);
+            Storage::disk('files')->delete($previous);
         }
 
         return response()->json($this->payload($book->fresh(), null));
+    }
+
+    /**
+     * The cover image itself.
+     *
+     * Served through the app because the bucket is private. The URL carries
+     * a version taken from the stored path, so it can be cached for a long
+     * time and still change the moment the artwork does.
+     */
+    public function coverImage(Book $book): StreamedResponse
+    {
+        $this->authorize('view', $book);
+
+        $path = ($book->cover ?? [])['artwork'] ?? null;
+
+        abort_unless($path && Storage::disk('files')->exists($path), 404);
+
+        return Storage::disk('files')->response($path, null, [
+            'Cache-Control' => 'private, max-age=31536000, immutable',
+        ]);
     }
 
     public function removeArtwork(Book $book): JsonResponse
@@ -109,7 +132,7 @@ class DesignController extends Controller
         $cover = $book->cover ?? [];
 
         if ($path = $cover['artwork'] ?? null) {
-            Storage::disk('public')->delete($path);
+            Storage::disk('files')->delete($path);
         }
 
         unset($cover['artwork']);
@@ -146,9 +169,7 @@ class DesignController extends Controller
                 'author' => $cover['author'] ?? $book->author_name,
                 'font' => $cover['font'] ?? 'serif',
                 'palette' => $cover['palette'] ?? 0,
-                'artwork' => isset($cover['artwork'])
-                    ? Storage::disk('public')->url($cover['artwork'])
-                    : null,
+                'artwork' => $book->coverFor()['url'],
             ],
             'palettes' => self::PALETTES,
             'preview' => $section ? [

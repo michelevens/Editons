@@ -309,6 +309,8 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover');
     Route::post('/books/{book}/cover/artwork', [DesignController::class, 'uploadArtwork'])
         ->name('design.cover.artwork');
+    Route::get('/books/{book}/cover/image', [DesignController::class, 'coverImage'])
+        ->name('design.cover.image');
     Route::delete('/books/{book}/cover/artwork', [DesignController::class, 'removeArtwork'])
         ->name('design.cover.artwork.destroy');
 });

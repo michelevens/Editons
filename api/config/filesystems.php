@@ -38,6 +38,35 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Files an author makes and must not lose: exports and cover art.
+         *
+         * Both lived on the container's disk, which every deploy replaces,
+         * so an export or an uploaded cover vanished at the next release.
+         * In production this is the Railway bucket (FILES_DISK=s3); locally
+         * and in tests it is the same directory the local disk uses, so a
+         * test can still read what an export wrote.
+         */
+        'files' => env('FILES_DISK', 'local') === 's3' ? [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
+            // A failed write must fail the export, not record a file that
+            // was never stored.
+            'throw' => true,
+            'report' => true,
+        ] : [
+            'driver' => 'local',
+            'root' => storage_path('app/private'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

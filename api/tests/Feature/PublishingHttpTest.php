@@ -369,7 +369,7 @@ it('saves cover text and palette', function () {
 it('rejects an SVG upload, which can carry script', function () {
     // Laravel's `image` rule accepts SVG. A cover is served back to anyone
     // viewing the book, so the allowed types are named explicitly.
-    Storage::fake('public');
+    Storage::fake('files');
 
     $user = User::factory()->create();
     $book = chapteredBook($user);
@@ -696,4 +696,68 @@ it('does not offer a format as unbuilt when it builds', function () {
         $cards,
         'The export card still claims the renderers do not exist.',
     );
+});
+
+// --- Files that must survive a deploy ------------------------------------
+
+/*
+ * Covers and exports were written to the container's disk, which every
+ * deploy replaces. They now go to the files disk, the bucket in production.
+ */
+it('stores an uploaded cover on the files disk and serves it to the author', function () {
+    Storage::fake('files');
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->post("/books/{$book->id}/cover/artwork", [
+            'artwork' => UploadedFile::fake()->image('cover.jpg', 1600, 2560),
+        ])
+        ->assertOk();
+
+    $path = $book->fresh()->cover['artwork'];
+    Storage::disk('files')->assertExists($path);
+
+    $url = $book->fresh()->coverFor()['url'];
+    expect($url)->toContain("/books/{$book->id}/cover/image?v=");
+
+    $this->actingAs($user)->get($url)->assertOk();
+
+    // Somebody else's book's cover is not theirs to see.
+    $this->actingAs(User::factory()->create())->get($url)->assertForbidden();
+});
+
+it('replaces the old cover file when a new one is uploaded', function () {
+    Storage::fake('files');
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)->post("/books/{$book->id}/cover/artwork", [
+        'artwork' => UploadedFile::fake()->image('first.jpg', 1600, 2560),
+    ]);
+    $first = $book->fresh()->cover['artwork'];
+    $firstUrl = $book->fresh()->coverFor()['url'];
+
+    $this->actingAs($user)->post("/books/{$book->id}/cover/artwork", [
+        'artwork' => UploadedFile::fake()->image('second.jpg', 1600, 2560),
+    ]);
+
+    Storage::disk('files')->assertMissing($first);
+    expect($book->fresh()->coverFor()['url'])->not->toBe($firstUrl);
+});
+
+it('writes exports to the files disk', function () {
+    Storage::fake('files');
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    foreach (['epub', 'md'] as $format) {
+        $export = app(Exporter::class)->generate($book, $format, $user->id);
+
+        Storage::disk('files')->assertExists($export->path);
+        expect($export->byte_size)->toBeGreaterThan(0);
+    }
 });

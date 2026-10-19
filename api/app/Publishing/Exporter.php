@@ -68,7 +68,7 @@ class Exporter
             $export->update([
                 'status' => 'ready',
                 'path' => $path,
-                'byte_size' => Storage::disk('local')->size($path),
+                'byte_size' => Storage::disk('files')->size($path),
             ]);
         } catch (\Throwable $e) {
             // Recorded, not swallowed: the history should show that a
@@ -581,7 +581,9 @@ class Exporter
     {
         $path = $this->directory($book).'/'.$this->filename($book, $export);
 
-        Storage::disk('local')->put($path, $contents);
+        // The files disk: the bucket in production, so an export survives
+        // the next deploy instead of vanishing with the container.
+        Storage::disk('files')->put($path, $contents);
 
         return $path;
     }
@@ -598,9 +600,9 @@ class Exporter
     {
         $relative = $this->directory($book).'/'.$this->filename($book, $export);
 
-        Storage::disk('local')->makeDirectory($this->directory($book));
-
-        $absolute = Storage::disk('local')->path($relative);
+        // Built in a temporary file, because ZipArchive needs a real path
+        // and the files disk may be a bucket, then stored like any export.
+        $absolute = tempnam(sys_get_temp_dir(), 'export');
         $archive = new ZipArchive;
 
         if ($archive->open($absolute, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -617,6 +619,17 @@ class Exporter
         }
 
         $archive->close();
+
+        try {
+            $stream = fopen($absolute, 'rb');
+            Storage::disk('files')->put($relative, $stream);
+        } finally {
+            if (isset($stream) && is_resource($stream)) {
+                fclose($stream);
+            }
+
+            @unlink($absolute);
+        }
 
         return $relative;
     }
