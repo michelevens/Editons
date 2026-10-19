@@ -32,6 +32,12 @@ class OutlineImporter
      */
     public function import(Book $book, string $outline): int
     {
+        // A proposal's outline — parts, "Chapter 1:" lines, bullets under
+        // each — is read for its structure rather than line by line.
+        if (StructuredOutline::looksStructured($outline)) {
+            return $this->importStructured($book, (new StructuredOutline)->parse($outline));
+        }
+
         $lines = $this->parse($outline);
 
         if ($lines === []) {
@@ -86,6 +92,76 @@ class OutlineImporter
             }
 
             return $created;
+        });
+    }
+
+    /**
+     * Build the binder from a structured outline, and keep the rest of it.
+     *
+     * The chapter plans and everything around the structure go into the
+     * book's notes, after whatever the author already had there. Subtitle
+     * and audience fill only fields that are empty: the outline does not
+     * get to overwrite what the author already decided.
+     *
+     * @param  array{sections: array, title: ?string, subtitle: ?string, audience: ?string, notes: string}  $parsed
+     */
+    private function importStructured(Book $book, array $parsed): int
+    {
+        $chapters = collect($parsed['sections'])->where('type', 'chapter')->count();
+
+        if ($chapters === 0) {
+            throw new RuntimeException('There are no chapter titles in that.');
+        }
+
+        return DB::transaction(function () use ($book, $parsed) {
+            $book->sections()
+                ->where('word_count', 0)
+                ->whereIn('type', ['chapter', 'part', 'back_matter'])
+                ->delete();
+
+            $ids = [];
+            $position = 0;
+
+            foreach ($parsed['sections'] as $index => $item) {
+                $position += ManuscriptSection::POSITION_STEP;
+
+                $section = $book->sections()->create([
+                    'type' => $item['type'],
+                    'title' => $item['title'],
+                    'subtitle' => $item['subtitle'],
+                    'position' => $position,
+                    'content' => ['type' => 'doc', 'content' => []],
+                ]);
+
+                if ($item['part'] !== null && isset($ids[$item['part']])) {
+                    // forceFill: structure is the server's to decide (ADR-0012).
+                    $section->forceFill(['parent_id' => $ids[$item['part']]])->save();
+                }
+
+                $ids[$index] = $section->id;
+            }
+
+            $updates = [];
+
+            if (blank($book->subtitle) && filled($parsed['subtitle'])) {
+                $updates['subtitle'] = mb_substr($parsed['subtitle'], 0, 255);
+            }
+
+            if (blank($book->audience) && filled($parsed['audience'])) {
+                $updates['audience'] = $parsed['audience'];
+            }
+
+            if (filled($parsed['notes'])) {
+                $updates['notes'] = trim(trim((string) $book->notes).'
+
+'.$parsed['notes']);
+            }
+
+            if ($updates !== []) {
+                $book->update($updates);
+            }
+
+            return count($ids);
         });
     }
 
