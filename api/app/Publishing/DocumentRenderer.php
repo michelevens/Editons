@@ -89,11 +89,48 @@ class DocumentRenderer
             return $nodes;
         }
 
-        return Numbering::apply(
+        $nodes = Numbering::apply(
             $nodes,
             $this->numbering['scheme'] === 'continuous' ? '' : $place['prefix'],
             $place['offsets'],
         );
+
+        // Each caption's key, as Numbering lists it, so print can record the
+        // page it lands on for the lists of tables and figures.
+        $n = 0;
+        foreach ($nodes as $i => $node) {
+            if (Numbering::captionKind($node)) {
+                $nodes[$i]['attrs']['captionKey'] = 'cap-'.$section->id.'-'.(++$n);
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * The captions of one kind, in book order, for a generated list.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listEntries(string $kind): array
+    {
+        return array_values(array_filter($this->numbering['captions'] ?? [], fn ($c) => $c['kind'] === $kind));
+    }
+
+    private function listHtml(string $kind): string
+    {
+        $rows = '';
+
+        foreach ($this->listEntries($kind) as $entry) {
+            $name = ucfirst($kind).' '.$entry['number'];
+            $file = $this->sectionFiles[$entry['section_id']] ?? '';
+            $name = $entry['label'] ? '<a href="'.e($file.'#'.$entry['label']).'">'.e($name).'</a>' : e($name);
+            $rows .= '<tr><td class="cl-number">'.$name.'</td><td class="cl-text">'.e($entry['text']).'</td></tr>';
+        }
+
+        return $rows === ''
+            ? '<p class="cl-empty">No '.$kind.'s yet. Captions written as a bold “'.ucfirst($kind).' 1.1” are listed here.</p>'."\n"
+            : '<table class="caption-list">'.$rows."</table>\n";
     }
 
     /** @param array<string, mixed> $node */
@@ -143,6 +180,11 @@ class DocumentRenderer
 
     public function html(ManuscriptSection $section): string
     {
+        // A list of tables or figures is generated, never typed.
+        if ($this->numbering !== null && ($kind = Numbering::listKind($section))) {
+            return $this->listHtml($kind);
+        }
+
         $nodes = $this->numbered($section);
 
         // One typesetting call per section, not one per equation.
@@ -434,6 +476,12 @@ class DocumentRenderer
 
     public function markdown(ManuscriptSection $section): string
     {
+        if ($this->numbering !== null && ($kind = Numbering::listKind($section))) {
+            return collect($this->listEntries($kind))
+                ->map(fn ($e) => '- **'.ucfirst($kind).' '.$e['number'].'** '.$e['text'])
+                ->implode("\n");
+        }
+
         $this->notes = [];
         $body = trim($this->nodesToMarkdown($this->numbered($section)));
 
@@ -455,6 +503,12 @@ class DocumentRenderer
      */
     public function docx(ManuscriptSection $section): string
     {
+        if ($this->numbering !== null && ($kind = Numbering::listKind($section))) {
+            return collect($this->listEntries($kind))
+                ->map(fn ($e) => $this->docxParagraph($this->docxRun(ucfirst($kind).' '.$e['number'], '<w:b/>').$this->docxRun('  '.$e['text'])))
+                ->implode('');
+        }
+
         return $this->nodesToDocx($this->numbered($section));
     }
 
@@ -780,7 +834,8 @@ class DocumentRenderer
             $children = $node['content'] ?? [];
 
             $out .= match ($node['type'] ?? '') {
-                'paragraph' => '<p'.$this->paragraphClass($children).$this->anchor($node).'>'.$this->inlineHtml($children)."</p>\n",
+                'paragraph' => '<p'.$this->paragraphClass($children).$this->anchor($node)
+                    .($this->mathMode === 'svg' && isset($node['attrs']['captionKey']) ? ' data-block="'.e($node['attrs']['captionKey']).'"' : '').'>'.$this->inlineHtml($children)."</p>\n",
                 'heading' => $this->headingHtml($node),
                 'bulletList' => "<ul>\n".$this->nodesToHtml($children)."</ul>\n",
                 'orderedList' => "<ol>\n".$this->nodesToHtml($children)."</ol>\n",

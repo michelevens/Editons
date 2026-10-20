@@ -161,7 +161,8 @@ return [
         'words' => [70000, 100000],
         'chapters' => [6, 10],
         'parts' => false,
-        'front_matter' => ['Abstract', 'Declaration', 'Acknowledgements', 'List of Abbreviations'],
+        // The lists are generated from captions at export; see Numbering.
+        'front_matter' => ['Abstract', 'Declaration', 'Acknowledgements', 'List of Tables', 'List of Figures', 'List of Abbreviations'],
         'back_matter' => ['References', 'Appendices'],
         'agents' => ['doctoral_examiner', 'fact_checker', 'consistency', 'copy'],
         'questions' => [
@@ -182,7 +183,7 @@ return [
         'words' => [60000, 90000],
         'chapters' => [7, 11],
         'parts' => false,
-        'front_matter' => ['Abstract', 'Declaration', 'Statement of Contribution', 'Publications Arising from This Thesis', 'Acknowledgements'],
+        'front_matter' => ['Abstract', 'Declaration', 'Statement of Contribution', 'Publications Arising from This Thesis', 'Acknowledgements', 'List of Tables', 'List of Figures'],
         'back_matter' => ['References', 'Appendices'],
         'agents' => ['doctoral_examiner', 'fact_checker', 'consistency', 'copy'],
         'questions' => [

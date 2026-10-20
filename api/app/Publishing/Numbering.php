@@ -43,7 +43,7 @@ class Numbering
         $scheme = self::scheme($sections);
         $prefixes = self::prefixes($sections);
         $running = ['table' => 0, 'figure' => 0, 'equation' => 0];
-        $result = ['scheme' => $scheme, 'sections' => [], 'targets' => []];
+        $result = ['scheme' => $scheme, 'sections' => [], 'targets' => [], 'captions' => []];
 
         foreach ($sections as $section) {
             $prefix = $prefixes[$section->id] ?? '';
@@ -66,12 +66,51 @@ class Numbering
                 'section_id' => $section->id,
             ];
 
+            // Every caption, labelled or not, for the lists of tables and
+            // figures; the key is how print finds the page it landed on.
+            $n = 0;
+            foreach ($nodes as $node) {
+                if ($kind = self::captionKind($node)) {
+                    $result['captions'][] = [
+                        'key' => 'cap-'.$section->id.'-'.(++$n),
+                        'kind' => strtolower($kind[0]),
+                        'number' => $kind[1],
+                        'text' => self::captionText($node),
+                        'label' => $node['attrs']['label'] ?? null,
+                        'section_id' => $section->id,
+                    ];
+                }
+            }
+
             foreach ($counts as $kind => $count) {
                 $running[$kind] += $count;
             }
         }
 
         return $result;
+    }
+
+    /** A caption's words after its "Table 4.2" label. */
+    public static function captionText(array $node): string
+    {
+        $text = collect(array_slice($node['content'] ?? [], 1))
+            ->map(fn ($child) => $child['text'] ?? '')
+            ->implode('');
+
+        return trim(ltrim(trim($text), '.:–—-'));
+    }
+
+    /**
+     * 'table' or 'figure' for a section the book generates ("List of
+     * Tables", "List of Figures"), else null.
+     */
+    public static function listKind(ManuscriptSection $section): ?string
+    {
+        return match (true) {
+            (bool) preg_match('/^\s*list\s+of\s+tables\s*$/iu', $section->title) => 'table',
+            (bool) preg_match('/^\s*list\s+of\s+(figures|illustrations)\s*$/iu', $section->title) => 'figure',
+            default => null,
+        };
     }
 
     /** by-chapter when any caption number has a dot, else continuous. */

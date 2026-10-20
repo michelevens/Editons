@@ -253,6 +253,39 @@ class PrintBook
                 $block['page'] = $block['physical'] - $bodyStart + 1;
             }
         }
+        unset($block);
+
+        // Each caption's page: how far into its chapter it fell in the first
+        // pass, from where that chapter now starts. Blank pages only ever
+        // fall between blocks, so the distance within one holds.
+        $bySection = [];
+        foreach ($blocks as $block) {
+            if (isset($block['section'])) {
+                $bySection[$block['section']->id] = $block;
+            }
+        }
+
+        $plan['captionPages'] = [];
+        foreach ($starts as $key => $page) {
+            if (preg_match('/^cap-(\d+)-\d+$/', $key, $m) && isset($bySection[(int) $m[1]])) {
+                $block = $bySection[(int) $m[1]];
+                $plan['captionPages'][$key] = $block['physical'] + ($page - ($starts[$block['id']] ?? $page)) - $bodyStart + 1;
+            }
+        }
+    }
+
+    /** A list of tables or figures, set like the contents, with pages. */
+    private function captionList(string $kind, array $plan): string
+    {
+        $rows = '';
+
+        foreach (array_filter($this->numbering['captions'] ?? [], fn ($c) => $c['kind'] === $kind) as $entry) {
+            $page = $plan['captionPages'][$entry['key']] ?? '';
+            $rows .= '<tr class="toc-chapter"><td class="toc-cap">'.e(ucfirst($kind).' '.$entry['number']).'</td>'
+                .'<td class="toc-title">'.e($entry['text']).'</td><td class="toc-page">'.e((string) $page).'</td></tr>';
+        }
+
+        return $rows === '' ? '' : '<table class="toc">'.$rows.'</table>';
     }
 
     /**
@@ -504,7 +537,9 @@ class PrintBook
                 .($block['label'] ? '<p class="opener-label">'.e($block['label']).'</p>' : '')
                 .'<h1 class="opener-title">'.e($block['title']).'</h1>'
                 .'<div class="rule"></div></div>'
-                .'<div class="text">'.$this->prose($book, $block['section'], $plan['language'], lead: $block['kind'] !== 'references').'</div>'
+                .'<div class="text">'.(($list = Numbering::listKind($block['section']))
+                    ? $this->captionList($list, $plan)
+                    : $this->prose($book, $block['section'], $plan['language'], lead: $block['kind'] !== 'references')).'</div>'
                 .'</section>',
         };
     }
@@ -800,6 +835,14 @@ class PrintBook
         .toc { width: 100%; border-collapse: collapse; font-size: .96em; }
         .toc td { padding: .17em 0; vertical-align: top; line-height: {$lh(1.32)}; }
         .toc-num { width: 1.9em; color: #555555; }
+        .toc-cap { width: 5.2em; color: #555555; white-space: nowrap; padding-right: .6em; }
+        /* A list of tables or figures sits inside the text, so it undoes the
+           book-table rules and reads like the contents page. */
+        .text table.toc { font-size: .96em; margin: 0; }
+        .text table.toc td { border: 0; padding: .17em 0; }
+        .text table.toc tr:last-child td { border: 0; }
+        .text table.toc td.toc-page { text-align: right; }
+        .text table.toc td.toc-cap { padding-right: .6em; }
         .toc-page { width: 2.4em; text-align: right; }
         .toc-matter .toc-title, .toc-references .toc-title { font-style: italic; }
         .toc-part td { padding: 1.05em 0 .3em; font-size: .78em; letter-spacing: .16em; text-transform: uppercase; }

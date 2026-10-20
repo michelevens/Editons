@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\Citation;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Samples\SampleThesis;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -51,6 +52,18 @@ class DemoSeeder extends Seeder
         // soft-deleted, and a demo that accumulated a visitor's deleted drafts
         // would grow without bound.
         $user->books()->withTrashed()->forceDelete();
+
+        // The four complete sample theses, from resources/samples. Here
+        // rather than loaded by hand, because this seeder rebuilds the demo
+        // account on every deploy and took hand-loaded books with it. First,
+        // so the shelf (newest first) still opens on the demo books. Not
+        // under the test runner, where the shelf's own tests expect exactly
+        // the three demo books and the samples have tests of their own.
+        if (! app()->runningUnitTests()) {
+            foreach (SampleThesis::SLUGS as $slug) {
+                app(SampleThesis::class)->load($user, $slug);
+            }
+        }
 
         $this->flagship($user);
         $this->secondBook($user);

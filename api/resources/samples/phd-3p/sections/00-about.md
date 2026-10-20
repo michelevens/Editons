@@ -1,0 +1,9 @@
+# About This Sample
+
+This document is an illustrative sample of a doctoral thesis by publication, supplied with Ecrivain so that research students can see how a complete three-paper thesis is assembled. It is not a real thesis and must not be submitted, adapted for submission, or cited as evidence of anything.
+
+Kestrel Bay University is a fictional institution. The candidate, Nalini S. Rao, her supervisors, her co-authors, the Coastal Region Workers' Compensation Board, the construction companies, the crews and every participant are invented. The *Journal of Occupational Health Sciences*, in which Paper 1 is described as published, is also fictional. All data reported in the three studies, including the pooled estimates of the review, the injury claims, the worksite temperatures, the urine specific gravity readings and the interview quotations, are synthetic. They were created to show how such studies are reported, and they are kept internally consistent across chapters so that the sample reads as one coherent piece of work.
+
+The cited literature is real. Every reference comes from a fixed reading list of established methodological and occupational heat-health sources, and the text paraphrases rather than quotes them. Where the argument needs support that the reading list does not supply, the gap is flagged with "[source needed]", a habit worth copying in your own drafts.
+
+The sample demonstrates the parts a thesis by publication normally contains: front matter with a statement of contribution, two framing chapters, three papers in journal-manuscript form with publication-status notes, short bridging chapters, an integrated discussion and a conclusion. Citations are written as tokens that Ecrivain formats in the chosen style; here that style is Vancouver, with one consolidated reference list at the end.

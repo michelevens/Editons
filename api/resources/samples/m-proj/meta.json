@@ -1,0 +1,97 @@
+{
+ "title": "Dose",
+ "subtitle": "Designing and Evaluating an Offline-First Medication Follow-Up Tool for Community Health Workers — An Ecrivain Sample Project Thesis",
+ "author": "Mateo J. Ferreira",
+ "type": "masters_thesis",
+ "style": "IEEE",
+ "genre": "Human-Computer Interaction",
+ "premise": "Can an offline-first mobile tool help community health workers see and record medication follow-ups in an intermittently connected setting?",
+ "audience": "Illustrative sample: master’s students writing a design or project-based thesis.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-background.md",
+   "type": "chapter",
+   "title": "Chapter 2: Background and Related Work"
+  },
+  {
+   "file": "12-requirements.md",
+   "type": "chapter",
+   "title": "Chapter 3: Understanding the Context: Requirements"
+  },
+  {
+   "file": "13-design.md",
+   "type": "chapter",
+   "title": "Chapter 4: Design"
+  },
+  {
+   "file": "14-implementation.md",
+   "type": "chapter",
+   "title": "Chapter 5: Implementation"
+  },
+  {
+   "file": "15-evaluation.md",
+   "type": "chapter",
+   "title": "Chapter 6: Evaluation"
+  },
+  {
+   "file": "16-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 7: Reflection and Conclusion"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "References"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: Requirements Specification"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Usability Test Script and SUS Questionnaire"
+  },
+  {
+   "file": "22-appendix-c.md",
+   "type": "back_matter",
+   "title": "Appendix C: Artefact Availability"
+  }
+ ]
+}

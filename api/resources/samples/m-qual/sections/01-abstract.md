@@ -1,0 +1,11 @@
+# Abstract
+
+Fully online master's programs have widened access to graduate study for working adults, many of whom are the first in their families to attend university. Yet research on belonging in higher education has been built largely around residential undergraduates, and it is unclear what belonging means to first-generation students who study at a distance, often alongside full-time work and caring responsibilities. This thesis asks how first-generation students describe belonging, or its absence, in a fully online master's program; which program practices and interactions they identify as strengthening or weakening it; and how they draw on resources from family, work and community to sustain their study.
+
+I conducted semi-structured video interviews of 60 to 75 minutes with 14 first-generation students enrolled in three fully online master's programs (MBA, MS Nursing Leadership and MA Instructional Design) at a public university in the United States. Interviews were analyzed using reflexive thematic analysis, producing 212 initial codes that were developed into four themes and 11 subthemes.
+
+The first theme shows that participants experienced belonging less as being seen than as being recognized: known by name, answered, and heard in asynchronous discussion. Compulsory camera policies weighed most heavily on those working night shifts or caring for others. The second theme describes an online hidden curriculum in which unstated expectations made asking for help feel risky, and in which a single instructor who made the implicit explicit could change a student's year. The third shows peers building their own spaces outside the platform, which sustained many participants but excluded some. The fourth shows family and work acting as both resources and pressures.
+
+The study suggests that online programs can strengthen belonging through practices of recognition and explicit expectation rather than through mandated visibility, and that first-generation students bring assets that programs could more deliberately acknowledge.
+
+**Keywords:** sense of belonging; first-generation students; online learning; graduate education; hidden curriculum; reflexive thematic analysis

@@ -428,6 +428,16 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
             )}
 
             <div className="flex-1 overflow-y-auto px-[21px] pb-10 pt-[30px]">
+                {/^\s*list\s+of\s+(tables|figures|illustrations)\s*$/i.test(section.title) && (
+                    <p
+                        data-a="editor:generated-list"
+                        className="mb-4 rounded-control border border-brand-primary/30 bg-brand-primary-subtle px-3.5 py-2.5 text-[12.5px] leading-relaxed text-text-body"
+                    >
+                        This list is made for you in every export, with page numbers in the PDF,
+                        from every caption written as a bold “Table 1.1” or “Figure 1.1”.
+                        Anything typed here is not used.
+                    </p>
+                )}
                 <EditorContent editor={editor} />
             </div>
 

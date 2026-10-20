@@ -1,0 +1,112 @@
+{
+ "title": "Working in the Heat",
+ "subtitle": "Three Studies of Occupational Heat Exposure, Health and Protection among Outdoor Workers — An Ecrivain Sample Thesis by Publication",
+ "author": "Nalini S. Rao",
+ "type": "phd_dissertation",
+ "style": "Vancouver",
+ "genre": "Public Health",
+ "premise": "How does occupational heat exposure affect outdoor workers’ health, and what does it take to protect them?",
+ "audience": "Illustrative sample: doctoral students writing a thesis by publication (three-paper format).",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-contribution.md",
+   "type": "front_matter",
+   "title": "Statement of Contribution"
+  },
+  {
+   "file": "04-publications.md",
+   "type": "front_matter",
+   "title": "Publications Arising from This Thesis"
+  },
+  {
+   "file": "05-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-background.md",
+   "type": "chapter",
+   "title": "Chapter 2: Background and Methods Overview"
+  },
+  {
+   "file": "12-paper1.md",
+   "type": "chapter",
+   "title": "Chapter 3: Paper 1 — Heat Exposure and Injury and Kidney Outcomes: A Systematic Review and Meta-Analysis"
+  },
+  {
+   "file": "13-bridge1.md",
+   "type": "chapter",
+   "title": "Bridge: From Evidence Synthesis to Worksite Exposure"
+  },
+  {
+   "file": "14-paper2.md",
+   "type": "chapter",
+   "title": "Chapter 4: Paper 2 — Worksite Heat and Occupational Injury: A Case-Crossover Study"
+  },
+  {
+   "file": "15-bridge2.md",
+   "type": "chapter",
+   "title": "Bridge: From Measuring Risk to Testing Protection"
+  },
+  {
+   "file": "16-paper3.md",
+   "type": "chapter",
+   "title": "Chapter 5: Paper 3 — A Heat-Stress Management Programme for Construction Crews: A Feasibility Study"
+  },
+  {
+   "file": "17-discussion.md",
+   "type": "chapter",
+   "title": "Chapter 6: Integrated Discussion"
+  },
+  {
+   "file": "18-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 7: Conclusion"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "References"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: Search Strategy"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Interview and Focus Group Guides"
+  }
+ ]
+}

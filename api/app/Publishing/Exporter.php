@@ -112,7 +112,8 @@ class Exporter
             ->orderBy('position')
             ->get()
             ->reject(fn (ManuscriptSection $section) => $section->isContainer())
-            ->filter(fn (ManuscriptSection $section) => trim($section->plainText()) !== '')
+            // Generated lists are empty in the binder and full in the book.
+            ->filter(fn (ManuscriptSection $section) => Numbering::listKind($section) !== null || trim($section->plainText()) !== '')
             ->values();
     }
 
@@ -134,6 +135,7 @@ class Exporter
             ->orderBy('position')
             ->get()
             ->filter(fn (ManuscriptSection $s) => $s->type === 'part'
+                || Numbering::listKind($s) !== null
                 || trim($s->plainText()) !== '')
             ->values();
     }

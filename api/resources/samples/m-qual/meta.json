@@ -1,0 +1,92 @@
+{
+ "title": "Belonging at a Distance",
+ "subtitle": "How First-Generation Students Experience Fully Online Master’s Study — An Ecrivain Sample Thesis",
+ "author": "Danielle R. Osei",
+ "type": "masters_thesis",
+ "style": "APA",
+ "genre": "Education",
+ "premise": "How do first-generation students experience belonging in fully online master’s programmes, and which programme practices strengthen or weaken it?",
+ "audience": "Illustrative sample: master’s students writing a qualitative interview study.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-literature.md",
+   "type": "chapter",
+   "title": "Chapter 2: Literature Review"
+  },
+  {
+   "file": "12-methodology.md",
+   "type": "chapter",
+   "title": "Chapter 3: Methodology"
+  },
+  {
+   "file": "13-findings.md",
+   "type": "chapter",
+   "title": "Chapter 4: Findings"
+  },
+  {
+   "file": "14-discussion.md",
+   "type": "chapter",
+   "title": "Chapter 5: Discussion"
+  },
+  {
+   "file": "15-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 6: Conclusion and Recommendations"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "References"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: Interview Guide"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Participant Information and Consent"
+  },
+  {
+   "file": "22-appendix-c.md",
+   "type": "back_matter",
+   "title": "Appendix C: Codebook Excerpt"
+  }
+ ]
+}

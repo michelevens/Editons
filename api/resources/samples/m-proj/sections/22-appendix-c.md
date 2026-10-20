@@ -1,0 +1,7 @@
+# Appendix C: Artefact Availability
+
+In a real submission, this appendix would tell examiners and later readers where to find the artifact described in Chapters 4 and 5, so that the design and its evaluation can be inspected and, where appropriate, reproduced. It would list three deposits in the Kestrel Bay University research repository: the source code of the Dose client and synchronization server, tagged at the version evaluated in Chapter 6; the installable Android package (11.8 MB) built from that version; and the evaluation materials in Appendix B, together with the anonymized task and SUS data. It would also give the license under which the code is released, any embargo period, and a contact for access requests.
+
+For this sample thesis, none of these deposits exist. Dose is a fictional artifact. No source code was written, no APK was built, and no repository record has been created. The design, implementation details, test results and performance figures reported in Chapters 4 to 6 were written to illustrate how a project-based thesis presents such material; they are not the output of a working system.
+
+Students using this sample as a template should replace this appendix with the real details of their own deposit: the repository name, persistent identifier, version or commit tag, license, any access restrictions agreed with their ethics committee, and the date of deposit. Where data cannot be shared, for example because participants did not consent to release, the appendix should say so and explain what is available instead.

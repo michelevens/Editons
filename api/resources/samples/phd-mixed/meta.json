@@ -1,0 +1,107 @@
+{
+ "title": "Trust, Tools and Time",
+ "subtitle": "A Mixed Methods Study of Secondary Teachers’ Use of Learning Analytics Dashboards — An Ecrivain Sample Dissertation",
+ "author": "Tobias K. Lindgren",
+ "type": "phd_dissertation",
+ "style": "Chicago",
+ "genre": "Education",
+ "premise": "Why do teachers who intend to use learning analytics dashboards not use them, and how does trust in the data shape use?",
+ "audience": "Illustrative sample: doctoral students writing an explanatory sequential mixed methods dissertation.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": "04-abbreviations.md",
+   "type": "front_matter",
+   "title": "List of Abbreviations"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-literature.md",
+   "type": "chapter",
+   "title": "Chapter 2: Literature Review"
+  },
+  {
+   "file": "12-framework.md",
+   "type": "chapter",
+   "title": "Chapter 3: Theoretical Framework"
+  },
+  {
+   "file": "13-methodology.md",
+   "type": "chapter",
+   "title": "Chapter 4: Methodology"
+  },
+  {
+   "file": "14-quantitative.md",
+   "type": "chapter",
+   "title": "Chapter 5: Quantitative Results"
+  },
+  {
+   "file": "15-qualitative.md",
+   "type": "chapter",
+   "title": "Chapter 6: Qualitative Findings"
+  },
+  {
+   "file": "16-integration.md",
+   "type": "chapter",
+   "title": "Chapter 7: Integration and Discussion"
+  },
+  {
+   "file": "17-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 8: Conclusion"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "References"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: Survey Instrument"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Interview Protocol"
+  },
+  {
+   "file": "22-appendix-c.md",
+   "type": "back_matter",
+   "title": "Appendix C: Supplementary Tables"
+  }
+ ]
+}

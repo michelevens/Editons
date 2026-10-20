@@ -79,7 +79,7 @@ it('embeds pictures in the PDF, EPUB, Word and single HTML exports', function ()
     // PDF: typeset with the picture as data, the caption as a caption.
     $html = app(PrintBook::class)->html($book, $book->sections()->get(), 'en');
     expect($html)->toContain('src="data:image/png;base64,')
-        ->and($html)->toContain('<p class="caption">');
+        ->and($html)->toContain('<p class="caption"');
 
     // EPUB: the picture is in the package and the manifest.
     $epub = $exporter->generate($book, 'epub');

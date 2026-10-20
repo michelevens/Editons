@@ -511,6 +511,15 @@ version) so they can be referred to. Exports resolve references from the
 book's numbering: links in PDF, HTML and EPUB (across files), text in Word
 and Markdown, "[missing reference]" when the target has gone.
 
+Lists of tables and figures are generated: a section titled "List of
+Tables" or "List of Figures" (now in the doctoral templates) is filled
+from every caption at export. In print, each caption paragraph carries a
+`data-block` key, the first pass records the page it lands on, and its
+final folio is its distance into its chapter added to where that chapter
+starts after blank pages are inserted; the list is set like the contents
+page. HTML/EPUB lists link to labelled captions; Word and Markdown list
+them as text.
+
 Known gaps: page-foot notes in the PDF; Word cross-references are text,
 not REF fields; images are
 not imported from Markdown; Word equations need Word's "Professional"
