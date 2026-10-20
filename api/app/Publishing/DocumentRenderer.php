@@ -509,7 +509,12 @@ class DocumentRenderer
                 ->implode('');
         }
 
-        return $this->nodesToDocx($this->numbered($section));
+        $nodes = $this->numbered($section);
+
+        // One typesetting call for the section's equations.
+        $this->math->render($this->collectMath($nodes));
+
+        return $this->nodesToDocx($nodes);
     }
 
     /** Pictures placed by docx() since the last reset, for the package. */
@@ -660,8 +665,7 @@ class DocumentRenderer
                 'chart' => $this->docxChart($node),
                 // A Word equation holding the LaTeX in linear form: Word's
                 // equation tools (LaTeX input, "Professional") build it up.
-                'blockMath' => '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><m:oMathPara><m:oMath>'
-                    .$this->docxMathRun((string) ($node['attrs']['latex'] ?? '')).'</m:oMath></m:oMathPara></w:p>',
+                'blockMath' => $this->docxDisplayMath((string) ($node['attrs']['latex'] ?? '')),
                 default => $children ? $this->nodesToDocx($children, $style, $depth) : '',
             };
         }
@@ -774,7 +778,7 @@ class DocumentRenderer
             }
 
             if (($node['type'] ?? '') === 'inlineMath') {
-                $out .= '<m:oMath>'.$this->docxMathRun((string) ($node['attrs']['latex'] ?? '')).'</m:oMath>';
+                $out .= '<m:oMath>'.$this->docxMath((string) ($node['attrs']['latex'] ?? ''), false).'</m:oMath>';
 
                 continue;
             }
@@ -802,6 +806,35 @@ class DocumentRenderer
         }
 
         return $out;
+    }
+
+    /**
+     * An equation as native Word math (OMML), built from the MathML the
+     * typesetter already produces, so it opens built up rather than as
+     * LaTeX. The LaTeX itself is the fallback when typesetting fails.
+     */
+    private function docxMath(string $latex, bool $display): string
+    {
+        $result = trim($latex) === '' ? null : $this->math->one(trim($latex), $display);
+        $omml = isset($result['mathml']) ? app(MathMLToOmml::class)->convert($result['mathml']) : null;
+
+        return $omml ?? $this->docxMathRun($latex);
+    }
+
+    /** A display equation, centred, its number at the right margin. */
+    private function docxDisplayMath(string $latex): string
+    {
+        [$body, $tag] = $this->splitTag($latex);
+        $math = '<m:oMath>'.$this->docxMath($body, true).'</m:oMath>';
+
+        if ($tag === null) {
+            return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><m:oMathPara>'.$math.'</m:oMathPara></w:p>';
+        }
+
+        // Centre and right tab stops on a 6-inch measure (twips): the
+        // equation sits on the first, its number on the second.
+        return '<w:p><w:pPr><w:tabs><w:tab w:val="center" w:pos="4320"/><w:tab w:val="right" w:pos="8640"/></w:tabs></w:pPr>'
+            .'<w:r><w:tab/></w:r>'.$math.'<w:r><w:tab/><w:t xml:space="preserve">('.htmlspecialchars($tag, ENT_XML1 | ENT_QUOTES, 'UTF-8').')</w:t></w:r></w:p>';
     }
 
     private function docxMathRun(string $latex): string

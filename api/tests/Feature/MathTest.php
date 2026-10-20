@@ -7,7 +7,9 @@ use App\Models\ManuscriptSection;
 use App\Models\User;
 use App\Publishing\DocumentRenderer;
 use App\Publishing\Exporter;
+use App\Publishing\MathMLToOmml;
 use App\Publishing\MathRenderer;
+use App\Publishing\Numbering;
 use App\Publishing\PrintBook;
 use Illuminate\Support\Facades\Storage;
 
@@ -113,7 +115,7 @@ it('puts Word equations in the DOCX and typesets equations in the PDF', function
     $document = $zip->getFromName('word/document.xml');
     $zip->close();
 
-    expect($document)->toContain('<m:oMathPara><m:oMath>')
+    expect($document)->toContain('<m:oMath><m:bar>')
         ->and($document)->toContain('xmlns:m=')
         ->and(simplexml_load_string($document))->not->toBeFalse();
 
@@ -128,4 +130,59 @@ it('typesets a formula inside a bold label', function () {
     expect($content[0])->toBe(['type' => 'inlineMath', 'attrs' => ['latex' => 'V']])
         ->and($content[1])->toBe(['type' => 'text', 'text' => ', the nodes.', 'marks' => [['type' => 'bold']]])
         ->and($content[2]['text'])->toBe(' Each customer is a node.');
+});
+
+it('writes native Word equations, not LaTeX', function () {
+    $section = mathSection(implode("\n\n", [
+        'The mean $\bar{x}$ and $\sqrt{\alpha^2}$ with $\Pr(Y_i = 1 \mid \mathbf{x}_i)$.',
+        '$$\n\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i \tag{3.1}\n$$',
+        '$$\nA = \begin{pmatrix} a & b \\ c & d \end{pmatrix}\n$$',
+        '$$\n\lim_{x \to \infty} \int_0^1 f(x)\,dx\n$$',
+    ]));
+
+    $xml = app(DocumentRenderer::class)->docx($section);
+
+    expect($xml)->toContain('<m:f>')->toContain('<m:nary>')->toContain('<m:chr m:val="∑"/>')
+        ->toContain('<m:rad>')->toContain('<m:bar>')->toContain('<m:sSub>')
+        ->toContain('<m:d><m:dPr><m:begChr m:val="("/>')->toContain('<m:m>')
+        ->toContain('<m:limLow>')->toContain('<m:chr m:val="∫"/>')
+        // The summand is the sum's body, not left trailing after it.
+        ->toMatch('/<m:chr m:val="∑"\/>.*<m:e><m:sSub><m:e><m:r><m:t xml:space="preserve">x<\/m:t>/s')
+        // Function names upright, bold symbols bold.
+        ->toContain('<m:sty m:val="p"/></m:rPr><m:t xml:space="preserve">Pr</m:t>')
+        ->toContain('<m:sty m:val="b"/></m:rPr><m:t xml:space="preserve">x</m:t>')
+        // The number beside the equation, not inside it.
+        ->toContain('<w:tab/><w:t xml:space="preserve">(3.1)</w:t>')
+        ->not->toContain('\frac');
+
+    $wrapped = '<w:body xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'.$xml.'</w:body>';
+    expect(simplexml_load_string($wrapped))->not->toBeFalse();
+});
+
+it('keeps matrix rows and the cases brace in Word', function () {
+    // Nowdoc: the row breaks must arrive as \\, exactly as an author types.
+    [$matrix, $cases] = explode("\n", <<<'TEX'
+A = \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+f(x) = \begin{cases} 1 & x > 0 \\ 0 & \text{otherwise} \end{cases}
+TEX);
+
+    $omml = fn (string $latex) => app(MathMLToOmml::class)
+        ->convert(app(MathRenderer::class)->one($latex, true)['mathml']);
+
+    expect(substr_count($omml($matrix), '<m:mr>'))->toBe(2)
+        ->and($omml($matrix))->toContain('<m:begChr m:val="("/><m:endChr m:val=")"/>')
+        ->and(substr_count($omml($cases), '<m:mr>'))->toBe(2)
+        ->and($omml($cases))->toContain('<m:begChr m:val="{"/><m:endChr m:val=""/>');
+});
+
+it('numbers equations by chapter when the author does, even without captions', function () {
+    $book = Book::factory()->for(User::factory())->create();
+    ManuscriptSection::factory()->for($book)->create(['title' => 'Chapter 3: Method', 'type' => 'chapter', 'position' => 10,
+        'content' => ['type' => 'doc', 'content' => [['type' => 'blockMath', 'attrs' => ['latex' => 'a = b \tag{3.1}']]]]]);
+
+    $numbering = Numbering::forBook($book->sections()->get());
+
+    expect($numbering['scheme'])->toBe('chapter')
+        ->and(Numbering::apply($book->sections()->first()->content['content'], '3.')[0]['attrs']['latex'])
+        ->toBe('a = b \tag{3.1}');
 });

@@ -121,6 +121,13 @@ class Numbering
                 if (($kind = self::captionKind($node)) && str_contains($kind[1], '.')) {
                     return 'chapter';
                 }
+
+                // An equation numbered (3.1) says the same about the book as a
+                // table numbered 3.1, and may be all a mathematical book has.
+                if (($node['type'] ?? '') === 'blockMath'
+                    && preg_match('/\\\\tag\{\s*[A-Z]?\d+\.\d+\s*\}/u', (string) ($node['attrs']['latex'] ?? ''))) {
+                    return 'chapter';
+                }
             }
         }
 

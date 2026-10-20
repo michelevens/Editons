@@ -520,6 +520,17 @@ starts after blank pages are inserted; the list is set like the contents
 page. HTML/EPUB lists link to labelled captions; Word and Markdown list
 them as text.
 
+Word equations are native Office Math (OMML), converted from the MathML
+the typesetter already produces by `App\Publishing\MathMLToOmml`:
+fractions, scripts, roots, big operators with their bodies and limits,
+accents and bars, fences (including the one-sided brace of `cases`),
+matrices and aligned rows, upright function names and bold symbols. Display
+equation numbers sit at a right tab stop. Unknown constructs fall back to
+their characters; a formula that fails to typeset falls back to its LaTeX.
+Checked by reading exported files back with Pandoc. Equation numbers also
+set the numbering scheme: a book whose equations are numbered (3.1) numbers
+by chapter even without table or figure captions.
+
 Known gaps: page-foot notes in the PDF; Word cross-references are text,
 not REF fields; images are
 not imported from Markdown; Word equations need Word's "Professional"
