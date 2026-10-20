@@ -133,6 +133,45 @@ return [
         'chapter_prompt' => 'What claim does this chapter establish, and on what evidence?',
     ],
 
+    /*
+     * Degree work. Lengths and structures vary by institution and field, and
+     * the student's own regulations govern; these are the common shape. The
+     * examiner leads the review, and coaches rather than writes.
+     */
+    'masters_thesis' => [
+        'name' => "Master's Thesis",
+        'blurb' => "A master's thesis or dissertation, in any field.",
+        'words' => [15000, 40000],
+        'chapters' => [5, 7],
+        'parts' => false,
+        'front_matter' => ['Abstract', 'Declaration', 'Acknowledgements'],
+        'back_matter' => ['References', 'Appendices'],
+        'agents' => ['masters_examiner', 'fact_checker', 'consistency', 'copy'],
+        'questions' => [
+            'premise' => 'What is your research question, stated precisely enough to be answered?',
+            'audience' => 'Which field is this for, and which debate in it does it join?',
+            'promise' => 'What will the thesis show, and how will a reader be able to check it?',
+        ],
+        'chapter_prompt' => 'Which part of the research question does this chapter answer, and on what evidence?',
+    ],
+
+    'phd_dissertation' => [
+        'name' => 'PhD Dissertation',
+        'blurb' => 'A doctoral dissertation or thesis, in any field.',
+        'words' => [70000, 100000],
+        'chapters' => [6, 10],
+        'parts' => false,
+        'front_matter' => ['Abstract', 'Declaration', 'Acknowledgements'],
+        'back_matter' => ['Bibliography', 'Appendices'],
+        'agents' => ['doctoral_examiner', 'fact_checker', 'consistency', 'copy'],
+        'questions' => [
+            'premise' => 'What is your thesis, stated as a claim an examiner could dispute?',
+            'audience' => 'Which field and which conversation in it does this change?',
+            'promise' => 'What is the original contribution to knowledge, in one sentence?',
+        ],
+        'chapter_prompt' => 'What does this chapter contribute to the thesis, and how would you defend it at the viva?',
+    ],
+
     'childrens' => [
         'name' => "Children's",
         'blurb' => 'A picture book or early reader.',

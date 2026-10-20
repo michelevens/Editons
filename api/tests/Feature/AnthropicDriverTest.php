@@ -18,10 +18,10 @@ function toolResponse(array $findings, array $overrides = []): array
 {
     return array_merge([
         'model' => 'claude-sonnet-5-5',
+        'stop_reason' => 'end_turn',
         'content' => [[
-            'type' => 'tool_use',
-            'name' => 'report_findings',
-            'input' => ['findings' => $findings],
+            'type' => 'text',
+            'text' => json_encode(['findings' => $findings]),
         ]],
         'usage' => ['input_tokens' => 1000, 'output_tokens' => 200],
     ], $overrides);
@@ -74,13 +74,49 @@ it('reviews injection attempts as prose rather than obeying them', function () {
         ->and($result->findings[0]->excerpt)->toBe($hostile);
 });
 
-it('constrains output with a tool rather than asking for JSON', function () {
+it('constrains output with a schema, and never forces a tool', function () {
+    // Current models reject a forced tool_choice with a 400: the driver's
+    // first real review would have failed.
     Http::fake(['api.anthropic.com/*' => Http::response(toolResponse([]))]);
 
     driver()->review(EditorialAgent::FactChecker, 'Text.');
 
-    Http::assertSent(fn ($request) => $request['tools'][0]['name'] === 'report_findings'
-        && $request['tool_choice'] === ['type' => 'tool', 'name' => 'report_findings']);
+    Http::assertSent(fn ($request) => $request['output_config']['format']['type'] === 'json_schema'
+        && $request['output_config']['format']['schema']['additionalProperties'] === false
+        && ! isset($request['tool_choice']));
+});
+
+it('reports a refusal instead of a clean chapter', function () {
+    Http::fake(['api.anthropic.com/*' => Http::response(toolResponse([], ['stop_reason' => 'refusal', 'content' => []]))]);
+
+    expect(fn () => driver()->review(EditorialAgent::Line, 'Text.'))
+        ->toThrow(RuntimeException::class, 'declined');
+});
+
+it('never lets an examiner write the student\'s text', function () {
+    $text = 'This study shows the method works in all cases.';
+
+    Http::fake(['api.anthropic.com/*' => Http::response(toolResponse([[
+        'severity' => 'warning',
+        'title' => 'Overclaim',
+        'detail' => 'One sample cannot show all cases.',
+        'excerpt' => 'works in all cases',
+        'suggestion' => 'works in the cases tested',
+    ]]))]);
+
+    $result = driver()->review(EditorialAgent::DoctoralExaminer, $text);
+
+    expect($result->findings)->toHaveCount(1)
+        ->and($result->findings[0]->suggestion)->toBeNull();
+});
+
+it('records what Claude Opus 5.5 actually costs', function () {
+    Http::fake(['api.anthropic.com/*' => Http::response(toolResponse([], ['model' => 'claude-opus-5-5']))]);
+
+    $result = driver()->review(EditorialAgent::Line, 'Text.');
+
+    // 1000 in at $4/M plus 200 out at $20/M, not Opus 5's $5 and $25.
+    expect($result->costUsd)->toBe(0.008);
 });
 
 it('drops a finding whose excerpt is not in the chapter', function () {
@@ -131,8 +167,10 @@ it('records token use and cost for the review', function () {
 
     expect($result->inputTokens)->toBe(1000)
         ->and($result->outputTokens)->toBe(200)
-        // 1000/1e6 * 3.00 + 200/1e6 * 15.00
-        ->and($result->costUsd)->toBe(0.006);
+        // Claude Sonnet 5.5: 1000/1e6 * 2.00 + 200/1e6 * 10.00. This said
+        // $3/$15, an older Sonnet's rate, so every review recorded half as
+        // much again as it cost.
+        ->and($result->costUsd)->toBe(0.004);
 });
 
 it('records no cost rather than guessing for an unknown model', function () {

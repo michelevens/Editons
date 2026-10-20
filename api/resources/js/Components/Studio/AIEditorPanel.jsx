@@ -20,6 +20,8 @@ const AGENT_STYLE = {
     consistency: { icon: 'aCons', tile: 'bg-status-warning-tile text-status-warning' },
     subject_matter: { icon: 'aSubj', tile: 'bg-status-danger-tile text-status-danger' },
     accessibility: { icon: 'aAcc', tile: 'bg-status-success-tile text-status-success' },
+    masters_examiner: { icon: 'cap', tile: 'bg-status-info-bg text-status-info' },
+    doctoral_examiner: { icon: 'cap', tile: 'bg-status-danger-tile text-status-danger' },
 };
 
 const SEVERITY_BADGE = {

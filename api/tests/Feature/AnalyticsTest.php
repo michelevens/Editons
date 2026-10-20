@@ -128,7 +128,7 @@ it('reports every agent, including those with nothing open', function () {
     $user = User::factory()->create();
     $book = Book::factory()->for($user)->create();
 
-    expect(analyticsFor($user, $book)['by_agent'])->toHaveCount(7);
+    expect(analyticsFor($user, $book)['by_agent'])->toHaveCount(count(App\Editorial\EditorialAgent::cases()));
 });
 
 it('keeps the window within sane bounds', function () {

@@ -20,6 +20,8 @@ enum EditorialAgent: string
     case Consistency = 'consistency';
     case SubjectMatter = 'subject_matter';
     case Accessibility = 'accessibility';
+    case MastersExaminer = 'masters_examiner';
+    case DoctoralExaminer = 'doctoral_examiner';
 
     public function label(): string
     {
@@ -31,6 +33,8 @@ enum EditorialAgent: string
             self::Consistency => 'Consistency Agent',
             self::SubjectMatter => 'Subject Matter Review',
             self::Accessibility => 'Accessibility Check',
+            self::MastersExaminer => "Master's Examiner",
+            self::DoctoralExaminer => 'Doctoral Examiner',
         };
     }
 
@@ -44,6 +48,8 @@ enum EditorialAgent: string
             self::Consistency => 'Terminology, names and facts that disagree across the book.',
             self::SubjectMatter => 'Domain accuracy and regulatory language.',
             self::Accessibility => 'Readability, structure and inclusive language.',
+            self::MastersExaminer => "Reads a thesis chapter as a master's examiner would: aim, literature, method, evidence, citations. Coaches; never writes.",
+            self::DoctoralExaminer => 'Reads a dissertation chapter as a doctoral examiner would: original contribution, rigour, defensibility at the viva. Coaches; never writes.',
         };
     }
 
@@ -58,7 +64,7 @@ enum EditorialAgent: string
     {
         return match ($this) {
             self::SubjectMatter => 2,
-            self::FactChecker, self::Consistency => 1,
+            self::FactChecker, self::Consistency, self::MastersExaminer, self::DoctoralExaminer => 1,
             default => 0,
         };
     }
@@ -72,6 +78,21 @@ enum EditorialAgent: string
     public function isSpecialist(): bool
     {
         return $this->minimumTier() > 0;
+    }
+
+    /**
+     * Whether this agent only coaches.
+     *
+     * The examiners exist for students writing work they will submit for a
+     * degree. Text a reviewer writes for them would be text they did not
+     * write, so these agents explain problems and what a strong thesis
+     * would show, and never supply replacement wording, whatever the model
+     * returns. Academic integrity is the product's to protect here, not
+     * only the student's.
+     */
+    public function coachesOnly(): bool
+    {
+        return in_array($this, [self::MastersExaminer, self::DoctoralExaminer], true);
     }
 
     /** The credit cost label for one run of this agent. */

@@ -49,6 +49,8 @@ class FakeDriver implements EditorialDriver
             EditorialAgent::Consistency => $this->consistency($text),
             EditorialAgent::Accessibility => $this->readability($text),
             EditorialAgent::SubjectMatter => $this->subjectMatter($text),
+            EditorialAgent::MastersExaminer => $this->examiner($text, doctoral: false),
+            EditorialAgent::DoctoralExaminer => $this->examiner($text, doctoral: true),
         };
 
         return new ReviewResult(findings: $findings, model: null, costUsd: 0.0);
@@ -302,6 +304,79 @@ class FakeDriver implements EditorialDriver
                     fromOffset: $m[0][1],
                 );
             }
+        }
+
+        return $out;
+    }
+
+    /**
+     * What an examiner checks first, by pattern: an aim, citations behind
+     * empirical claims, overclaiming, and at doctoral level a stated
+     * contribution and limitations. Findings only, never replacement text.
+     *
+     * @return array<int, Finding>
+     */
+    private function examiner(string $text, bool $doctoral): array
+    {
+        $out = [];
+        $sentences = $this->sentences($text);
+
+        if ($sentences === []) {
+            return [];
+        }
+
+        $citation = '/\(\s*[A-Z][^()]{0,80}?\d{4}[a-z]?\s*(,\s*p+\.\s*\d+)?\)|\[\d+([,\-–]\s*\d+)*\]|\bet al\./u';
+
+        if (! preg_match('/research question|\b(aim|aims|objective|purpose)\b|this (study|thesis|dissertation|chapter) (examines|investigates|argues|explores|asks)|hypothes/i', $text)) {
+            [$first, $at] = $sentences[0];
+            $out[] = new Finding(
+                severity: 'warning',
+                title: 'No research aim in view',
+                detail: 'An examiner looks for how each chapter serves the research question. Say which question or aim this chapter addresses, in your own words.',
+                excerpt: $first,
+                fromOffset: $at,
+            );
+        }
+
+        foreach ($sentences as [$sentence, $at]) {
+            if (count($out) >= 12) {
+                break;
+            }
+
+            $empirical = preg_match('/\b(studies|research|evidence|data|surveys?) (show|shows|suggest|suggests|indicate|indicates|demonstrate|demonstrates)\b|\bit is (well )?(known|established)\b|\d+(\.\d+)?\s?%|\bsignificant(ly)?\b/i', $sentence);
+
+            if ($empirical && ! preg_match($citation, $sentence)) {
+                $out[] = new Finding(
+                    severity: 'warning',
+                    title: 'Claim without a citation',
+                    detail: 'This states something as established without citing where it comes from. Cite the source you relied on, or present it as your own finding with the evidence for it.',
+                    excerpt: $sentence,
+                    fromOffset: $at,
+                );
+
+                continue;
+            }
+
+            if (preg_match('/\b(proves?|proven|undeniabl[ey]|always|never|in all cases|clearly (shows|demonstrates)|without (a )?doubt)\b/i', $sentence)) {
+                $out[] = new Finding(
+                    severity: 'suggestion',
+                    title: 'Possible overclaim',
+                    detail: 'Absolute language invites the examiner to find the counter-example. Consider whether your evidence supports this strength of claim, and say what it is limited to.',
+                    excerpt: $sentence,
+                    fromOffset: $at,
+                );
+            }
+        }
+
+        if ($doctoral && ! preg_match('/contribut/i', $text)) {
+            [$first, $at] = $sentences[0];
+            $out[] = new Finding(
+                severity: 'suggestion',
+                title: 'Contribution not stated here',
+                detail: 'A doctoral examiner will ask what this chapter adds to knowledge. If it has a part in the contribution, say what that part is.',
+                excerpt: $first,
+                fromOffset: $at,
+            );
         }
 
         return $out;
