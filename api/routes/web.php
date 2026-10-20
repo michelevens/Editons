@@ -8,6 +8,7 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\BookImageController;
 use App\Http\Controllers\ChartController;
 use App\Http\Controllers\CommentController;
+use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\CoverAiController;
 use App\Http\Controllers\DesignController;
@@ -314,6 +315,8 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover');
     Route::post('/books/{book}/cover/artwork', [DesignController::class, 'uploadArtwork'])
         ->name('design.cover.artwork');
+    Route::get('/books/{book}/cross-references', [CrossReferenceController::class, 'index'])
+        ->name('books.cross-references');
     Route::post('/charts/preview', [ChartController::class, 'preview'])
         ->middleware('throttle:120,1')
         ->name('charts.preview');

@@ -26,7 +26,7 @@ use ZipArchive;
 class Exporter
 {
     public function __construct(
-        private readonly DocumentRenderer $renderer,
+        private DocumentRenderer $renderer,
         private readonly PrintBook $print,
         private readonly CoverRenderer $covers,
         private readonly BookImages $images,
@@ -57,7 +57,18 @@ class Exporter
             'user_id' => $userId,
         ]);
 
+        $base = $this->renderer;
+
         try {
+            // Numbering for the whole book: captions and equations renumber
+            // from position, and cross-references resolve, in every format.
+            // EPUB splits the book into files, so its links name the file.
+            $structure = $this->structure($book);
+            $this->renderer = $base->withNumbering(
+                Numbering::forBook($structure),
+                $format === 'epub' ? $structure->values()->mapWithKeys(fn ($s, $i) => [$s->id => 'ch'.($i + 1).'.xhtml'])->all() : [],
+            );
+
             $path = match ($format) {
                 'epub' => $this->epub($book, $sections, $export),
                 'pdf' => $this->pdf($book, $sections, $export),
@@ -79,6 +90,9 @@ class Exporter
             $export->update(['status' => 'failed']);
 
             throw $e;
+        } finally {
+            // The next export starts from the plain renderer, not this book's.
+            $this->renderer = $base;
         }
 
         return $export->fresh();
@@ -194,7 +208,8 @@ class Exporter
      */
     private function chapterHtml(ManuscriptSection $section, ?DocumentRenderer $renderer = null): string
     {
-        $html = ($renderer ?? $this->renderer)->html($section);
+        // An anchor for references to the chapter as a whole.
+        $html = '<span id="section-'.$section->id.'"></span>'.($renderer ?? $this->renderer)->html($section);
 
         return $this->opensWithHeading($section)
             ? $html

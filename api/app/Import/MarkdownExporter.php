@@ -158,6 +158,13 @@ class MarkdownExporter
         $out = '';
 
         foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'xref') {
+                // Markdown has no cross-references; the words it read as.
+                $out .= (string) ($node['attrs']['text'] ?? '');
+
+                continue;
+            }
+
             if (($node['type'] ?? '') === 'footnote') {
                 $this->notes[] = (string) ($node['attrs']['text'] ?? '');
                 $out .= '[^'.count($this->notes).']';

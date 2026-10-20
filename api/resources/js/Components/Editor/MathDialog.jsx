@@ -146,16 +146,23 @@ export default function MathDialog({ initial, onSave, onDelete, onClose }) {
                 </label>
 
                 {display && (
+                    // Numbers are assigned from position, so the choice is
+                    // whether to number, not which number. A non-numeric
+                    // tag ("*", "A1a") is the author's own and is kept.
                     <label className="mt-2 flex items-center gap-2 text-[12px] text-text-secondary">
-                        Equation number
                         <input
-                            value={number}
-                            data-a="math:number"
-                            onChange={(event) => setNumber(event.target.value)}
-                            placeholder="3.1"
-                            className="h-[30px] w-[90px] rounded-control border-border-input text-[13px] focus:border-brand-primary focus:ring-0"
+                            type="checkbox"
+                            data-a="math:numbered"
+                            checked={number !== ''}
+                            onChange={(event) => setNumber(event.target.checked ? '?' : '')}
+                            className="rounded border-border-input text-brand-primary focus:ring-0"
                         />
-                        <span>optional, shown as ({number || '3.1'})</span>
+                        Number this equation
+                        <span className="text-text-secondary">
+                            {number === '' || number === '?' || /^(?:[A-Z]\.?)?\d+(?:\.\d+)?$/.test(number)
+                                ? '(numbered automatically, by chapter)'
+                                : `(keeps its own tag: ${number})`}
+                        </span>
                     </label>
                 )}
 

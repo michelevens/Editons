@@ -59,9 +59,91 @@ class DocumentRenderer
         return $copy;
     }
 
-    public function html(ManuscriptSection $section): string
+    /** Numbers and targets for the whole book (Numbering::forBook), or null. */
+    private ?array $numbering = null;
+
+    /** Where each section's HTML lives, for links between EPUB files. */
+    private array $sectionFiles = [];
+
+    /** A copy that renumbers captions and resolves cross-references. */
+    public function withNumbering(?array $numbering, array $sectionFiles = []): static
+    {
+        $copy = clone $this;
+        $copy->numbering = $numbering;
+        $copy->sectionFiles = $sectionFiles;
+
+        return $copy;
+    }
+
+    /**
+     * The section's nodes, renumbered when the book's numbering is known.
+     *
+     * @return array<int, mixed>
+     */
+    private function numbered(ManuscriptSection $section): array
     {
         $nodes = $section->content['content'] ?? [];
+        $place = $this->numbering['sections'][$section->id] ?? null;
+
+        if ($place === null) {
+            return $nodes;
+        }
+
+        return Numbering::apply(
+            $nodes,
+            $this->numbering['scheme'] === 'continuous' ? '' : $place['prefix'],
+            $place['offsets'],
+        );
+    }
+
+    /** @param array<string, mixed> $node */
+    private function xrefText(array $node): ?string
+    {
+        $target = $this->numbering['targets'][(string) ($node['attrs']['target'] ?? '')] ?? null;
+
+        // Without the book's numbering (a single-section render), the text
+        // the editor last saw is the best available.
+        if ($target === null && $this->numbering === null) {
+            return (string) ($node['attrs']['text'] ?? '') ?: null;
+        }
+
+        return $target['text'] ?? null;
+    }
+
+    /** @param array<string, mixed> $node */
+    private function xrefHtml(array $node): string
+    {
+        $text = $this->xrefText($node);
+
+        if ($text === null) {
+            // Visible at proof, not silently dropped.
+            return '<span class="xref-missing">[missing reference]</span>';
+        }
+
+        $label = (string) ($node['attrs']['target'] ?? '');
+        $target = $this->numbering['targets'][$label] ?? null;
+
+        if ($target === null) {
+            return e($text);
+        }
+
+        $file = $this->sectionFiles[$target['section_id']] ?? '';
+        $anchor = $target['kind'] === 'chapter' ? 'section-'.$target['section_id'] : $label;
+
+        return '<a class="xref" href="'.e($file.'#'.$anchor).'">'.e($text).'</a>';
+    }
+
+    /** ' id="…"' for a node carrying a cross-reference label. */
+    private function anchor(array $node): string
+    {
+        $label = $node['attrs']['label'] ?? null;
+
+        return is_string($label) && preg_match('/^[a-z]+-[a-z0-9]+$/', $label) ? ' id="'.$label.'"' : '';
+    }
+
+    public function html(ManuscriptSection $section): string
+    {
+        $nodes = $this->numbered($section);
 
         // One typesetting call per section, not one per equation.
         $this->math->render($this->collectMath($nodes));
@@ -342,18 +424,18 @@ class DocumentRenderer
             // A three-column row: the PDF renderer cannot position the number
             // absolutely, and a table centres the equation exactly while the
             // number sits at the right margin.
-            return '<table class="math-display"><tr><td class="math-side"></td><td class="math-body">'.$body
+            return '<table class="math-display"'.$this->anchor($node).'><tr><td class="math-side"></td><td class="math-body">'.$body
                 .'</td><td class="math-side math-number">'.($tag !== null ? '('.e($tag).')' : '')."</td></tr></table>\n";
         }
 
-        return '<div class="math-display">'.$body
+        return '<div class="math-display"'.$this->anchor($node).'>'.$body
             .($tag !== null ? '<span class="math-number">('.e($tag).')</span>' : '')."</div>\n";
     }
 
     public function markdown(ManuscriptSection $section): string
     {
         $this->notes = [];
-        $body = trim($this->nodesToMarkdown($section->content['content'] ?? []));
+        $body = trim($this->nodesToMarkdown($this->numbered($section)));
 
         // Pandoc's footnote syntax: references in the text, definitions after.
         foreach ($this->notes as $i => $text) {
@@ -373,7 +455,7 @@ class DocumentRenderer
      */
     public function docx(ManuscriptSection $section): string
     {
-        return $this->nodesToDocx($section->content['content'] ?? []);
+        return $this->nodesToDocx($this->numbered($section));
     }
 
     /** Pictures placed by docx() since the last reset, for the package. */
@@ -622,6 +704,12 @@ class DocumentRenderer
                 continue;
             }
 
+            if (($node['type'] ?? '') === 'xref') {
+                $out .= $this->docxRun($this->xrefText($node) ?? '[missing reference]');
+
+                continue;
+            }
+
             if (($node['type'] ?? '') === 'footnote') {
                 // A real Word footnote: Word numbers it and sets it at the
                 // foot of the page the reference falls on.
@@ -692,7 +780,7 @@ class DocumentRenderer
             $children = $node['content'] ?? [];
 
             $out .= match ($node['type'] ?? '') {
-                'paragraph' => '<p'.$this->paragraphClass($children).'>'.$this->inlineHtml($children)."</p>\n",
+                'paragraph' => '<p'.$this->paragraphClass($children).$this->anchor($node).'>'.$this->inlineHtml($children)."</p>\n",
                 'heading' => $this->headingHtml($node),
                 'bulletList' => "<ul>\n".$this->nodesToHtml($children)."</ul>\n",
                 'orderedList' => "<ol>\n".$this->nodesToHtml($children)."</ol>\n",
@@ -732,7 +820,7 @@ class DocumentRenderer
 
         return match (true) {
             (in_array('bold', $marks, true) || in_array('strong', $marks, true))
-                && (bool) preg_match('/^(Table|Figure|Tableau|Tabla|Exhibit)\s+[A-Z]?\d+([.\-]\d+)*\.?$/u', $text) => ' class="caption"',
+                && (bool) preg_match('/^(Table|Figure|Tableau|Tabla|Exhibit)\s+(?:[A-Z]\.?)?\d+([.\-]\d+)*\.?$/u', $text) => ' class="caption"',
             in_array('italic', $marks, true) && (bool) preg_match('/^(Note|Notes|Source|Sources)\.?$/u', $text) => ' class="table-note"',
             default => '',
         };
@@ -821,7 +909,7 @@ class DocumentRenderer
         // an EPUB containing an <h7> fails store validation.
         $level = max(1, min(6, (int) ($node['attrs']['level'] ?? 2)));
 
-        return "<h{$level}>".$this->inlineHtml($node['content'] ?? [])."</h{$level}>\n";
+        return "<h{$level}".$this->anchor($node).'>'.$this->inlineHtml($node['content'] ?? [])."</h{$level}>\n";
     }
 
     /** @param array<string, mixed> $node */
@@ -856,6 +944,12 @@ class DocumentRenderer
 
             if ($type === 'inlineMath') {
                 $out .= $this->mathHtml($node, false);
+
+                continue;
+            }
+
+            if ($type === 'xref') {
+                $out .= $this->xrefHtml($node);
 
                 continue;
             }
@@ -1019,6 +1113,12 @@ class DocumentRenderer
 
             if ($type === 'inlineMath') {
                 $out .= '$'.trim((string) ($node['attrs']['latex'] ?? '')).'$';
+
+                continue;
+            }
+
+            if ($type === 'xref') {
+                $out .= $this->xrefText($node) ?? '[missing reference]';
 
                 continue;
             }

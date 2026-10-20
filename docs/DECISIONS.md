@@ -496,6 +496,22 @@ pop-ups; HTML gets linked endnotes per chapter; the PDF sets each chapter's
 notes at its end under a rule (page-foot notes in the PDF would need a
 further layout pass); Markdown uses Pandoc's `[^1]` syntax both ways.
 
-Known gaps: cross-references are not nodes yet; page-foot notes in the PDF; images are
+Cross-references followed (`App\Publishing\Numbering`, mirrored in
+`resources/js/Components/Editor/CrossRef.jsx`). Captions (a bold "Table
+4.2"/"Figure 3.1" opening a paragraph) and display equations whose `\tag`
+is a plain number or "?" are renumbered from position, by chapter when any
+caption number has a dot and continuously otherwise; appendices number by
+letter (Table A.1); an author's own tag ("*") is kept. Captions, numbered
+equations and headings carry a `label` attribute; an `xref` node points at
+a label (or `section-{id}` for a chapter) and keeps the words it last
+resolved to. The editor numbers its chapter live once
+`GET /books/{book}/cross-references` has given the chapter's prefix and
+offsets; that endpoint also labels targets in closed chapters (quietly, no
+version) so they can be referred to. Exports resolve references from the
+book's numbering: links in PDF, HTML and EPUB (across files), text in Word
+and Markdown, "[missing reference]" when the target has gone.
+
+Known gaps: page-foot notes in the PDF; Word cross-references are text,
+not REF fields; images are
 not imported from Markdown; Word equations need Word's "Professional"
 conversion to display built up; charts have no error bars or log scales.

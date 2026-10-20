@@ -131,8 +131,15 @@ class PrintBook
      * @param  Collection<int, ManuscriptSection>  $sections
      * @return array{blocks: array<int, array<string, mixed>>, words: array<string, string>, language: string}
      */
+    /** The book's numbering, from the sections being typeset. */
+    private ?array $numbering = null;
+
     private function plan(Collection $sections, string $language): array
     {
+        // Captions, equations and cross-references number from the same
+        // sections the pages are planned from.
+        $this->numbering = Numbering::forBook($sections);
+
         $words = self::WORDS[substr($language, 0, 2)] ?? self::WORDS['en'];
         $blocks = [];
 
@@ -479,7 +486,7 @@ class PrintBook
             'copyright' => $open('copyright').$this->copyright($book, $plan['words']).'</section>',
 
             'dedication' => $open('dedication')
-                .'<div class="dedication-text">'.$this->renderer->withMath('svg')->html($block['section']).'</div></section>',
+                .'<div class="dedication-text">'.$this->renderer->withMath('svg')->withNumbering($this->numbering)->html($block['section']).'</div></section>',
 
             'contents' => $open('contents')
                 .'<div class="opener opener-quiet"><h1 class="opener-title">'.e($plan['words']['contents']).'</h1>'
@@ -493,7 +500,7 @@ class PrintBook
                 .'</section>',
 
             default => $open($block['kind'])
-                .'<div class="opener">'
+                .'<div class="opener" id="section-'.$block['section']->id.'">'
                 .($block['label'] ? '<p class="opener-label">'.e($block['label']).'</p>' : '')
                 .'<h1 class="opener-title">'.e($block['title']).'</h1>'
                 .'<div class="rule"></div></div>'
@@ -532,7 +539,7 @@ class PrintBook
         $copy->content = ['type' => 'doc', 'content' => array_values($nodes)];
 
         // SVG equations: dompdf has no math engine, but draws SVG paths.
-        $html = $this->renderer->withMath('svg')->html($copy);
+        $html = $this->renderer->withMath('svg')->withNumbering($this->numbering)->html($copy);
         // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
         $html = $this->images->inline($html, $book->id);
         $html = str_replace('<hr />', '<p class="scene-break">&#x2767;</p>', $html);

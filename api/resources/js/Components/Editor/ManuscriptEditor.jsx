@@ -8,6 +8,7 @@ import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ChartDialog from './ChartDialog';
+import { CrossRef, localTargets, refreshNumbering, Xref, XrefDialog } from './CrossRef';
 import { Chart } from './ChartNode';
 import { Footnote, FootnoteDialog } from './FootnoteNode';
 import ImageDialog from './ImageDialog';
@@ -46,6 +47,8 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     const [chartEdit, setChartEdit] = useState(null);
     // The footnote being written or edited: {text, pos} or null.
     const [noteEdit, setNoteEdit] = useState(null);
+    // Picking a cross-reference target: {local, remote} or null.
+    const [xrefPick, setXrefPick] = useState(null);
 
     // Refs rather than state: these are read inside callbacks and must not
     // retrigger the effect that wires the editor up.
@@ -102,6 +105,8 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 Image.configure({ inline: false, allowBase64: false }),
                 Chart.configure({ onEdit: (attrs, pos) => setChartEdit({ attrs, pos }) }),
                 Footnote.configure({ onEdit: (attrs, pos) => setNoteEdit({ text: attrs.text, pos }) }),
+                CrossRef,
+                Xref,
                 // Equations are stored as LaTeX and typeset on screen with
                 // KaTeX; clicking one opens it for editing.
                 // Configured separately: a display equation needs KaTeX's
@@ -168,6 +173,34 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
             editor.commands.setContent(section.content ?? '', { emitUpdate: false });
         }
     }, [section?.id, section?.revision, editor]);
+
+    // Where this chapter sits in the book: its number prefix, the tables and
+    // equations before it, and every cross-reference target elsewhere. Until
+    // it arrives the numbering plugin leaves the chapter alone.
+    const loadPlace = useCallback(async () => {
+        if (!bookId || !section?.id || !editor || editor.isDestroyed) return null;
+
+        try {
+            const { data } = await window.axios.get(`/books/${bookId}/cross-references`, {
+                params: { section: section.id },
+            });
+
+            if (editor.isDestroyed) return null;
+
+            const storage = editor.storage.crossRef;
+            storage.place = { scheme: data.scheme, prefix: data.section.prefix, offsets: data.section.offsets };
+            storage.remote = data.targets;
+            refreshNumbering(editor);
+
+            return data;
+        } catch {
+            return null;
+        }
+    }, [bookId, section?.id, editor]);
+
+    useEffect(() => {
+        loadPlace();
+    }, [loadPlace]);
 
     // Flush a pending save when the component goes away, so switching
     // chapters or closing the tab does not drop the last edit.
@@ -254,7 +287,23 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 onImage={bookId ? () => setInserting(true) : null}
                 onChart={() => setChartEdit({ attrs: {}, pos: null })}
                 onFootnote={() => setNoteEdit({ text: '', pos: null })}
+                onXref={bookId ? async () => {
+                    const place = await loadPlace();
+                    setXrefPick({ local: localTargets(editor.state.doc), remote: place?.targets ?? [] });
+                } : null}
             />
+
+            {xrefPick && (
+                <XrefDialog
+                    local={xrefPick.local}
+                    remote={xrefPick.remote}
+                    onClose={() => setXrefPick(null)}
+                    onInsert={(target) => {
+                        editor.chain().focus().insertContent({ type: 'xref', attrs: { target: target.label, text: target.text } }).run();
+                        setXrefPick(null);
+                    }}
+                />
+            )}
 
             {noteEdit && (
                 <FootnoteDialog
@@ -420,7 +469,7 @@ function SaveStatus({ status }) {
  * and image buttons; those need extensions that are not installed, and a
  * button that does nothing is worse than an absent one.
  */
-function Toolbar({ editor, onMath, onImage, onChart, onFootnote }) {
+function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref }) {
     if (!editor) return null;
 
     const block = editor.isActive('heading', { level: 1 })
@@ -586,6 +635,11 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote }) {
                     fn<sup className="text-[8px]">1</sup>
                 </span>
             </Btn>
+            {onXref && (
+                <Btn title="Insert cross-reference" label="xref" onClick={onXref}>
+                    <span className="text-[12px] font-semibold">§→</span>
+                </Btn>
+            )}
             <Btn title="Insert chart" label="chart" onClick={onChart}>
                 <ChartGlyph />
             </Btn>

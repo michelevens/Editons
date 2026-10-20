@@ -21,7 +21,7 @@ test('an equation is written, typeset, saved and edited', async ({ page }) => {
 
     await page.click('[data-a="toolbar:math-block"]');
     await page.fill('[data-a="math:latex"]', '\\bar{x} = \\frac{1}{n}\\sum_{i=1}^{n} x_i');
-    await page.fill('[data-a="math:number"]', '3.1');
+    await page.check('[data-a="math:numbered"]');
 
     // The preview typesets before anything is inserted.
     await expect(page.locator('[role="dialog"] .katex')).toBeVisible();
@@ -37,7 +37,7 @@ test('an equation is written, typeset, saved and edited', async ({ page }) => {
 
     // Clicking it opens it for editing, number and all.
     await editor.locator('[data-type="block-math"]').first().click();
-    await expect(page.locator('[data-a="math:number"]')).toHaveValue('3.1');
+    await expect(page.locator('[data-a="math:numbered"]')).toBeChecked();
     await page.click('[data-a="math:delete"]');
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
 

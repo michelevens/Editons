@@ -255,3 +255,15 @@
     outline: 2px solid var(--color-brand-primary);
     border-radius: 2px;
 }
+
+/* A cross-reference: reads as text, marked as a link that stays current. */
+.manuscript .ProseMirror span.xref {
+    color: var(--color-brand-primary);
+    border-bottom: 1px dotted currentColor;
+    cursor: default;
+}
+
+.manuscript .ProseMirror span.xref.ProseMirror-selectednode {
+    outline: 2px solid var(--color-brand-primary);
+    border-radius: 2px;
+}

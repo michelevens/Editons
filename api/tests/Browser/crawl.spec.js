@@ -75,9 +75,11 @@ test.describe('every screen renders', () => {
         await expectRendered(page, { minText: 200 });
 
         await expect(page.getByRole('heading', { name: /book settings/i })).toBeVisible();
-        // The three writing toggles are switches, not checkboxes, so they are
-        // asserted by role — which also proves the aria wiring.
-        await expect(page.getByRole('switch')).toHaveCount(3);
+        // Autosave is a switch, asserted by role to prove the aria wiring;
+        // the two toggles nothing read were removed. The citation style is
+        // a choice of seven.
+        await expect(page.getByRole('switch')).toHaveCount(1);
+        await expect(page.getByRole('combobox', { name: 'Citation style' }).locator('option')).toHaveCount(7);
 
         expect(errors).toEqual([]);
     });
@@ -1206,7 +1208,9 @@ test.describe('mobile', () => {
         // and can be opened.
         // .last(): the desktop outline is still in the DOM, hidden rather
         // than unmounted, and comes first. The drawer renders after it.
-        const chapter = page.getByText('Chapter 12', { exact: true }).last();
+        // The last chapter in the book, whatever it is called: the flagship
+        // book's chapters have real titles now, not "Chapter 12".
+        const chapter = page.locator('[data-a^="outline:open:"]:visible').last();
         await expect(chapter).toBeVisible({ timeout: 15_000 });
 
         await chapter.click();
