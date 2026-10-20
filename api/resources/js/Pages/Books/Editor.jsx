@@ -601,7 +601,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 </div>
 
                                 <section className="manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface max-xl:pb-12">
-                                    <ManuscriptEditor section={section} onSaved={onSaved} autosave={book.autosave ?? true} />
+                                    <ManuscriptEditor section={section} bookId={book.id} onSaved={onSaved} autosave={book.autosave ?? true} />
 
                                     {/* Under the manuscript, where somebody
                                         writing will meet it without going

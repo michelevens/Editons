@@ -133,6 +133,28 @@ class OutlineBuilder
             'Contribution, limitations and future research',
             'Conclusion',
         ],
+        // Papers are chapters, joined by short bridges that say why the next
+        // study follows from the last.
+        'phd_publication' => [
+            'Introduction',
+            'Background and methods overview',
+            'Paper 1',
+            'Bridge: from Paper 1 to Paper 2',
+            'Paper 2',
+            'Bridge: from Paper 2 to Paper 3',
+            'Paper 3',
+            'Integrated discussion',
+            'Conclusion',
+        ],
+        'masters_project' => [
+            'Introduction',
+            'Background and related work',
+            'Understanding the context: requirements',
+            'Design',
+            'Implementation',
+            'Evaluation',
+            'Reflection and conclusion',
+        ],
         'cookbook' => [
             'Before you start',
             'The basics',

@@ -429,3 +429,65 @@ Known gaps: no back cover or spine yet (the print wrap needs page count and
 paper thickness); AI artwork at 1024 × 1536 is upscaled to 1600 wide;
 refusal fallbacks for the concepts call are not wired, so a refusal is
 reported and refunded.
+
+## ADR-0017 — Academic structure: citation styles, tables, equations, figures and charts
+
+**Context.** Writing four complete sample theses (master's qualitative,
+master's project, PhD mixed methods, PhD by publication) showed what the
+editor could not hold: every one needed tables, the quantitative ones
+needed equations, all needed figures, and each discipline cites in its own
+style. The importer turned tables into paragraphs of pipes and dropped
+code; the DOCX export was plain text.
+
+**Decision.** The canonical ProseMirror document gains five node types,
+each stored as its source and rendered per format:
+
+- **Citation styles.** `App\Research\Bibliography` formats APA 7, Chicago
+  author-date and notes, MLA 9, Harvard, IEEE and Vancouver, for articles,
+  books, reports and web pages, with in-text forms. Numeric styles number
+  sources by first citation (citations table, in reading order). The style
+  is a per-book setting (`settings.citation_style`), chosen in Book Settings
+  or References; previewing another style does not change the book.
+  Research sources gain `container`, `volume`, `issue`, `pages`, `edition`.
+  Author lists may end "et al." and no style then joins the last listed
+  name with "and".
+- **Tables** (`table`/`tableRow`/`tableHeader`/`tableCell`, Tiptap TableKit).
+  Imported from GitHub Markdown, typeset as three-rule book tables, real
+  `w:tbl` in Word with a repeating header row, `<thead>` in HTML/EPUB.
+  A bold "Table 4.2" or "Figure 3.1" paragraph is typeset as a caption and
+  an italic "Note." under a table as a table note, in every export.
+- **Equations** (`inlineMath`/`blockMath`, attribute `latex`). Typed as
+  LaTeX with a live KaTeX preview; `$…$` and `$$…$$` import (Pandoc's rule,
+  so "$25" stays text). Exports typeset server-side with MathJax through
+  `resources/node/math.cjs` (Node is in the production image): MathML for
+  EPUB/HTML (declared `properties="mathml"`), SVG for the PDF, and a Word
+  equation holding the LaTeX for DOCX. `\tag{3.1}` numbers a display
+  equation; the number is set beside it in the text face. Chemistry via
+  mhchem (`\ce{…}`). Results are cached by LaTeX. A formula that fails to
+  parse prints as its source, visibly, never silently dropped.
+  dompdf's SVG reader ignores `viewBox`, `ex` units and nested transforms
+  and draws `pt` sizes at 75%, so print SVGs are flattened: every glyph
+  carries its composed matrix and the size is unitless.
+- **Pictures** (`image`). Uploaded to the private files disk under
+  `images/book-{id}/`, served through `/books/{book}/images/{name}` behind
+  the view policy; SVG uploads are refused. A description is required at
+  insert. Exports embed the bytes (data URIs in PDF and one-file HTML,
+  package files in EPUB, media parts in DOCX) and never another book's
+  image.
+- **Charts** (`chart`, attributes `type`, `title`, `xLabel`, `yLabel`,
+  `data`). The data is the source: CSV or tab-separated as a spreadsheet
+  copies it. `App\Publishing\ChartRenderer` lays a chart out once as shapes
+  and draws it as SVG (editor, EPUB, HTML) or a GD PNG (PDF, Word), in the
+  Okabe–Ito palette, with a generated description for screen readers.
+
+Book types gain `phd_publication` (papers joined by bridges; bridges and
+interludes are unnumbered in print, and stated "Chapter N:" numbers are
+honoured) and `masters_project`.
+
+**Consequences.** Every new node has a renderer in HTML, Markdown (round
+trip tested), print and DOCX; adding a node type means adding all four.
+Equations depend on Node at export time; without it they print as LaTeX.
+
+Known gaps: footnotes and cross-references are not nodes yet; images are
+not imported from Markdown; Word equations need Word's "Professional"
+conversion to display built up; charts have no error bars or log scales.

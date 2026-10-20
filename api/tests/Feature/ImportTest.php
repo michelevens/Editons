@@ -4,6 +4,7 @@ use App\Import\MarkdownExporter;
 use App\Import\MarkdownImporter;
 use App\Models\Book;
 use App\Models\User;
+use App\Services\ManuscriptWriter;
 
 function importBook(string $markdown): array
 {
@@ -81,11 +82,12 @@ it('is stable when round-tripped twice', function () {
 });
 
 it('reports what it could not carry instead of dropping it silently', function () {
+    // Code blocks now come through; an image still cannot without an upload.
     [, $report] = importBook(
         "# One\n\nText.\n\n```php\n\$x = 1;\n```\n\n![a picture](cat.png)"
     );
 
-    expect($report->skipped)->toBe(['code block' => 1, 'image' => 1])
+    expect($report->skipped)->toBe(['image' => 1])
         ->and($report->toArray()['lossless'])->toBeFalse();
 });
 
@@ -117,7 +119,7 @@ it('leaves imported content revertible once it is edited', function () {
     $section = $book->sections()->first();
     expect($section->versions()->count())->toBe(0);
 
-    app(App\Services\ManuscriptWriter::class)->save(
+    app(ManuscriptWriter::class)->save(
         section: $section,
         content: ['type' => 'doc', 'content' => [[
             'type' => 'paragraph',

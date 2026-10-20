@@ -29,6 +29,7 @@ class Exporter
         private readonly DocumentRenderer $renderer,
         private readonly PrintBook $print,
         private readonly CoverRenderer $covers,
+        private readonly BookImages $images,
     ) {}
 
     /**
@@ -288,6 +289,9 @@ class Exporter
             $body .= $this->structuredHtml($section, $entries[$i]['id']);
         }
 
+        // One self-contained file: pictures travel inside it.
+        $body = $this->images->inline($body, $book->id);
+
         return $this->put($book, $export, $this->page($book, $body, standalone: true));
     }
 
@@ -356,24 +360,32 @@ class Exporter
             $paragraphs .= $this->docxParagraph($book->author_name, 'Subtitle');
         }
 
+        $this->renderer->resetDocxMedia();
+
         foreach ($sections as $section) {
             $paragraphs .= $this->docxParagraph($section->title, 'Heading1');
 
-            foreach (explode("\n\n", $section->plainText()) as $block) {
-                if (trim($block) !== '') {
-                    $paragraphs .= $this->docxParagraph(trim($block));
-                }
-            }
+            // Structure, not plain text: headings, italics, quotes, lists and
+            // tables survive, because Word is where an examiner or an editor
+            // will read it.
+            $paragraphs .= $this->renderer->docx($section);
         }
 
         $document = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
-            .'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            .'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" '
+            .'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+            .'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
             .'<w:body>'.$paragraphs.'</w:body></w:document>';
+
+        // Pictures placed in the text, as package parts.
+        $media = $this->renderer->docxMedia();
 
         $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
             .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
             .'<Default Extension="xml" ContentType="application/xml"/>'
+            .collect($media)->mapWithKeys(fn ($m) => [pathinfo($m['file'], PATHINFO_EXTENSION) => $m['mime']])
+                ->map(fn ($mime, $extension) => '<Default Extension="'.$extension.'" ContentType="'.$mime.'"/>')->implode('')
             .'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
             .'<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
             .'</Types>';
@@ -386,6 +398,7 @@ class Exporter
         $documentRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .collect($media)->map(fn ($m, $id) => '<Relationship Id="'.$id.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'.$m['file'].'"/>')->implode('')
             .'</Relationships>';
 
         return $this->zip($book, $export, [
@@ -394,6 +407,7 @@ class Exporter
             'word/document.xml' => $document,
             'word/_rels/document.xml.rels' => $documentRels,
             'word/styles.xml' => $this->docxStyles(),
+            ...collect($media)->mapWithKeys(fn ($m) => ['word/media/'.$m['file'] => $m['data']])->all(),
         ]);
     }
 
@@ -417,7 +431,30 @@ class Exporter
             .'<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/>'
             .'<w:rPr><w:sz w:val="28"/><w:i/></w:rPr></w:style>'
             .'<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/>'
+            .'<w:pPr><w:pageBreakBefore/><w:spacing w:after="240"/><w:outlineLvl w:val="0"/></w:pPr>'
             .'<w:rPr><w:sz w:val="36"/><w:b/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/>'
+            .'<w:pPr><w:keepNext/><w:spacing w:before="320" w:after="120"/><w:outlineLvl w:val="1"/></w:pPr>'
+            .'<w:rPr><w:sz w:val="28"/><w:b/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/>'
+            .'<w:pPr><w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="2"/></w:pPr>'
+            .'<w:rPr><w:sz w:val="24"/><w:b/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="heading 4"/>'
+            .'<w:pPr><w:keepNext/><w:spacing w:before="200" w:after="60"/><w:outlineLvl w:val="3"/></w:pPr>'
+            .'<w:rPr><w:sz w:val="24"/><w:b/><w:i/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/>'
+            .'<w:pPr><w:ind w:left="720" w:right="720"/></w:pPr><w:rPr><w:i/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/>'
+            .'<w:pPr><w:spacing w:after="0"/></w:pPr>'
+            .'<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="18"/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="Break"><w:name w:val="Section Break"/>'
+            .'<w:pPr><w:jc w:val="center"/></w:pPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="TableText"><w:name w:val="Table Text"/>'
+            .'<w:pPr><w:spacing w:before="40" w:after="40"/></w:pPr><w:rPr><w:sz w:val="20"/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="TableHeading"><w:name w:val="Table Heading"/>'
+            .'<w:pPr><w:keepNext/><w:spacing w:before="40" w:after="40"/></w:pPr><w:rPr><w:b/><w:sz w:val="20"/></w:rPr></w:style>'
+            .'<w:style w:type="table" w:styleId="BookTable"><w:name w:val="Book Table"/>'
+            .'<w:tblPr><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>'
             .'</w:styles>';
     }
 
@@ -434,6 +471,7 @@ class Exporter
         $modified = now()->utc()->format('Y-m-d\TH:i:s\Z');
 
         $files = [];
+        $pictures = [];
         $manifest = '';
         $spine = '';
         $nav = '';
@@ -454,7 +492,22 @@ class Exporter
                 $language,
             );
 
-            $manifest .= '<item id="'.$id.'" href="'.$id.'.xhtml" media-type="application/xhtml+xml"/>';
+            // Pictures go into the package, each declared once.
+            $files[$name] = $this->images->rewrite($files[$name], $book->id, function ($image) use (&$files, &$pictures) {
+                $files['OEBPS/images/'.$image['name']] = $image['data'];
+                $pictures[$image['name']] = $image['mime'];
+
+                return 'images/'.$image['name'];
+            });
+
+            // EPUB 3 requires declaring MathML; a validator rejects the book
+            // otherwise, and a store with it.
+            $flags = array_filter([
+                str_contains($files[$name], '<math') ? 'mathml' : null,
+                str_contains($files[$name], '<svg') ? 'svg' : null,
+            ]);
+            $properties = $flags ? ' properties="'.implode(' ', $flags).'"' : '';
+            $manifest .= '<item id="'.$id.'" href="'.$id.'.xhtml" media-type="application/xhtml+xml"'.$properties.'/>';
             $spine .= '<itemref idref="'.$id.'"/>';
             $nav .= '<li><a href="'.$id.'.xhtml">'.e($section->title).'</a></li>';
         }
@@ -508,7 +561,9 @@ class Exporter
             .'</metadata>'
             .'<manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>'
             .'<item id="css" href="style.css" media-type="text/css"/>'
-            .$coverManifest.$manifest.'</manifest>'
+            .$coverManifest.$manifest
+            .collect($pictures)->map(fn ($mime, $name) => '<item id="img-'.e(pathinfo($name, PATHINFO_FILENAME)).'" href="images/'.e($name).'" media-type="'.$mime.'"/>')->implode('')
+            .'</manifest>'
             .'<spine>'.$spine.'</spine></package>';
 
         $navDocument = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
@@ -542,6 +597,16 @@ class Exporter
             ."p { margin: 0 0 .25em; text-indent: 1.5em; }\n"
             ."h1 + p { text-indent: 0; }\n"
             ."blockquote { margin: 1em 2em; font-style: italic; }\n"
+            ."table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .85em; }\n"
+            ."th, td { text-align: left; vertical-align: top; padding: .25em .5em .25em 0; border-bottom: 1px solid #ccc; }\n"
+            ."th { border-top: 2px solid #222; border-bottom: 1px solid #222; }\n"
+            ."th p, td p { margin: 0; text-indent: 0; }\n"
+            ."pre { font-family: monospace; font-size: .8em; white-space: pre-wrap; }\n"
+            ."p.caption, p.table-note { text-indent: 0; font-size: .9em; }\n"
+            ."figure.chart { margin: 1em 0; text-align: center; }\n"
+            ."figure.chart svg { max-width: 100%; height: auto; }\n"
+            .".math-display { position: relative; text-align: center; margin: 1em 0; }\n"
+            .".math-number { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }\n"
             .'img { max-width: 100%; height: auto; }'."\n";
     }
 

@@ -7,6 +7,7 @@ use App\Journey\BookType;
 use App\Journey\Scaffolder;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
+use App\Research\Bibliography;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -282,6 +283,7 @@ class BookController extends Controller
             ],
             'genres' => ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'],
             'languages' => ['English (US)', 'English (UK)', 'Spanish', 'French', 'Haitian Creole'],
+            'citation_styles' => Bibliography::options(),
             // Archiving the last active book would leave the author with an
             // empty shelf and nowhere to go, so the screen needs to know.
             'can_archive' => $book->user->books()->where('status', '!=', 'archived')->count() > 1,
@@ -305,6 +307,7 @@ class BookController extends Controller
             'settings.autosave' => ['boolean'],
             'settings.inline_ai' => ['boolean'],
             'settings.review_on_save' => ['boolean'],
+            'settings.citation_style' => ['string', 'in:'.implode(',', Bibliography::STYLES)],
         ]);
 
         // Merge rather than replace: the form may send one toggle, and

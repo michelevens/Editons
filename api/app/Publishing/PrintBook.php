@@ -70,7 +70,10 @@ class PrintBook
     /** @var array<string, Syllable> */
     private array $syllables = [];
 
-    public function __construct(private readonly DocumentRenderer $renderer) {}
+    public function __construct(
+        private readonly DocumentRenderer $renderer,
+        private readonly BookImages $images = new BookImages,
+    ) {}
 
     /**
      * The print-ready HTML: the same pages the PDF is made from, without
@@ -155,6 +158,12 @@ class PrintBook
         $part = 0;
         $first = true;
 
+        // When the author numbers chapters in their titles ("Chapter 4:
+        // Paper 2"), those numbers are the ones the text cross-refers to, and
+        // a chapter without one (a bridge between papers, an interlude) is
+        // deliberately unnumbered rather than the next in sequence.
+        $explicit = $sections->contains(fn ($s) => $s->type === 'chapter' && $this->statedNumber($s->title) !== null);
+
         foreach ($sections as $section) {
             if ($this->isQuiet($section)) {
                 continue;
@@ -167,9 +176,12 @@ class PrintBook
                 default => 'matter',
             };
 
-            $number = match ($kind) {
-                'part' => ++$part,
-                'chapter' => ++$chapter,
+            $number = match (true) {
+                $kind === 'part' => ++$part,
+                // A bridge or interlude links chapters; it is not one.
+                $kind === 'chapter' && (bool) preg_match('/^\s*(bridge|interlude|linking chapter)\b/iu', $section->title) => null,
+                $kind === 'chapter' && $explicit => $this->statedNumber($section->title),
+                $kind === 'chapter' => ++$chapter,
                 default => null,
             };
 
@@ -467,7 +479,7 @@ class PrintBook
             'copyright' => $open('copyright').$this->copyright($book, $plan['words']).'</section>',
 
             'dedication' => $open('dedication')
-                .'<div class="dedication-text">'.$this->renderer->html($block['section']).'</div></section>',
+                .'<div class="dedication-text">'.$this->renderer->withMath('svg')->html($block['section']).'</div></section>',
 
             'contents' => $open('contents')
                 .'<div class="opener opener-quiet"><h1 class="opener-title">'.e($plan['words']['contents']).'</h1>'
@@ -519,7 +531,10 @@ class PrintBook
         $copy = clone $section;
         $copy->content = ['type' => 'doc', 'content' => array_values($nodes)];
 
-        $html = $this->renderer->html($copy);
+        // SVG equations: dompdf has no math engine, but draws SVG paths.
+        $html = $this->renderer->withMath('svg')->html($copy);
+        // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
+        $html = $this->images->inline($html, $book->id);
         $html = str_replace('<hr />', '<p class="scene-break">&#x2767;</p>', $html);
 
         if (! $lead) {
@@ -591,7 +606,9 @@ class PrintBook
         $syllable = $this->syllables[$patterns];
 
         return preg_replace_callback(
-            '/<(h[1-6]|pre)\b[^>]*>.*?<\/\1>|<[^>]+>|&[#\w]+;|[^<&]+/su',
+            // Headings, code and table heads are left whole: a hyphen in
+            // "Priori-ty" over a narrow column reads as a typo.
+            '/<(h[1-6]|pre|th)\b[^>]*>.*?<\/\1>|<[^>]+>|&[#\w]+;|[^<&]+/su',
             fn (array $m) => ($m[1] ?? '') !== '' || $m[0][0] === '<' || $m[0][0] === '&'
                 ? $m[0]
                 : $syllable->hyphenateText($m[0]),
@@ -680,7 +697,7 @@ class PrintBook
 
         p { margin: 0; text-indent: 1.35em; text-align: justify; orphans: 2; widows: 2; }
         .text > p:first-child, h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p,
-        ul + p, ol + p, blockquote + p, pre + p, img + p, .scene-break + p { text-indent: 0; }
+        ul + p, ol + p, blockquote + p, pre + p, img + p, table + p, .scene-break + p { text-indent: 0; }
 
         .half-title-text { text-align: center; text-indent: 0; padding-top: 1.7in;
             font-size: .92em; letter-spacing: .24em; text-transform: uppercase; }
@@ -730,6 +747,39 @@ class PrintBook
         pre { font-family: 'DejaVu Sans Mono', monospace; font-size: .76em; line-height: {$lh(1.4)};
             margin: .9em 0; white-space: pre-wrap; }
         img { display: block; max-width: 100%; margin: 1.1em auto; }
+
+        /* Book tables: three rules (top, under the head, bottom) and no
+           verticals, the way a typeset table reads; smaller type so a
+           five-column table fits the measure. */
+        .text table { width: 100%; border-collapse: collapse; margin: .5em 0 1em;
+            font-size: .8em; line-height: {$lh(1.28)}; page-break-inside: auto; }
+        .text thead { display: table-header-group; }
+        .text tr { page-break-inside: avoid; }
+        .text th { font-weight: bold; text-align: left; vertical-align: bottom;
+            border-top: .9pt solid #1a1a1a; border-bottom: .5pt solid #1a1a1a; padding: .32em .5em .28em 0; }
+        .text td { text-align: left; vertical-align: top; padding: .22em .5em .22em 0;
+            border-bottom: .25pt solid #c9c9c9; }
+        .text tbody tr:last-child td { border-bottom: .9pt solid #1a1a1a; }
+        .text th p, .text td p { margin: 0; text-indent: 0; text-align: left; }
+        table + p { text-indent: 0; }
+        p.caption { text-indent: 0; text-align: left; font-size: .88em; margin: 1.1em 0 .3em;
+            page-break-after: avoid; }
+        p.table-note { text-indent: 0; text-align: left; font-size: .78em; line-height: {$lh(1.3)};
+            margin: -.6em 0 1em; color: #444444; }
+        blockquote p.caption { margin-top: 0; }
+
+        /* Equations: displayed centred with the number at the right margin,
+           inline ones sitting on the baseline. */
+        img.math { display: inline; margin: 0; }
+        div.chart { margin: .9em 0 .4em; page-break-inside: avoid; }
+        div.chart img.chart { width: 100%; margin: 0; }
+        .text table.math-display { width: 100%; margin: .7em 0; font-size: 1em; page-break-inside: avoid; }
+        .text table.math-display td { border: 0; padding: 0; vertical-align: middle; }
+        .text table.math-display tr:last-child td { border: 0; }
+        .math-side { width: 3em; }
+        .text td.math-body { text-align: center; }
+        .text td.math-number { text-align: right; }
+        code.math-tex { font-family: 'DejaVu Sans Mono', monospace; font-size: .78em; color: #9b1c1c; }
         .scene-break { text-align: center; text-indent: 0; color: #6d6d6d; margin: .9em 0; }
         a { color: inherit; text-decoration: none; }
 
@@ -789,6 +839,14 @@ class PrintBook
     }
 
     /** "Part I: Laying the Foundation" is a label and a title; keep the title. */
+    /** The number in "Chapter 4: …", if the title states one. */
+    private function statedNumber(string $title): ?int
+    {
+        return preg_match('/^\s*(?:chapter|chapitre|cap[ií]tulo|kapitel)\s+(\d+)\s*[:.\-–—]/iu', $title, $m)
+            ? (int) $m[1]
+            : null;
+    }
+
     private function cleanTitle(string $title, string $kind): string
     {
         $clean = match ($kind) {

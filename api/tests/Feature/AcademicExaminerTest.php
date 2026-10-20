@@ -4,6 +4,7 @@ use App\Editorial\EditorialAgent;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Publishing\PrintBook;
 
 /**
  * Master's and doctoral examiners, and the degree book types.
@@ -148,4 +149,37 @@ it('does not treat the thesis\'s own results as uncited claims', function () {
 
     expect($findings->pluck('title'))->not->toContain('Claim without a citation')
         ->and($findings->pluck('excerpt')->filter(fn ($e) => str_starts_with($e, '41%')))->toBeEmpty();
+});
+
+it('scaffolds a thesis by publication with papers and bridges', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post('/books', [
+        'title' => 'Working in the Heat',
+        'book_type' => 'phd_publication',
+        'chapters' => 9,
+    ])->assertRedirect();
+
+    $book = Book::where('title', 'Working in the Heat')->firstOrFail();
+
+    expect($book->sections()->where('type', 'front_matter')->pluck('title')->all())
+        ->toContain('Statement of Contribution', 'Publications Arising from This Thesis')
+        ->and(config('booktypes.phd_publication.agents')[0])->toBe('doctoral_examiner')
+        ->and(config('booktypes.masters_project.back_matter'))->toContain('Appendix C: Artefact Availability');
+});
+
+it('leaves bridges between papers unnumbered in print', function () {
+    $book = Book::factory()->for(User::factory())->create();
+
+    foreach (['Paper 1', 'Bridge: from Paper 1 to Paper 2', 'Paper 2'] as $i => $title) {
+        $book->sections()->create(['type' => 'chapter', 'title' => $title, 'position' => ($i + 1) * 10,
+            'content' => ['type' => 'doc', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Text.']]]]]]);
+    }
+
+    $plan = (new ReflectionMethod(PrintBook::class, 'plan'))
+        ->invoke(app(PrintBook::class), $book->sections()->orderBy('position')->get(), 'en');
+
+    $chapters = collect($plan['blocks'])->where('kind', 'chapter')->pluck('number', 'title')->all();
+
+    expect($chapters)->toBe(['Paper 1' => 1, 'Bridge: from Paper 1 to Paper 2' => null, 'Paper 2' => 2]);
 });

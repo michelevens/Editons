@@ -17,12 +17,17 @@ use Illuminate\Support\Facades\DB;
  * tracked changes would be worse than not shipping one.
  *
  * What survives: headings, paragraphs, bold, italic, inline code, blockquotes,
- * and bullet/ordered lists. What does not is REPORTED rather than discarded
+ * bullet/ordered lists, tables and fenced code blocks. What does not is REPORTED rather than discarded
  * quietly — see ImportReport. An author who imports a 90,000-word manuscript
  * deserves to know what did not make it, not to discover it at proof stage.
  */
 class MarkdownImporter
 {
+    /** Marks a lifted-out code block's place; never occurs in real text. */
+    private const CODE = "\x1ACODE\x1A";
+
+    private const MATH = "\x1AMATH\x1A";
+
     public function __construct(private readonly ManuscriptWriter $writer) {}
 
     /**
@@ -131,6 +136,25 @@ class MarkdownImporter
     private function toProseMirror(string $body, ImportReport $report): array
     {
         $content = [];
+
+        // Fenced code is lifted out before splitting on blank lines, because
+        // code is the one block that legitimately contains them.
+        $code = [];
+        $body = preg_replace_callback('/^```([\w+-]*)[ \t]*\n(.*?)\n```[ \t]*$/ms', function ($m) use (&$code) {
+            $code[] = ['language' => $m[1] ?: null, 'text' => $m[2]];
+
+            return "\n\n".self::CODE.(count($code) - 1).self::CODE."\n\n";
+        }, str_replace(["\r\n", "\r"], "\n", $body)) ?? $body;
+
+        // Display math, $$ … $$, is lifted out the same way: an aligned
+        // equation can span lines, and none of it is Markdown.
+        $math = [];
+        $body = preg_replace_callback('/^\s*\$\$(.+?)\$\$\s*$/ms', function ($m) use (&$math) {
+            $math[] = trim($m[1]);
+
+            return "\n\n".self::MATH.(count($math) - 1).self::MATH."\n\n";
+        }, $body) ?? $body;
+
         $blocks = preg_split('/\n{2,}/', trim($body)) ?: [];
 
         foreach ($blocks as $block) {
@@ -140,11 +164,43 @@ class MarkdownImporter
                 continue;
             }
 
+            if (preg_match('/^'.self::MATH.'(\d+)'.self::MATH.'$/', $block, $m)) {
+                $content[] = ['type' => 'blockMath', 'attrs' => ['latex' => $math[(int) $m[1]]]];
+
+                continue;
+            }
+
+            if (preg_match('/^'.self::CODE.'(\d+)'.self::CODE.'$/', $block, $m)) {
+                $snippet = $code[(int) $m[1]];
+
+                // A chart's data, as the exporters write it.
+                if ($snippet['language'] === 'chart' && is_array($spec = json_decode($snippet['text'], true)) && isset($spec['data'])) {
+                    $content[] = ['type' => 'chart', 'attrs' => array_map('strval', array_intersect_key($spec, array_flip(['type', 'title', 'xLabel', 'yLabel', 'data'])))];
+
+                    continue;
+                }
+
+                $node = ['type' => 'codeBlock', 'attrs' => ['language' => $snippet['language']]];
+
+                // An empty text node is invalid ProseMirror.
+                if ($snippet['text'] !== '') {
+                    $node['content'] = [['type' => 'text', 'text' => $snippet['text']]];
+                }
+
+                $content[] = $node;
+
+                continue;
+            }
+
             if (str_starts_with($block, '```')) {
-                // Code blocks are reported, not guessed at: the editor's
-                // schema has no code-block node yet, and inventing one here
-                // would produce a document the editor cannot render.
-                $report->skip('code block');
+                // An unclosed fence: keep the text rather than lose it.
+                $content[] = ['type' => 'paragraph', 'content' => $this->inline($block)];
+
+                continue;
+            }
+
+            if ($table = $this->tableBlock($block)) {
+                array_push($content, ...$table);
 
                 continue;
             }
@@ -197,6 +253,94 @@ class MarkdownImporter
         return ['type' => 'doc', 'content' => $content];
     }
 
+    /**
+     * A GitHub-style table, with any lines written directly above or below
+     * it (a caption, a note) kept as their own paragraphs.
+     *
+     * Null when the block is not a table: a row with pipes followed by a
+     * |---| rule is the whole test.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function tableBlock(string $block): ?array
+    {
+        $lines = explode("\n", $block);
+        $rule = null;
+
+        foreach ($lines as $i => $line) {
+            if ($i > 0 && str_contains($lines[$i - 1], '|')
+                && preg_match('/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/', $line)) {
+                $rule = $i;
+
+                break;
+            }
+        }
+
+        if ($rule === null) {
+            return null;
+        }
+
+        $end = $rule;
+
+        while (isset($lines[$end + 1]) && str_contains($lines[$end + 1], '|')) {
+            $end++;
+        }
+
+        $nodes = [];
+        $before = trim(implode("\n", array_slice($lines, 0, $rule - 1)));
+        $after = trim(implode("\n", array_slice($lines, $end + 1)));
+
+        if ($before !== '') {
+            $nodes[] = ['type' => 'paragraph', 'content' => $this->inline($before)];
+        }
+
+        $rows = [$this->tableRow($lines[$rule - 1], 'tableHeader')];
+
+        foreach (array_slice($lines, $rule + 1, $end - $rule) as $line) {
+            $rows[] = $this->tableRow($line, 'tableCell');
+        }
+
+        // Every row needs the same number of cells, or the editor's table
+        // plugin "repairs" the document on load and marks it changed.
+        $width = max(array_map(fn ($row) => count($row['content']), $rows));
+
+        foreach ($rows as $r => $row) {
+            $type = $row['content'][0]['type'];
+
+            while (count($rows[$r]['content']) < $width) {
+                $rows[$r]['content'][] = ['type' => $type, 'content' => [['type' => 'paragraph']]];
+            }
+        }
+
+        $nodes[] = ['type' => 'table', 'content' => $rows];
+
+        if ($after !== '') {
+            $nodes[] = ['type' => 'paragraph', 'content' => $this->inline($after)];
+        }
+
+        return $nodes;
+    }
+
+    /** @return array<string, mixed> */
+    private function tableRow(string $line, string $cellType): array
+    {
+        $line = preg_replace('/^\s*\|/', '', $line);
+        $line = preg_replace('/(?<!\\\\)\|\s*$/', '', (string) $line);
+        $cells = preg_split('/(?<!\\\\)\|/', (string) $line) ?: [];
+
+        return [
+            'type' => 'tableRow',
+            'content' => array_map(function (string $cell) use ($cellType) {
+                $inline = $this->inline(str_replace('\|', '|', trim($cell)));
+
+                return [
+                    'type' => $cellType,
+                    'content' => [$inline ? ['type' => 'paragraph', 'content' => $inline] : ['type' => 'paragraph']],
+                ];
+            }, $cells),
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function list(string $block): array
     {
@@ -244,7 +388,10 @@ class MarkdownImporter
         // treats them as spaces, and keeping them would add stray breaks.
         $text = preg_replace('/\s*\n\s*/', ' ', $text) ?? $text;
 
-        $pattern = '/(\*\*(?P<bold>.+?)\*\*)|(\*(?P<italic>.+?)\*)|(`(?P<code>.+?)`)/u';
+        // Inline math by Pandoc's rule, so prices stay prices: the opening $
+        // is not followed by a space, the closing one not preceded by one nor
+        // followed by a digit. "$25 and $30" is text; "$x^2$" is math.
+        $pattern = '/((?<![\\\\$])\$(?P<math>[^\s$](?:[^$]*?[^\s$\\\\])?)\$(?![\d$]))|(\*\*(?P<bold>.+?)\*\*)|(\*(?P<italic>.+?)\*)|(`(?P<code>.+?)`)/u';
         $nodes = [];
         $offset = 0;
 
@@ -255,6 +402,13 @@ class MarkdownImporter
 
             if ($at > $offset) {
                 $nodes[] = ['type' => 'text', 'text' => substr($text, $offset, $at - $offset)];
+            }
+
+            if (($m['math'][0] ?? '') !== '' && $m['math'][1] >= 0) {
+                $nodes[] = ['type' => 'inlineMath', 'attrs' => ['latex' => $m['math'][0]]];
+                $offset = $at + strlen($whole);
+
+                continue;
             }
 
             [$value, $mark] = match (true) {

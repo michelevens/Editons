@@ -161,8 +161,8 @@ return [
         'words' => [70000, 100000],
         'chapters' => [6, 10],
         'parts' => false,
-        'front_matter' => ['Abstract', 'Declaration', 'Acknowledgements'],
-        'back_matter' => ['Bibliography', 'Appendices'],
+        'front_matter' => ['Abstract', 'Declaration', 'Acknowledgements', 'List of Abbreviations'],
+        'back_matter' => ['References', 'Appendices'],
         'agents' => ['doctoral_examiner', 'fact_checker', 'consistency', 'copy'],
         'questions' => [
             'premise' => 'What is your thesis, stated as a claim an examiner could dispute?',
@@ -170,6 +170,44 @@ return [
             'promise' => 'What is the original contribution to knowledge, in one sentence?',
         ],
         'chapter_prompt' => 'What does this chapter contribute to the thesis, and how would you defend it at the viva?',
+    ],
+
+    // Learned from writing complete samples: a thesis by publication and a
+    // project thesis are built differently enough from the classic five- or
+    // eight-chapter monograph that a student starting from the wrong
+    // skeleton spends weeks undoing it.
+    'phd_publication' => [
+        'name' => 'PhD Thesis by Publication',
+        'blurb' => 'A doctoral thesis built around three or more papers, with framing and linking chapters.',
+        'words' => [60000, 90000],
+        'chapters' => [7, 11],
+        'parts' => false,
+        'front_matter' => ['Abstract', 'Declaration', 'Statement of Contribution', 'Publications Arising from This Thesis', 'Acknowledgements'],
+        'back_matter' => ['References', 'Appendices'],
+        'agents' => ['doctoral_examiner', 'fact_checker', 'consistency', 'copy'],
+        'questions' => [
+            'premise' => 'What single argument do the papers make together?',
+            'audience' => 'Which field and which journals are the papers written for?',
+            'promise' => 'What does the thesis as a whole contribute that no one paper does?',
+        ],
+        'chapter_prompt' => 'Where does this chapter sit in the argument across the papers, and what does it hand to the next?',
+    ],
+
+    'masters_project' => [
+        'name' => "Master's Project Thesis",
+        'blurb' => 'A design, build or practice-based project with its written thesis: requirements, design, evaluation.',
+        'words' => [12000, 30000],
+        'chapters' => [6, 8],
+        'parts' => false,
+        'front_matter' => ['Abstract', 'Declaration', 'Acknowledgements'],
+        'back_matter' => ['References', 'Appendix A: Requirements Specification', 'Appendix B: Evaluation Materials', 'Appendix C: Artefact Availability'],
+        'agents' => ['masters_examiner', 'fact_checker', 'consistency', 'copy'],
+        'questions' => [
+            'premise' => 'What problem does the artefact address, and for whom?',
+            'audience' => 'Which field is this for, and what design knowledge does it add?',
+            'promise' => 'How will you show the artefact works, and what counts as success?',
+        ],
+        'chapter_prompt' => 'Which requirement or research question does this chapter serve, and what evidence does it give?',
     ],
 
     'childrens' => [

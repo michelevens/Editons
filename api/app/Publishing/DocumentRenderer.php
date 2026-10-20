@@ -25,14 +25,526 @@ class DocumentRenderer
         'underline' => 'u',
     ];
 
+    /** How equations come out of html(): MathML for readers, SVG for print. */
+    private string $mathMode = 'mathml';
+
+    public function __construct(private readonly MathRenderer $math = new MathRenderer) {}
+
+    /** A copy that renders equations as SVG images or MathML. */
+    public function withMath(string $mode): static
+    {
+        $copy = clone $this;
+        $copy->mathMode = $mode === 'svg' ? 'svg' : 'mathml';
+
+        return $copy;
+    }
+
     public function html(ManuscriptSection $section): string
     {
-        return $this->nodesToHtml($section->content['content'] ?? []);
+        $nodes = $section->content['content'] ?? [];
+
+        // One typesetting call per section, not one per equation.
+        $this->math->render($this->collectMath($nodes));
+
+        return $this->nodesToHtml($nodes);
+    }
+
+    /**
+     * @param  array<int, mixed>  $nodes
+     * @return array<int, array{latex: string, display: bool}>
+     */
+    private function collectMath(array $nodes): array
+    {
+        $found = [];
+
+        foreach ($nodes as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            $type = $node['type'] ?? '';
+
+            if ($type === 'inlineMath' || $type === 'blockMath') {
+                [$latex] = $this->splitTag((string) ($node['attrs']['latex'] ?? ''));
+                $found[] = ['latex' => $latex, 'display' => $type === 'blockMath'];
+            }
+
+            array_push($found, ...$this->collectMath($node['content'] ?? []));
+        }
+
+        return $found;
+    }
+
+    /**
+     * An equation's number, taken out of the LaTeX.
+     *
+     * "\tag{3.1}" is how an author numbers a display equation. Typeset as part
+     * of the formula it becomes a full-width drawing the PDF cannot size, so
+     * the number is set beside the equation instead, in the text face, the
+     * way a printed thesis numbers equations.
+     *
+     * @return array{0: string, 1: string|null}
+     */
+    private function splitTag(string $latex): array
+    {
+        if (preg_match('/\\\\tag\*?\{([^{}]*)\}/u', $latex, $m)) {
+            return [trim(str_replace($m[0], '', $latex)), $m[1]];
+        }
+
+        return [trim($latex), null];
+    }
+
+    /**
+     * The SVG with its viewBox folded into a transform.
+     *
+     * The PDF's SVG reader honours neither ex units nor viewBox, so a formula
+     * drawn in MathJax's 1000-units-per-em space came out the size of the
+     * page. A unitless size (it draws "pt" sizes at three-quarters, which
+     * left a gap after every inline formula) and composed transforms are
+     * things it does draw correctly.
+     */
+    private function printableSvg(string $svg, float $width, float $height): string
+    {
+        if (! preg_match('/viewBox="([-\d.]+)\s+([-\d.]+)\s+([\d.]+)\s+([\d.]+)"/', $svg, $box) || (float) $box[3] <= 0) {
+            return $svg;
+        }
+
+        [, $x, $y, $w, $h] = array_map('floatval', $box);
+
+        $dom = new \DOMDocument;
+
+        if (! @$dom->loadXML($svg)) {
+            return $svg;
+        }
+
+        // The viewBox as a matrix, then every group's transform composed down
+        // onto the shapes themselves. Nested groups were the reader's other
+        // weakness: matrix rows and scripts collapsed onto one line.
+        $root = [$width / $w, 0, 0, $height / $h, -$x * $width / $w, -$y * $height / $h];
+        $shapes = '';
+        $this->flattenSvg($dom->documentElement, $root, $shapes);
+
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="'.$width.'" height="'.$height.'">'.$shapes.'</svg>';
+    }
+
+    /**
+     * Collects every path and rect with its full transform applied.
+     *
+     * @param  array<int, float>  $matrix  [a, b, c, d, e, f]
+     */
+    private function flattenSvg(\DOMElement $element, array $matrix, string &$out): void
+    {
+        foreach ($element->childNodes as $child) {
+            if (! $child instanceof \DOMElement) {
+                continue;
+            }
+
+            $local = $this->multiply($matrix, $this->parseTransform($child->getAttribute('transform')));
+            $name = $child->localName;
+
+            if ($name === 'path' || $name === 'rect') {
+                $attributes = $name === 'path'
+                    ? 'd="'.e($child->getAttribute('d')).'"'
+                    : collect(['x', 'y', 'width', 'height'])
+                        ->map(fn ($a) => $a.'="'.e($child->getAttribute($a) ?: '0').'"')
+                        ->implode(' ');
+
+                $out .= '<'.$name.' '.$attributes.' fill="#1a1a1a" transform="matrix('
+                    .implode(',', array_map(fn ($v) => round($v, 6), $local)).')"/>';
+
+                continue;
+            }
+
+            // Nested <svg> (MathJax uses one for some layouts) offsets by x/y.
+            if ($name === 'svg') {
+                $local = $this->multiply($local, [1, 0, 0, 1, (float) $child->getAttribute('x'), (float) $child->getAttribute('y')]);
+            }
+
+            $this->flattenSvg($child, $local, $out);
+        }
+    }
+
+    /** @return array<int, float> */
+    private function parseTransform(string $transform): array
+    {
+        $matrix = [1, 0, 0, 1, 0, 0];
+
+        preg_match_all('/(translate|scale|matrix)\s*\(([^)]*)\)/', $transform, $parts, PREG_SET_ORDER);
+
+        foreach ($parts as [, $function, $arguments]) {
+            $v = array_map('floatval', preg_split('/[\s,]+/', trim($arguments)) ?: []);
+
+            $matrix = $this->multiply($matrix, match ($function) {
+                'translate' => [1, 0, 0, 1, $v[0] ?? 0, $v[1] ?? 0],
+                'scale' => [$v[0] ?? 1, 0, 0, $v[1] ?? ($v[0] ?? 1), 0, 0],
+                default => count($v) === 6 ? $v : [1, 0, 0, 1, 0, 0],
+            });
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * @param  array<int, float>  $m
+     * @param  array<int, float>  $n
+     * @return array<int, float>
+     */
+    private function multiply(array $m, array $n): array
+    {
+        return [
+            $m[0] * $n[0] + $m[2] * $n[1],
+            $m[1] * $n[0] + $m[3] * $n[1],
+            $m[0] * $n[2] + $m[2] * $n[3],
+            $m[1] * $n[2] + $m[3] * $n[3],
+            $m[0] * $n[4] + $m[2] * $n[5] + $m[4],
+            $m[1] * $n[4] + $m[3] * $n[5] + $m[5],
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function chartSpec(array $node): array
+    {
+        return array_map('strval', array_intersect_key($node['attrs'] ?? [], array_flip(['type', 'title', 'xLabel', 'yLabel', 'data'])));
+    }
+
+    /**
+     * A chart drawn from its data: vector SVG for readers, a high-resolution
+     * PNG for print, where the PDF renderer's SVG text is not to be trusted.
+     *
+     * @param  array<string, mixed>  $node
+     */
+    private function chartHtml(array $node): string
+    {
+        $charts = app(ChartRenderer::class);
+        $spec = $this->chartSpec($node);
+
+        try {
+            if ($this->mathMode === 'svg') {
+                return '<div class="chart"><img class="chart" alt="'.e($charts->describe($spec)).'" '
+                    .'src="data:image/png;base64,'.base64_encode($charts->png($spec, 4)).'" /></div>'."\n";
+            }
+
+            return '<figure class="chart">'.$charts->svg($spec)."</figure>\n";
+        } catch (\InvalidArgumentException $e) {
+            return '<p class="chart-error"><code>'.e('Chart: '.$e->getMessage())."</code></p>\n";
+        }
+    }
+
+    /** @param array<string, mixed> $node */
+    private function mathHtml(array $node, bool $display): string
+    {
+        [$latex, $tag] = $this->splitTag((string) ($node['attrs']['latex'] ?? ''));
+        $result = $latex === '' ? null : $this->math->one($latex, $display);
+
+        if ($result === null || isset($result['error'])) {
+            // The source, visibly: a broken or untypeset equation must be seen
+            // at proof, not discovered missing in print.
+            $body = '<code class="math-tex"'.(isset($result['error']) ? ' title="'.e($result['error']).'"' : '').'>'
+                .e($display ? $latex : '$'.$latex.'$').'</code>';
+        } elseif ($this->mathMode === 'svg') {
+            // The PDF's SVG reader does not know the ex unit, so sizes become
+            // points. MathJax's ex is half its em; at the 11pt text size that
+            // is 5.5pt, set a touch smaller because the math face runs large
+            // beside Garamond.
+            $pt = fn (string $ex) => round(((float) $ex) * 4.8, 2);
+            $svg = $this->printableSvg($result['svg'], $pt($result['width']), $pt($result['height']));
+            $style = 'width:'.$pt($result['width']).'pt;height:'.$pt($result['height']).'pt'
+                .($display ? '' : ';vertical-align:'.$pt((string) $result['valign']).'pt');
+            $body = '<img class="math" alt="'.e($latex).'" style="'.$style.'" src="data:image/svg+xml;base64,'
+                .base64_encode($svg).'" />';
+        } else {
+            // Indentation inside MathML is noise in a reflowable book.
+            $body = preg_replace('/>\s+</', '><', trim($result['mathml']));
+        }
+
+        if (! $display) {
+            return $body;
+        }
+
+        if ($this->mathMode === 'svg') {
+            // A three-column row: the PDF renderer cannot position the number
+            // absolutely, and a table centres the equation exactly while the
+            // number sits at the right margin.
+            return '<table class="math-display"><tr><td class="math-side"></td><td class="math-body">'.$body
+                .'</td><td class="math-side math-number">'.($tag !== null ? '('.e($tag).')' : '')."</td></tr></table>\n";
+        }
+
+        return '<div class="math-display">'.$body
+            .($tag !== null ? '<span class="math-number">('.e($tag).')</span>' : '')."</div>\n";
     }
 
     public function markdown(ManuscriptSection $section): string
     {
         return trim($this->nodesToMarkdown($section->content['content'] ?? []));
+    }
+
+    /**
+     * The section as WordprocessingML body content.
+     *
+     * Word is what most universities and many publishers ask for, so the
+     * DOCX keeps the structure an examiner reads by: headings Word's
+     * navigation pane understands, italics, block quotes, lists and real
+     * tables rather than a wall of plain paragraphs.
+     */
+    public function docx(ManuscriptSection $section): string
+    {
+        return $this->nodesToDocx($section->content['content'] ?? []);
+    }
+
+    /** Pictures placed by docx() since the last reset, for the package. */
+    private array $docxMedia = [];
+
+    public function resetDocxMedia(): void
+    {
+        $this->docxMedia = [];
+    }
+
+    /** @return array<string, array{file: string, data: string, mime: string}> keyed by relationship id */
+    public function docxMedia(): array
+    {
+        return $this->docxMedia;
+    }
+
+    /** @param array<string, mixed> $node */
+    private function docxImage(array $node): string
+    {
+        $image = app(BookImages::class)->resolve((string) ($node['attrs']['src'] ?? ''));
+
+        if ($image === null) {
+            // An image that cannot be embedded keeps its description, so the
+            // reader knows something stood there.
+            $alt = trim((string) ($node['attrs']['alt'] ?? ''));
+
+            return $alt !== '' ? $this->docxParagraph($this->docxRun('[Image: '.$alt.']', '<w:i/>')) : '';
+        }
+
+        return $this->docxPicture($image, (string) ($node['attrs']['alt'] ?? ''));
+    }
+
+    /** @param array<string, mixed> $node */
+    private function docxChart(array $node): string
+    {
+        $charts = app(ChartRenderer::class);
+        $spec = $this->chartSpec($node);
+
+        try {
+            // Rendered at 3×, then set at the 640 px layout width.
+            return $this->docxPicture(
+                ['name' => 'chart.png', 'mime' => 'image/png', 'data' => $charts->png($spec, 3)],
+                $charts->describe($spec),
+                640,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->docxParagraph($this->docxRun('[Chart: '.$e->getMessage().']', '<w:i/>'));
+        }
+    }
+
+    /**
+     * @param  array{name: string, mime: string, data: string}  $image
+     */
+    private function docxPicture(array $image, string $description, ?int $displayWidth = null): string
+    {
+        $n = count($this->docxMedia) + 1;
+        $id = 'rIdImg'.$n;
+        $extension = pathinfo($image['name'], PATHINFO_EXTENSION);
+        $this->docxMedia[$id] = ['file' => "image{$n}.{$extension}", 'data' => $image['data'], 'mime' => $image['mime']];
+
+        // Fit the text width (6 in) without enlarging; EMU = 914400 per inch.
+        $size = @getimagesizefromstring($image['data']) ?: [1200, 800];
+        $width = min(6 * 914400, (int) (($displayWidth ?? $size[0]) / 96 * 914400));
+        $height = (int) round($width * $size[1] / max(1, $size[0]));
+        $alt = htmlspecialchars($description, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
+            .'<wp:inline distT="0" distB="0" distL="0" distR="0">'
+            .'<wp:extent cx="'.$width.'" cy="'.$height.'"/>'
+            .'<wp:docPr id="'.$n.'" name="Picture '.$n.'" descr="'.$alt.'"/>'
+            .'<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+            .'<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+            .'<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+            .'<pic:nvPicPr><pic:cNvPr id="'.$n.'" name="image'.$n.'.'.$extension.'" descr="'.$alt.'"/><pic:cNvPicPr/></pic:nvPicPr>'
+            .'<pic:blipFill><a:blip r:embed="'.$id.'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+            .'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'.$width.'" cy="'.$height.'"/></a:xfrm>'
+            .'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+            .'</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+    }
+
+    /** @param array<int, mixed> $nodes */
+    private function nodesToDocx(array $nodes, ?string $style = null, int $depth = 0): string
+    {
+        $out = '';
+
+        foreach ($nodes as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            $type = $node['type'] ?? '';
+            $children = $node['content'] ?? [];
+
+            $out .= match ($type) {
+                'paragraph' => $this->docxParagraph($this->docxRuns($children), $style),
+                // The section title is Heading 1, so a heading inside the
+                // chapter is never above Heading 2.
+                'heading' => $this->docxParagraph(
+                    $this->docxRuns($children),
+                    'Heading'.max(2, min(4, (int) ($node['attrs']['level'] ?? 2))),
+                ),
+                'blockquote' => $this->nodesToDocx($children, 'Quote', $depth),
+                'bulletList', 'orderedList' => $this->docxList($node, $depth),
+                'codeBlock' => collect(explode("\n", $this->plain($children)))
+                    ->map(fn ($line) => $this->docxParagraph($this->docxRun($line), 'Code'))
+                    ->implode(''),
+                'horizontalRule' => $this->docxParagraph($this->docxRun('*'), 'Break'),
+                'table' => $this->docxTable($children),
+                'image' => $this->docxImage($node),
+                'chart' => $this->docxChart($node),
+                // A Word equation holding the LaTeX in linear form: Word's
+                // equation tools (LaTeX input, "Professional") build it up.
+                'blockMath' => '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><m:oMathPara><m:oMath>'
+                    .$this->docxMathRun((string) ($node['attrs']['latex'] ?? '')).'</m:oMath></m:oMathPara></w:p>',
+                default => $children ? $this->nodesToDocx($children, $style, $depth) : '',
+            };
+        }
+
+        return $out;
+    }
+
+    /** @param array<string, mixed> $list */
+    private function docxList(array $list, int $depth): string
+    {
+        $out = '';
+        $ordered = ($list['type'] ?? '') === 'orderedList';
+        $number = (int) ($list['attrs']['start'] ?? 1);
+
+        foreach ($list['content'] ?? [] as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $marker = $ordered ? ($number++).".\t" : "•\t";
+            $first = true;
+
+            foreach ($item['content'] ?? [] as $child) {
+                if (! is_array($child)) {
+                    continue;
+                }
+
+                if (($child['type'] ?? '') === 'paragraph') {
+                    $indent = 360 * ($depth + 1);
+                    $out .= '<w:p><w:pPr><w:ind w:left="'.($indent + 360).'" w:hanging="360"/></w:pPr>'
+                        .($first ? $this->docxRun($marker) : '')
+                        .$this->docxRuns($child['content'] ?? []).'</w:p>';
+                    $first = false;
+                } else {
+                    $out .= $this->nodesToDocx([$child], null, $depth + 1);
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /** @param array<int, mixed> $rows */
+    private function docxTable(array $rows): string
+    {
+        $out = '<w:tbl><w:tblPr><w:tblStyle w:val="BookTable"/><w:tblW w:w="5000" w:type="pct"/>'
+            .'<w:tblBorders><w:top w:val="single" w:sz="8"/><w:bottom w:val="single" w:sz="8"/>'
+            .'<w:insideH w:val="single" w:sz="2" w:color="BFBFBF"/></w:tblBorders></w:tblPr>';
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $cells = array_values(array_filter($row['content'] ?? [], 'is_array'));
+            $header = $cells && collect($cells)->every(fn ($c) => ($c['type'] ?? '') === 'tableHeader');
+            $out .= '<w:tr>'.($header ? '<w:trPr><w:tblHeader/></w:trPr>' : '');
+
+            foreach ($cells as $cell) {
+                $span = (int) ($cell['attrs']['colspan'] ?? 1);
+                $body = $this->nodesToDocx($cell['content'] ?? [], $header ? 'TableHeading' : 'TableText');
+
+                // A cell must hold at least one paragraph or Word refuses the file.
+                $out .= '<w:tc><w:tcPr>'.($span > 1 ? '<w:gridSpan w:val="'.$span.'"/>' : '').'</w:tcPr>'
+                    .($body ?: '<w:p/>').'</w:tc>';
+            }
+
+            $out .= '</w:tr>';
+        }
+
+        return $out.'</w:tbl>'.$this->docxParagraph('', 'TableText');
+    }
+
+    private function docxParagraph(string $runs, ?string $style = null): string
+    {
+        $properties = $style ? '<w:pPr><w:pStyle w:val="'.$style.'"/></w:pPr>' : '';
+
+        return '<w:p>'.$properties.$runs.'</w:p>';
+    }
+
+    /** @param array<int, mixed> $nodes */
+    private function docxRuns(array $nodes): string
+    {
+        $out = '';
+
+        foreach ($nodes as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            if (($node['type'] ?? '') === 'hardBreak') {
+                $out .= '<w:r><w:br/></w:r>';
+
+                continue;
+            }
+
+            if (($node['type'] ?? '') === 'inlineMath') {
+                $out .= '<m:oMath>'.$this->docxMathRun((string) ($node['attrs']['latex'] ?? '')).'</m:oMath>';
+
+                continue;
+            }
+
+            if (($node['type'] ?? '') !== 'text') {
+                $out .= $this->docxRuns($node['content'] ?? []);
+
+                continue;
+            }
+
+            $properties = '';
+
+            foreach ($node['marks'] ?? [] as $mark) {
+                $properties .= match ($mark['type'] ?? '') {
+                    'bold', 'strong' => '<w:b/>',
+                    'italic', 'em' => '<w:i/>',
+                    'underline' => '<w:u w:val="single"/>',
+                    'strike' => '<w:strike/>',
+                    'code' => '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>',
+                    default => '',
+                };
+            }
+
+            $out .= $this->docxRun((string) ($node['text'] ?? ''), $properties);
+        }
+
+        return $out;
+    }
+
+    private function docxMathRun(string $latex): string
+    {
+        return '<m:r><m:t xml:space="preserve">'.htmlspecialchars(trim($latex), ENT_XML1 | ENT_QUOTES, 'UTF-8').'</m:t></m:r>';
+    }
+
+    private function docxRun(string $text, string $properties = ''): string
+    {
+        // xml:space="preserve" so leading and trailing spaces are not
+        // silently collapsed by Word; tabs become real tab stops.
+        $parts = explode("\t", $text);
+        $inner = collect($parts)
+            ->map(fn ($part) => '<w:t xml:space="preserve">'.htmlspecialchars($part, ENT_XML1 | ENT_QUOTES, 'UTF-8').'</w:t>')
+            ->implode('<w:tab/>');
+
+        return '<w:r>'.($properties ? "<w:rPr>{$properties}</w:rPr>" : '').$inner.'</w:r>';
     }
 
     /** @param array<int, mixed> $nodes */
@@ -48,7 +560,7 @@ class DocumentRenderer
             $children = $node['content'] ?? [];
 
             $out .= match ($node['type'] ?? '') {
-                'paragraph' => '<p>'.$this->inlineHtml($children)."</p>\n",
+                'paragraph' => '<p'.$this->paragraphClass($children).'>'.$this->inlineHtml($children)."</p>\n",
                 'heading' => $this->headingHtml($node),
                 'bulletList' => "<ul>\n".$this->nodesToHtml($children)."</ul>\n",
                 'orderedList' => "<ol>\n".$this->nodesToHtml($children)."</ol>\n",
@@ -57,11 +569,41 @@ class DocumentRenderer
                 'codeBlock' => '<pre><code>'.e($this->plain($children))."</code></pre>\n",
                 'horizontalRule' => "<hr />\n",
                 'image' => $this->imageHtml($node),
+                'table' => $this->tableHtml($children),
+                'blockMath' => $this->mathHtml($node, true),
+                'chart' => $this->chartHtml($node),
                 default => $this->inlineHtml($children),
             };
         }
 
         return $out;
+    }
+
+    /**
+     * Captions and table notes, recognised the way an academic writer types
+     * them: a bold "Table 4.2" or "Figure 3.1" leading the paragraph, or an
+     * italic "Note." under a table. Typeset as captions rather than as
+     * indented body text, which is how a reader finds them.
+     *
+     * @param  array<int, mixed>  $children
+     */
+    private function paragraphClass(array $children): string
+    {
+        $first = $children[0] ?? null;
+
+        if (! is_array($first) || ($first['type'] ?? '') !== 'text') {
+            return '';
+        }
+
+        $marks = array_column($first['marks'] ?? [], 'type');
+        $text = trim((string) ($first['text'] ?? ''));
+
+        return match (true) {
+            (in_array('bold', $marks, true) || in_array('strong', $marks, true))
+                && (bool) preg_match('/^(Table|Figure|Tableau|Tabla|Exhibit)\s+[A-Z]?\d+([.\-]\d+)*\.?$/u', $text) => ' class="caption"',
+            in_array('italic', $marks, true) && (bool) preg_match('/^(Note|Notes|Source|Sources)\.?$/u', $text) => ' class="table-note"',
+            default => '',
+        };
     }
 
     /**
@@ -89,6 +631,55 @@ class DocumentRenderer
         }
 
         return $out;
+    }
+
+    /**
+     * A table, with header cells in a <thead> so a reader repeats them and a
+     * screen reader announces them.
+     *
+     * @param  array<int, mixed>  $rows
+     */
+    private function tableHtml(array $rows): string
+    {
+        $head = '';
+        $body = '';
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $cells = '';
+            $header = true;
+
+            foreach ($row['content'] ?? [] as $cell) {
+                if (! is_array($cell)) {
+                    continue;
+                }
+
+                $tag = ($cell['type'] ?? '') === 'tableHeader' ? 'th' : 'td';
+                $header = $header && $tag === 'th';
+                $span = '';
+
+                foreach (['colspan', 'rowspan'] as $attribute) {
+                    $value = (int) ($cell['attrs'][$attribute] ?? 1);
+                    $span .= $value > 1 ? " {$attribute}=\"{$value}\"" : '';
+                }
+
+                $cells .= "<{$tag}{$span}>".trim($this->listItemHtml($cell['content'] ?? []))."</{$tag}>";
+            }
+
+            $line = "<tr>{$cells}</tr>\n";
+
+            // Only leading all-header rows belong to the head.
+            if ($header && $body === '') {
+                $head .= $line;
+            } else {
+                $body .= $line;
+            }
+        }
+
+        return "<table>\n".($head ? "<thead>\n{$head}</thead>\n" : '')."<tbody>\n{$body}</tbody>\n</table>\n";
     }
 
     /** @param array<string, mixed> $node */
@@ -127,6 +718,12 @@ class DocumentRenderer
 
             if ($type === 'hardBreak') {
                 $out .= '<br />';
+
+                continue;
+            }
+
+            if ($type === 'inlineMath') {
+                $out .= $this->mathHtml($node, false);
 
                 continue;
             }
@@ -226,6 +823,38 @@ class DocumentRenderer
                 continue;
             }
 
+            if ($type === 'chart') {
+                // The data travels as a fenced block, so a round trip
+                // through Markdown keeps the chart, not a picture of it.
+                $out .= "```chart\n".json_encode($this->chartSpec($node), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n```\n\n";
+
+                continue;
+            }
+
+            if ($type === 'blockMath') {
+                $out .= "$$\n".trim((string) ($node['attrs']['latex'] ?? ''))."\n$$\n\n";
+
+                continue;
+            }
+
+            if ($type === 'table') {
+                foreach (array_values(array_filter($children, 'is_array')) as $index => $row) {
+                    $cells = array_map(
+                        fn ($cell) => str_replace('|', '\|', trim(preg_replace('/\s+/', ' ', $this->nodesToMarkdown($cell['content'] ?? [])))),
+                        array_filter($row['content'] ?? [], 'is_array'),
+                    );
+                    $out .= '| '.implode(' | ', $cells)." |\n";
+
+                    if ($index === 0) {
+                        $out .= '|'.str_repeat(' --- |', count($cells))."\n";
+                    }
+                }
+
+                $out .= "\n";
+
+                continue;
+            }
+
             $out .= $this->inlineMarkdown($children);
         }
 
@@ -246,6 +875,12 @@ class DocumentRenderer
 
             if ($type === 'hardBreak') {
                 $out .= "  \n";
+
+                continue;
+            }
+
+            if ($type === 'inlineMath') {
+                $out .= '$'.trim((string) ($node['attrs']['latex'] ?? '')).'$';
 
                 continue;
             }

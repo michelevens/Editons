@@ -5,6 +5,8 @@ use App\Http\Controllers\AiEditorController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BookController;
+use App\Http\Controllers\BookImageController;
+use App\Http\Controllers\ChartController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\CoverAiController;
@@ -240,6 +242,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/books/{book}/references', [ReferencesController::class, 'show'])
         ->name('references.show');
+    Route::put('/books/{book}/references/style', [ReferencesController::class, 'style'])
+        ->name('references.style');
 });
 
 /*
@@ -310,6 +314,14 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover');
     Route::post('/books/{book}/cover/artwork', [DesignController::class, 'uploadArtwork'])
         ->name('design.cover.artwork');
+    Route::post('/charts/preview', [ChartController::class, 'preview'])
+        ->middleware('throttle:120,1')
+        ->name('charts.preview');
+    Route::post('/books/{book}/images', [BookImageController::class, 'store'])
+        ->name('books.images.store');
+    Route::get('/books/{book}/images/{name}', [BookImageController::class, 'show'])
+        ->where('name', '[a-z0-9]+\.[a-z]+')
+        ->name('books.images.show');
     Route::get('/books/{book}/cover/image', [DesignController::class, 'coverImage'])
         ->name('design.cover.image');
     Route::get('/books/{book}/cover/download', [DesignController::class, 'downloadCover'])

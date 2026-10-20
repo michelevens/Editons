@@ -12,6 +12,7 @@ it('applies defaults for settings a book has never saved', function () {
         'autosave' => true,
         'inline_ai' => true,
         'review_on_save' => false,
+        'citation_style' => 'APA',
     ]);
 });
 
@@ -32,6 +33,7 @@ it('merges a partial settings update instead of replacing it', function () {
         'autosave' => false,
         'inline_ai' => false,
         'review_on_save' => true,
+        'citation_style' => 'APA',
     ]);
 });
 

@@ -100,6 +100,62 @@
     overflow-x: auto;
 }
 
+/* Tables: ruled like a printed table, not a spreadsheet grid. */
+.manuscript .ProseMirror .tableWrapper {
+    overflow-x: auto;
+}
+
+.manuscript .ProseMirror table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14.5px;
+    line-height: 20px;
+}
+
+.manuscript .ProseMirror th,
+.manuscript .ProseMirror td {
+    border-bottom: 1px solid var(--color-border-default);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.manuscript .ProseMirror th {
+    border-top: 1.5px solid var(--color-text-primary);
+    border-bottom: 1px solid var(--color-text-primary);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.manuscript .ProseMirror tr:last-child td {
+    border-bottom: 1.5px solid var(--color-text-primary);
+}
+
+.manuscript .ProseMirror th p,
+.manuscript .ProseMirror td p {
+    margin: 0;
+}
+
+.manuscript .ProseMirror .selectedCell {
+    background: var(--color-brand-primary-subtle);
+}
+
+/* Equations: KaTeX on screen; click to edit. */
+.manuscript .ProseMirror .tiptap-mathematics-render {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0 2px;
+}
+
+.manuscript .ProseMirror .tiptap-mathematics-render:hover {
+    background: var(--color-brand-primary-subtle);
+}
+
+.manuscript .ProseMirror [data-type="block-math"] {
+    text-align: center;
+    margin: 1em 0;
+}
+
 /* Empty-document placeholder. Without this an empty chapter is an invisible
    click target and looks broken. */
 .manuscript .ProseMirror p.is-editor-empty:first-child::before {
@@ -163,4 +219,17 @@
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--color-text-secondary);
     background-clip: content-box;
+}
+
+/* Pictures in the manuscript: never wider than the page column. */
+.manuscript .ProseMirror img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1em auto;
+    border-radius: 2px;
+}
+
+.manuscript .ProseMirror img.ProseMirror-selectednode {
+    outline: 2px solid var(--color-brand-primary);
 }

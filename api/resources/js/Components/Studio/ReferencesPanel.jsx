@@ -9,17 +9,34 @@ import Icon from './Icon';
  * never used — the question that matters before publication.
  */
 export default function ReferencesPanel({ bookId, onOpenSection }) {
-    const [style, setStyle] = useState('APA');
+    // Null until loaded: the book's own style comes from the server, and
+    // guessing APA first would flash the wrong bibliography.
+    const [style, setStyle] = useState(null);
     const [data, setData] = useState(null);
     const [copied, setCopied] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     const load = useCallback(async () => {
-        const response = await window.axios.get(
-            `/books/${bookId}/references?style=${style}`,
-        );
+        const response = await window.axios.get(`/books/${bookId}/references`, {
+            params: style ? { style } : {},
+        });
 
         setData(response.data);
     }, [bookId, style]);
+
+    const keep = async () => {
+        setSaving(true);
+
+        try {
+            const response = await window.axios.put(
+                `/books/${bookId}/references/style`,
+                { style: data.style },
+            );
+            setData(response.data);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     useEffect(() => {
         load();
@@ -67,16 +84,30 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                     <label className="flex items-center gap-2 text-[12.5px] text-text-secondary">
                         Style
                         <select
-                            value={style}
+                            value={data.style}
                             data-a="references:style"
                             onChange={(event) => setStyle(event.target.value)}
                             className="h-[34px] rounded-control border border-border-input px-2.5 text-[13px] focus:border-brand-primary focus:ring-0"
                         >
-                            {data.styles.map((option) => (
-                                <option key={option}>{option}</option>
+                            {data.options.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                    {option.value === data.saved_style ? ' — this book' : ''}
+                                </option>
                             ))}
                         </select>
                     </label>
+
+                    {data.style !== data.saved_style && (
+                        <button
+                            data-a="references:keep-style"
+                            onClick={keep}
+                            disabled={saving}
+                            className="h-[34px] rounded-control border border-border-input px-3.5 text-[13px] font-semibold text-text-primary transition hover:bg-bg-muted disabled:opacity-50"
+                        >
+                            {saving ? 'Saving…' : 'Use for this book'}
+                        </button>
+                    )}
 
                     <button
                         data-a="references:copy"
@@ -91,7 +122,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
 
             <section className="rounded-panel border border-border-default bg-bg-surface p-5">
                 <h3 className="text-[15px] font-semibold text-text-primary">
-                    Bibliography — {data.style}
+                    Bibliography — {data.options.find((o) => o.value === data.style)?.label}
                 </h3>
 
                 {data.entries.length === 0 ? (
@@ -106,7 +137,17 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                     >
                         {data.entries.map((entry) => (
                             <li key={entry.id} className="flex gap-2.5">
-                                <span className="min-w-0 flex-1">{entry.entry}</span>
+                                {/* Escaped on the server; the only markup is <i>. */}
+                                <span
+                                    className="min-w-0 flex-1"
+                                    dangerouslySetInnerHTML={{ __html: entry.html }}
+                                />
+                                <span
+                                    title="How to cite it in the text"
+                                    className="shrink-0 font-mono text-[11.5px] text-text-secondary"
+                                >
+                                    {entry.in_text}
+                                </span>
                                 {entry.verification !== 'verified' && (
                                     <span
                                         title="This source has not been verified."
@@ -121,8 +162,10 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                 )}
 
                 <p className="mt-4 text-[11px] leading-relaxed text-text-secondary">
-                    An approximation of {data.style}, enough to hand a publisher
-                    a starting point. It is not a substitute for a style manual.
+                    Follows the manual for articles, books, reports and web
+                    pages. Check unusual sources against the manual itself.
+                    {data.options.find((o) => o.value === data.style)?.numeric &&
+                        ' Numbered in the order the manuscript first cites each source.'}
                 </p>
             </section>
 

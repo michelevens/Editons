@@ -75,8 +75,40 @@ class MarkdownExporter
             'bulletList' => $this->listBlock($node, ordered: false),
             'orderedList' => $this->listBlock($node, ordered: true),
 
+            'codeBlock' => '```'.($node['attrs']['language'] ?? '')."\n"
+                .implode('', array_column($node['content'] ?? [], 'text'))."\n```",
+
+            'table' => $this->table($node),
+
+            'chart' => "```chart\n".json_encode(
+                array_map('strval', array_intersect_key($node['attrs'] ?? [], array_flip(['type', 'title', 'xLabel', 'yLabel', 'data']))),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+            )."\n```",
+
+            'blockMath' => "$$\n".trim((string) ($node['attrs']['latex'] ?? ''))."\n$$",
+
             default => '',
         };
+    }
+
+    /** @param array<string, mixed> $node */
+    private function table(array $node): string
+    {
+        $lines = [];
+
+        foreach ($node['content'] ?? [] as $index => $row) {
+            $cells = array_map(
+                fn (array $cell) => str_replace('|', '\|', $this->doc($cell)),
+                $row['content'] ?? [],
+            );
+            $lines[] = '| '.implode(' | ', $cells).' |';
+
+            if ($index === 0) {
+                $lines[] = '|'.str_repeat(' --- |', count($cells));
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /** @param array<string, mixed> $node */
@@ -113,6 +145,12 @@ class MarkdownExporter
         $out = '';
 
         foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'inlineMath') {
+                $out .= '$'.trim((string) ($node['attrs']['latex'] ?? '')).'$';
+
+                continue;
+            }
+
             if (($node['type'] ?? '') !== 'text') {
                 continue;
             }

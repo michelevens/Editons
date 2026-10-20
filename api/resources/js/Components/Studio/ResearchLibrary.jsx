@@ -197,6 +197,12 @@ function AddSource({ bookId, onAdded, onError }) {
         authors: '',
         publisher: '',
         published: '',
+        container: '',
+        volume: '',
+        issue: '',
+        pages: '',
+        edition: '',
+        doi: '',
         url: '',
         notes: '',
     });
@@ -256,7 +262,7 @@ function AddSource({ bookId, onAdded, onError }) {
 
             <label className="text-xs font-semibold text-slate-600">
                 Authors
-                <input {...field('authors')} />
+                <input {...field('authors')} placeholder="Smith, J.; Lee, K." />
             </label>
 
             <label className="text-xs font-semibold text-slate-600">
@@ -267,6 +273,39 @@ function AddSource({ bookId, onAdded, onError }) {
             <label className="text-xs font-semibold text-slate-600">
                 Published
                 <input {...field('published')} placeholder="2019" />
+            </label>
+
+            {form.kind === 'book' ? (
+                <label className="text-xs font-semibold text-slate-600">
+                    Edition
+                    <input {...field('edition')} placeholder="2" />
+                </label>
+            ) : (
+                <>
+                    <label className="col-span-2 text-xs font-semibold text-slate-600">
+                        {form.kind === 'journal_article' ? 'Journal' : 'Website or series'}
+                        <input {...field('container')} />
+                    </label>
+                    <div className="col-span-2 grid grid-cols-3 gap-3">
+                        <label className="text-xs font-semibold text-slate-600">
+                            Volume
+                            <input {...field('volume')} />
+                        </label>
+                        <label className="text-xs font-semibold text-slate-600">
+                            Issue
+                            <input {...field('issue')} />
+                        </label>
+                        <label className="text-xs font-semibold text-slate-600">
+                            Pages
+                            <input {...field('pages')} placeholder="12–34" />
+                        </label>
+                    </div>
+                </>
+            )}
+
+            <label className="text-xs font-semibold text-slate-600">
+                DOI
+                <input {...field('doi')} placeholder="10.1000/xyz" />
             </label>
 
             <label className="col-span-2 text-xs font-semibold text-slate-600">

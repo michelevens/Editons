@@ -12,7 +12,13 @@ import { useState } from 'react';
  * author's and still readable — which is what the shelf's Archived filter
  * restores from.
  */
-export default function Settings({ book, genres, languages, can_archive: canArchive }) {
+export default function Settings({
+    book,
+    genres,
+    languages,
+    citation_styles: citationStyles,
+    can_archive: canArchive,
+}) {
     const { auth } = usePage().props;
 
     const open = (key) => goTo(book.id, key);
@@ -56,7 +62,7 @@ export default function Settings({ book, genres, languages, can_archive: canArch
                         </header>
 
                         <DetailsForm book={book} genres={genres} languages={languages} />
-                        <WritingPreferences book={book} />
+                        <WritingPreferences book={book} citationStyles={citationStyles} />
                         <ArchiveBox book={book} canArchive={canArchive} />
                     </div>
                 </main>
@@ -167,12 +173,13 @@ function DetailsForm({ book, genres, languages }) {
 }
 
 /**
- * The writing preference: autosave, which the editor honours.
+ * The writing preferences: autosave, which the editor honours, and the
+ * citation style the bibliography and exports use.
  *
  * Each saves on change rather than waiting for a Save button: a switch that
  * needs confirming reads as broken, and these are preferences, not a form.
  */
-function WritingPreferences({ book }) {
+function WritingPreferences({ book, citationStyles }) {
     const [settings, setSettings] = useState(book.settings);
     const [busy, setBusy] = useState(null);
 
@@ -190,6 +197,24 @@ function WritingPreferences({ book }) {
                 preserveState: true,
                 // Put it back if the server refused, rather than leaving the
                 // switch showing a state that was never saved.
+                onError: () => setSettings(settings),
+                onFinish: () => setBusy(null),
+            },
+        );
+    };
+
+    const chooseStyle = (value) => {
+        const next = { ...settings, citation_style: value };
+
+        setSettings(next);
+        setBusy('citation_style');
+
+        router.patch(
+            route('books.update', book.id),
+            { settings: { citation_style: value } },
+            {
+                preserveScroll: true,
+                preserveState: true,
                 onError: () => setSettings(settings),
                 onFinish: () => setBusy(null),
             },
@@ -245,6 +270,33 @@ function WritingPreferences({ book }) {
                         </button>
                     </li>
                 ))}
+
+                <li className="flex items-center justify-between gap-6 py-3.5">
+                    <div className="min-w-0">
+                        <p className="text-[13.5px] font-medium text-text-primary">
+                            Citation style
+                        </p>
+                        <p className="mt-0.5 text-[12.5px] leading-relaxed text-text-secondary">
+                            Used for the bibliography and in-text citations. Your
+                            university or publisher usually decides this.
+                        </p>
+                    </div>
+
+                    <select
+                        value={settings.citation_style}
+                        aria-label="Citation style"
+                        data-a="settings:citation-style"
+                        disabled={busy === 'citation_style'}
+                        onChange={(event) => chooseStyle(event.target.value)}
+                        className="h-[36px] shrink-0 rounded-control border border-border-input px-2.5 text-[13px] focus:border-brand-primary focus:ring-0"
+                    >
+                        {citationStyles.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                </li>
             </ul>
         </section>
     );

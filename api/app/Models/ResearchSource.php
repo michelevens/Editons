@@ -25,6 +25,7 @@ class ResearchSource extends Model
 
     protected $fillable = [
         'kind', 'title', 'authors', 'publisher', 'published',
+        'container', 'volume', 'issue', 'pages', 'edition',
         'url', 'doi', 'isbn', 'notes',
     ];
 

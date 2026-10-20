@@ -25,19 +25,39 @@ class ReferencesController extends Controller
     {
         $this->authorize('view', $book);
 
-        $style = $request->string('style')->toString();
-
-        if (! in_array($style, Bibliography::STYLES, true)) {
-            $style = 'APA';
-        }
+        // A style asked for previews it; without one, the book's own choice.
+        $style = Bibliography::normalise(
+            $request->string('style')->toString() ?: $book->settings()['citation_style'],
+        );
 
         return response()->json([
             'styles' => Bibliography::STYLES,
+            'options' => Bibliography::options(),
             'style' => $style,
+            'saved_style' => Bibliography::normalise($book->settings()['citation_style']),
             'entries' => $this->bibliography->forBook($book, $style),
             'text' => $this->bibliography->asText($book, $style),
             'usage' => $this->usage($book),
         ]);
+    }
+
+    /**
+     * Make a style the book's own.
+     *
+     * Separate from previewing: an author comparing APA with Chicago should
+     * not change what the export uses by looking.
+     */
+    public function style(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'style' => ['required', 'string', 'in:'.implode(',', Bibliography::STYLES)],
+        ]);
+
+        $book->update(['settings' => array_merge($book->settings(), ['citation_style' => $data['style']])]);
+
+        return $this->show($request->merge(['style' => $data['style']]), $book);
     }
 
     /**

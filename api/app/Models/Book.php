@@ -75,6 +75,8 @@ class Book extends Model
         'autosave' => true,
         'inline_ai' => true,
         'review_on_save' => false,
+        // The author's choice, and what the references screen and exports use.
+        'citation_style' => 'APA',
     ];
 
     /**

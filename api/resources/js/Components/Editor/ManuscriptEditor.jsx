@@ -1,7 +1,16 @@
 import Icon from '@/Components/Studio/Icon';
 import { EditorContent, useEditor } from '@tiptap/react';
+import { BlockMath, InlineMath } from '@tiptap/extension-mathematics';
+import Image from '@tiptap/extension-image';
+import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
+import 'katex/contrib/mhchem';
+import 'katex/dist/katex.min.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import ChartDialog from './ChartDialog';
+import { Chart } from './ChartNode';
+import ImageDialog from './ImageDialog';
+import MathDialog from './MathDialog';
 
 /**
  * The writing canvas.
@@ -26,9 +35,14 @@ function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
 
-export default function ManuscriptEditor({ section, onSaved, autosave = true }) {
+export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true }) {
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
+    // The equation being written or edited: {kind, latex, pos} or null.
+    const [mathEdit, setMathEdit] = useState(null);
+    const [inserting, setInserting] = useState(false);
+    // The chart being made or edited: {attrs, pos} or null.
+    const [chartEdit, setChartEdit] = useState(null);
 
     // Refs rather than state: these are read inside callbacks and must not
     // retrigger the effect that wires the editor up.
@@ -37,6 +51,13 @@ export default function ManuscriptEditor({ section, onSaved, autosave = true }) 
     const autosaveRef = useRef(autosave);
 
     autosaveRef.current = autosave;
+
+    // Read by the unmount flush. As an effect dependency, status re-ran that
+    // effect on every change, and its cleanup cleared the save timer just
+    // armed: a single edit (one equation, one paste) never saved, and every
+    // status change fired a spurious beacon save.
+    const statusRef = useRef(status);
+    statusRef.current = status;
 
     const save = useCallback(
         async (json, reason = 'autosave') => {
@@ -70,6 +91,24 @@ export default function ManuscriptEditor({ section, onSaved, autosave = true }) 
             extensions: [
                 StarterKit.configure({
                     heading: { levels: [1, 2, 3] },
+                }),
+                // Theses and reports are made of tables. Resizing is off:
+                // column widths are a typesetting decision the export makes,
+                // and widths dragged in the editor would not survive it.
+                TableKit.configure({ table: { resizable: false } }),
+                Image.configure({ inline: false, allowBase64: false }),
+                Chart.configure({ onEdit: (attrs, pos) => setChartEdit({ attrs, pos }) }),
+                // Equations are stored as LaTeX and typeset on screen with
+                // KaTeX; clicking one opens it for editing.
+                // Configured separately: a display equation needs KaTeX's
+                // display mode, without which 	ag (equation numbers) fails.
+                InlineMath.configure({
+                    katexOptions: { throwOnError: false },
+                    onClick: (node, pos) => setMathEdit({ kind: 'inline', latex: node.attrs.latex, pos }),
+                }),
+                BlockMath.configure({
+                    katexOptions: { throwOnError: false, displayMode: true },
+                    onClick: (node, pos) => setMathEdit({ kind: 'block', latex: node.attrs.latex, pos }),
                 }),
             ],
             content: section?.content ?? '',
@@ -137,7 +176,7 @@ export default function ManuscriptEditor({ section, onSaved, autosave = true }) 
                 // editor. Reading getJSON() off a destroyed instance throws
                 // inside a cleanup function, where React cannot recover —
                 // and the unsaved edit this exists to rescue is lost with it.
-                if (editor && ! editor.isDestroyed && status === 'dirty') {
+                if (editor && ! editor.isDestroyed && statusRef.current === 'dirty') {
                     // Keepalive so the request survives the page unloading.
                     //
                     // The token travels in the body because sendBeacon cannot
@@ -161,7 +200,7 @@ export default function ManuscriptEditor({ section, onSaved, autosave = true }) 
                 }
             }
         };
-    }, [editor, status]);
+    }, [editor]);
 
     // Ctrl/Cmd+S forces a save and a version, because writers press it.
     useEffect(() => {
@@ -205,7 +244,104 @@ export default function ManuscriptEditor({ section, onSaved, autosave = true }) 
                 <SaveStatus status={status} />
             </header>
 
-            <Toolbar editor={editor} />
+            <Toolbar
+                editor={editor}
+                onMath={(kind) => setMathEdit({ kind, latex: '', pos: null })}
+                onImage={bookId ? () => setInserting(true) : null}
+                onChart={() => setChartEdit({ attrs: {}, pos: null })}
+            />
+
+            {chartEdit && (
+                <ChartDialog
+                    initial={chartEdit}
+                    onClose={() => setChartEdit(null)}
+                    onDelete={() => {
+                        editor.chain().focus().setNodeSelection(chartEdit.pos).deleteSelection().run();
+                        setChartEdit(null);
+                    }}
+                    onSave={(spec) => {
+                        const { pos } = chartEdit;
+
+                        if (pos === null) {
+                            editor.chain().focus().insertContent({ type: 'chart', attrs: spec }).run();
+                        } else {
+                            editor
+                                .chain()
+                                .focus()
+                                .command(({ tr }) => {
+                                    tr.setNodeMarkup(pos, undefined, spec);
+
+                                    return true;
+                                })
+                                .run();
+                        }
+
+                        setChartEdit(null);
+                    }}
+                />
+            )}
+
+            {inserting && (
+                <ImageDialog
+                    bookId={bookId}
+                    onClose={() => setInserting(false)}
+                    onInsert={({ src, alt, label, caption }) => {
+                        const content = [{ type: 'image', attrs: { src, alt } }];
+
+                        // The caption as a paragraph under the picture, in the
+                        // form every export recognises as a caption.
+                        if (label || caption) {
+                            content.push({
+                                type: 'paragraph',
+                                content: [
+                                    ...(label ? [{ type: 'text', text: label, marks: [{ type: 'bold' }] }] : []),
+                                    ...(caption ? [{ type: 'text', text: (label ? ' ' : '') + caption }] : []),
+                                ],
+                            });
+                        }
+
+                        editor.chain().focus().insertContent(content).run();
+                        setInserting(false);
+                    }}
+                />
+            )}
+
+            {mathEdit && (
+                <MathDialog
+                    initial={mathEdit}
+                    onClose={() => setMathEdit(null)}
+                    onDelete={() => {
+                        const { kind, pos } = mathEdit;
+                        const chain = editor.chain().focus();
+                        (kind === 'block' ? chain.deleteBlockMath({ pos }) : chain.deleteInlineMath({ pos })).run();
+                        setMathEdit(null);
+                    }}
+                    onSave={({ latex, display }) => {
+                        const { kind, pos } = mathEdit;
+                        let chain = editor.chain().focus();
+
+                        if (pos !== null && (kind === 'block') === display) {
+                            chain = display
+                                ? chain.updateBlockMath({ latex, pos })
+                                : chain.updateInlineMath({ latex, pos });
+                        } else {
+                            // New, or switched between inline and display:
+                            // replace the old node where it stood.
+                            if (pos !== null) {
+                                chain = kind === 'block'
+                                    ? chain.deleteBlockMath({ pos })
+                                    : chain.deleteInlineMath({ pos });
+                            }
+                            chain = display
+                                ? chain.insertBlockMath({ latex, pos: pos ?? undefined })
+                                : chain.insertInlineMath({ latex, pos: pos ?? undefined });
+                        }
+
+                        chain.run();
+                        setMathEdit(null);
+                    }}
+                />
+            )}
 
             <div className="flex-1 overflow-y-auto px-[21px] pb-10 pt-[30px]">
                 <EditorContent editor={editor} />
@@ -245,11 +381,11 @@ function SaveStatus({ status }) {
 /**
  * Formatting controls, h47 per the handoff.
  *
- * Only the commands StarterKit actually provides. The mockup also shows link,
- * image and table buttons; those need extensions that are not installed, and a
+ * Only commands the installed extensions provide. The mockup also shows link
+ * and image buttons; those need extensions that are not installed, and a
  * button that does nothing is worse than an absent one.
  */
-function Toolbar({ editor }) {
+function Toolbar({ editor, onMath, onImage, onChart }) {
     if (!editor) return null;
 
     const block = editor.isActive('heading', { level: 1 })
@@ -280,6 +416,9 @@ function Toolbar({ editor }) {
             aria-label={title}
             aria-pressed={active}
             data-a={`toolbar:${label}`}
+            // Keep the selection in the text: a blur here re-rendered the
+            // toolbar mid-click and the click never landed.
+            onMouseDown={(event) => event.preventDefault()}
             onClick={onClick}
             className={`grid h-[28px] min-w-[28px] place-items-center rounded-button px-1.5 text-[13px] transition ${
                 active
@@ -388,6 +527,53 @@ function Toolbar({ editor }) {
             >
                 <Icon name="code" size={16} />
             </Btn>
+            <Btn
+                title="Insert table"
+                label="table"
+                active={editor.isActive('table')}
+                onClick={() =>
+                    editor
+                        .chain()
+                        .focus()
+                        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                        .run()
+                }
+            >
+                <TableGlyph />
+            </Btn>
+            {onImage && (
+                <Btn title="Insert picture" label="image" onClick={onImage}>
+                    <ImageGlyph />
+                </Btn>
+            )}
+            <Btn title="Insert chart" label="chart" onClick={onChart}>
+                <ChartGlyph />
+            </Btn>
+            <Btn title="Inline equation" label="math-inline" onClick={() => onMath('inline')}>
+                <span className="font-serif text-[14px] italic">x²</span>
+            </Btn>
+            <Btn title="Display equation" label="math-block" onClick={() => onMath('block')}>
+                <span className="font-serif text-[15px]">∑</span>
+            </Btn>
+
+            {/* Row and column controls appear only inside a table, where
+                they mean something. */}
+            {editor.isActive('table') && (
+                <>
+                    <Divider />
+                    {[
+                        ['Add row below', 'row+', () => editor.chain().focus().addRowAfter().run()],
+                        ['Delete row', 'row−', () => editor.chain().focus().deleteRow().run()],
+                        ['Add column right', 'col+', () => editor.chain().focus().addColumnAfter().run()],
+                        ['Delete column', 'col−', () => editor.chain().focus().deleteColumn().run()],
+                        ['Delete table', 'del', () => editor.chain().focus().deleteTable().run()],
+                    ].map(([title, text, run]) => (
+                        <Btn key={text} title={title} label={`table:${text}`} onClick={run}>
+                            <span className="text-[11.5px] font-medium">{text}</span>
+                        </Btn>
+                    ))}
+                </>
+            )}
 
             <Divider />
 
@@ -406,5 +592,38 @@ function Toolbar({ editor }) {
                 <Icon name="right" size={15} />
             </Btn>
         </div>
+    );
+}
+
+/** A 3×3 grid; the icon set has no table glyph. */
+function TableGlyph() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M1.75 6.25h12.5M1.75 9.75h12.5M6 2.75v10.5M10 2.75v10.5" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+    );
+}
+
+/** A framed landscape; the icon set has no picture glyph. */
+function ImageGlyph() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+            <circle cx="5.5" cy="6.25" r="1.25" fill="currentColor" />
+            <path d="M2.5 12l3.75-3.75 2.5 2.5L11 8.5l2.75 2.75" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+/** Three bars on a baseline. */
+function ChartGlyph() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 13.5h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            <rect x="3" y="8" width="2.5" height="5" rx=".5" fill="currentColor" />
+            <rect x="6.75" y="4" width="2.5" height="9" rx=".5" fill="currentColor" />
+            <rect x="10.5" y="6.5" width="2.5" height="6.5" rx=".5" fill="currentColor" />
+        </svg>
     );
 }
