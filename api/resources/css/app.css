@@ -233,3 +233,25 @@
 .manuscript .ProseMirror img.ProseMirror-selectednode {
     outline: 2px solid var(--color-brand-primary);
 }
+
+/* Footnote references, numbered in order as the reader meets them. */
+.manuscript .ProseMirror {
+    counter-reset: footnote;
+}
+
+.manuscript .ProseMirror sup.footnote-ref {
+    cursor: pointer;
+    color: var(--color-brand-primary);
+    font-weight: 600;
+    padding: 0 1px;
+}
+
+.manuscript .ProseMirror sup.footnote-ref::after {
+    counter-increment: footnote;
+    content: counter(footnote);
+}
+
+.manuscript .ProseMirror sup.footnote-ref.ProseMirror-selectednode {
+    outline: 2px solid var(--color-brand-primary);
+    border-radius: 2px;
+}

@@ -771,6 +771,13 @@ class PrintBook
         /* Equations: displayed centred with the number at the right margin,
            inline ones sitting on the baseline. */
         img.math { display: inline; margin: 0; }
+        /* Notes, set at the end of the chapter under a short rule. */
+        sup.fn-ref { font-size: .62em; line-height: 0; vertical-align: baseline; position: relative; top: -.62em; padding-left: .05em; }
+        sup.fn-ref a { color: inherit; }
+        section.footnotes { margin-top: 1.8em; font-size: .8em; line-height: {$lh(1.32)}; page-break-before: auto; }
+        section.footnotes ol { margin: 0; padding: .7em 0 0 1.3em; border-top: .5pt solid #8a8a8a; width: 100%; }
+        section.footnotes li { margin: 0 0 .35em; padding-left: .2em; }
+        section.footnotes p { text-indent: 0; text-align: left; margin: 0; }
         div.chart { margin: .9em 0 .4em; page-break-inside: avoid; }
         div.chart img.chart { width: 100%; margin: 0; }
         .text table.math-display { width: 100%; margin: .7em 0; font-size: 1em; page-break-inside: avoid; }

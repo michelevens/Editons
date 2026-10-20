@@ -192,9 +192,9 @@ class Exporter
      * the first line, and emitting both gives two H1s in one document — which
      * store validators flag and screen readers announce twice.
      */
-    private function chapterHtml(ManuscriptSection $section): string
+    private function chapterHtml(ManuscriptSection $section, ?DocumentRenderer $renderer = null): string
     {
-        $html = $this->renderer->html($section);
+        $html = ($renderer ?? $this->renderer)->html($section);
 
         return $this->opensWithHeading($section)
             ? $html
@@ -377,8 +377,9 @@ class Exporter
             .'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
             .'<w:body>'.$paragraphs.'</w:body></w:document>';
 
-        // Pictures placed in the text, as package parts.
+        // Pictures placed in the text, as package parts; footnotes as theirs.
         $media = $this->renderer->docxMedia();
+        $footnotes = $this->renderer->docxFootnotes();
 
         $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -388,6 +389,7 @@ class Exporter
                 ->map(fn ($mime, $extension) => '<Default Extension="'.$extension.'" ContentType="'.$mime.'"/>')->implode('')
             .'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
             .'<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+            .($footnotes ? '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' : '')
             .'</Types>';
 
         $rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
@@ -398,6 +400,7 @@ class Exporter
         $documentRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .($footnotes ? '<Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>' : '')
             .collect($media)->map(fn ($m, $id) => '<Relationship Id="'.$id.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'.$m['file'].'"/>')->implode('')
             .'</Relationships>';
 
@@ -407,6 +410,7 @@ class Exporter
             'word/document.xml' => $document,
             'word/_rels/document.xml.rels' => $documentRels,
             'word/styles.xml' => $this->docxStyles(),
+            ...($footnotes ? ['word/footnotes.xml' => $footnotes] : []),
             ...collect($media)->mapWithKeys(fn ($m) => ['word/media/'.$m['file'] => $m['data']])->all(),
         ]);
     }
@@ -453,6 +457,10 @@ class Exporter
             .'<w:pPr><w:spacing w:before="40" w:after="40"/></w:pPr><w:rPr><w:sz w:val="20"/></w:rPr></w:style>'
             .'<w:style w:type="paragraph" w:styleId="TableHeading"><w:name w:val="Table Heading"/>'
             .'<w:pPr><w:keepNext/><w:spacing w:before="40" w:after="40"/></w:pPr><w:rPr><w:b/><w:sz w:val="20"/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="FootnoteText"><w:name w:val="footnote text"/>'
+            .'<w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:rPr><w:sz w:val="18"/></w:rPr></w:style>'
+            .'<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/>'
+            .'<w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
             .'<w:style w:type="table" w:styleId="BookTable"><w:name w:val="Book Table"/>'
             .'<w:tblPr><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>'
             .'</w:styles>';
@@ -488,7 +496,8 @@ class Exporter
                 $section->title,
                 $section->type === 'part'
                     ? '<section class="part"><h1 class="part-title">'.e($section->title).'</h1></section>'
-                    : $this->chapterHtml($section),
+                    // EPUB footnotes, which readers open in a pop-up.
+                    : $this->chapterHtml($section, $this->renderer->withNotes('epub')),
                 $language,
             );
 
@@ -604,6 +613,9 @@ class Exporter
             ."pre { font-family: monospace; font-size: .8em; white-space: pre-wrap; }\n"
             ."p.caption, p.table-note { text-indent: 0; font-size: .9em; }\n"
             ."figure.chart { margin: 1em 0; text-align: center; }\n"
+            ."sup.fn-ref a { text-decoration: none; }\n"
+            ."section.footnotes { margin-top: 2em; border-top: 1px solid #999; font-size: .85em; }\n"
+            ."aside.footnote p { text-indent: 0; margin: .4em 0; }\n"
             ."figure.chart svg { max-width: 100%; height: auto; }\n"
             .".math-display { position: relative; text-align: center; margin: 1em 0; }\n"
             .".math-number { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }\n"
@@ -613,7 +625,7 @@ class Exporter
     private function xhtml(string $title, string $body, string $language): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>'."\n"
-            .'<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" lang="'.e($language)
+            .'<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="'.e($language)
             .'" xml:lang="'.e($language).'"><head><meta charset="utf-8"/><title>'.e($title)
             .'</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body>'
             .$body.'</body></html>';

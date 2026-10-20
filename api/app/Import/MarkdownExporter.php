@@ -33,14 +33,27 @@ class MarkdownExporter
     {
         $parts = ['# '.$section->title];
 
+        $this->notes = [];
         $body = $this->doc($section->content ?? []);
 
         if ($body !== '') {
             $parts[] = $body;
         }
 
+        // Pandoc footnotes: definitions after the chapter's text.
+        if ($this->notes !== []) {
+            $parts[] = implode("\n", array_map(
+                fn ($text, $i) => '[^'.($i + 1).']: '.preg_replace('/\s+/', ' ', trim($text)),
+                $this->notes,
+                array_keys($this->notes),
+            ));
+        }
+
         return implode("\n\n", $parts);
     }
+
+    /** @var array<int, string> */
+    private array $notes = [];
 
     /** @param array<string, mixed> $doc */
     private function doc(array $doc): string
@@ -145,6 +158,13 @@ class MarkdownExporter
         $out = '';
 
         foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'footnote') {
+                $this->notes[] = (string) ($node['attrs']['text'] ?? '');
+                $out .= '[^'.count($this->notes).']';
+
+                continue;
+            }
+
             if (($node['type'] ?? '') === 'inlineMath') {
                 $out .= '$'.trim((string) ($node['attrs']['latex'] ?? '')).'$';
 

@@ -39,6 +39,26 @@ class DocumentRenderer
         return $copy;
     }
 
+    /** 'html' (linked endnotes) or 'epub' (pop-up footnotes in readers). */
+    private string $noteMode = 'html';
+
+    /** Footnote texts met so far in the section being rendered. */
+    private array $notes = [];
+
+    private string $notePrefix = 'n';
+
+    /** Footnotes for the whole Word document; Word numbers them itself. */
+    private array $docxNotes = [];
+
+    /** A copy that marks footnotes up for EPUB readers. */
+    public function withNotes(string $mode): static
+    {
+        $copy = clone $this;
+        $copy->noteMode = $mode === 'epub' ? 'epub' : 'html';
+
+        return $copy;
+    }
+
     public function html(ManuscriptSection $section): string
     {
         $nodes = $section->content['content'] ?? [];
@@ -46,7 +66,64 @@ class DocumentRenderer
         // One typesetting call per section, not one per equation.
         $this->math->render($this->collectMath($nodes));
 
-        return $this->nodesToHtml($nodes);
+        // Notes number from 1 in each chapter, the way a thesis numbers
+        // them, and are set at the chapter's end.
+        $this->notes = [];
+        $this->notePrefix = 's'.($section->id ?? 'x');
+
+        return $this->nodesToHtml($nodes).$this->notesHtml();
+    }
+
+    /** @param array<string, mixed> $node */
+    private function noteRefHtml(array $node): string
+    {
+        $this->notes[] = (string) ($node['attrs']['text'] ?? '');
+        $n = count($this->notes);
+        $id = "{$this->notePrefix}-{$n}";
+        $epub = $this->noteMode === 'epub' ? ' epub:type="noteref"' : '';
+
+        return '<sup class="fn-ref"><a href="#fn-'.$id.'" id="fnref-'.$id.'" role="doc-noteref"'.$epub.'>'.$n.'</a></sup>';
+    }
+
+    private function notesHtml(): string
+    {
+        if ($this->notes === []) {
+            return '';
+        }
+
+        $out = '';
+
+        foreach ($this->notes as $i => $text) {
+            $n = $i + 1;
+            $id = "{$this->notePrefix}-{$n}";
+
+            if ($this->noteMode === 'epub') {
+                // An aside per note: readers show it in a pop-up at the
+                // reference, and the file still reads in order without one.
+                $out .= '<aside epub:type="footnote" role="doc-footnote" id="fn-'.$id.'" class="footnote"><p>'
+                    .'<a href="#fnref-'.$id.'">'.$n.'.</a> '.$this->noteText($text).'</p></aside>';
+            } else {
+                // Print has no use for a link back; a reader on screen does.
+                $back = $this->mathMode === 'svg' ? '' : ' <a href="#fnref-'.$id.'" role="doc-backlink" aria-label="Back to note '.$n.'">↩</a>';
+                $out .= '<li id="fn-'.$id.'" role="doc-endnote"><p>'.$this->noteText($text).$back.'</p></li>';
+            }
+        }
+
+        return $this->noteMode === 'epub'
+            ? '<section class="footnotes" epub:type="footnotes" role="doc-endnotes">'.$out."</section>\n"
+            : '<section class="footnotes" role="doc-endnotes"><ol>'.$out."</ol></section>\n";
+    }
+
+    /**
+     * A note's text: plain, with *italic* and **bold** as an author types
+     * them, which is all a citation note needs (titles in italics).
+     */
+    private function noteText(string $text): string
+    {
+        $html = e(trim($text));
+        $html = preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $html);
+
+        return preg_replace('/(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])/u', '<em>$1</em>', $html);
     }
 
     /**
@@ -275,7 +352,15 @@ class DocumentRenderer
 
     public function markdown(ManuscriptSection $section): string
     {
-        return trim($this->nodesToMarkdown($section->content['content'] ?? []));
+        $this->notes = [];
+        $body = trim($this->nodesToMarkdown($section->content['content'] ?? []));
+
+        // Pandoc's footnote syntax: references in the text, definitions after.
+        foreach ($this->notes as $i => $text) {
+            $body .= ($i === 0 ? "\n\n" : "\n").'[^'.($i + 1).']: '.preg_replace('/\s+/', ' ', trim($text));
+        }
+
+        return $body;
     }
 
     /**
@@ -297,6 +382,44 @@ class DocumentRenderer
     public function resetDocxMedia(): void
     {
         $this->docxMedia = [];
+        $this->docxNotes = [];
+    }
+
+    /** The footnotes part, or null when the document has none. */
+    public function docxFootnotes(): ?string
+    {
+        if ($this->docxNotes === []) {
+            return null;
+        }
+
+        // Ids -1 and 0 are the separator lines Word expects before notes.
+        $notes = '<w:footnote w:type="separator" w:id="-1"><w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:separator/></w:r></w:p></w:footnote>'
+            .'<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>';
+
+        foreach ($this->docxNotes as $i => $text) {
+            $notes .= '<w:footnote w:id="'.($i + 1).'"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>'
+                .'<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>'
+                .$this->docxRun(' ').$this->docxNoteRuns($text).'</w:p></w:footnote>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
+            .'<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'.$notes.'</w:footnotes>';
+    }
+
+    /** A note's *italic* and **bold**, as Word runs. */
+    private function docxNoteRuns(string $text): string
+    {
+        $out = '';
+
+        foreach (preg_split('/(\*\*.+?\*\*|(?<![\w*])\*(?!\s).+?(?<!\s)\*(?![\w*]))/u', trim($text), -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) as $piece) {
+            $out .= match (true) {
+                str_starts_with($piece, '**') && str_ends_with($piece, '**') && mb_strlen($piece) > 4 => $this->docxRun(mb_substr($piece, 2, -2), '<w:b/>'),
+                str_starts_with($piece, '*') && str_ends_with($piece, '*') && mb_strlen($piece) > 2 => $this->docxRun(mb_substr($piece, 1, -1), '<w:i/>'),
+                default => $this->docxRun($piece),
+            };
+        }
+
+        return $out;
     }
 
     /** @return array<string, array{file: string, data: string, mime: string}> keyed by relationship id */
@@ -495,6 +618,15 @@ class DocumentRenderer
 
             if (($node['type'] ?? '') === 'hardBreak') {
                 $out .= '<w:r><w:br/></w:r>';
+
+                continue;
+            }
+
+            if (($node['type'] ?? '') === 'footnote') {
+                // A real Word footnote: Word numbers it and sets it at the
+                // foot of the page the reference falls on.
+                $this->docxNotes[] = (string) ($node['attrs']['text'] ?? '');
+                $out .= '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="'.count($this->docxNotes).'"/></w:r>';
 
                 continue;
             }
@@ -728,6 +860,12 @@ class DocumentRenderer
                 continue;
             }
 
+            if ($type === 'footnote') {
+                $out .= $this->noteRefHtml($node);
+
+                continue;
+            }
+
             if ($type !== 'text') {
                 $out .= $this->inlineHtml($node['content'] ?? []);
 
@@ -881,6 +1019,13 @@ class DocumentRenderer
 
             if ($type === 'inlineMath') {
                 $out .= '$'.trim((string) ($node['attrs']['latex'] ?? '')).'$';
+
+                continue;
+            }
+
+            if ($type === 'footnote') {
+                $this->notes[] = (string) ($node['attrs']['text'] ?? '');
+                $out .= '[^'.count($this->notes).']';
 
                 continue;
             }

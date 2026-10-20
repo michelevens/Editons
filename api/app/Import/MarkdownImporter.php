@@ -28,6 +28,28 @@ class MarkdownImporter
 
     private const MATH = "\x1AMATH\x1A";
 
+    /** Pandoc footnote definitions, label => text. */
+    private array $noteDefinitions = [];
+
+    /**
+     * Takes "[^label]: text" definitions (and their indented continuation
+     * lines) out of the Markdown.
+     *
+     * @return array<string, string>
+     */
+    private function extractNotes(string &$markdown): array
+    {
+        $notes = [];
+
+        $markdown = preg_replace_callback('/^\[\^([^\]\s]+)\]:[ \t]*(.*(?:\n(?:[ \t]{2,}|\t)\S.*)*)\n?/m', function ($m) use (&$notes) {
+            $notes[$m[1]] = trim(preg_replace('/\s*\n\s*/', ' ', $m[2]));
+
+            return '';
+        }, $markdown) ?? $markdown;
+
+        return $notes;
+    }
+
     public function __construct(private readonly ManuscriptWriter $writer) {}
 
     /**
@@ -39,6 +61,10 @@ class MarkdownImporter
     public function import(Book $book, string $markdown, ?int $userId = null): ImportReport
     {
         $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+
+        // Footnote definitions often sit at the very end of a file, far from
+        // the chapter that refers to them, so they are read before splitting.
+        $this->noteDefinitions = $this->extractNotes($markdown);
 
         $chunks = $this->splitIntoChapters($markdown);
         $report = new ImportReport;
@@ -136,6 +162,10 @@ class MarkdownImporter
     private function toProseMirror(string $body, ImportReport $report): array
     {
         $content = [];
+
+        // Definitions inside this chunk join any read from the whole file.
+        $body = str_replace(["\r\n", "\r"], "\n", $body);
+        $this->noteDefinitions = $this->extractNotes($body) + $this->noteDefinitions;
 
         // Fenced code is lifted out before splitting on blank lines, because
         // code is the one block that legitimately contains them.
@@ -391,7 +421,7 @@ class MarkdownImporter
         // Inline math by Pandoc's rule, so prices stay prices: the opening $
         // is not followed by a space, the closing one not preceded by one nor
         // followed by a digit. "$25 and $30" is text; "$x^2$" is math.
-        $pattern = '/((?<![\\\\$])\$(?P<math>[^\s$](?:[^$]*?[^\s$\\\\])?)\$(?![\d$]))|(\*\*(?P<bold>.+?)\*\*)|(\*(?P<italic>.+?)\*)|(`(?P<code>.+?)`)/u';
+        $pattern = '/((?<![\\\\$])\$(?P<math>[^\s$](?:[^$]*?[^\s$\\\\])?)\$(?![\d$]))|(\*\*(?P<bold>.+?)\*\*)|(\*(?P<italic>.+?)\*)|(`(?P<code>.+?)`)|(\[\^(?P<note>[^\]\s]+)\])/u';
         $nodes = [];
         $offset = 0;
 
@@ -402,6 +432,17 @@ class MarkdownImporter
 
             if ($at > $offset) {
                 $nodes[] = ['type' => 'text', 'text' => substr($text, $offset, $at - $offset)];
+            }
+
+            if (($m['note'][0] ?? '') !== '' && $m['note'][1] >= 0) {
+                // A reference with no definition stays as typed: inventing
+                // an empty note would hide that something is missing.
+                $nodes[] = isset($this->noteDefinitions[$m['note'][0]])
+                    ? ['type' => 'footnote', 'attrs' => ['text' => $this->noteDefinitions[$m['note'][0]]]]
+                    : ['type' => 'text', 'text' => $whole];
+                $offset = $at + strlen($whole);
+
+                continue;
             }
 
             if (($m['math'][0] ?? '') !== '' && $m['math'][1] >= 0) {

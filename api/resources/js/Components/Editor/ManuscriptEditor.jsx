@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ChartDialog from './ChartDialog';
 import { Chart } from './ChartNode';
+import { Footnote, FootnoteDialog } from './FootnoteNode';
 import ImageDialog from './ImageDialog';
 import MathDialog from './MathDialog';
 
@@ -43,6 +44,8 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     const [inserting, setInserting] = useState(false);
     // The chart being made or edited: {attrs, pos} or null.
     const [chartEdit, setChartEdit] = useState(null);
+    // The footnote being written or edited: {text, pos} or null.
+    const [noteEdit, setNoteEdit] = useState(null);
 
     // Refs rather than state: these are read inside callbacks and must not
     // retrigger the effect that wires the editor up.
@@ -98,6 +101,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 TableKit.configure({ table: { resizable: false } }),
                 Image.configure({ inline: false, allowBase64: false }),
                 Chart.configure({ onEdit: (attrs, pos) => setChartEdit({ attrs, pos }) }),
+                Footnote.configure({ onEdit: (attrs, pos) => setNoteEdit({ text: attrs.text, pos }) }),
                 // Equations are stored as LaTeX and typeset on screen with
                 // KaTeX; clicking one opens it for editing.
                 // Configured separately: a display equation needs KaTeX's
@@ -249,7 +253,38 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 onMath={(kind) => setMathEdit({ kind, latex: '', pos: null })}
                 onImage={bookId ? () => setInserting(true) : null}
                 onChart={() => setChartEdit({ attrs: {}, pos: null })}
+                onFootnote={() => setNoteEdit({ text: '', pos: null })}
             />
+
+            {noteEdit && (
+                <FootnoteDialog
+                    initial={noteEdit}
+                    onClose={() => setNoteEdit(null)}
+                    onDelete={() => {
+                        editor.chain().focus().setNodeSelection(noteEdit.pos).deleteSelection().run();
+                        setNoteEdit(null);
+                    }}
+                    onSave={(text) => {
+                        const { pos } = noteEdit;
+
+                        if (pos === null) {
+                            editor.chain().focus().insertContent({ type: 'footnote', attrs: { text } }).run();
+                        } else {
+                            editor
+                                .chain()
+                                .focus()
+                                .command(({ tr }) => {
+                                    tr.setNodeMarkup(pos, undefined, { text });
+
+                                    return true;
+                                })
+                                .run();
+                        }
+
+                        setNoteEdit(null);
+                    }}
+                />
+            )}
 
             {chartEdit && (
                 <ChartDialog
@@ -385,7 +420,7 @@ function SaveStatus({ status }) {
  * and image buttons; those need extensions that are not installed, and a
  * button that does nothing is worse than an absent one.
  */
-function Toolbar({ editor, onMath, onImage, onChart }) {
+function Toolbar({ editor, onMath, onImage, onChart, onFootnote }) {
     if (!editor) return null;
 
     const block = editor.isActive('heading', { level: 1 })
@@ -546,6 +581,11 @@ function Toolbar({ editor, onMath, onImage, onChart }) {
                     <ImageGlyph />
                 </Btn>
             )}
+            <Btn title="Insert footnote" label="footnote" onClick={onFootnote}>
+                <span className="text-[12px] font-semibold">
+                    fn<sup className="text-[8px]">1</sup>
+                </span>
+            </Btn>
             <Btn title="Insert chart" label="chart" onClick={onChart}>
                 <ChartGlyph />
             </Btn>

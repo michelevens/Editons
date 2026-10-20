@@ -488,6 +488,14 @@ honoured) and `masters_project`.
 trip tested), print and DOCX; adding a node type means adding all four.
 Equations depend on Node at export time; without it they print as LaTeX.
 
-Known gaps: footnotes and cross-references are not nodes yet; images are
+Footnotes (`footnote`, attribute `text`, with *italic* and **bold**) were
+added next: the note lives on its reference, so moving a sentence moves its
+note. Word gets real footnotes (`word/footnotes.xml`, numbered by Word);
+EPUB gets `epub:type` noteref/footnote asides, which readers show as
+pop-ups; HTML gets linked endnotes per chapter; the PDF sets each chapter's
+notes at its end under a rule (page-foot notes in the PDF would need a
+further layout pass); Markdown uses Pandoc's `[^1]` syntax both ways.
+
+Known gaps: cross-references are not nodes yet; page-foot notes in the PDF; images are
 not imported from Markdown; Word equations need Word's "Professional"
 conversion to display built up; charts have no error bars or log scales.
