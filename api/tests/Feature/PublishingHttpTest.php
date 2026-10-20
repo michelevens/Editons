@@ -761,3 +761,106 @@ it('writes exports to the files disk', function () {
         expect($export->byte_size)->toBeGreaterThan(0);
     }
 });
+
+// --- The cover as a file ---------------------------------------------------
+
+/*
+ * Cover Studio drew the cover in the browser and nowhere else: there was no
+ * file to download, none in the EPUB, nothing to give a store. The server
+ * now renders it, and the preview is that rendering.
+ */
+it('renders the cover as a store-sized JPEG', function () {
+    Storage::fake('files');
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $response = $this->actingAs($user)->get($book->coverFor()['url'])->assertOk();
+    $size = getimagesizefromstring($response->streamedContent());
+
+    expect($size[0])->toBe(1600)
+        ->and($size[1])->toBe(2560)
+        ->and($size['mime'])->toBe('image/jpeg');
+});
+
+it('redraws the cover when the design changes, and keeps one copy', function () {
+    Storage::fake('files');
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+    $before = $book->coverFor()['url'];
+    $this->actingAs($user)->get($before)->assertOk();
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/cover", ['layout' => 'band', 'title' => 'A New Title'])
+        ->assertOk()
+        ->assertJsonPath('cover.layout', 'band');
+
+    $after = $book->fresh()->coverFor()['url'];
+    expect($after)->not->toBe($before);
+
+    $this->actingAs($user)->get($after)->assertOk();
+
+    $fronts = collect(Storage::disk('files')->files("covers/book-{$book->id}"))
+        ->filter(fn ($f) => str_starts_with(basename($f), 'front-'));
+    expect($fronts)->toHaveCount(1);
+});
+
+it('refuses a layout that does not exist', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/cover", ['layout' => 'collage'])
+        ->assertStatus(422);
+});
+
+it('downloads the cover as a named file', function () {
+    Storage::fake('files');
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user, ['title' => 'Business Plans']);
+
+    $this->actingAs($user)
+        ->get("/books/{$book->id}/cover/download")
+        ->assertOk()
+        ->assertDownload('business-plans-cover.jpg');
+});
+
+it('puts the cover into the EPUB', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $export = app(Exporter::class)->generate($book, 'epub', $user->id);
+
+    $zip = new ZipArchive;
+    $zip->open(Storage::disk('files')->path($export->path));
+    $opf = $zip->getFromName('OEBPS/content.opf');
+    $cover = $zip->getFromName('OEBPS/cover.jpg');
+    $zip->close();
+
+    expect($opf)->toContain('properties="cover-image"')
+        ->and($opf)->toContain('<meta name="cover" content="cover-image"/>')
+        ->and(getimagesizefromstring($cover)[0])->toBe(1600);
+});
+
+it('refuses artwork with more pixels than a cover can be drawn from', function () {
+    // A small file can decode to hundreds of megabytes. Only the header is
+    // needed to know: this one claims 8000 x 8000.
+    Storage::fake('files');
+
+    $header = "\x89PNG\r\n\x1a\n".pack('N', 13).'IHDR'.pack('NN', 8000, 8000)."\x08\x02\x00\x00\x00";
+    $png = $header.pack('N', crc32(substr($header, 12))).str_repeat("\0", 64);
+
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/cover/artwork", [
+            'artwork' => UploadedFile::fake()->createWithContent('huge.png', $png),
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('artwork');
+
+    expect($book->fresh()->cover['artwork'] ?? null)->toBeNull();
+});

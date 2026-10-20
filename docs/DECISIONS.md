@@ -388,3 +388,44 @@ seconds to render, twice; a 100k-word book will want to move to a queued
 job. If print quality needs to go further, the next step is a typesetting
 engine (WeasyPrint or Paged.js in headless Chromium) behind the same
 `PrintBook` interface, not more CSS.
+
+
+---
+
+## ADR-0016 — Covers are files, drawn on the server, with AI on top
+
+Cover Studio drew the cover in the browser and nowhere else. There was no
+image: nothing to download, nothing in the EPUB (which stores reject), and
+uploaded artwork lived on the container's disk, so the next deploy would
+have deleted it.
+
+- **Storage.** A `files` disk holds covers and exports: the Railway bucket
+  `ecrivain-files` (Singapore, beside the services) in production via
+  `FILES_DISK=s3` and the `AWS_*` variables on both services, the local
+  private directory elsewhere. The bucket is private; covers are served
+  through `/books/{book}/cover/image`, behind the view policy.
+- **One renderer.** `App\Publishing\CoverRenderer` draws the front cover at
+  1600 × 2560 with GD and the bundled OFL faces, in three layouts (classic,
+  bold, band), over a palette gradient or uploaded/AI artwork with an
+  adjustable shade under the type. The preview, the sidebar thumbnail, the
+  download and the EPUB cover are all that one image. Files are named for a
+  hash of the design, so a change redraws once and old renders are removed.
+  `ext-gd` is required in composer.json: production did not have it.
+- **AI concepts (Claude).** `App\Covers\CoverConcepts` asks Claude
+  (`COVER_CONCEPTS_MODEL`, default `claude-opus-5-5`) for three designs via
+  the official PHP SDK and structured outputs, from the book's own
+  description passed as data. Applying a concept is free.
+- **AI artwork (OpenAI).** `App\Covers\CoverArtist` calls the Images API
+  (`OPENAI_IMAGE_MODEL`, default `gpt-image-1`, 1024 × 1536, high quality).
+  The prompt forbids lettering: titles are set in real type afterwards,
+  because image models misspell words. The cover records the model, prompt
+  and time, and Cover Studio tells the author the artwork is AI-made.
+- **Money.** `cover_concepts` 5 credits, `cover_artwork` 20, charged before,
+  refunded on failure. The fake designer and painter run only outside
+  production; in production an unconfigured feature is refused before any
+  charge rather than charging for a template.
+
+Known gaps: no back cover or spine yet (the print wrap needs page count and
+paper thickness); AI artwork at 1024 × 1536 is upscaled to 1600 wide;
+refusal fallbacks for the concepts call are not wired, so a refusal is
+reported and refunded.

@@ -7,6 +7,7 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ConsistencyController;
+use App\Http\Controllers\CoverAiController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\EditorialController;
@@ -311,6 +312,15 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover.artwork');
     Route::get('/books/{book}/cover/image', [DesignController::class, 'coverImage'])
         ->name('design.cover.image');
+    Route::get('/books/{book}/cover/download', [DesignController::class, 'downloadCover'])
+        ->name('design.cover.download');
+    Route::post('/books/{book}/cover/concepts', [CoverAiController::class, 'propose'])
+        ->name('design.cover.concepts');
+    Route::post('/books/{book}/cover/concepts/{index}/apply', [CoverAiController::class, 'apply'])
+        ->whereNumber('index')
+        ->name('design.cover.concepts.apply');
+    Route::post('/books/{book}/cover/artwork/generate', [CoverAiController::class, 'paint'])
+        ->name('design.cover.paint');
     Route::delete('/books/{book}/cover/artwork', [DesignController::class, 'removeArtwork'])
         ->name('design.cover.artwork.destroy');
 });

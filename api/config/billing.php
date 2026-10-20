@@ -90,6 +90,10 @@ return [
         'narrate_chapter' => 15,
         'generate_course' => 25,
         'marketing_kit' => 10,
+        // Claude proposes three designs. Cheap: a short structured answer.
+        'cover_concepts' => 5,
+        // One painted image from the image model, at high quality.
+        'cover_artwork' => 20,
     ],
 
     /*

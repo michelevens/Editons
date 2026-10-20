@@ -28,6 +28,7 @@ class Exporter
     public function __construct(
         private readonly DocumentRenderer $renderer,
         private readonly PrintBook $print,
+        private readonly CoverRenderer $covers,
     ) {}
 
     /**
@@ -458,6 +459,30 @@ class Exporter
             $nav .= '<li><a href="'.$id.'.xhtml">'.e($section->title).'</a></li>';
         }
 
+        // The cover. Stores reject an EPUB without one, and every reading
+        // app shows it on the shelf. It is the same rendered image Cover
+        // Studio previews. A cover that cannot be drawn leaves the book
+        // without one rather than failing the whole export.
+        $coverManifest = '';
+        $coverMeta = '';
+
+        try {
+            $files['OEBPS/cover.jpg'] = Storage::disk('files')->get($this->covers->ensure($book));
+            $files['OEBPS/cover.xhtml'] = $this->xhtml(
+                $book->title,
+                '<div class="cover"><img src="cover.jpg" alt="'.e('Cover of '.$book->title).'"/></div>',
+                $language,
+            );
+
+            $coverManifest = '<item id="cover-image" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>'
+                .'<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>';
+            // EPUB 2's form as well: Kindle's converter still reads it.
+            $coverMeta = '<meta name="cover" content="cover-image"/>';
+            $spine = '<itemref idref="cover" linear="no"/>'.$spine;
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         // The accessibility metadata stores check for. Claimed only where it
         // is true: textual content is accurate for a text manuscript, and
         // nothing here asserts tested conformance.
@@ -479,10 +504,11 @@ class Exporter
             .($description !== '' ? '<dc:description>'.e($description).'</dc:description>' : '')
             .'<meta property="dcterms:modified">'.$modified.'</meta>'
             .$accessibility
+            .$coverMeta
             .'</metadata>'
             .'<manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>'
             .'<item id="css" href="style.css" media-type="text/css"/>'
-            .$manifest.'</manifest>'
+            .$coverManifest.$manifest.'</manifest>'
             .'<spine>'.$spine.'</spine></package>';
 
         $navDocument = '<?xml version="1.0" encoding="UTF-8"?>'."\n"

@@ -139,6 +139,8 @@ class BillingController extends Controller
             'narrate_chapter' => 'Narrate one chapter',
             'generate_course' => 'Generate a course',
             'marketing_kit' => 'Build a marketing kit',
+            'cover_concepts' => 'Suggest three cover concepts',
+            'cover_artwork' => 'Paint cover artwork',
         ];
 
         return collect(config('billing.costs'))

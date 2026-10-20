@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Covers\CoverArtist;
+use App\Covers\CoverConcepts;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
+use App\Publishing\CoverRenderer;
 use App\Publishing\DocumentRenderer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -19,7 +25,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class DesignController extends Controller
 {
-    public function __construct(private readonly DocumentRenderer $renderer) {}
+    public function __construct(
+        private readonly DocumentRenderer $renderer,
+        private readonly CoverRenderer $covers,
+    ) {}
 
     public function show(Request $request, Book $book): JsonResponse
     {
@@ -70,6 +79,9 @@ class DesignController extends Controller
             'author' => ['sometimes', 'nullable', 'string', 'max:255'],
             'font' => ['sometimes', 'string', 'in:serif,sans'],
             'palette' => ['sometimes', 'integer', 'min:0', 'max:5'],
+            'layout' => ['sometimes', 'string', Rule::in(array_keys(CoverRenderer::LAYOUTS))],
+            // How much the artwork is darkened under the type, 0-100.
+            'shade' => ['sometimes', 'integer', 'min:0', 'max:100'],
         ]);
 
         $book->update(['cover' => array_merge($book->cover ?? [], $data)]);
@@ -88,13 +100,26 @@ class DesignController extends Controller
             'artwork' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:12288'],
         ]);
 
+        // A 12 MB file can still decode to hundreds of megabytes; refuse it
+        // here, with a reason, rather than fail when the cover is drawn.
+        $size = @getimagesize($request->file('artwork')->getRealPath());
+
+        if (! $size || $size[0] * $size[1] > CoverRenderer::MAX_PIXELS) {
+            throw ValidationException::withMessages([
+                'artwork' => 'That image is too large to use. Use one under 40 megapixels (for example 4000 × 6400).',
+            ]);
+        }
+
         $previous = ($book->cover ?? [])['artwork'] ?? null;
 
         // The files disk, not public: the public disk is the container's,
         // and an uploaded cover vanished at the next deploy.
         $path = $request->file('artwork')->store("covers/book-{$book->id}", 'files');
 
-        $book->update(['cover' => array_merge($book->cover ?? [], ['artwork' => $path])]);
+        $book->update(['cover' => array_merge($book->cover ?? [], [
+            'artwork' => $path,
+            'artwork_source' => ['type' => 'upload', 'created_at' => now()->toIso8601String()],
+        ])]);
 
         // Delete the old file only once the new one is stored, so a failed
         // upload does not leave the book with no cover at all.
@@ -106,23 +131,32 @@ class DesignController extends Controller
     }
 
     /**
-     * The cover image itself.
+     * The finished front cover, drawn on first request for each design.
      *
      * Served through the app because the bucket is private. The URL carries
-     * a version taken from the stored path, so it can be cached for a long
-     * time and still change the moment the artwork does.
+     * a hash of the design, so it is cached for a long time and still
+     * changes the moment anything on the cover does.
      */
     public function coverImage(Book $book): StreamedResponse
     {
         $this->authorize('view', $book);
 
-        $path = ($book->cover ?? [])['artwork'] ?? null;
-
-        abort_unless($path && Storage::disk('files')->exists($path), 404);
-
-        return Storage::disk('files')->response($path, null, [
+        return Storage::disk('files')->response($this->covers->ensure($book), null, [
+            'Content-Type' => 'image/jpeg',
             'Cache-Control' => 'private, max-age=31536000, immutable',
         ]);
+    }
+
+    /** The same cover, as a file to keep or upload to a store. */
+    public function downloadCover(Book $book): StreamedResponse
+    {
+        $this->authorize('view', $book);
+
+        return Storage::disk('files')->download(
+            $this->covers->ensure($book),
+            (Str::slug($book->title) ?: 'book').'-cover.jpg',
+            ['Content-Type' => 'image/jpeg'],
+        );
     }
 
     public function removeArtwork(Book $book): JsonResponse
@@ -135,7 +169,7 @@ class DesignController extends Controller
             Storage::disk('files')->delete($path);
         }
 
-        unset($cover['artwork']);
+        unset($cover['artwork'], $cover['artwork_source']);
         $book->update(['cover' => $cover]);
 
         return response()->json($this->payload($book->fresh(), null));
@@ -169,8 +203,28 @@ class DesignController extends Controller
                 'author' => $cover['author'] ?? $book->author_name,
                 'font' => $cover['font'] ?? 'serif',
                 'palette' => $cover['palette'] ?? 0,
-                'artwork' => $book->coverFor()['url'],
+                'layout' => $this->covers->settings($book)['layout'],
+                'shade' => $this->covers->settings($book)['shade'],
+                // Whether there is uploaded artwork, and the finished cover:
+                // the preview is the rendered image, so what the author sees
+                // is exactly what downloads and goes into the EPUB.
+                'artwork' => isset($cover['artwork']),
+                'image' => $book->coverFor()['url'],
+                'download' => route('design.cover.download', $book),
+                // How the artwork was made, and the brief for the next one.
+                'artwork_source' => $cover['artwork_source'] ?? null,
+                'brief' => $cover['brief'] ?? '',
             ],
+            'concepts' => $cover['concepts'] ?? null,
+            'ai' => [
+                'concepts_cost' => config('billing.costs.cover_concepts'),
+                'artwork_cost' => config('billing.costs.cover_artwork'),
+                'concepts_available' => CoverConcepts::available(),
+                'artwork_available' => CoverArtist::available(),
+            ],
+            'layouts' => collect(CoverRenderer::LAYOUTS)
+                ->map(fn ($name, $key) => ['key' => $key, 'name' => $name])
+                ->values(),
             'palettes' => self::PALETTES,
             'preview' => $section ? [
                 'id' => $section->id,
