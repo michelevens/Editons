@@ -288,3 +288,25 @@ it('keeps a list cut short with et al. honest in every style', function () {
         expect(entryFor($attributes, $style))->not->toMatch('/(&|\band) Mulrow/');
     }
 });
+
+it('keeps organisations whole, even when they look like a name', function () {
+    foreach (['Facebook Research', 'IBM Watson Analytics', 'CDC'] as $who) {
+        expect(entryFor(['kind' => 'other', 'authors' => $who, 'published' => '2016', 'title' => 'A report'], 'IEEE'))
+            ->toStartWith("[1] {$who}, ");
+    }
+});
+
+it('says a title is missing instead of printing empty quotes', function () {
+    expect(entryFor(['kind' => 'journal_article', 'authors' => 'Christakis, N. A.; Fowler, J. H.', 'published' => '2007',
+        'title' => '', 'container' => 'New England Journal of Medicine'], 'IEEE'))
+        ->toContain('“[Untitled],”')
+        ->not->toContain('“,”');
+});
+
+it('leaves no doubled full stops when parts are missing', function () {
+    foreach (Bibliography::STYLES as $style) {
+        expect(entryFor(['kind' => 'other', 'authors' => 'CDC', 'published' => null, 'title' => 'Medication adherence'], $style))
+            ->not->toMatch('/\.\s*\./')
+            ->not->toMatch('/\s[.,]/');
+    }
+});

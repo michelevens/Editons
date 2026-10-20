@@ -121,3 +121,11 @@ it('puts Word equations in the DOCX and typesets equations in the PDF', function
 
     expect($pdf)->toStartWith('%PDF');
 });
+
+it('typesets a formula inside a bold label', function () {
+    $content = mathDoc('- **$V$, the nodes.** Each customer is a node.')['content'][0]['content'][0]['content'][0]['content'];
+
+    expect($content[0])->toBe(['type' => 'inlineMath', 'attrs' => ['latex' => 'V']])
+        ->and($content[1])->toBe(['type' => 'text', 'text' => ', the nodes.', 'marks' => [['type' => 'bold']]])
+        ->and($content[2]['text'])->toBe(' Each customer is a node.');
+});

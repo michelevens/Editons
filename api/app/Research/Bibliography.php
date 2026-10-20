@@ -164,7 +164,9 @@ class Bibliography
     private function marked(ResearchSource $source, string $style, int $number): string
     {
         $names = $this->names($source);
-        $title = $this->clean($source->title);
+        // A source still missing its title says so rather than printing
+        // empty quotation marks.
+        $title = $this->clean($source->title) ?: '[Untitled]';
         $year = $this->year($source);
         $container = $this->clean((string) $source->container);
         $publisher = $this->clean((string) $source->publisher);
@@ -196,7 +198,12 @@ class Bibliography
             $entry .= '.';
         }
 
-        return preg_replace('/\.\.+/', '.', preg_replace('/\s+/', ' ', $entry));
+        // Missing parts leave stray punctuation behind ("Title. ." when a
+        // source has no publisher or year); tidy it once, here.
+        $entry = preg_replace('/\s+/', ' ', trim($entry));
+        $entry = preg_replace(['/\s+([.,])/', '/,\s*\./', '/\.(?:\s*\.)+/'], ['$1', '.', '.'], $entry);
+
+        return preg_replace('/,\s*$/', '.', $entry);
     }
 
     /** @param  array<int, array{first: string, last: string, initials: string, corporate: bool}>  $names */
@@ -390,7 +397,11 @@ class Bibliography
 
             // One word, or anything that reads as an institution, is kept
             // whole rather than inverted into "Organization, W. H.".
-            if (count($words) === 1 || count($words) > 4 || preg_match('/\b(?:of|for|the|Inc|Ltd|LLC|Institute|Organization|Organisation|Association|Society|University|Agency|Bank|Council|Department|Office|Group|Foundation|Commission|Centre|Center)\b/u', $person)) {
+            // An acronym ("IBM", "CDC") or an institutional word marks an
+            // organisation: "Facebook Research" is not Mr. Research.
+            if (count($words) === 1 || count($words) > 4
+                || preg_match('/\b[A-Z]{2,}\b/u', $person)
+                || preg_match('/\b(?:of|for|the|Inc|Ltd|LLC|Corp|Corporation|Company|Institute|Organization|Organisation|Association|Society|University|Agency|Bank|Council|Department|Office|Group|Foundation|Commission|Centre|Center|Research|Analytics|Labs?|Laboratory|Systems|Technologies|Press|Media|Network|Partners|Bureau|Services?|Administration|Board|Authority|Ministry|Consortium|Project|Team)\b/u', $person)) {
                 return ['first' => '', 'last' => $person, 'initials' => '', 'corporate' => true];
             }
 

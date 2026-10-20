@@ -458,7 +458,18 @@ class MarkdownImporter
                 default => [$m['code'][0] ?? '', 'code'],
             };
 
-            if ($value !== '') {
+            if ($value !== '' && $mark !== 'code' && str_contains($value, '$')) {
+                // Bold or italic around a formula ("**$V$, the nodes.**"):
+                // read the inside too, and mark its text, so the formula
+                // is typeset rather than shown as dollar signs.
+                foreach ($this->inline($value) as $inner) {
+                    if ($inner['type'] === 'text') {
+                        $inner['marks'] = array_merge($inner['marks'] ?? [], [['type' => $mark]]);
+                    }
+
+                    $nodes[] = $inner;
+                }
+            } elseif ($value !== '') {
                 $nodes[] = [
                     'type' => 'text',
                     'text' => $value,
