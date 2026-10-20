@@ -1,0 +1,92 @@
+{
+ "title": "Thrift in Hard Times",
+ "subtitle": "The Kestrel Bay Teachers’ Credit Union, 1928–1941 — An Ecrivain Sample Thesis",
+ "author": "Clara M. Ostrander",
+ "type": "masters_thesis",
+ "style": "Chicago-notes",
+ "genre": "History",
+ "premise": "How did a small teachers’ credit union survive the banking collapse of the early 1930s, and what did lending on “character” mean before and after its federal charter?",
+ "audience": "Illustrative sample: master’s students writing an archival history thesis with footnotes.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": "04-abbreviations.md",
+   "type": "front_matter",
+   "title": "Abbreviations"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-founding.md",
+   "type": "chapter",
+   "title": "Chapter 2: Founding a Teachers’ Bank, 1928–1930"
+  },
+  {
+   "file": "12-crisis.md",
+   "type": "chapter",
+   "title": "Chapter 3: Holding On, 1931–1933"
+  },
+  {
+   "file": "13-charter.md",
+   "type": "chapter",
+   "title": "Chapter 4: The Federal Charter, 1934–1937"
+  },
+  {
+   "file": "14-character.md",
+   "type": "chapter",
+   "title": "Chapter 5: Character, Credit and the Consumer Turn, 1937–1941"
+  },
+  {
+   "file": "15-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 6: Conclusion"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "Bibliography"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: A Note on the Sources"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Membership and Lending, 1928–1941"
+  }
+ ]
+}

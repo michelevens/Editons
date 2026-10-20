@@ -1,0 +1,7 @@
+# About This Sample
+
+This document is an illustrative sample of a Master of Science in Nursing scholarly project. It is included in Ecrivain to show how a complete quality improvement (QI) report can be structured, written and formatted. It is not a real project and must not be submitted, in whole or in part, for academic credit or for any other purpose.
+
+Kestrel Bay University, Kestrel Bay General Hospital and its 5 West unit are fictional, as are the author, the faculty advisor, the site mentor and every member of staff mentioned. The monthly fall counts, patient-days, audit results, survey responses and time-study figures are synthetic: they were invented to illustrate how such a project is reported, and no patients or staff were involved. The cited works, by contrast, are real published sources. Each is characterized only in general terms, and nothing is quoted from them.
+
+The sample demonstrates conventions that examiners of practice-focused nursing degrees commonly look for: a report organized around the SQUIRE 2.0 publication guidelines, a SMART aim supported by outcome, process and balancing measures, iterative Plan-Do-Study-Act cycles, and run charts interpreted with standard probability-based rules. It also shows APA 7 citation, numbered chapters, tables and figures, a display equation and cross-references as the app produces them. Students should treat it as a model of structure and reasoning, not as a source of evidence or data.

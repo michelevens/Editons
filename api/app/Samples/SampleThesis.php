@@ -7,7 +7,9 @@ use App\Import\MarkdownImporter;
 use App\Models\Book;
 use App\Models\Citation;
 use App\Models\ManuscriptSection;
+use App\Models\ResearchSource;
 use App\Models\User;
+use App\Publishing\Numbering;
 use App\Research\Bibliography;
 use App\Services\ManuscriptWriter;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +32,7 @@ use ReflectionMethod;
  */
 class SampleThesis
 {
-    public const SLUGS = ['m-qual', 'm-proj', 'phd-mixed', 'phd-3p'];
+    public const SLUGS = ['m-qual', 'm-proj', 'm-hist', 'm-nurse', 'm-swe', 'phd-mixed', 'phd-3p', 'phd-econ', 'phd-phil'];
 
     private const TOKEN = '/\{\{([^}|]+)(?:\|([^}]+))?\}\}/u';
 
@@ -100,11 +102,54 @@ class SampleThesis
             $numbers = array_column($entries, 'number', 'id');
             $convert = new ReflectionMethod($this->importer, 'toProseMirror');
 
+            // In a notes style each citation is a footnote: the full note the
+            // first time a work is cited in the book, the short note after.
+            $citedBefore = [];
+
             foreach ($sections as [$spec, $section]) {
                 if (isset($markdown[$section->id])) {
-                    $md = preg_replace_callback(self::TOKEN, fn ($m) => $this->inText(
-                        array_map('trim', explode(';', $m[1])), $m[2] ?? null, $sources, $numbers, $style,
-                    ), $markdown[$section->id]);
+                    if ($style === 'Chicago-notes') {
+                        $notes = [];
+                        $note = function (array $keys, ?string $locator) use ($sources, &$citedBefore) {
+                            $text = implode('; ', array_map(function ($key) use ($sources, &$citedBefore, $locator) {
+                                $text = $this->bibliography->note($sources[$key], ! isset($citedBefore[$key]), $locator);
+                                $citedBefore[$key] = true;
+
+                                return rtrim($text, '.');
+                            }, $keys));
+
+                            // A note ending on a quoted title has its stop inside the quotes.
+                            return str_ends_with($text, '.”') ? $text : $text.'.';
+                        };
+
+                        // A token inside a discursive note becomes the note's
+                        // own words: a footnote cannot carry a footnote.
+                        $md = preg_replace_callback('/^\[\^d\d+\]:.*$/m', fn ($line) => preg_replace_callback(self::TOKEN, function ($m) use ($sources, $note) {
+                            $keys = array_values(array_filter(array_map('trim', explode(';', $m[1])), fn ($k) => isset($sources[$k])));
+
+                            return $keys ? ' '.rtrim($note($keys, ($m[2] ?? '') === 'n' ? null : ($m[2] ?? null)), '.') : '';
+                        }, $line[0]), $markdown[$section->id]);
+
+                        $md = preg_replace_callback(self::TOKEN, function ($m) use ($sources, $note, &$notes) {
+                            $keys = array_values(array_filter(array_map('trim', explode(';', $m[1])), fn ($k) => isset($sources[$k])));
+                            $text = $note($keys, ($m[2] ?? '') === 'n' ? null : ($m[2] ?? null));
+                            $notes[] = $text;
+                            $marker = '[^c'.count($notes).']';
+
+                            // Narrative ("Cohen argues"): the surname, then the note.
+                            return ($m[2] ?? '') === 'n' && $keys
+                                ? $this->surnames($sources[$keys[0]]).$marker
+                                : $marker;
+                        }, $md);
+
+                        foreach ($notes as $i => $text) {
+                            $md .= ($i === 0 ? "\n\n" : "\n").'[^c'.($i + 1).']: '.$text;
+                        }
+                    } else {
+                        $md = preg_replace_callback(self::TOKEN, fn ($m) => $this->inText(
+                            array_map('trim', explode(';', $m[1])), $m[2] ?? null, $sources, $numbers, $style,
+                        ), $markdown[$section->id]);
+                    }
                     $md = preg_replace('/^(#{1,6}\s+.+)$/m', "\n$1\n", $md);
                     $md = trim(preg_replace("/\n{3,}/", "\n\n", $md))."\n";
 
@@ -115,7 +160,7 @@ class SampleThesis
                         userId: $user->id,
                         label: 'Ecrivain sample thesis: illustrative, not for submission',
                     );
-                } elseif ($spec['title'] === 'References') {
+                } elseif (in_array($spec['title'], ['References', 'Bibliography', 'Works Cited'], true)) {
                     $this->writer->save(
                         section: $section,
                         content: ['type' => 'doc', 'content' => array_map(fn ($e) => $this->entryParagraph($e['html']), $entries)],
@@ -123,6 +168,23 @@ class SampleThesis
                         userId: $user->id,
                         label: "Generated from the research library ({$style})",
                     );
+                }
+            }
+
+            // Equations written \tag{?} and captions get their numbers now,
+            // as the editor would give them on opening each chapter.
+            $ordered = $book->sections()->orderBy('position')->get();
+            $numbering = Numbering::forBook($ordered);
+            foreach ($ordered as $section) {
+                $place = $numbering['sections'][$section->id];
+                $content = $section->content;
+                $content['content'] = Numbering::apply(
+                    $content['content'] ?? [],
+                    $numbering['scheme'] === 'continuous' ? '' : $place['prefix'],
+                    $place['offsets'],
+                );
+                if ($content !== $section->content) {
+                    $section->forceFill(['content' => $content])->saveQuietly();
                 }
             }
 
@@ -202,6 +264,14 @@ class SampleThesis
             'Vancouver' => '('.implode(',', array_map(fn ($p) => trim($p, '()'), $parts)).$locator.')',
             default => '('.implode('; ', array_map(fn ($p) => trim($p, '()'), $parts)).$locator.')',
         };
+    }
+
+    /** "Cohen", "Cohen and Lee", "Cohen et al." for a narrative citation. */
+    private function surnames(ResearchSource $source): string
+    {
+        $who = trim($this->bibliography->inText($source, 'APA'), '()');
+
+        return str_replace(' & ', ' and ', trim(explode(', ', $who)[0]));
     }
 
     /** A bibliography entry's HTML as a paragraph, italics kept. */

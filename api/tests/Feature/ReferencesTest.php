@@ -310,3 +310,52 @@ it('leaves no doubled full stops when parts are missing', function () {
             ->not->toMatch('/\s[.,]/');
     }
 });
+
+it('writes Chicago notes: full the first time, short after', function () {
+    $book = Book::factory()->for(User::factory())->create();
+    $monograph = ResearchSource::factory()->for($book)->create([
+        'kind' => 'book', 'authors' => 'Cohen, Lizabeth', 'published' => '1990',
+        'title' => 'Making a New Deal: Industrial Workers in Chicago, 1919–1939', 'publisher' => 'Cambridge University Press',
+    ]);
+    $article = ResearchSource::factory()->for($book)->create([
+        'kind' => 'journal_article', 'authors' => 'Wicker, Elmus', 'published' => '1980',
+        'title' => 'A Reconsideration of the Causes of the Banking Panic of 1930', 'container' => 'Journal of Economic History',
+        'volume' => '40', 'issue' => '3', 'pages' => '571-583',
+    ]);
+    $notes = app(Bibliography::class);
+
+    expect($notes->note($monograph, true, '112'))
+        ->toBe('Lizabeth Cohen, *Making a New Deal: Industrial Workers in Chicago, 1919–1939* (Cambridge University Press, 1990), 112.')
+        ->and($notes->note($monograph, false, 'p. 115'))->toBe('Cohen, *Making a New Deal*, 115.')
+        ->and($notes->note($article, true, '574'))
+        ->toBe('Elmus Wicker, “A Reconsideration of the Causes of the Banking Panic of 1930,” *Journal of Economic History* 40, no. 3 (1980): 574.')
+        ->and($notes->note($article, false))->toBe('Wicker, “Reconsideration of the Causes.”')
+        ->and($notes->note($article, false, '575'))->toBe('Wicker, “Reconsideration of the Causes,” 575.');
+
+    // Short titles stop before the first "of" once the sense is there.
+    $history = ResearchSource::factory()->for($book)->create([
+        'kind' => 'book', 'authors' => 'Friedman, Milton; Schwartz, Anna Jacobson', 'published' => '1963',
+        'title' => 'A Monetary History of the United States, 1867-1960', 'publisher' => 'Princeton University Press',
+    ]);
+    expect($notes->note($history, false))->toBe('Friedman and Schwartz, *Monetary History*.');
+
+    // An edited book names its editor as such.
+    $edited = ResearchSource::factory()->for($book)->create([
+        'kind' => 'book', 'authors' => 'Burton, Antoinette (ed.)', 'published' => '2005',
+        'title' => 'Archive Stories: Facts, Fictions, and the Writing of History', 'publisher' => 'Duke University Press',
+    ]);
+    expect($notes->note($edited))->toBe('Antoinette Burton, ed., *Archive Stories: Facts, Fictions, and the Writing of History* (Duke University Press, 2005).')
+        ->and($notes->note($edited, false))->toBe('Burton, *Archive Stories*.');
+});
+
+it('marks editors in every style', function () {
+    $book = ['kind' => 'book', 'authors' => 'Mackenzie, Catriona; Stoljar, Natalie (eds.)', 'published' => '2000',
+        'title' => 'Relational Autonomy', 'publisher' => 'Oxford University Press'];
+
+    expect(entryFor($book, 'APA'))->toBe('Mackenzie, C., & Stoljar, N. (Eds.). (2000). Relational Autonomy. Oxford University Press.')
+        ->and(entryFor($book, 'MLA'))->toBe('Mackenzie, Catriona, and Natalie Stoljar, editors. Relational Autonomy. Oxford University Press, 2000.')
+        ->and(entryFor($book, 'Chicago-notes'))->toBe('Mackenzie, Catriona, and Natalie Stoljar, eds. Relational Autonomy. Oxford University Press, 2000.')
+        ->and(entryFor($book, 'Chicago'))->toBe('Mackenzie, Catriona, and Natalie Stoljar, eds. 2000. Relational Autonomy. Oxford University Press.')
+        ->and(entryFor($book, 'IEEE'))->toContain('C. Mackenzie and N. Stoljar, Eds., Relational Autonomy')
+        ->and(entryFor($book, 'Vancouver'))->toContain('Mackenzie C, Stoljar N, editors. Relational Autonomy.');
+});

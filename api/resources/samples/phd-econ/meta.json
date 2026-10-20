@@ -1,0 +1,102 @@
+{
+ "title": "Work from Anywhere, Spend Somewhere",
+ "subtitle": "Remote Work and Local Labor Markets — An Ecrivain Sample Dissertation",
+ "author": "Mateo J. Alvarado",
+ "type": "phd_dissertation",
+ "style": "Chicago",
+ "genre": "Economics",
+ "premise": "When remote-capable workers move into a local labor market, what happens to local service employment, wages and rents, and who gains?",
+ "audience": "Illustrative sample: doctoral students writing an empirical economics dissertation with models, equations and event studies.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": "04-abbreviations.md",
+   "type": "front_matter",
+   "title": "List of Abbreviations"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-literature.md",
+   "type": "chapter",
+   "title": "Chapter 2: Remote Work, Place and Local Labor Markets: A Review"
+  },
+  {
+   "file": "12-model.md",
+   "type": "chapter",
+   "title": "Chapter 3: A Spatial Equilibrium Model with Remote Workers"
+  },
+  {
+   "file": "13-data.md",
+   "type": "chapter",
+   "title": "Chapter 4: Data, Definitions and Empirical Strategy"
+  },
+  {
+   "file": "14-employment.md",
+   "type": "chapter",
+   "title": "Chapter 5: Remote Workers and Local Service Employment"
+  },
+  {
+   "file": "15-prices.md",
+   "type": "chapter",
+   "title": "Chapter 6: Wages, Rents and the Incidence of Remote-Worker Arrivals"
+  },
+  {
+   "file": "16-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 7: Conclusion"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "References"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: Constructing the Labor-Market Panel"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Additional Robustness Results"
+  },
+  {
+   "file": "22-appendix-c.md",
+   "type": "back_matter",
+   "title": "Appendix C: Proofs of Propositions"
+  }
+ ]
+}

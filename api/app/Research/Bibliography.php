@@ -52,6 +52,9 @@ class Bibliography
      */
     private bool $more = false;
 
+    /** "ed" or "eds" when the names are editors: "Burton, Antoinette (ed.)". */
+    private ?string $editors = null;
+
     public static function normalise(?string $style): string
     {
         return in_array($style, self::STYLES, true) ? $style : 'APA';
@@ -125,6 +128,66 @@ class Bibliography
         return collect($this->forBook($book, $style))
             ->pluck('entry')
             ->implode("\n");
+    }
+
+    /**
+     * A Chicago note for a citation: the full note the first time a work is
+     * cited, the short note after that, with the page if there is one.
+     * Italic runs are *marked*, as footnote text is written.
+     *
+     *   Full:  Lizabeth Cohen, *Making a New Deal* (Cambridge University Press, 1990), 112.
+     *   Short: Cohen, *Making a New Deal*, 115.
+     */
+    public function note(ResearchSource $source, bool $first = true, ?string $locator = null): string
+    {
+        $names = $this->names($source);
+        $natural = array_map(fn ($n) => $this->natural($n), $names);
+        $surnames = array_map(fn ($n) => $n['last'], $names);
+        $article = $source->kind === 'journal_article' || ($source->container && $source->kind !== 'book');
+        $page = $locator ? ', '.preg_replace('/^(?:pp?\.\s*)/', '', trim($locator)) : '';
+
+        if (! $first) {
+            $who = match (true) {
+                $surnames === [] => '',
+                $this->more || count($surnames) >= 4 => $surnames[0].' et al., ',
+                count($surnames) === 2 => "{$surnames[0]} and {$surnames[1]}, ",
+                count($surnames) === 3 => "{$surnames[0]}, {$surnames[1]}, and {$surnames[2]}, ",
+                default => $surnames[0].', ',
+            };
+            $short = $this->shortTitle($source);
+
+            if ($article) {
+                return $who.($page ? "“{$short},”".ltrim($page, ',').'.' : "“{$short}.”");
+            }
+
+            return $who."*{$short}*{$page}.";
+        }
+
+        $who = match (true) {
+            $natural === [] => '',
+            $this->more || count($natural) >= 4 => $natural[0].' et al., ',
+            count($natural) === 1 => $natural[0].', ',
+            default => $this->join($natural, ', ', count($natural) > 2 ? ', and ' : ' and ', 3).', ',
+        };
+        if ($this->editors && $who !== '') {
+            $who .= $this->editors.'., ';
+        }
+        $title = $this->clean($source->title) ?: '[Untitled]';
+        $year = $this->year($source);
+
+        if ($article) {
+            $where = $source->container
+                ? ' *'.$this->clean($source->container).'*'.($source->volume ? ' '.$source->volume : '')
+                    .($source->issue ? ', no. '.$source->issue : '')." ({$year})".($page ? ': '.ltrim($page, ', ') : '')
+                : " ({$year})".$page;
+
+            return $who."“{$title},”".$where.'.';
+        }
+
+        $publication = implode(', ', array_filter([$this->clean((string) $source->publisher), $year === 'n.d.' ? 'n.d.' : $year]));
+
+        return $who."*{$title}*".($source->edition ? ', '.$this->ordinal((string) $source->edition).' ed.' : '')
+            .($publication !== '' ? " ({$publication})" : '').$page.'.';
     }
 
     /**
@@ -211,6 +274,7 @@ class Bibliography
     {
         $listed = array_map(fn ($n) => $n['corporate'] ? $n['last'] : "{$n['last']}, {$n['initials']}", $names);
         $authors = $this->more ? implode(', ', $listed).', et al.' : $this->join($listed, ', ', ', & ', 20);
+        $authors .= $authors && $this->editors ? ' ('.ucfirst($this->editors).'.)' : '';
         $date = "({$year}).";
         $lead = $authors ? $this->stop($authors)." {$date}" : '';
 
@@ -228,7 +292,7 @@ class Bibliography
 
     private function chicago(array $names, string $title, string $year, string $container, string $publisher, string $volume, string $issue, string $pages, string $edition, bool $article): string
     {
-        $authors = $this->invertFirst($names, 'and', 10);
+        $authors = $this->invertFirst($names, 'and', 10).($names && $this->editors ? ", {$this->editors}." : '');
         $lead = $authors ? $this->stop($authors)." {$year}." : '';
 
         if ($article) {
@@ -245,7 +309,7 @@ class Bibliography
 
     private function chicagoNotes(array $names, string $title, string $year, string $container, string $publisher, string $volume, string $issue, string $pages, string $edition, bool $article): string
     {
-        $authors = $this->invertFirst($names, 'and', 10);
+        $authors = $this->invertFirst($names, 'and', 10).($names && $this->editors ? ", {$this->editors}." : '');
         $lead = $authors ? $this->stop($authors).' ' : '';
 
         if ($article) {
@@ -269,6 +333,7 @@ class Bibliography
             count($names) === 2 => $this->inverted($names[0]).', and '.$this->natural($names[1]),
             default => $this->inverted($names[0]),
         };
+        $authors .= $authors && $this->editors ? ($this->editors === 'eds' || count($names) > 1 ? ', editors' : ', editor') : '';
         $lead = $authors ? $this->stop($authors).' ' : '';
         $year = $year === 'n.d.' ? '' : $year;
 
@@ -293,6 +358,7 @@ class Bibliography
     {
         $listed = array_map(fn ($n) => $n['corporate'] ? $n['last'] : "{$n['last']}, {$n['initials']}", $names);
         $authors = $this->more || count($listed) >= 4 ? $listed[0].' et al.' : $this->join($listed, ', ', ' and ', 3);
+        $authors .= $authors && $this->editors ? " ({$this->editors}.)" : '';
         $lead = ($authors ?: $title)." ({$year})";
 
         if ($article) {
@@ -310,6 +376,7 @@ class Bibliography
     {
         $listed = array_map(fn ($n) => $n['corporate'] ? $n['last'] : trim("{$n['initials']} {$n['last']}"), $names);
         $authors = $this->more || count($listed) > 6 ? $listed[0].' et al.' : $this->join($listed, ', ', count($listed) > 2 ? ', and ' : ' and ', 6);
+        $authors .= $authors && $this->editors ? ', '.ucfirst($this->editors).'.' : '';
         $lead = $authors ? "{$authors}, " : '';
         $year = $year === 'n.d.' ? '' : $year;
 
@@ -334,6 +401,7 @@ class Bibliography
     {
         $listed = array_map(fn ($n) => $n['corporate'] ? $n['last'] : trim($n['last'].' '.str_replace(['.', ' '], '', $n['initials'])), $names);
         $authors = $this->more || count($listed) > 6 ? implode(', ', array_slice($listed, 0, 6)).', et al' : implode(', ', $listed);
+        $authors .= $authors && $this->editors ? ($this->editors === 'eds' || count($listed) > 1 ? ', editors' : ', editor') : '';
         $lead = $authors ? "{$authors}. " : '';
 
         if ($article) {
@@ -363,6 +431,8 @@ class Bibliography
         $raw = trim((string) $source->authors);
         $this->more = (bool) preg_match('/[,;]?\s*\bet\s+al\.?$/iu', $raw);
         $raw = trim(preg_replace('/[,;]?\s*\bet\s+al\.?$/iu', '', $raw));
+        $this->editors = preg_match('/\s*\((eds?)\.?\)$/iu', $raw, $m) ? strtolower($m[1]) : null;
+        $raw = $this->editors ? trim(substr($raw, 0, -strlen($m[0]))) : $raw;
 
         if ($raw === '') {
             return [];
@@ -505,10 +575,28 @@ class Bibliography
 
     private function shortTitle(ResearchSource $source): string
     {
+        // Chicago's short title: the main title without a leading article,
+        // cut before the first "of", "in"… once two significant words are in
+        // ("Monetary History", "Reconsideration of the Causes"), and never
+        // more than four significant words.
         $title = $this->clean(preg_split('/[:?]/u', $source->title)[0]);
-        $words = preg_split('/\s+/u', $title);
+        $words = preg_split('/\s+/u', preg_replace('/^(?:A|An|The)\s+/u', '', $title));
 
-        return count($words) > 4 ? implode(' ', array_slice($words, 0, 4)) : $title;
+        $kept = [];
+        $significant = 0;
+        foreach ($words as $word) {
+            $preposition = preg_match('/^(?:of|in|on|for|to|with|at|by|from)$/iu', $word);
+            if ($significant === 4 || ($preposition && $significant >= 2)) {
+                break;
+            }
+            $kept[] = $word;
+            $significant += $preposition || preg_match('/^(?:a|an|the|and)$/iu', $word) ? 0 : 1;
+        }
+        while (count($kept) > 1 && preg_match('/^(?:a|an|the|and|of|in|on|for|to|with|at|by|from)$/iu', end($kept))) {
+            array_pop($kept);
+        }
+
+        return rtrim(implode(' ', $kept), ',;');
     }
 
     private function link(ResearchSource $source): string

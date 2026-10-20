@@ -1,0 +1,87 @@
+{
+ "title": "Rounding with Purpose",
+ "subtitle": "A Quality Improvement Project to Reduce Inpatient Falls on an Adult Medical-Surgical Unit — An Ecrivain Sample Project",
+ "author": "Rosalind A. Okafor",
+ "type": "masters_project",
+ "style": "APA",
+ "genre": "Nursing",
+ "premise": "Can purposeful hourly rounding, tested through PDSA cycles, reduce inpatient falls on a medical-surgical unit by 30% in nine months?",
+ "audience": "Illustrative sample: MSN and DNP students reporting a quality-improvement project with SQUIRE 2.0.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-literature.md",
+   "type": "chapter",
+   "title": "Chapter 2: Review of the Evidence"
+  },
+  {
+   "file": "12-methods.md",
+   "type": "chapter",
+   "title": "Chapter 3: Methods"
+  },
+  {
+   "file": "13-results.md",
+   "type": "chapter",
+   "title": "Chapter 4: Results"
+  },
+  {
+   "file": "14-discussion.md",
+   "type": "chapter",
+   "title": "Chapter 5: Discussion"
+  },
+  {
+   "file": "15-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 6: Conclusion, Sustainability and Implications for Practice"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "References"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: Rounding Script and Log"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Measure Definitions"
+  },
+  {
+   "file": "22-appendix-c.md",
+   "type": "back_matter",
+   "title": "Appendix C: SQUIRE 2.0 Checklist Map"
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+# Abbreviations
+
+- **ACM** Association for Computing Machinery
+- **AI** Artificial intelligence
+- **AI RMF** Artificial Intelligence Risk Management Framework
+- **API** Application programming interface
+- **B2B** Business to business
+- **CI** Confidence interval
+- **CWE** Common Weakness Enumeration
+- **DORA** DevOps Research and Assessment (delivery performance metrics)
+- **IDE** Integrated development environment
+- **ITS** Interrupted time series
+- **LLM** Large language model
+- **NIST** National Institute of Standards and Technology
+- **PR** Pull request
+- **RQ** Research question
+- **SaaS** Software as a service
+- **SAST** Static application security testing
+- **SD** Standard deviation
+- **SPACE** Satisfaction and well-being, Performance, Activity, Communication and collaboration, Efficiency and flow
+- **SQL** Structured Query Language

@@ -1,0 +1,102 @@
+{
+ "title": "Pairing with the Machine",
+ "subtitle": "How Three Software Teams Adopted AI Coding Assistants — An Ecrivain Sample Thesis",
+ "author": "Daniel K. Ferreira",
+ "type": "masters_thesis",
+ "style": "IEEE",
+ "genre": "Software Engineering",
+ "premise": "How did AI coding assistants change delivery, quality and engineering practice in three software teams, and why did the teams differ?",
+ "audience": "Illustrative sample: master’s students writing a mixed-methods software engineering thesis.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": "04-abbreviations.md",
+   "type": "front_matter",
+   "title": "Abbreviations"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Figures"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-background.md",
+   "type": "chapter",
+   "title": "Chapter 2: Background and Related Work"
+  },
+  {
+   "file": "12-method.md",
+   "type": "chapter",
+   "title": "Chapter 3: Research Design and Methods"
+  },
+  {
+   "file": "13-quant.md",
+   "type": "chapter",
+   "title": "Chapter 4: Results: Repository and Survey Data"
+  },
+  {
+   "file": "14-qual.md",
+   "type": "chapter",
+   "title": "Chapter 5: Results: Engineers’ Accounts"
+  },
+  {
+   "file": "15-discussion.md",
+   "type": "chapter",
+   "title": "Chapter 6: Discussion"
+  },
+  {
+   "file": "16-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 7: Conclusion"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "References"
+  },
+  {
+   "file": "20-appendix-a.md",
+   "type": "back_matter",
+   "title": "Appendix A: Survey Instrument"
+  },
+  {
+   "file": "21-appendix-b.md",
+   "type": "back_matter",
+   "title": "Appendix B: Interview Guide"
+  },
+  {
+   "file": "22-appendix-c.md",
+   "type": "back_matter",
+   "title": "Appendix C: Metric Definitions and Extraction Queries"
+  }
+ ]
+}

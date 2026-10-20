@@ -535,3 +535,18 @@ Known gaps: page-foot notes in the PDF; Word cross-references are text,
 not REF fields; images are
 not imported from Markdown; Word equations need Word's "Professional"
 conversion to display built up; charts have no error bars or log scales.
+
+Sample theses live in `api/resources/samples/{slug}` and are rebuilt into
+the demo account on every deploy by `App\Samples\SampleThesis`. There are
+nine, one per common shape and citation style: master's qualitative (APA),
+master's project (IEEE), MA history with archival footnotes (Chicago notes
+and bibliography), MSN quality-improvement project with run charts (APA,
+SQUIRE 2.0), MS software engineering mixed methods (IEEE), PhD mixed
+methods (Chicago), PhD by publication (Vancouver), PhD economics with a
+model and event studies (Chicago author-date), and PhD philosophy with
+discursive notes (MLA, Works Cited). Each uses a fictional university,
+people and synthetic data, says so in "About This Sample", and cites only
+verified real works. In a notes style every citation token becomes a
+footnote, full on a work's first citation in the book and short after
+(`Bibliography::note`); a token inside a discursive note becomes the note's
+own words.

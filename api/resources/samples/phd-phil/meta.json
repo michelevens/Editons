@@ -1,0 +1,82 @@
+{
+ "title": "Owed Attention",
+ "subtitle": "Care Ethics and the Duties of Professional Advisers — An Ecrivain Sample Dissertation",
+ "author": "Eleanor S. Whitcombe",
+ "type": "phd_dissertation",
+ "style": "MLA",
+ "genre": "Philosophy",
+ "premise": "Do professional advisers owe their clients a duty of attention that fiduciary law and informed consent do not capture, and how does it differ from paternalism?",
+ "audience": "Illustrative sample: doctoral students writing a humanities dissertation with an extended argument and discursive footnotes.",
+ "sections": [
+  {
+   "file": "00-about.md",
+   "type": "front_matter",
+   "title": "About This Sample"
+  },
+  {
+   "file": "01-abstract.md",
+   "type": "front_matter",
+   "title": "Abstract"
+  },
+  {
+   "file": "02-declaration.md",
+   "type": "front_matter",
+   "title": "Declaration"
+  },
+  {
+   "file": "03-acknowledgements.md",
+   "type": "front_matter",
+   "title": "Acknowledgements"
+  },
+  {
+   "file": null,
+   "type": "front_matter",
+   "title": "List of Tables"
+  },
+  {
+   "file": "10-introduction.md",
+   "type": "chapter",
+   "title": "Chapter 1: Introduction"
+  },
+  {
+   "file": "11-attention.md",
+   "type": "chapter",
+   "title": "Chapter 2: Attention as a Moral Achievement"
+  },
+  {
+   "file": "12-fiduciary.md",
+   "type": "chapter",
+   "title": "Chapter 3: Fiduciary Duty and Its Limits"
+  },
+  {
+   "file": "13-roles.md",
+   "type": "chapter",
+   "title": "Chapter 4: Roles, Friendship and the Adviser"
+  },
+  {
+   "file": "14-trust.md",
+   "type": "chapter",
+   "title": "Chapter 5: Trust, Vulnerability and Dependency"
+  },
+  {
+   "file": "15-paternalism.md",
+   "type": "chapter",
+   "title": "Chapter 6: Attention without Paternalism"
+  },
+  {
+   "file": "16-cases.md",
+   "type": "chapter",
+   "title": "Chapter 7: Owed Attention in Practice: Three Cases"
+  },
+  {
+   "file": "17-conclusion.md",
+   "type": "chapter",
+   "title": "Chapter 8: Conclusion"
+  },
+  {
+   "file": null,
+   "type": "back_matter",
+   "title": "Works Cited"
+  }
+ ]
+}

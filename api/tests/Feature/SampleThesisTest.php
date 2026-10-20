@@ -40,3 +40,22 @@ it('builds the project thesis sample with numbered IEEE citations', function () 
 it('refuses a sample that does not exist', function () {
     app(SampleThesis::class)->load(User::factory()->create(), 'nope');
 })->throws(InvalidArgumentException::class);
+
+it('builds every sample cleanly', function (string $slug) {
+    $directory = resource_path("samples/{$slug}");
+    $meta = json_decode(file_get_contents("{$directory}/meta.json"), true);
+    $refs = json_decode(file_get_contents("{$directory}/refs.json"), true);
+
+    $book = app(SampleThesis::class)->load(User::factory()->create(), $slug);
+    $sections = $book->sections()->orderBy('position')->get();
+    $text = $sections->map->plainText()->implode("\n");
+    $bibliography = $sections->first(fn ($s) => in_array($s->title, ['References', 'Bibliography', 'Works Cited'], true));
+
+    expect($sections)->toHaveCount(count($meta['sections']))
+        ->and($book->sources()->count())->toBe(count($refs))
+        // Every token became a citation and every source was cited.
+        ->and($text)->not->toContain('{{')
+        ->and(Citation::whereIn('manuscript_section_id', $sections->pluck('id'))->distinct()->count('research_source_id'))->toBe(count($refs))
+        ->and($bibliography->plainText())->not->toBe('')
+        ->and($book->word_count)->toBeGreaterThan(15000);
+})->with(array_values(array_filter(SampleThesis::SLUGS, fn ($slug) => is_dir(__DIR__."/../../resources/samples/{$slug}"))));
