@@ -343,7 +343,10 @@ class FakeDriver implements EditorialDriver
                 break;
             }
 
-            $empirical = preg_match('/\b(studies|research|evidence|data|surveys?) (show|shows|suggest|suggests|indicate|indicates|demonstrate|demonstrates)\b|\bit is (well )?(known|established)\b|\d+(\.\d+)?\s?%|\bsignificant(ly)?\b/i', $sentence);
+            // An appeal to outside evidence, not any number: a thesis's own
+            // results ("accuracy was 79.41%") need no citation, and flagging
+            // them buried the real findings in a results chapter.
+            $empirical = preg_match('/\b(studies|research|evidence|surveys?|the literature|scholars|experts) (show|shows|suggest|suggests|indicate|indicates|demonstrate|demonstrates|has shown|have shown|agree)\b|\bit is (well )?(known|established|accepted)\b|\b(widely|generally|commonly) (believed|accepted|known)\b/i', $sentence);
 
             if ($empirical && ! preg_match($citation, $sentence)) {
                 $out[] = new Finding(
@@ -390,7 +393,9 @@ class FakeDriver implements EditorialDriver
     private function sentences(string $text): array
     {
         $out = [];
-        if (preg_match_all('/[^.!?]+[.!?]+/u', $text, $m, PREG_OFFSET_CAPTURE)) {
+        // A full stop only ends a sentence when a space or the end follows
+        // it, so "73.48%", "e.g." mid-word and "U.S." stay inside theirs.
+        if (preg_match_all('/(?:[^.!?]|[.!?](?=\S))+[.!?]+/u', $text, $m, PREG_OFFSET_CAPTURE)) {
             foreach ($m[0] as [$s, $offset]) {
                 $trimmed = trim($s);
                 if ($trimmed !== '') {

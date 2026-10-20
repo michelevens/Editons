@@ -133,3 +133,19 @@ it('keeps the examiners on paid plans', function () {
         ->assertStatus(422)
         ->assertJsonPath('errors.agent.0', "Master's Examiner is part of the Author plan. You are on Free.");
 });
+
+it('does not treat the thesis\'s own results as uncited claims', function () {
+    // A results chapter reports numbers; they are findings, not borrowed
+    // claims. And a decimal point is not the end of a sentence.
+    $user = User::factory()->subscribed()->create();
+    $section = thesisChapter($user, 'masters_thesis',
+        'This thesis examines churn prediction. The hybrid logistic model reached 79.41% accuracy against 80.20% for the traditional one. '
+        .'The difference is not significant in this sample.');
+
+    $findings = collect($this->actingAs($user)
+        ->postJson("/sections/{$section->id}/review", ['agent' => 'masters_examiner'])
+        ->json('findings'));
+
+    expect($findings->pluck('title'))->not->toContain('Claim without a citation')
+        ->and($findings->pluck('excerpt')->filter(fn ($e) => str_starts_with($e, '41%')))->toBeEmpty();
+});
