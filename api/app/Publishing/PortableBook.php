@@ -7,6 +7,8 @@ use App\Models\ManuscriptSection;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 use ZipArchive;
 
@@ -202,10 +204,7 @@ class PortableBook
         $data = $opened['data'];
 
         return DB::transaction(function () use ($data, $userId) {
-            $attributes = array_intersect_key(
-                is_array($data['book']) ? $data['book'] : [],
-                array_flip(self::BOOK_FIELDS),
-            );
+            $attributes = $this->bookAttributes(is_array($data['book']) ? $data['book'] : []);
 
             // Through the relation, because user_id is deliberately not
             // fillable: ownership comes from the session, never from a file.
@@ -258,6 +257,118 @@ class PortableBook
 
             return $book->refresh();
         });
+    }
+
+    /**
+     * The book's fields from a file, held to the rules the screens apply.
+     *
+     * The file is untrusted, and these values go on to places the UI never
+     * lets free text reach: layout ends up in the PDF's CSS and the
+     * pagination arithmetic, rights and meta in the publishing checks. A
+     * crafted file stored layout.font = "serif</style><script>…" verbatim,
+     * which DesignController::updateLayout would have refused.
+     *
+     * A value that fails is dropped, not the import: the book falls back to
+     * the default for that one setting, which is what a file from an older
+     * version without the field would get anyway. Every file this
+     * installation writes passes.
+     *
+     * @param  array<string, mixed>  $book
+     * @return array<string, mixed>
+     */
+    private function bookAttributes(array $book): array
+    {
+        $attributes = [];
+
+        foreach (self::bookRules() as $field => $rules) {
+            if (array_key_exists($field, $book) && $this->passes($book[$field], $rules)) {
+                $attributes[$field] = $book[$field];
+            }
+        }
+
+        foreach (self::nestedRules() as $field => $keys) {
+            $values = is_array($book[$field] ?? null) ? $book[$field] : [];
+            $kept = [];
+
+            foreach ($keys as $key => $rules) {
+                if (array_key_exists($key, $values) && $this->passes($values[$key], $rules)) {
+                    $kept[$key] = $values[$key];
+                }
+            }
+
+            if ($kept !== []) {
+                $attributes[$field] = $kept;
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * Scalar book fields, with the rules from BookController::store and
+     * ::update (the wider of the two where they differ) and JourneyController.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private static function bookRules(): array
+    {
+        return [
+            // No length limit here: title() shortens an over-long one
+            // rather than discarding it.
+            'title' => ['nullable', 'string'],
+            'subtitle' => ['nullable', 'string', 'max:255'],
+            'author_name' => ['nullable', 'string', 'max:255'],
+            'genre' => ['nullable', 'string', 'max:120'],
+            // Not nullable: these columns are NOT NULL with a default, and a
+            // null from the file would fail the insert rather than default.
+            'language' => ['string', 'max:60'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'book_type' => ['nullable', 'string', Rule::in(array_keys(config('booktypes')))],
+            'started_with' => ['nullable', 'string', 'max:40'],
+            'assistance' => [Rule::in(Book::ASSISTANCE)],
+            'journey_stage' => [Rule::in(Book::JOURNEY_STAGES)],
+            'premise' => ['nullable', 'string', 'max:2000'],
+            'audience' => ['nullable', 'string', 'max:2000'],
+            'promise' => ['nullable', 'string', 'max:2000'],
+            'target_words' => ['nullable', 'integer', 'min:100', 'max:2000000'],
+        ];
+    }
+
+    /**
+     * The JSON columns, key by key: DesignController::updateLayout,
+     * RightsController::updateRights and PublishingController::update.
+     * Keys those endpoints do not accept are not carried over.
+     *
+     * @return array<string, array<string, array<int, mixed>>>
+     */
+    private static function nestedRules(): array
+    {
+        return [
+            'layout' => [
+                'trim' => ['string', Rule::in(Book::TRIMS)],
+                'margins' => ['string', 'in:Narrow,Standard,Wide'],
+                'font' => ['string', 'in:serif,sans'],
+                'size' => ['numeric', 'min:9', 'max:14'],
+                'leading' => ['numeric', 'min:1.2', 'max:1.8'],
+                'dropcap' => ['boolean'],
+                'headers' => ['boolean'],
+            ],
+            'rights' => array_map(
+                fn () => ['boolean'],
+                Book::DEFAULT_RIGHTS,
+            ),
+            'meta' => [
+                'description' => ['nullable', 'string', 'max:4000'],
+                'category' => ['nullable', 'string', 'max:255'],
+                'keywords' => ['nullable', 'string', 'max:500'],
+            ],
+        ];
+    }
+
+    /** @param  array<int, mixed>  $rules */
+    private function passes(mixed $value, array $rules): bool
+    {
+        return Validator::make(['value' => $value], ['value' => $rules])->passes();
     }
 
     private function title(?string $title): string
