@@ -13,8 +13,14 @@ class ImportReport
 {
     public int $sections = 0;
 
+    /** @var array<int, string> The chapters created, in binder order. */
+    public array $titles = [];
+
     /** @var array<string, int> */
     public array $skipped = [];
+
+    /** @var int Pictures brought in with the text (DOCX). */
+    public int $images = 0;
 
     public function skip(string $what): void
     {
@@ -26,6 +32,8 @@ class ImportReport
     {
         return [
             'sections' => $this->sections,
+            'titles' => $this->titles,
+            'images' => $this->images,
             'skipped' => $this->skipped,
             'lossless' => $this->skipped === [],
         ];

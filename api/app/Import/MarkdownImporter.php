@@ -3,18 +3,14 @@
 namespace App\Import;
 
 use App\Models\Book;
-use App\Models\ManuscriptSection;
-use App\Services\ManuscriptWriter;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Import a Markdown manuscript into chapters.
  *
  * ROADMAP.md Milestone 1 asks for "basic import" and a demonstrated
- * "round-trip without content loss". Markdown is the honest first format:
- * DOCX round-tripping is listed in ARCHITECTURE.md as an unresolved risk,
- * and shipping a lossy DOCX importer that silently drops footnotes and
- * tracked changes would be worse than not shipping one.
+ * "round-trip without content loss". Markdown is the format that does:
+ * DocxImporter reads Word files too, but only one way, and reports what a
+ * Word file holds that the book cannot (equations, tracked deletions).
  *
  * What survives: headings, paragraphs, bold, italic, strikethrough, <u>,
  * inline code, backslash escapes and line breaks, thematic breaks,
@@ -67,7 +63,7 @@ class MarkdownImporter
         return $notes;
     }
 
-    public function __construct(private readonly ManuscriptWriter $writer) {}
+    public function __construct(private readonly ChapterAppender $chapters) {}
 
     /**
      * Split on H1/H2 and create one section per heading.
@@ -90,36 +86,10 @@ class MarkdownImporter
             return $report;
         }
 
-        DB::transaction(function () use ($book, $chunks, $userId, $report) {
-            // Append after whatever is already in the binder rather than
-            // replacing it: import must never destroy existing work.
-            $position = (int) $book->sections()->max('position');
-
-            foreach ($chunks as $chunk) {
-                $position += ManuscriptSection::POSITION_STEP;
-
-                $section = $book->sections()->create([
-                    'type' => 'chapter',
-                    'title' => $chunk['title'],
-                    'position' => $position,
-                ]);
-
-                $doc = $this->toProseMirror($chunk['body'], $report);
-
-                // Through the normal writer so the import is versioned like
-                // any other write, and is therefore revertible.
-                $this->writer->save(
-                    section: $section,
-                    content: $doc,
-                    reason: 'import',
-                    userId: $userId,
-                );
-
-                $report->sections++;
-            }
-        });
-
-        $book->refresh()->recalculateWordCount();
+        $this->chapters->append($book, array_map(fn ($chunk) => [
+            'title' => $chunk['title'],
+            'doc' => $this->toProseMirror($chunk['body'], $report),
+        ], $chunks), $userId, $report);
 
         return $report;
     }
