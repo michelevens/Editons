@@ -71,6 +71,10 @@ it('grants nothing on a plan with no allowance', function () {
 });
 
 it('lets a brand new account run an editor without being topped up', function () {
+    // A provider review is charged; the suite's FakeDriver is sample output
+    // and is not (ReviewBillingTest).
+    useChargingDriver();
+
     // The failure this exists to prevent: a new author signs up, is on a plan
     // that says it includes credits, and is told they cannot afford anything.
     $user = User::factory()->create(['plan' => 'author']);

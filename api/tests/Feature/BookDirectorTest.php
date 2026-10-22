@@ -400,13 +400,26 @@ it('serves a repeat call from cache until the book changes', function () {
         fn ($n) => directedChapter($book, "Chapter {$n}", 2000, $n * 10, 'The practice that lasts is built slowly.'),
     );
 
+    // Counts its own runs. Bound before the first request: the route keeps
+    // the controller (and what it was built with) between test requests.
+    $director = new class extends BookDirector
+    {
+        public int $runs = 0;
+
+        public function review(Book $book): array
+        {
+            $this->runs++;
+
+            return parent::review($book);
+        }
+    };
+    app()->instance(BookDirector::class, $director);
+
     $first = $this->actingAs($user)->getJson("/books/{$book->id}/direct")->json();
+    expect($director->runs)->toBe(1);
 
-    $spy = Mockery::spy(BookDirector::class);
-    app()->instance(BookDirector::class, $spy);
-
-    expect($this->actingAs($user)->getJson("/books/{$book->id}/direct")->json())->toBe($first);
-    $spy->shouldNotHaveReceived('review');
+    expect($this->actingAs($user)->getJson("/books/{$book->id}/direct")->json())->toBe($first)
+        ->and($director->runs)->toBe(1);
 
     // An edit anywhere in the book is a new fingerprint, so a new review.
     app(ManuscriptWriter::class)->save(
@@ -419,7 +432,7 @@ it('serves a repeat call from cache until the book changes', function () {
     );
 
     $this->actingAs($user)->getJson("/books/{$book->id}/direct")->assertOk();
-    $spy->shouldHaveReceived('review')->once();
+    expect($director->runs)->toBe(2);
 });
 
 it('changes the fingerprint with content, order and type but not with a read', function () {
