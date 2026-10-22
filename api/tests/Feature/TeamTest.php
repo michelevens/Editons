@@ -302,3 +302,23 @@ it('does not show a book whose invitation is still pending', function () {
 
     expect($titles)->not->toContain('Not Yet');
 });
+
+it('does not show the name behind an invited address until it is accepted', function () {
+    // Inviting an address that has an account links the row to that user,
+    // and the team list used to show their name straight away: a way to
+    // look up who owns any email address.
+    $owner = User::factory()->create(['plan' => 'author']);
+    User::factory()->create(['email' => 'known@example.com', 'name' => 'Hidden Name']);
+    $book = Book::factory()->for($owner)->create();
+
+    $this->actingAs($owner)
+        ->postJson("/books/{$book->id}/members", ['email' => 'known@example.com', 'role' => 'viewer'])
+        ->assertCreated()
+        ->assertJsonMissing(['name' => 'Hidden Name']);
+
+    $book->members()->first()->update(['status' => 'active']);
+
+    $this->actingAs($owner)
+        ->getJson("/books/{$book->id}/members")
+        ->assertJsonFragment(['name' => 'Hidden Name']);
+});
