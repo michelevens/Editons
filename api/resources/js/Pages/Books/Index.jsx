@@ -1,5 +1,6 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import Icon from '@/Components/Studio/Icon';
+import ImportDialog from '@/Components/Studio/ImportDialog';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -21,6 +22,7 @@ export default function Index({
 }) {
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
+    const [importing, setImporting] = useState(false);
 
     const totalWords = books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
 
@@ -79,13 +81,34 @@ export default function Index({
                      * form is the right default for most people here.
                      */}
                     {canCreate && !creating && (
-                        <button
-                            data-a="books:quick"
-                            onClick={() => router.get(route('books.quick'))}
-                            className="mt-2.5 text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
-                        >
-                            Or just start writing
-                        </button>
+                        <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
+                            <button
+                                data-a="books:quick"
+                                onClick={() => router.get(route('books.quick'))}
+                                className="text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
+                            >
+                                Or just start writing
+                            </button>
+                            <button
+                                data-a="books:import"
+                                onClick={() => setImporting(true)}
+                                className="text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
+                            >
+                                Or import a manuscript
+                            </button>
+                        </div>
+                    )}
+
+                    {importing && (
+                        <ImportDialog
+                            title="Import a manuscript"
+                            hint="A Markdown (.md) or Word (.docx) manuscript becomes a new book, one chapter per top-level heading. A .ecrivain file comes back as the book it was exported from."
+                            url="/books/import"
+                            accept=".md,.markdown,.txt,.docx,.ecrivain"
+                            doneLabel="Open the book"
+                            onClose={() => setImporting(false)}
+                            onDone={(result) => router.visit(result.book.url)}
+                        />
                     )}
 
                     {!canCreate && (

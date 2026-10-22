@@ -12,6 +12,7 @@ import CreditStrip from '@/Components/Studio/CreditStrip';
 import CoachStrip from '@/Components/Studio/CoachStrip';
 import CoverPanel from '@/Components/Studio/CoverPanel';
 import EditionsPanel from '@/Components/Studio/EditionsPanel';
+import ImportDialog from '@/Components/Studio/ImportDialog';
 import LaunchPanel from '@/Components/Studio/LaunchPanel';
 import LockedPanel from '@/Components/Studio/LockedPanel';
 import MarketingPanel from '@/Components/Studio/MarketingPanel';
@@ -64,6 +65,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const [running, setRunning] = useState(null);
     const [reviewProgress, setReviewProgress] = useState(null);
     const [adding, setAdding] = useState(false);
+    const [importing, setImporting] = useState(false);
     const [toast, setToast] = useState(null);
 
     // ?pane= may name a top-nav area (ai, analytics...) as well as a
@@ -596,6 +598,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         onTab={(t) => (t === 'Notes' ? go('notes') : setLeftTab(t))}
                                         onSelect={openSection}
                                         onAddChapter={addChapter}
+                                        onImport={() => setImporting(true)}
                                         adding={adding}
                                     />
                                 </div>
@@ -683,6 +686,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 setBinderOpen(false);
                             }}
                             onAddChapter={addChapter}
+                            onImport={() => {
+                                setBinderOpen(false);
+                                setImporting(true);
+                            }}
                             adding={adding}
                         />
                     </div>
@@ -706,6 +713,20 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         <AIEditorPanel {...panelProps} />
                     </div>
                 </div>
+            )}
+
+            {importing && (
+                <ImportDialog
+                    title="Import chapters"
+                    hint="A Markdown (.md) or Word (.docx) file. Its chapters are added after the ones already here; nothing is replaced."
+                    url={`/books/${book.id}/import`}
+                    accept=".md,.markdown,.txt,.docx"
+                    onClose={() => setImporting(false)}
+                    onDone={() => {
+                        setImporting(false);
+                        router.reload();
+                    }}
+                />
             )}
 
             {toast && (

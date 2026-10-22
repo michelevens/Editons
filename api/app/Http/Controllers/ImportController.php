@@ -104,7 +104,7 @@ class ImportController extends Controller
             });
 
             return response()->json([
-                'book' => ['id' => $book->id, 'title' => $book->title, 'url' => route('books.edit', $book)],
+                'book' => ['id' => $book->id, 'title' => $book->title, 'url' => route('books.edit', $book, false)],
                 'report' => $report->toArray(),
             ], 201);
         }
