@@ -100,6 +100,8 @@ class MarkdownExporter
 
             'blockMath' => "$$\n".trim((string) ($node['attrs']['latex'] ?? ''))."\n$$",
 
+            'horizontalRule' => '---',
+
             default => '',
         };
     }
@@ -128,16 +130,28 @@ class MarkdownExporter
     private function listBlock(array $node, bool $ordered): string
     {
         $lines = [];
-        $n = 1;
+        $n = (int) ($node['attrs']['start'] ?? 1);
 
         foreach ($node['content'] ?? [] as $item) {
-            $text = trim($this->doc($item));
+            $marker = $ordered ? $n.'.' : '-';
+            $blocks = [];
+
+            foreach ($item['content'] ?? [] as $i => $child) {
+                $rendered = $this->block($child);
+
+                // The item's own text, then what is nested in it, indented
+                // under the marker and with no blank line, so the import
+                // reads it back into the same item.
+                $blocks[] = $i === 0 ? $rendered : preg_replace('/^/m', str_repeat(' ', strlen($marker) + 1), $rendered);
+            }
+
+            $text = trim(implode("\n", array_filter($blocks, fn ($block) => trim($block) !== '')));
 
             if ($text === '') {
                 continue;
             }
 
-            $lines[] = ($ordered ? $n.'.' : '-').' '.$text;
+            $lines[] = $marker.' '.$text;
             $n++;
         }
 
@@ -178,6 +192,12 @@ class MarkdownExporter
                 continue;
             }
 
+            if (($node['type'] ?? '') === 'hardBreak') {
+                $out .= "\\\n";
+
+                continue;
+            }
+
             if (($node['type'] ?? '') !== 'text') {
                 continue;
             }
@@ -187,6 +207,14 @@ class MarkdownExporter
 
             if (in_array('code', $marks, true)) {
                 $text = '`'.$text.'`';
+            }
+
+            if (in_array('underline', $marks, true)) {
+                $text = '<u>'.$text.'</u>';
+            }
+
+            if (in_array('strike', $marks, true)) {
+                $text = '~~'.$text.'~~';
             }
 
             if (in_array('italic', $marks, true)) {

@@ -3,21 +3,19 @@
 namespace App\Import;
 
 use App\Models\Book;
-use App\Models\ManuscriptSection;
-use App\Services\ManuscriptWriter;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Import a Markdown manuscript into chapters.
  *
  * ROADMAP.md Milestone 1 asks for "basic import" and a demonstrated
- * "round-trip without content loss". Markdown is the honest first format:
- * DOCX round-tripping is listed in ARCHITECTURE.md as an unresolved risk,
- * and shipping a lossy DOCX importer that silently drops footnotes and
- * tracked changes would be worse than not shipping one.
+ * "round-trip without content loss". Markdown is the format that does:
+ * DocxImporter reads Word files too, but only one way, and reports what a
+ * Word file holds that the book cannot (equations, tracked deletions).
  *
- * What survives: headings, paragraphs, bold, italic, inline code, blockquotes,
- * bullet/ordered lists, tables and fenced code blocks. What does not is REPORTED rather than discarded
+ * What survives: headings, paragraphs, bold, italic, strikethrough, <u>,
+ * inline code, backslash escapes and line breaks, thematic breaks,
+ * blockquotes, bullet/ordered lists (nested, and keeping their first number),
+ * tables, fenced code blocks, maths and footnotes. What does not is REPORTED rather than discarded
  * quietly — see ImportReport. An author who imports a 90,000-word manuscript
  * deserves to know what did not make it, not to discover it at proof stage.
  */
@@ -27,6 +25,21 @@ class MarkdownImporter
     private const CODE = "\x1ACODE\x1A";
 
     private const MATH = "\x1AMATH\x1A";
+
+    /** Stands for a backslash line break while the inline text is read. */
+    private const BREAK = "\x1E";
+
+    /**
+     * A thematic break: three or more - or *, alone on the line.
+     *
+     * Not _, which CommonMark also allows: in exercises a line of
+     * underscores is the space left for the answer, and a rule there would
+     * take it away.
+     */
+    private const RULE = '/^ {0,3}([-*])(?:[ \t]*\1){2,}[ \t]*$/';
+
+    /** The first line of a list item. */
+    private const ITEM = '/^\s*([-*+]|\d+\.)\s+/';
 
     /** Pandoc footnote definitions, label => text. */
     private array $noteDefinitions = [];
@@ -50,7 +63,7 @@ class MarkdownImporter
         return $notes;
     }
 
-    public function __construct(private readonly ManuscriptWriter $writer) {}
+    public function __construct(private readonly ChapterAppender $chapters) {}
 
     /**
      * Split on H1/H2 and create one section per heading.
@@ -73,36 +86,10 @@ class MarkdownImporter
             return $report;
         }
 
-        DB::transaction(function () use ($book, $chunks, $userId, $report) {
-            // Append after whatever is already in the binder rather than
-            // replacing it: import must never destroy existing work.
-            $position = (int) $book->sections()->max('position');
-
-            foreach ($chunks as $chunk) {
-                $position += ManuscriptSection::POSITION_STEP;
-
-                $section = $book->sections()->create([
-                    'type' => 'chapter',
-                    'title' => $chunk['title'],
-                    'position' => $position,
-                ]);
-
-                $doc = $this->toProseMirror($chunk['body'], $report);
-
-                // Through the normal writer so the import is versioned like
-                // any other write, and is therefore revertible.
-                $this->writer->save(
-                    section: $section,
-                    content: $doc,
-                    reason: 'import',
-                    userId: $userId,
-                );
-
-                $report->sections++;
-            }
-        });
-
-        $book->refresh()->recalculateWordCount();
+        $this->chapters->append($book, array_map(fn ($chunk) => [
+            'title' => $chunk['title'],
+            'doc' => $this->toProseMirror($chunk['body'], $report),
+        ], $chunks), $userId, $report);
 
         return $report;
     }
@@ -198,12 +185,26 @@ class MarkdownImporter
             return "\n\n".self::MATH.(count($math) - 1).self::MATH."\n\n";
         }, $body) ?? $body;
 
-        $blocks = preg_split('/\n{2,}/', trim($body)) ?: [];
+        $blocks = [];
+
+        foreach (preg_split('/\n{2,}/', trim($body)) ?: [] as $block) {
+            array_push($blocks, ...$this->splitBlock(trim($block, "\n")));
+        }
 
         foreach ($blocks as $block) {
+            // Leading spaces are kept until here: a nested list needs them.
+            $indented = $block;
             $block = trim($block);
 
             if ($block === '') {
+                continue;
+            }
+
+            // A thematic break: "---" between scenes, or before a new part
+            // of an exam paper. Printed literally it reads as a typo.
+            if (preg_match(self::RULE, $block)) {
+                $content[] = ['type' => 'horizontalRule'];
+
                 continue;
             }
 
@@ -257,7 +258,7 @@ class MarkdownImporter
                 continue;
             }
 
-            if (preg_match('/^(#{1,6})\s+(.*)$/s', $block, $m)) {
+            if (preg_match('/^(#{1,6})\s+(.*)$/', $block, $m)) {
                 $content[] = [
                     'type' => 'heading',
                     'attrs' => ['level' => min(strlen($m[1]), 3)],
@@ -282,8 +283,8 @@ class MarkdownImporter
                 continue;
             }
 
-            if (preg_match('/^\s*([-*+]|\d+\.)\s+/', $block)) {
-                $content[] = $this->list($block);
+            if (preg_match(self::ITEM, $block)) {
+                $content[] = $this->list($indented, $report);
 
                 continue;
             }
@@ -370,12 +371,16 @@ class MarkdownImporter
     {
         $line = preg_replace('/^\s*\|/', '', $line);
         $line = preg_replace('/(?<!\\\\)\|\s*$/', '', (string) $line);
+
+        // A bar inside a formula or code is not a column: "$|\Delta\Phi|$"
+        // was cut into three cells, with the halves of the formula printed.
+        $line = preg_replace_callback('/(?<![\\\\$])\$[^$\s][^$]*\$|`[^`]+`/', fn ($m) => str_replace('|', "\x1F", $m[0]), (string) $line);
         $cells = preg_split('/(?<!\\\\)\|/', (string) $line) ?: [];
 
         return [
             'type' => 'tableRow',
             'content' => array_map(function (string $cell) use ($cellType) {
-                $inline = $this->inline(str_replace('\|', '|', trim($cell)));
+                $inline = $this->inline(str_replace(["\\\x1F", '\|', "\x1F"], '|', trim($cell)));
 
                 return [
                     'type' => $cellType,
@@ -385,36 +390,131 @@ class MarkdownImporter
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function list(string $block): array
+    /**
+     * Separates what Markdown lets start without a blank line before it: a
+     * heading, a thematic break, a list or a box under a line of text.
+     *
+     * Without this, "Consider the following:" followed directly by "- a"
+     * and "- b" becomes one paragraph with the dashes printed in it.
+     *
+     * @return array<int, string>
+     */
+    private function splitBlock(string $block): array
     {
-        $ordered = (bool) preg_match('/^\s*\d+\./', $block);
-        $items = [];
+        $lines = explode("\n", $block);
+        $first = ltrim($lines[0]);
 
-        foreach (explode("\n", $block) as $line) {
-            $line = preg_replace('/^\s*([-*+]|\d+\.)\s+/', '', $line);
-
-            if (trim((string) $line) === '') {
-                continue;
-            }
-
-            $items[] = [
-                'type' => 'listItem',
-                'content' => [[
-                    'type' => 'paragraph',
-                    'content' => $this->inline(trim((string) $line)),
-                ]],
-            ];
+        // A list or a box owns the lines under it; a table its rows.
+        if (count($lines) < 2 || preg_match(self::ITEM, $first) && ! preg_match(self::RULE, $first)
+            || str_starts_with($first, '>') || str_starts_with($first, '```')
+            || preg_match('/\n\s*\|?\s*:?-{2,}:?\s*\|/', $block)) {
+            return [$block];
         }
 
-        return [
-            'type' => $ordered ? 'orderedList' : 'bulletList',
-            'content' => $items,
-        ];
+        if (preg_match(self::RULE, $first) || preg_match('/^#{1,6}\s/', $first)) {
+            return [$lines[0], ...$this->splitBlock(implode("\n", array_slice($lines, 1)))];
+        }
+
+        foreach (array_slice($lines, 1, null, true) as $i => $line) {
+            // An ordered list breaks into a paragraph only when it starts at
+            // 1, as in CommonMark, so "en 2010.\n1986. ..." stays text.
+            if (preg_match(self::RULE, $line) || preg_match('/^(?:#{1,6}|[-*+]|1\.|>)\s/', $line)) {
+                return [
+                    implode("\n", array_slice($lines, 0, $i)),
+                    ...$this->splitBlock(implode("\n", array_slice($lines, $i))),
+                ];
+            }
+        }
+
+        return [$block];
     }
 
     /**
-     * Inline marks: bold, italic, code.
+     * A bullet or numbered list, with what Markdown allows inside an item:
+     * lines that continue it, and an indented list (or box) nested in it.
+     *
+     * An ordered list keeps its first number. An exam paper's question 15
+     * that came out as "1." would be wrong in the one way that matters.
+     *
+     * @return array<string, mixed>
+     */
+    private function list(string $block, ImportReport $report): array
+    {
+        $lines = explode("\n", $block);
+        $base = strlen($lines[0]) - strlen(ltrim($lines[0]));
+        $ordered = (bool) preg_match('/^\s*\d+\./', $lines[0]);
+        $items = [];
+
+        foreach ($lines as $line) {
+            $indent = strlen($line) - strlen(ltrim($line));
+
+            if ($indent <= $base + 1 && preg_match('/^\s*([-*+]|\d+\.)\s+(.*)$/', $line, $m)) {
+                $items[] = ['number' => (int) $m[1], 'text' => [$m[2]], 'nested' => []];
+
+                continue;
+            }
+
+            if ($items === []) {
+                continue;
+            }
+
+            $last = count($items) - 1;
+
+            // Indented further, a marker or a box starts blocks inside the
+            // item; anything else is the item's text running on.
+            if ($indent >= $base + 2 && ($items[$last]['nested'] !== [] || preg_match('/^\s*([-*+]\s|\d+\.\s|>|\$\$)/', $line))) {
+                $items[$last]['nested'][] = $line;
+
+                continue;
+            }
+
+            $items[$last]['text'][] = $line;
+        }
+
+        $nodes = [];
+
+        foreach ($items as $item) {
+            $inline = $this->inline(implode("\n", $item['text']));
+            $children = [];
+
+            if ($item['nested'] !== []) {
+                $cut = min(array_map(fn ($line) => strlen($line) - strlen(ltrim($line)), $item['nested']));
+                $children = $this->toProseMirror(
+                    implode("\n", array_map(fn ($line) => substr($line, $cut), $item['nested'])),
+                    $report,
+                )['content'];
+            }
+
+            if ($inline === [] && $children === []) {
+                continue;
+            }
+
+            $nodes[] = [
+                'type' => 'listItem',
+                'content' => [
+                    $inline === [] ? ['type' => 'paragraph'] : ['type' => 'paragraph', 'content' => $inline],
+                    ...$children,
+                ],
+            ];
+        }
+
+        $list = ['type' => $ordered ? 'orderedList' : 'bulletList', 'content' => $nodes];
+
+        if ($ordered && $items !== [] && $items[0]['number'] !== 1) {
+            $list['attrs'] = ['start' => $items[0]['number']];
+        }
+
+        return $list;
+    }
+
+    /**
+     * Inline Markdown: emphasis, strikethrough, underline, code, inline
+     * maths, footnote references, backslash escapes and line breaks.
+     *
+     * Emphasis follows CommonMark's delimiter rules rather than pairing
+     * asterisks left to right, because exam keys nest it constantly:
+     * "*Les seaux que Wilson a **lavés***" and "***lejos*.**" are both
+     * correct Markdown, and a regex pairing them printed stray asterisks.
      *
      * Returns an empty array for empty text rather than a text node with an
      * empty string — ProseMirror rejects empty text nodes, and producing one
@@ -424,94 +524,280 @@ class MarkdownImporter
      */
     private function inline(string $text): array
     {
+        // A backslash ending the paragraph has no line to break to; left
+        // alone it prints. Doubled, it is an escaped backslash and stays.
+        $text = preg_replace('/(?<!\\\\)\\\\\s*$/', '', $text) ?? $text;
+
         if (trim($text) === '') {
             return [];
         }
 
         // A line ending in a backslash keeps its break, as in Markdown: the
-        // lines of a poem, an address, a dialogue.
-        $lines = preg_split('/\\\\\n/', $text);
-
-        if (count($lines) > 1) {
-            $nodes = [];
-            foreach ($lines as $i => $line) {
-                if ($i > 0) {
-                    $nodes[] = ['type' => 'hardBreak'];
-                }
-                array_push($nodes, ...$this->inline($line));
-            }
-
-            return $nodes;
-        }
-
-        // Collapse the single newlines left inside a paragraph. Markdown
-        // treats them as spaces, and keeping them would add stray breaks.
+        // lines of a poem, an address, a dialogue. The other newlines in a
+        // paragraph are spaces, and keeping them would add stray breaks.
+        $text = preg_replace('/[ \t]*(?<!\\\\)\\\\\n\s*/', self::BREAK, $text) ?? $text;
         $text = preg_replace('/\s*\n\s*/', ' ', $text) ?? $text;
 
+        $items = $this->inlineTokens($text);
+        $this->pairDelimiters($items);
+        $this->pairUnderlines($items);
+
+        return $this->inlineNodes($items);
+    }
+
+    /**
+     * Cuts inline text into plain text, finished nodes (code, maths, notes,
+     * breaks) and the delimiters still to be paired.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function inlineTokens(string $text): array
+    {
         // Inline math by Pandoc's rule, so prices stay prices: the opening $
-        // is not followed by a space, the closing one not preceded by one nor
-        // followed by a digit. "$25 and $30" is text; "$x^2$" is math.
-        $pattern = '/((?<![\\\\$])\$(?P<math>[^\s$](?:[^$]*?[^\s$\\\\])?)\$(?![\d$]))|(\*\*(?P<bold>.+?)\*\*)|(\*(?P<italic>.+?)\*)|(`(?P<code>.+?)`)|(\[\^(?P<note>[^\]\s]+)\])/u';
-        $nodes = [];
+        // is not followed by a space, the closing one is not followed by a
+        // digit. "$25 and $30" is text; "$x^2$" is math.
+        $pattern = '/\\\\(?P<escape>[!-\/:-@\[-`{-~])|`(?P<code>[^`]+)`|(?<![\\\\$])\$(?P<math>[^\s$][^$]*?)\$(?![\d$])'
+            .'|\[\^(?P<note>[^\]\s]+)\]|(?P<break>'.self::BREAK.')|(?P<tag><\/?u>)|(?P<delim>\*+|~~)/u';
+        $items = [];
+        $buffer = '';
         $offset = 0;
 
-        preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
+        $flush = function () use (&$items, &$buffer) {
+            if ($buffer !== '') {
+                $items[] = ['text' => $buffer, 'marks' => []];
+                $buffer = '';
+            }
+        };
 
-        foreach ($matches as $m) {
+        while (preg_match($pattern, $text, $m, PREG_OFFSET_CAPTURE | PREG_UNMATCHED_AS_NULL, $offset)) {
             [$whole, $at] = $m[0];
+            $buffer .= substr($text, $offset, $at - $offset);
+            $offset = $at + strlen($whole);
 
-            if ($at > $offset) {
-                $nodes[] = ['type' => 'text', 'text' => substr($text, $offset, $at - $offset)];
+            if ($m['escape'][0] !== null) {
+                // Escaped, a * or _ is a character, never a delimiter:
+                // "\_\_\_" is the blank of a fill-in exercise.
+                $buffer .= $m['escape'][0];
+
+                continue;
             }
 
-            if (($m['note'][0] ?? '') !== '' && $m['note'][1] >= 0) {
+            if ($m['math'][0] !== null) {
+                $latex = $m['math'][0];
+
+                // "$AN = 0{,}75 \times 8 = $ 6 cm": Pandoc refuses a closing
+                // $ after a space, which left the formula printed as code.
+                // Taken as maths when it can only be maths.
+                if (preg_match('/\s$/', $latex) && ! preg_match('/\\\\[a-zA-Z]+|[=^_{}]/', $latex) || str_ends_with($latex, '\\')) {
+                    $buffer .= '$';
+                    $offset = $at + 1;
+
+                    continue;
+                }
+
+                $flush();
+                $items[] = ['node' => ['type' => 'inlineMath', 'attrs' => ['latex' => rtrim($latex)]]];
+
+                continue;
+            }
+
+            if ($m['note'][0] !== null) {
                 // A reference with no definition stays as typed: inventing
                 // an empty note would hide that something is missing.
-                $nodes[] = isset($this->noteDefinitions[$m['note'][0]])
+                $flush();
+                $items[] = ['node' => isset($this->noteDefinitions[$m['note'][0]])
                     ? ['type' => 'footnote', 'attrs' => ['text' => $this->noteDefinitions[$m['note'][0]]]]
-                    : ['type' => 'text', 'text' => $whole];
-                $offset = $at + strlen($whole);
+                    : ['type' => 'text', 'text' => $whole]];
 
                 continue;
             }
 
-            if (($m['math'][0] ?? '') !== '' && $m['math'][1] >= 0) {
-                $nodes[] = ['type' => 'inlineMath', 'attrs' => ['latex' => $m['math'][0]]];
-                $offset = $at + strlen($whole);
+            $flush();
 
-                continue;
-            }
-
-            [$value, $mark] = match (true) {
-                ($m['bold'][0] ?? '') !== '' => [$m['bold'][0], 'bold'],
-                ($m['italic'][0] ?? '') !== '' => [$m['italic'][0], 'italic'],
-                default => [$m['code'][0] ?? '', 'code'],
-            };
-
-            if ($value !== '' && $mark !== 'code' && str_contains($value, '$')) {
-                // Bold or italic around a formula ("**$V$, the nodes.**"):
-                // read the inside too, and mark its text, so the formula
-                // is typeset rather than shown as dollar signs.
-                foreach ($this->inline($value) as $inner) {
-                    if ($inner['type'] === 'text') {
-                        $inner['marks'] = array_merge($inner['marks'] ?? [], [['type' => $mark]]);
-                    }
-
-                    $nodes[] = $inner;
-                }
-            } elseif ($value !== '') {
-                $nodes[] = [
-                    'type' => 'text',
-                    'text' => $value,
-                    'marks' => [['type' => $mark]],
+            if ($m['code'][0] !== null) {
+                // Code takes no other mark: the editor's code mark excludes
+                // them all, and would drop them on load.
+                $items[] = ['node' => ['type' => 'text', 'text' => $m['code'][0], 'marks' => [['type' => 'code']]]];
+            } elseif ($m['break'][0] !== null) {
+                $items[] = ['node' => ['type' => 'hardBreak']];
+            } elseif ($m['tag'][0] !== null) {
+                $items[] = ['tag' => $whole, 'marks' => []];
+            } else {
+                [$open, $close] = $this->flanking($text, $at, strlen($whole));
+                $items[] = [
+                    'delim' => $whole[0],
+                    'count' => strlen($whole),
+                    'length' => strlen($whole),
+                    'open' => $open,
+                    'close' => $close,
+                    'active' => true,
+                    'marks' => [],
                 ];
             }
-
-            $offset = $at + strlen($whole);
         }
 
-        if ($offset < strlen($text)) {
-            $nodes[] = ['type' => 'text', 'text' => substr($text, $offset)];
+        $buffer .= substr($text, $offset);
+        $flush();
+
+        return $items;
+    }
+
+    /**
+     * Whether a run of delimiters can open and close emphasis: CommonMark's
+     * left- and right-flanking rules, which look at the characters around it.
+     *
+     * @return array{0: bool, 1: bool}
+     */
+    private function flanking(string $text, int $at, int $length): array
+    {
+        $before = $at > 0 ? mb_substr(substr($text, max(0, $at - 4), min(4, $at)), -1) : ' ';
+        $after = $at + $length < strlen($text) ? mb_substr(substr($text, $at + $length, 4), 0, 1) : ' ';
+
+        $space = fn (string $c) => $c === self::BREAK || (bool) preg_match('/^[\s\p{Zs}]$/u', $c);
+        $punctuation = fn (string $c) => (bool) preg_match('/^[\p{P}\p{S}]$/u', $c);
+
+        // Closing after an apostrophe or a Spanish ¿ ¡ is allowed, as if
+        // they were letters. CommonMark refuses it, so "**N'**as-tu",
+        // "**qu'**il" and "**¿**Qué" were not bold; in French and Spanish
+        // prose they plainly are. Opening after one ("d'**« titre »**") is
+        // CommonMark's rule unchanged.
+        $closesAfter = ! in_array($before, ["'", '’', '¿', '¡'], true) && $punctuation($before);
+
+        $left = ! $space($after) && (! $punctuation($after) || $space($before) || $punctuation($before));
+        $right = ! $space($before) && (! $closesAfter || $space($after) || $punctuation($after));
+
+        return [$left, $right];
+    }
+
+    /**
+     * Pairs * and ~~ delimiters into bold, italic and strikethrough: the
+     * "process emphasis" procedure of CommonMark, closers left to right,
+     * each matched with the nearest opener that can take it.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function pairDelimiters(array &$items): void
+    {
+        foreach (array_keys($items) as $c) {
+            $closer = $items[$c];
+
+            if (! isset($closer['delim']) || ! $closer['close']) {
+                continue;
+            }
+
+            while ($items[$c]['count'] > 0) {
+                $o = null;
+
+                for ($i = $c - 1; $i >= 0; $i--) {
+                    $opener = $items[$i];
+
+                    if (! isset($opener['delim']) || ! $opener['active'] || ! $opener['open']
+                        || $opener['count'] === 0 || $opener['delim'] !== $closer['delim']) {
+                        continue;
+                    }
+
+                    // The rule of three: "*foo**bar*" is one emphasis, not two.
+                    if (($opener['close'] || $closer['open'])
+                        && ($opener['length'] + $closer['length']) % 3 === 0
+                        && ($opener['length'] % 3 !== 0 || $closer['length'] % 3 !== 0)) {
+                        continue;
+                    }
+
+                    $o = $i;
+
+                    break;
+                }
+
+                if ($o === null) {
+                    break;
+                }
+
+                $use = $closer['delim'] === '~' || ($items[$o]['count'] >= 2 && $items[$c]['count'] >= 2) ? 2 : 1;
+                $mark = $closer['delim'] === '~' ? 'strike' : ($use === 2 ? 'bold' : 'italic');
+
+                for ($k = $o + 1; $k < $c; $k++) {
+                    $items[$k]['marks'][$mark] = true;
+
+                    // Delimiters inside a pair can no longer pair outside it.
+                    if (isset($items[$k]['delim'])) {
+                        $items[$k]['active'] = false;
+                    }
+                }
+
+                $items[$o]['count'] -= $use;
+                $items[$c]['count'] -= $use;
+            }
+        }
+    }
+
+    /**
+     * <u>…</u>, the one HTML tag exam papers use for formatting: "the
+     * underlined word" is what half their questions point at.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function pairUnderlines(array &$items): void
+    {
+        $open = [];
+
+        foreach ($items as $i => $item) {
+            if (($item['tag'] ?? null) === '<u>') {
+                $open[] = $i;
+            } elseif (($item['tag'] ?? null) === '</u>' && $open !== []) {
+                $from = array_pop($open);
+
+                for ($k = $from + 1; $k < $i; $k++) {
+                    $items[$k]['marks']['underline'] = true;
+                }
+
+                $items[$from]['tag'] = $items[$i]['tag'] = '';
+            }
+        }
+    }
+
+    /**
+     * Text nodes from the paired items, adjacent runs with the same marks
+     * merged. Unpaired delimiters and tags are text, as typed.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    private function inlineNodes(array $items): array
+    {
+        $nodes = [];
+
+        foreach ($items as $item) {
+            if (isset($item['node'])) {
+                $nodes[] = $item['node'];
+
+                continue;
+            }
+
+            $text = match (true) {
+                isset($item['delim']) => str_repeat($item['delim'], $item['count']),
+                isset($item['tag']) => $item['tag'],
+                default => $item['text'],
+            };
+
+            if ($text === '') {
+                continue;
+            }
+
+            $marks = array_values(array_map(
+                fn ($type) => ['type' => $type],
+                array_filter(['bold', 'italic', 'strike', 'underline'], fn ($type) => isset($item['marks'][$type])),
+            ));
+
+            $last = count($nodes) - 1;
+
+            if ($last >= 0 && $nodes[$last]['type'] === 'text' && ($nodes[$last]['marks'] ?? []) === $marks
+                && ! in_array(['type' => 'code'], $marks, true)) {
+                $nodes[$last]['text'] .= $text;
+
+                continue;
+            }
+
+            $nodes[] = $marks === [] ? ['type' => 'text', 'text' => $text] : ['type' => 'text', 'text' => $text, 'marks' => $marks];
         }
 
         return $nodes;

@@ -24,6 +24,7 @@ export default function ManuscriptOutline({
     onTab,
     onSelect,
     onAddChapter,
+    onImport,
     adding,
 }) {
     const [query, setQuery] = useState('');
@@ -139,6 +140,18 @@ export default function ManuscriptOutline({
                         >
                             <Icon name="plus" size={15} strokeWidth={2} />
                         </button>
+
+                        {onImport && (
+                            <button
+                                data-a="outline:import"
+                                onClick={onImport}
+                                aria-label="Import chapters from a file"
+                                title="Import chapters (Markdown or Word)"
+                                className="grid h-[27px] w-[27px] shrink-0 place-items-center rounded-control border border-border-input text-text-secondary transition hover:border-brand-primary hover:text-brand-primary"
+                            >
+                                <Icon name="fDoc" size={15} />
+                            </button>
+                        )}
                     </div>
 
                     {partError && (
