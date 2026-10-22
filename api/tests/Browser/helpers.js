@@ -4,10 +4,67 @@ import { expect } from '@playwright/test';
  * Shared browser-test helpers.
  */
 
+/**
+ * The suite's own account, provisioned by global-setup.js before the run.
+ *
+ * Never a default: falling back to test@editons.local is how the suite came
+ * to rewrite a real manuscript on the local shelf.
+ */
 export const DEMO = {
-    email: process.env.DEMO_EMAIL ?? 'test@editons.local',
-    password: process.env.DEMO_PASSWORD ?? 'password',
+    get email() {
+        return required('E2E_EMAIL');
+    },
+    get password() {
+        return required('E2E_PASSWORD');
+    },
 };
+
+function required(name) {
+    const value = process.env[name];
+
+    if (!value) {
+        throw new Error(`${name} is not set. Run the suite through playwright.config.js, whose global setup provisions the e2e account.`);
+    }
+
+    return value;
+}
+
+/**
+ * Change a persisted setting for the length of one test, then put it back.
+ *
+ * A test that switched autosave off and left it off made every later editor
+ * test sit at "Unsaved changes". `change` does the toggling and returns
+ * whatever `restore` needs; `restore` runs even when the test fails.
+ */
+export async function withSetting(change, restore, body) {
+    const previous = await change();
+
+    try {
+        await body(previous);
+    } finally {
+        await restore(previous);
+    }
+}
+
+/** The assistance level currently chosen on a book's guided screen. */
+export async function currentAssistance(page, id) {
+    await page.goto(`/books/${id}/guided`);
+
+    const pressed = page.locator('[data-a^="guided:assist:"][aria-pressed="true"]');
+
+    if ((await pressed.count()) === 0) return null;
+
+    return (await pressed.first().getAttribute('data-a')).replace('guided:assist:', '');
+}
+
+/** Choose an assistance level on a book's guided screen. */
+export async function chooseAssistance(page, id, level) {
+    if (!level) return;
+
+    await page.goto(`/books/${id}/guided`);
+    await page.click(`[data-a="guided:assist:${level}"]`);
+    await expect(page.locator(`[data-a="guided:assist:${level}"]`)).toHaveAttribute('aria-pressed', 'true');
+}
 
 /**
  * Collect console errors and failed requests for the life of a page.
@@ -71,6 +128,28 @@ export function ignoring(errors, ...patterns) {
     return errors.filter(
         (error) => !patterns.some((pattern) => error.includes(pattern)),
     );
+}
+
+/**
+ * Register a brand-new author through the real form and stay signed in.
+ *
+ * For tests about what a new account sees, such as the new-book form: they
+ * must not depend on how many books some shared account happens to hold
+ * (the seeded demo shelf was over its plan's limit, so "New book" was
+ * disabled and these failed on every run).
+ */
+export async function registerFreshAuthor(page) {
+    const email = `e2e-new-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
+
+    await page.goto('/register');
+    await page.fill('#name', 'E2E Author');
+    await page.fill('#email', email);
+    await page.fill('#password', 'correct-horse-battery');
+    await page.fill('#password_confirmation', 'correct-horse-battery');
+    await page.click('button[type="submit"]');
+    await page.waitForURL((url) => !url.pathname.endsWith('/register'));
+
+    return email;
 }
 
 /** Sign in through the real form, so the session is the one a user gets. */

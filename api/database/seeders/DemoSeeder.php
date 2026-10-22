@@ -29,6 +29,19 @@ class DemoSeeder extends Seeder
 
     public const LOCAL_PASSWORD = 'password';
 
+    /**
+     * The demo account's plan. It must hold every book seeded here with room
+     * for a visitor to start one more: on Author (10 books) the nine sample
+     * theses and three demo books put it at 12, "New book" was disabled, and
+     * the browser suite's new-book tests failed on every run. Studio has no
+     * book limit, and lets a visitor try every agent the samples are for.
+     * DemoBookTest holds the two to each other.
+     */
+    public const PLAN = 'studio';
+
+    /** The demo books seeded besides the sample theses. */
+    public const DEMO_BOOKS = 3;
+
     public function run(): void
     {
         [$email, $password] = $this->credentials();
@@ -45,7 +58,7 @@ class DemoSeeder extends Seeder
         $user->name = 'Demo Author';
         $user->password = Hash::make($password);
         $user->email_verified_at = now();
-        $user->plan = 'author';
+        $user->plan = self::PLAN;
         $user->save();
 
         // Reset to a known starting state. forceDelete because the books are

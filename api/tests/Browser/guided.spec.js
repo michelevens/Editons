@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
+    chooseAssistance,
+    currentAssistance,
     expectRendered,
     expectSurvives,
     firstBookId,
@@ -89,15 +91,23 @@ test.describe('guided journey', () => {
 
         await signIn(page);
         const id = await firstBookId(page);
-        await page.goto(`/books/${id}/guided`);
-        await expectRendered(page);
+        const before = await currentAssistance(page, id);
 
-        await expectSurvives(page, () => page.click('[data-a="guided:assist:coach"]'));
+        try {
+            await page.goto(`/books/${id}/guided`);
+            await expectRendered(page);
 
-        await expect(page.locator('[data-a="guided:assist:coach"]')).toHaveAttribute(
-            'aria-pressed',
-            'true',
-        );
+            await expectSurvives(page, () => page.click('[data-a="guided:assist:coach"]'));
+
+            await expect(page.locator('[data-a="guided:assist:coach"]')).toHaveAttribute(
+                'aria-pressed',
+                'true',
+            );
+        } finally {
+            // Coaching changes what the editor shows; later tests expect the
+            // book as it was.
+            await chooseAssistance(page, id, before);
+        }
 
         expect(errors).toEqual([]);
     });
