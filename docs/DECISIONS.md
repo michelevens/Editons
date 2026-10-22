@@ -696,3 +696,72 @@ also needed a series page, anonymous books and Haitian legal deposit.
 - *Not in this change.* The renderers (`PrintBook`, `Exporter`,
   `DocumentRenderer`) were being rewritten in parallel and are untouched;
   `docs/INTEGRATION-book-parts.md` says how they adopt the plan.
+
+## ADR-00XX — Direct sales: storefront, Stripe Checkout, fulfilment, royalties
+
+*Number to be assigned at merge.*
+
+**Context.** The final acceptance path ends with "create a sales product,
+complete an authorized checkout, view sales analytics", and the audit found
+none of it: no product, order or license model, no checkout route, and a
+sales screen that could only ever say zero. Stripe keys are empty locally and
+in production, and nothing may call Stripe for real while building it.
+
+**Decisions.**
+
+- *Feature flag.* `config('commerce.enabled')` defaults to "Stripe keys are
+  set"; `COMMERCE_ENABLED` overrides it. `App\Commerce\Commerce::enabled()`
+  also refuses the fake gateway in production, so a stray flag cannot hand
+  out books without payment. Every storefront route 404s while it is off.
+- *Products.* One per book (an edition is its own book): price in minor
+  units, currency (usd/eur/cad/gbp), formats (`epub`, `pdf`), license
+  (personal/household/classroom, terms in `config/commerce.php`), published
+  or not. Owner only (`BookPolicy::manage`). Publishing needs a price Stripe
+  accepts and a ready export of each format; buyers get the latest ready
+  export of that format at download time.
+- *Storefront.* Public Inertia pages under `/store`: a book page per product
+  slug and an author shelf per opaque `users.store_handle`. The only name
+  ever printed is the book's own `author_name` — never the account's name,
+  e-mail or the cover's author. A book without one shows no name, has no
+  shelf link, and is left off every shelf, so it is never tied to a name.
+  Descriptions are stripped of tags on save and rendered as text.
+- *Payment provider seam.* `App\Commerce\Gateway\PaymentGateway` has one
+  method, `createCheckoutSession`. `StripeGateway` uses Cashier's client
+  (guest Checkout, inline `price_data`, order id in session and payment
+  intent metadata, an idempotency key per order); `FakeGateway` never makes a
+  network call and points at a local test-checkout page that completes the
+  order through the same fulfilment code.
+- *Orders.* A pending order and its items (title, formats, license type and
+  price copied) exist before the session. Only a signed webhook marks one
+  paid: `checkout.session.completed` / `async_payment_succeeded` (amount and
+  currency must match the order), `checkout.session.expired`, and
+  `charge.refunded` (cumulative `amount_refunded`, so the delta is the
+  refund). Handlers live on `StripeWebhookController`, behind the signature
+  check from ADR-0019. Idempotency is twofold: each event id is claimed in
+  `processed_webhooks` (released if the work throws), and fulfilment checks
+  the order's state under a row lock.
+- *Licenses and downloads.* A license per order item; a full refund revokes
+  it. Download links are `URL::temporarySignedRoute` signed over the path
+  (`signed:relative`, so they work on app. and api. alike), expiring after
+  `COMMERCE_DOWNLOAD_LINK_HOURS` (72), and the license is re-checked on every
+  download. A missing export file is re-queued and the buyer told to retry.
+  Signed-in buyers get fresh links at `/purchases`; the success page shows
+  links only to the browser session that started that checkout.
+- *Revenue.* Gross, an estimated Stripe fee (2.9% + 30¢, configurable,
+  labelled an estimate), net, and royalty = net less `COMMERCE_PLATFORM_RATE`
+  (0). Stripe keeps its fee on refunds, so royalty after a refund is
+  proportional to what is left of the net, floored at zero.
+  `App\Commerce\SalesReport` scopes everything to `seller_id`: per currency,
+  per product, per day (sales and refunds), recent orders with the buyer's
+  country only. A co-editor who can view the book sees store terms but not
+  the money.
+- *Email.* `Notify::orderReceipt` and `Notify::newSale` after a fulfilment
+  commits, `Notify::refundProcessed` per refunded amount,
+  `commerce:royalty-statements` for the monthly statement (recorded per
+  author, month and currency, so a re-run sends nothing), and
+  `App\Billing\SubscriptionEmails` on Cashier's `WebhookHandled` for the
+  subscription emails, claiming each event id once.
+
+**Not done.** Paying authors out (Stripe Connect or manual payouts), tax
+collection (Stripe Tax), carts with several products, and plan or credit-pack
+checkout on the Billing screen are separate work.

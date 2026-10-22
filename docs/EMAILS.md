@@ -82,16 +82,16 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Submitted to stores | `Publishing\SubmittedToStoresMail` | publishing | queued | Helper `Notify::submittedToStores($book, $channelKeys)` |
 | Book live | `Publishing\BookLiveMail` | publishing | queued | Helper `Notify::bookLive($channel, $storeUrl)` |
 | Book unpublished | `Publishing\BookUnpublishedMail` | publishing | queued | Helper `Notify::bookUnpublished($channel)` |
-| Subscription started / receipt | `Billing\SubscriptionReceiptMail` | billing | queued | Helper `Notify::subscriptionReceipt(...)` |
-| Payment failed | `Billing\PaymentFailedMail` | billing | queued | Helper `Notify::paymentFailed(...)` |
-| Plan changed | `Billing\PlanChangedMail` | billing | queued | Helper `Notify::planChanged(...)` |
-| Subscription cancelled | `Billing\SubscriptionCancelledMail` | billing | queued | Helper `Notify::subscriptionCancelled(...)` |
-| Trial ending | `Billing\TrialEndingMail` | billing | queued | Helper `Notify::trialEnding(...)` |
+| Subscription started / receipt | `Billing\SubscriptionReceiptMail` | billing | queued | **Wired**: `invoice.payment_succeeded` → `App\Billing\SubscriptionEmails` |
+| Payment failed | `Billing\PaymentFailedMail` | billing | queued | **Wired**: `invoice.payment_failed` → `App\Billing\SubscriptionEmails` |
+| Plan changed | `Billing\PlanChangedMail` | billing | queued | **Wired**: `customer.subscription.updated` (price changed) → `App\Billing\SubscriptionEmails` |
+| Subscription cancelled | `Billing\SubscriptionCancelledMail` | billing | queued | **Wired**: `customer.subscription.updated` (cancel at period end) or `.deleted` (immediate) → `App\Billing\SubscriptionEmails` |
+| Trial ending | `Billing\TrialEndingMail` | billing | queued | **Wired**: `customer.subscription.trial_will_end` → `App\Billing\SubscriptionEmails` |
 | AI credits running low | `Billing\CreditsLowMail` | billing | queued | **Wired**: `CreditTransactionObserver` — the spend that crosses 15% of the monthly allowance, once a month |
-| Order receipt (buyer) | `Commerce\OrderReceiptMail` | receipts | queued | Helper `Notify::orderReceipt(...)` |
-| New sale (author) | `Commerce\NewSaleMail` | sales | queued | Helper `Notify::newSale(...)` |
-| Refund processed | `Commerce\RefundProcessedMail` | receipts | queued | Helper `Notify::refundProcessed(...)` |
-| Royalty statement | `Commerce\RoyaltyStatementMail` | billing | queued | Helper `Notify::royaltyStatement(...)` |
+| Order receipt (buyer) | `Commerce\OrderReceiptMail` | receipts | queued | **Wired**: order fulfilled (`App\Commerce\Fulfilment::checkoutCompleted`) |
+| New sale (author) | `Commerce\NewSaleMail` | sales | queued | **Wired**: order fulfilled, to each seller |
+| Refund processed | `Commerce\RefundProcessedMail` | receipts | queued | **Wired**: `charge.refunded` (`Fulfilment::chargeRefunded`), once per refunded amount |
+| Royalty statement | `Commerce\RoyaltyStatementMail` | billing | queued | **Command**: `commerce:royalty-statements` (not scheduled; one per author, month and currency, ever) |
 
 ## Call sites to wire after merge
 
@@ -140,7 +140,9 @@ These files are being rewritten in other branches, so this branch does not touch
 
    Not wired now on purpose: both run inside the request while the author watches the panel fill, and an email about what is already on screen is noise.
 
-### Stripe / Cashier webhooks (billing branch)
+### Stripe / Cashier webhooks — wired
+
+Done in `App\Billing\SubscriptionEmails`, a `WebhookHandled` listener registered in `MailServiceProvider` that claims each event id once in `processed_webhooks`. `StripeWebhookController` acknowledges `invoice.payment_failed` and `customer.subscription.trial_will_end` so that Cashier fires `WebhookHandled` for them. The notes below are what it implements.
 
 Resolve the user with `Laravel\Cashier\Cashier::findBillable($payload['data']['object']['customer'])`. Amounts are Stripe's integer minor units.
 
@@ -154,7 +156,9 @@ Resolve the user with `Laravel\Cashier\Cashier::findBillable($payload['data']['o
 
 A listener on `Laravel\Cashier\Events\WebhookHandled` is the least invasive place for all five; Stripe retries webhooks, so guard each send with the event id (for example a `processed_webhooks` row) to avoid duplicates.
 
-### Commerce (storefront branch)
+### Commerce — wired
+
+Done in `App\Commerce\Fulfilment` and `commerce:royalty-statements`. The receipt's items carry `downloads: [{detail, url}]`, one signed expiring link per format. `sellerName` is the book's `author_name` only, never the account's name, so an anonymous book's receipt names the store.
 
 | Moment | Call |
 | --- | --- |
