@@ -696,3 +696,49 @@ also needed a series page, anonymous books and Haitian legal deposit.
 - *Not in this change.* The renderers (`PrintBook`, `Exporter`,
   `DocumentRenderer`) were being rewritten in parallel and are untouched;
   `docs/INTEGRATION-book-parts.md` says how they adopt the plan.
+
+## ADR-00XX — Chapter order, plan limits, finding states and sample reviews
+
+*Number to be assigned at merge.*
+
+**Context.** The October audit's journey and data passes found: no way to
+reorder chapters; Editions creating unlimited books past the Free plan's
+limit; denormalised word counts left at 0 by the scaffold and by editions;
+an applied AI fix re-markable as "dismissed" while its wording stayed in the
+book; editorial reviews running on `FakeDriver` in production and charging
+credits; and the whole-book Director recomputed on every panel open.
+
+**Decisions.**
+
+- *Chapter order.* `PATCH /books/{book}/sections/order` takes one level of
+  the binder (`parent_id` null for the top level) and the complete list of
+  its section ids in the new order. `Anatomy::arrange()` rewrites positions
+  in `POSITION_STEP`s with the rows locked, sharing `renumber()` with the
+  conventional reorder. A list that does not name exactly the current
+  siblings is a 409, never a guess: a stale binder cannot drop a chapter to
+  the end or move one into another part. Moving between parts is not this
+  endpoint. The binder offers drag-and-drop, move up/down buttons and
+  Alt+ArrowUp/ArrowDown, announced to screen readers.
+- *Plan limit.* The limit counts active (non-archived) owned books, editions
+  included, which is what the shelf's "Archive one" has always promised.
+  Editions are refused at the limit like New book and Import, and restoring
+  an archived book is held to the same limit.
+- *Word counts.* A section created with content counts its words
+  (`ManuscriptSection::creating`); the scaffold and every edition
+  recalculate the book's total; a migration recounts existing rows.
+- *Finding states.* `open → accepted | dismissed` only. An accepted fix
+  leaves that state only through a real undo (`SuggestionApplier::undo`):
+  back to the snapshot the fix replaced when nothing was saved since,
+  otherwise the replacement alone when it is still there once, otherwise
+  409 and the author uses History. The undo is a `restore` version.
+- *Sample reviews.* Drivers marked `SimulatesReview` (FakeDriver) are never
+  charged, need no balance, and their findings carry `simulated: true`; the
+  studio labels them "Sample output … no credits". `DriverFactory::
+  simulated()` answers from config without building a client.
+- *Director cache.* `/books/{id}/direct` is cached under the book id and
+  `ManuscriptMemory::fingerprint()`, a hash the database computes over every
+  section's content, title, count, type, order and parent and the book type.
+- *Demo account.* Seeded on Studio: Author's 10 books cannot hold the nine
+  sample theses and three demo books with room for one more. The browser
+  suite provisions its own throwaway account (`tests/Browser/global-setup.js`)
+  and puts back any setting it changes.

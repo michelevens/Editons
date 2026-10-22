@@ -22,6 +22,12 @@ Create one workspace for writing, editing, researching, designing, exporting, an
 3. Follow [Implementation roadmap](docs/ROADMAP.md).
 4. Give Claude Code [the implementation brief](CLAUDE.md).
 
+## Operations
+
+- **Health check: `GET /up`.** Laravel's built-in health route (`health: '/up'` in `api/bootstrap/app.php`). It answers `200` once the framework boots, needs no session or sign-in, and is exempt from the HTTPS redirect (`ForceHttps`), because Railway probes the container over plain HTTP. Set it as the healthcheck path on the web services (`ecrivain-app`, `ecrivain-api`): service **Settings → Deploy → Healthcheck Path = `/up`**, or in config-as-code `[deploy] healthcheckPath = "/up"`. Without it Railway marks a deploy successful without probing anything. The queue worker serves no HTTP and takes no healthcheck path.
+- **Scheduled emails.** `emails:weekly-digest` exists but is deliberately not scheduled (`routes/console.php` schedules nothing); run it by hand, or add it to the schedule when the digest is wanted.
+- **Editorial driver.** `EDITORIAL_DRIVER=fake` runs heuristics, not a model. Its reviews are never charged and the studio labels them as sample output; set `EDITORIAL_DRIVER=anthropic` with `ANTHROPIC_API_KEY` for AI review.
+
 ## Guiding principles
 - Manuscript content is canonical; print/ebook layout is derived.
 - AI edits are reviewable and never silently overwrite authors' work.
