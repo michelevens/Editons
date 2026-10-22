@@ -22,12 +22,14 @@ use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\OverviewController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublishingController;
 use App\Http\Controllers\ReferencesController;
 use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
@@ -432,12 +434,62 @@ Route::middleware('auth')->group(function () {
 });
 
 /*
- | Sales & Distribution, and Royalties. Read-only: nothing reports sales yet,
- | and the screen says so rather than showing invented figures.
+ | Sales & Distribution, and Royalties. Store channels report nothing yet,
+ | and the screen says so; direct sales from the author's own storefront are
+ | real orders (App\Commerce\SalesReport).
  */
 Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/sales', [SalesController::class, 'show'])
         ->name('sales.show');
+    Route::get('/sales', [SalesController::class, 'overview'])
+        ->name('sales.overview');
+
+    // The book's product in the storefront. Owner only (BookPolicy::manage).
+    Route::get('/books/{book}/product', [ProductController::class, 'show'])
+        ->name('products.show');
+    Route::put('/books/{book}/product', [ProductController::class, 'update'])
+        ->name('products.update');
+
+    // What this account has bought, with fresh download links.
+    Route::get('/purchases', [StoreController::class, 'purchases'])
+        ->name('purchases.index');
+});
+
+/*
+ | The public storefront. No sign-in to look or to buy; every route 404s
+ | while direct sales are off (App\Commerce\Commerce). Paths under /store,
+ | so nothing here can shadow a studio route.
+ |
+ | Payment is confirmed only by Stripe's signed webhook (POST /stripe/webhook,
+ | Cashier's route, StripeWebhookController), never by these pages.
+ */
+Route::prefix('store')->name('store.')->group(function () {
+    Route::get('/checkout/success', [StoreController::class, 'success'])
+        ->name('checkout.success');
+    // The fake gateway's payment page: local development and tests only.
+    Route::get('/checkout/test/{session}', [StoreController::class, 'fakeCheckout'])
+        ->name('checkout.fake');
+    Route::post('/checkout/test/{session}', [StoreController::class, 'fakePay'])
+        ->middleware('throttle:20,1')
+        ->name('checkout.fake.pay');
+
+    // Signed over the path, expiring, and re-checked against the license.
+    Route::get('/downloads/{key}/{format}', [StoreController::class, 'download'])
+        ->middleware(['signed:relative', 'throttle:30,1'])
+        ->name('download');
+
+    Route::get('/authors/{handle}', [StoreController::class, 'author'])
+        ->name('author');
+
+    Route::get('/{product:slug}', [StoreController::class, 'product'])
+        ->name('product');
+    Route::get('/{product:slug}/cover', [StoreController::class, 'cover'])
+        ->name('cover');
+    Route::post('/{product:slug}/checkout', [StoreController::class, 'checkout'])
+        ->middleware('throttle:10,1')
+        ->name('checkout');
+    Route::get('/{product:slug}/cancelled', [StoreController::class, 'cancelled'])
+        ->name('checkout.cancelled');
 });
 
 /*

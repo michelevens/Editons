@@ -2,9 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Commerce\Commerce;
+use App\Commerce\SalesReport;
 use App\Models\Book;
 use App\Models\BookChannel;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * Sales & Distribution, and Royalties.
@@ -18,6 +23,11 @@ use Illuminate\Http\JsonResponse;
  * what each would pay per copy at the configured price — and say plainly that
  * figures appear once a store starts reporting. The store share is the
  * published rate for each one, not a guess.
+ *
+ * Direct sales are different: the author's own storefront takes real orders
+ * (App\Commerce), so those figures are real — gross, estimated payment fees,
+ * net, royalty, refunds — and only ever the owner's own. A co-editor who can
+ * view the book sees the store terms but not the money.
  */
 class SalesController extends Controller
 {
@@ -41,9 +51,17 @@ class SalesController extends Controller
         ],
     ];
 
-    public function show(Book $book): JsonResponse
+    public function show(Request $request, Book $book): JsonResponse
     {
         $this->authorize('view', $book);
+
+        // The owner's own sales of this book, and nobody else's eyes.
+        $direct = Commerce::enabled() && $request->user()->can('manage', $book)
+            ? ['product' => $book->product ? [
+                'published' => $book->product->isPublished(),
+                'url' => $book->product->isPublished() ? route('store.product', $book->product->slug) : null,
+            ] : null] + SalesReport::for($book->user, $book)
+            : null;
 
         $channels = $book->channels()->get();
         $price = (float) ($book->list_price ?? 0);
@@ -84,14 +102,47 @@ class SalesController extends Controller
                 })
                 ->values()
                 ->all(),
+            // Real orders from the author's own storefront, owner only.
+            'direct' => $direct,
             // Said once, plainly, rather than printed beside every zero.
             'reporting' => [
                 'connected' => false,
-                'message' => $live->isEmpty()
+                'message' => $live->isEmpty() && ($direct['product']['published'] ?? false)
+                    ? 'Your storefront is selling this book; its sales are real orders, shown below. '
+                        .'No other store has the book on sale yet.'
+                    : ($live->isEmpty()
                     ? 'No store has this book on sale yet. Sales and royalties appear here once one does.'
                     : 'Sales reporting is not connected yet, so the figures below are not live. '
-                        .'Each store reports on its own schedule, usually monthly.',
+                        .'Each store reports on its own schedule, usually monthly.'),
             ],
+        ]);
+    }
+
+    /**
+     * Every direct sale this author has made, across their books.
+     *
+     * Scoped to the signed-in seller: there is no parameter to point it at
+     * anybody else.
+     */
+    public function overview(Request $request): Response
+    {
+        $user = $request->user();
+
+        return Inertia::render('Sales', [
+            'enabled' => Commerce::enabled(),
+            'report' => SalesReport::for($user, null, 30),
+            'products' => $user->products()
+                ->with('book:id,title')
+                ->get()
+                ->map(fn ($product) => [
+                    'title' => $product->displayTitle(),
+                    'book_id' => $product->book_id,
+                    'published' => $product->isPublished(),
+                    'url' => $product->isPublished() ? route('store.product', $product->slug) : null,
+                    'price_cents' => $product->price_cents,
+                    'currency' => $product->currency,
+                ])
+                ->all(),
         ]);
     }
 }
