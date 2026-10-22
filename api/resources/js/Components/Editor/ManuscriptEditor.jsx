@@ -6,7 +6,7 @@ import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import ChartDialog from './ChartDialog';
 import { CrossRef, localTargets, refreshNumbering, Xref, XrefDialog } from './CrossRef';
 import { Chart } from './ChartNode';
@@ -37,7 +37,63 @@ function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
 
-export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true }) {
+/**
+ * Browsers cap the body of a request that outlives its page (keepalive) at
+ * 64 KiB across all of them. A larger chapter goes as an ordinary request,
+ * which a closing tab may cancel; the leave-page warning covers that case.
+ */
+const KEEPALIVE_LIMIT = 60_000;
+
+/** How long a chapter switch waits for the last edit to be saved. */
+const FLUSH_WAIT_MS = 4000;
+
+/** How often an edit the server refused is tried again. */
+const RETRY_MS = 15_000;
+
+/**
+ * PUT a chapter's content, and insist on the answer a save gives.
+ *
+ * A reply that is not the save's JSON is a failure, whatever its status:
+ * a PHP notice printed ahead of the JSON, a login page, a proxy's error
+ * page. Taking it as success put `undefined` in the word count, the footer
+ * threw on it, and the editor went blank.
+ */
+async function putContent(id, json, reason, keepalive) {
+    const path = `/sections/${id}/content`;
+    const body = JSON.stringify({ content: json, reason });
+    let data;
+
+    if (keepalive && body.length < KEEPALIVE_LIMIT) {
+        // fetch, because axios cannot ask for keepalive. Headers as axios
+        // would send them: the XSRF cookie's token, else the page's.
+        const xsrf = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)?.[1];
+        const response = await fetch(`${window.axios?.defaults.baseURL ?? ''}${path}`, {
+            method: 'PUT',
+            body,
+            keepalive: true,
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                ...(xsrf ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrf) } : { 'X-CSRF-TOKEN': csrfToken() }),
+            },
+        });
+
+        if (!response.ok) throw new Error(`Save refused (${response.status}).`);
+        data = await response.json();
+    } else {
+        data = (await window.axios.put(path, { content: json, reason })).data;
+    }
+
+    if (!data || typeof data !== 'object' || typeof data.word_count !== 'number') {
+        throw new Error('The server did not confirm the save.');
+    }
+
+    return data;
+}
+
+export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, ref }) {
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
     // The equation being written or edited: {kind, latex, pos} or null.
@@ -55,37 +111,94 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     const timer = useRef(null);
     const sectionId = useRef(section?.id);
     const autosaveRef = useRef(autosave);
+    const onSavedRef = useRef(onSaved);
+    // Set once the chapter's place has loaded: re-asks for it when a save
+    // may have changed the book's numbering scheme.
+    const afterSave = useRef(null);
 
     autosaveRef.current = autosave;
+    onSavedRef.current = onSaved;
 
-    // Read by the unmount flush. As an effect dependency, status re-ran that
-    // effect on every change, and its cleanup cleared the save timer just
-    // armed: a single edit (one equation, one paste) never saved, and every
-    // status change fired a spurious beacon save.
-    const statusRef = useRef(status);
-    statusRef.current = status;
+    // The edit not yet sent: {id, editor}, and {id, json} once the editor
+    // holding it is being destroyed. Its chapter id is taken when the edit
+    // is made, never when it is sent: switching chapter replaces the editor
+    // and the id, and the old flush, reading both at send time, found a
+    // destroyed editor and dropped the edit. The JSON is read when sent
+    // rather than per keystroke, which costs milliseconds on a long chapter.
+    const pending = useRef(null);
+    // Edits sent and not confirmed, by chapter id, tried again until they
+    // are. A failed save of a chapter already left is otherwise gone.
+    const unsent = useRef(new Map());
+    // Saves run one at a time, in order, so an older copy never lands last.
+    const queue = useRef(Promise.resolve());
+    const inFlight = useRef(0);
 
-    const save = useCallback(
-        async (json, reason = 'autosave') => {
-            if (!sectionId.current) return;
-            setStatus('saving');
+    const send = useCallback((id, json, reason = 'autosave', keepalive = false) => {
+        const run = async () => {
+            if (id === sectionId.current) setStatus('saving');
+            inFlight.current += 1;
+
             try {
-                const res = await window.axios.put(
-                    `/sections/${sectionId.current}/content`,
-                    { content: json, reason },
-                );
-                setWordCount(res.data.word_count);
-                setStatus('saved');
-                onSaved?.(res.data);
+                const data = await putContent(id, json, reason, keepalive);
+                // Saves run in order, so any refused copy of this chapter
+                // is older than this one and must not be sent again.
+                unsent.current.delete(id);
+
+                if (id === sectionId.current) {
+                    setWordCount(data.word_count);
+                    // Typing during the save leaves the chapter unsaved.
+                    setStatus(pending.current ? 'dirty' : unsent.current.size ? 'error' : 'saved');
+                    onSavedRef.current?.(data);
+                    afterSave.current?.();
+                }
             } catch {
                 // Deliberately not silent. A writer who believes their work
                 // is saved when it is not is the worst failure this product
-                // can have, so the footer says so and keeps saying so.
+                // can have, so the footer says so and keeps saying so, and
+                // the edit is kept to send again.
+                if (pending.current?.id !== id) unsent.current.set(id, json);
                 setStatus('error');
+            } finally {
+                inFlight.current -= 1;
             }
-        },
-        [onSaved],
-    );
+        };
+
+        queue.current = queue.current.then(run, run);
+
+        return queue.current;
+    }, []);
+
+    /**
+     * Send whatever is waiting: the pending edit and any earlier refusals.
+     * Resolves when every save queued so far has been answered.
+     */
+    const flush = useCallback(({ reason = 'autosave', keepalive = false } = {}) => {
+        clearTimeout(timer.current);
+        timer.current = null;
+
+        const edit = pending.current;
+        pending.current = null;
+
+        unsent.current.forEach((json, id) => {
+            if (edit?.id !== id) send(id, json, 'autosave', keepalive);
+        });
+
+        if (edit) {
+            const json = edit.json ?? (edit.editor.isDestroyed ? null : edit.editor.getJSON());
+
+            if (json) send(edit.id, json, reason, keepalive);
+        }
+
+        return queue.current;
+    }, [send]);
+
+    // For the page: a chapter switch waits for the last edit to be saved
+    // before asking for the next chapter, or switching straight back could
+    // load the copy from before it. Bounded, so a hung save cannot freeze
+    // the binder; the edit stays queued either way.
+    useImperativeHandle(ref, () => ({
+        flush: () => Promise.race([flush(), new Promise((resolve) => setTimeout(resolve, FLUSH_WAIT_MS))]),
+    }), [flush]);
 
     const editor = useEditor(
         {
@@ -122,23 +235,28 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
             ],
             content: section?.content ?? '',
             onUpdate: ({ editor }) => {
+                pending.current = { id: sectionId.current, editor };
                 setStatus('dirty');
                 clearTimeout(timer.current);
+                timer.current = null;
 
-                // With autosave off the edit waits for Ctrl/Cmd+S. A truthy
-                // timer still marks it pending, so the flush on leaving the
-                // chapter runs and turning autosave off never loses work to a
-                // closed tab.
-                if (!autosaveRef.current) {
-                    timer.current = true;
+                // With autosave off the edit waits for Ctrl/Cmd+S, or for the
+                // author leaving the chapter or the page, which flush it.
+                if (!autosaveRef.current) return;
 
-                    return;
+                timer.current = setTimeout(() => flush(), AUTOSAVE_DEBOUNCE_MS);
+            },
+            // Tiptap destroys the editor when the chapter changes, before any
+            // effect cleanup can run. This is the last moment its document
+            // can be read, so a pending edit is read here and sent.
+            onDestroy: () => {
+                const edit = pending.current;
+
+                if (edit && !edit.json && !edit.editor.isDestroyed) {
+                    edit.json = edit.editor.getJSON();
                 }
 
-                timer.current = setTimeout(
-                    () => editor.isDestroyed || save(editor.getJSON()),
-                    AUTOSAVE_DEBOUNCE_MS,
-                );
+                if (edit) flush();
             },
             editorProps: {
                 attributes: {
@@ -162,7 +280,8 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     useEffect(() => {
         sectionId.current = section?.id;
         setWordCount(section?.word_count ?? 0);
-        setStatus('idle');
+        // An earlier chapter's refused save is still unsaved work.
+        setStatus(unsent.current.size ? 'error' : 'idle');
 
         // isDestroyed as well as null. Tiptap 3 tears the editor down when
         // the pane unmounts — switching to the Outline subtab does it — and
@@ -188,7 +307,13 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
             if (editor.isDestroyed) return null;
 
             const storage = editor.storage.crossRef;
-            storage.place = { scheme: data.scheme, prefix: data.section.prefix, offsets: data.section.offsets };
+            storage.place = {
+                scheme: data.scheme,
+                schemeElsewhere: data.scheme_elsewhere ?? data.scheme,
+                prefix: data.section.prefix,
+                offsets: data.section.offsets,
+                running: data.section.running,
+            };
             storage.remote = data.targets;
             refreshNumbering(editor);
 
@@ -202,58 +327,77 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
         loadPlace();
     }, [loadPlace]);
 
-    // Flush a pending save when the component goes away, so switching
-    // chapters or closing the tab does not drop the last edit.
+    // A caption typed here can turn the book's numbering to by-chapter (or
+    // back). The screen follows at once; the other chapters' numbers, which
+    // cross-references here read, follow once the change is saved.
     useEffect(() => {
-        return () => {
-            if (timer.current) {
-                clearTimeout(timer.current);
-                // isDestroyed matters most here: this runs DURING teardown,
-                // which is exactly when Tiptap has already disposed of the
-                // editor. Reading getJSON() off a destroyed instance throws
-                // inside a cleanup function, where React cannot recover —
-                // and the unsaved edit this exists to rescue is lost with it.
-                if (editor && ! editor.isDestroyed && statusRef.current === 'dirty') {
-                    // Keepalive so the request survives the page unloading.
-                    //
-                    // The token travels in the body because sendBeacon cannot
-                    // set headers, and Laravel reads `_token` from there.
-                    // Without it the save is rejected as CSRF and the last
-                    // edit is lost — silently, since a beacon has no response
-                    // to check. Exempting the route instead would drop CSRF
-                    // on an endpoint that rewrites a manuscript.
-                    navigator.sendBeacon?.(
-                        `/sections/${sectionId.current}/content`,
-                        new Blob(
-                            [
-                                JSON.stringify({
-                                    content: editor.getJSON(),
-                                    _token: csrfToken(),
-                                }),
-                            ],
-                            { type: 'application/json' },
-                        ),
-                    );
-                }
-            }
+        afterSave.current = () => {
+            const storage = editor && !editor.isDestroyed ? editor.storage.crossRef : null;
+
+            if (storage?.place && storage.scheme && storage.scheme !== storage.place.scheme) loadPlace();
         };
-    }, [editor]);
+    }, [editor, loadPlace]);
+
+    // Leaving the page. visibilitychange (hidden) is the last event a phone
+    // or a closed tab reliably delivers; pagehide covers the rest. Both send
+    // with keepalive so the request outlives the page. While anything is
+    // unsaved, beforeunload asks the author first: the one case keepalive
+    // cannot carry, a chapter over 64 KiB, depends on it.
+    useEffect(() => {
+        const unsaved = () => pending.current || unsent.current.size > 0 || inFlight.current > 0;
+        const leave = () => {
+            if (pending.current || unsent.current.size) flush({ keepalive: true });
+        };
+        const hidden = () => document.visibilityState === 'hidden' && leave();
+        const warn = (event) => {
+            if (!unsaved()) return;
+
+            leave();
+            event.preventDefault();
+            event.returnValue = '';
+        };
+
+        document.addEventListener('visibilitychange', hidden);
+        window.addEventListener('pagehide', leave);
+        window.addEventListener('beforeunload', warn);
+
+        return () => {
+            document.removeEventListener('visibilitychange', hidden);
+            window.removeEventListener('pagehide', leave);
+            window.removeEventListener('beforeunload', warn);
+        };
+    }, [flush]);
+
+    // A refused save is tried again, so a dropped connection that comes
+    // back saves the work without the author having to type again.
+    useEffect(() => {
+        if (status !== 'error') return undefined;
+
+        const retry = () => unsent.current.size && flush();
+        const every = setInterval(retry, RETRY_MS);
+        window.addEventListener('online', retry);
+
+        return () => {
+            clearInterval(every);
+            window.removeEventListener('online', retry);
+        };
+    }, [status, flush]);
 
     // Ctrl/Cmd+S forces a save and a version, because writers press it.
     useEffect(() => {
         const onKey = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 's') {
                 e.preventDefault();
-                clearTimeout(timer.current);
-                timer.current = null;
-                if (editor && ! editor.isDestroyed) {
-                    save(editor.getJSON(), 'manual');
+
+                if (editor && ! editor.isDestroyed && sectionId.current) {
+                    pending.current = { id: sectionId.current, editor };
+                    flush({ reason: 'manual' });
                 }
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [editor, save]);
+    }, [editor, flush]);
 
     if (!section) {
         return (
@@ -265,7 +409,10 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
         );
     }
 
-    const readingMinutes = Math.max(1, Math.round(wordCount / WORDS_PER_MINUTE));
+    // Never trust the count to be a number: a footer that throws takes the
+    // whole writing canvas down with it.
+    const words = Number(wordCount) || 0;
+    const readingMinutes = Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 
     return (
         <div className="flex h-full flex-col">
@@ -276,7 +423,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                     {section.title}
                 </h2>
                 <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary">
-                    {wordCount.toLocaleString()} words
+                    {words.toLocaleString()} words
                 </span>
                 <SaveStatus status={status} />
             </header>
@@ -444,7 +591,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
             <footer className="flex h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-[21px] text-[11px] text-text-secondary">
                 <span>Reading time ~{readingMinutes} min</span>
                 <span className="tabular-nums">
-                    {wordCount.toLocaleString()} words
+                    {words.toLocaleString()} words
                 </span>
             </footer>
         </div>

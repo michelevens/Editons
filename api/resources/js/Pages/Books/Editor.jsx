@@ -28,7 +28,7 @@ import TemplatesPanel from '@/Components/Studio/TemplatesPanel';
 import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
 import { destination } from '@/Components/Studio/navigation';
 import { Head, router, usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * The Writing Studio.
@@ -124,11 +124,18 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // Back to the manuscript as well: a chapter link inside a full-screen
     // panel used to load the chapter behind the panel, so the click looked
     // like it did nothing.
+    //
+    // The open chapter's last edit is saved first. Asking for the next
+    // chapter while it was still on its way could bring back, on a quick
+    // return, the copy from before it.
+    const manuscript = useRef(null);
+
     const openSection = useCallback(
-        (id) => {
+        async (id) => {
             setNav('writing');
             setPane('manuscript');
             setPanelOpen(false);
+            await manuscript.current?.flush();
             router.get(
                 route('books.edit', book.id),
                 { section: id },
@@ -139,7 +146,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     );
 
     const navigate = useCallback(
-        (key) => {
+        async (key) => {
+            if (['books', 'overview', 'settings'].includes(key)) {
+                await manuscript.current?.flush();
+            }
+
             if (key === 'books') {
                 router.get(route('books.index'));
             } else if (key === 'overview') {
@@ -601,7 +612,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 </div>
 
                                 <section className="manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface max-xl:pb-12">
-                                    <ManuscriptEditor section={section} bookId={book.id} onSaved={onSaved} autosave={book.autosave ?? true} />
+                                    <ManuscriptEditor ref={manuscript} section={section} bookId={book.id} onSaved={onSaved} autosave={book.autosave ?? true} />
 
                                     {/* Under the manuscript, where somebody
                                         writing will meet it without going
