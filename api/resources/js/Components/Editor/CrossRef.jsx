@@ -13,6 +13,11 @@ import { useMemo, useState } from 'react';
  * point at. The chapter's prefix ("4.") and running offsets come from the
  * server, which alone knows where this chapter sits in the book; until they
  * arrive nothing is renumbered.
+ *
+ * None of this is the author's edit. Renumbering and labelling on opening a
+ * chapter change nothing in the database and do not mark the chapter
+ * unsaved; they ride along with the author's next real edit, and the server
+ * labels anything saved without one (Numbering::label).
  */
 export const CAPTION = /^(Table|Tableau|Tabla|Tablo|Figure|Figura|Figi)\s+((?:[A-Z]\.?)?\d+(?:[.-]\d+)*|\?)\.?$/;
 const AUTO_TAG = /^(?:(?:[A-Z]\.?)?\d+(?:\.\d+)?|\?)$/;
@@ -66,9 +71,56 @@ export function localTargets(doc) {
     return targets;
 }
 
-/** The changes that renumber, label and refresh references in a doc. */
-function corrections(doc, place, remote, schema) {
-    const prefix = place.scheme === 'continuous' ? '' : place.prefix;
+/**
+ * Does this chapter ask for numbering by chapter? The same question as
+ * Numbering::numbersByChapter on the server: a caption numbered with a dot,
+ * or an equation tagged (3.1).
+ */
+export function numbersByChapter(doc) {
+    let dotted = false;
+
+    doc.forEach((node) => {
+        const caption = captionKind(node);
+
+        if (caption?.[1].includes('.')
+            || (node.type.name === 'blockMath' && /\\tag\{\s*[A-Z]?\d+\.\d+\s*\}/.test(node.attrs.latex ?? ''))) {
+            dotted = true;
+        }
+    });
+
+    return dotted;
+}
+
+const NO_OFFSETS = { table: 0, figure: 0, equation: 0 };
+
+/**
+ * How this chapter numbers: the rest of the book's scheme, from the server,
+ * with this chapter's own captions added as they stand on screen.
+ *
+ * The server's whole-book answer reads this chapter as last saved. Using it
+ * alone, a dotted caption the author had just typed was renumbered as if
+ * the book were continuous, and the saved result then turned the book to
+ * by-chapter: the numbers changed on the next reload.
+ */
+export function numberingFor(doc, place) {
+    const scheme = place.schemeElsewhere === 'chapter' || numbersByChapter(doc) ? 'chapter' : 'continuous';
+
+    return {
+        scheme,
+        prefix: scheme === 'continuous' ? '' : place.prefix,
+        offsets: scheme === 'continuous' ? (place.running ?? place.offsets ?? NO_OFFSETS) : NO_OFFSETS,
+    };
+}
+
+/**
+ * The changes that renumber, label and refresh references in a doc. Without
+ * a place (the chapter's position has not arrived) only labels are given:
+ * they need no numbers, and a label given now is saved with the edit that
+ * made the caption or heading.
+ */
+function corrections(doc, place, schema) {
+    const numbering = place ? numberingFor(doc, place) : null;
+    const prefix = numbering?.prefix;
     const counts = { table: 0, figure: 0, equation: 0 };
     const own = { table: {}, figure: {} };
     const changes = [];
@@ -77,14 +129,16 @@ function corrections(doc, place, remote, schema) {
         const caption = captionKind(node);
         let attrs = null;
 
-        if (caption) {
+        if (caption && !numbering) {
+            if (!node.attrs.label) attrs = { ...node.attrs, label: newLabel(caption[2]) };
+        } else if (caption) {
             const kind = caption[2];
             // An unnumbered section keeps its author's prefix ("Tableau 0.2",
             // "Table D.1"); only the count after it follows position.
             const authored = prefix === '' ? caption[1].match(/^((?:[A-Z]|\d+)(?:\.\d+)*)\.\d+$/) : null;
             const number = authored
                 ? `${authored[1]}.${(own[kind][authored[1]] = (own[kind][authored[1]] ?? 0) + 1)}`
-                : `${prefix}${(place.offsets?.[kind] ?? 0) + ++counts[kind]}`;
+                : `${prefix}${(numbering.offsets[kind] ?? 0) + ++counts[kind]}`;
             const first = node.firstChild;
             const stop = first.text.trim().endsWith('.') ? '.' : '';
             const wanted = `${caption[0]} ${number}${stop}`;
@@ -101,8 +155,8 @@ function corrections(doc, place, remote, schema) {
             if (tag) {
                 let next = latex;
 
-                if (AUTO_TAG.test(tag[1].trim())) {
-                    const number = `${prefix}${(place.offsets?.equation ?? 0) + ++counts.equation}`;
+                if (numbering && AUTO_TAG.test(tag[1].trim())) {
+                    const number = `${prefix}${(numbering.offsets.equation ?? 0) + ++counts.equation}`;
                     next = latex.replace(TAG, `\\tag{${number}}`);
                 }
 
@@ -124,7 +178,11 @@ export const CrossRef = Extension.create({
     name: 'crossRef',
 
     addStorage() {
-        return { place: null, remote: [] };
+        // place: {scheme, schemeElsewhere, prefix, offsets, running} from
+        // GET /books/{book}/cross-references; scheme: the one last applied
+        // on screen, which differs from place.scheme once this chapter's
+        // captions change it.
+        return { place: null, remote: [], scheme: null };
     },
 
     addGlobalAttributes() {
@@ -149,10 +207,11 @@ export const CrossRef = Extension.create({
             new Plugin({
                 key,
                 appendTransaction(transactions, oldState, newState) {
-                    if (!storage.place) return null;
                     if (!transactions.some((tr) => tr.docChanged || tr.getMeta(key))) return null;
 
-                    const changes = corrections(newState.doc, storage.place, storage.remote, newState.schema);
+                    if (storage.place) storage.scheme = numberingFor(newState.doc, storage.place).scheme;
+
+                    const changes = corrections(newState.doc, storage.place, newState.schema);
                     const tr = newState.tr;
 
                     // From the end, so earlier positions stay valid.
@@ -188,9 +247,16 @@ export const CrossRef = Extension.create({
     },
 });
 
-/** Ask the plugin to run now: the chapter's place in the book has arrived. */
+/**
+ * Ask the plugin to run now: the chapter's place in the book has arrived.
+ *
+ * preventUpdate, because what it changes is not the author's edit. Without
+ * it, merely opening a chapter whose headings had no labels marked it
+ * "Unsaved changes" and autosaved a rewritten copy; for a reader without
+ * edit rights, that was a save error on every chapter.
+ */
 export function refreshNumbering(editor) {
-    editor?.view?.dispatch(editor.state.tr.setMeta(key, true));
+    editor?.view?.dispatch(editor.state.tr.setMeta(key, true).setMeta('preventUpdate', true));
 }
 
 export const Xref = Node.create({
