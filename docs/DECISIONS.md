@@ -589,3 +589,38 @@ need a queued job.
   ♯ ☐ ♂ ♀ ℝ ℂ ℕ and more, which printed as empty boxes. `PrintBook` wraps any
   run of characters missing from the face (read from its own cmap) in a
   span set in DejaVu Sans, which ships with dompdf.
+
+## ADR-0019 — Transport and browser security
+
+**Context.** The October audit found production answering plain HTTP with
+the sign-in form, sending no HSTS, CSP, framing or sniffing headers, and
+announcing `X-Powered-By: PHP/8.4`. Registration, password resets and
+sign-in by IP were unthrottled, and the reset form said which addresses had
+accounts.
+
+**Decisions.**
+
+- *HTTPS.* The edge Worker redirects `http:` itself (301, or 308 for
+  writes): it always forwards `X-Forwarded-Proto: https`, so the app cannot
+  tell. `ForceHttps` does the same for requests that reach the app another
+  way, preferring Cloudflare's `CF-Visitor`, and leaves `/up` alone.
+  `FORCE_HTTPS` defaults on in production. HSTS (one year,
+  includeSubDomains) goes on every HTTPS response.
+- *Headers.* `SecurityHeaders` (global middleware) sends a nonce-based CSP —
+  scripts from `'self'` plus the nonced Ziggy and React-refresh inline
+  scripts, inline styles allowed (Tiptap, KaTeX, React), images from `'self'`,
+  `data:`, `blob:` and the API origin, `frame-ancestors 'none'` — with
+  `X-Frame-Options`, `nosniff`, `Referrer-Policy` and `Permissions-Policy`,
+  and strips `X-Powered-By`. The API origin comes from `VITE_API_URL`,
+  `CORS_ALLOWED_ORIGINS` and `CSP_CONNECT_SRC`; `CSP_REPORT_ONLY=true` is
+  the escape hatch.
+- *Client IP.* Trusted proxies are `REMOTE_ADDR`, private subnets and
+  Cloudflare's ranges rather than `*`. With `*`, `request()->ip()` was the
+  left-most `X-Forwarded-For` entry, which the client writes. The Worker
+  now sets `X-Forwarded-For` from `CF-Connecting-IP`.
+- *Throttling.* Named per-IP limiters for login (20/min, 200/h), register
+  (5/min, 30/h) and the two password-reset posts (5/min, 20/h), on top of
+  the per-email login lockout. Forgot-password always answers the same
+  sentence; reset-password reports an unknown address as an invalid token.
+- *Stripe.* Without `STRIPE_WEBHOOK_SECRET`, `/stripe/webhook` answers 403
+  outside local and testing; malformed events get 400, not 500.
