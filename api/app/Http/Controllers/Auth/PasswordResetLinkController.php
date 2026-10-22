@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PasswordResetLinkController extends Controller
 {
+    public const SENT = 'If an account exists for that address, we have emailed a link to reset its password.';
+
     /**
      * Display the password reset link request view.
      */
@@ -24,8 +25,6 @@ class PasswordResetLinkController extends Controller
 
     /**
      * Handle an incoming password reset link request.
-     *
-     * @throws ValidationException
      */
     public function store(Request $request): RedirectResponse
     {
@@ -33,19 +32,14 @@ class PasswordResetLinkController extends Controller
             'email' => 'required|email',
         ]);
 
-        // We will send the password reset link to this user. Once we have attempted
-        // to send the link, we will examine the response then see the message we
-        // need to show to the user. Finally, we'll send out a proper response.
-        $status = Password::sendResetLink(
+        Password::sendResetLink(
             $request->only('email')
         );
 
-        if ($status == Password::RESET_LINK_SENT) {
-            return back()->with('status', __($status));
-        }
-
-        throw ValidationException::withMessages([
-            'email' => [trans($status)],
-        ]);
+        // The same answer whether or not the address has an account, and
+        // whether or not a link was sent a minute ago. Telling them apart
+        // ("We can't find a user with that email address") turned this form
+        // into a way to check who has an account here.
+        return back()->with('status', self::SENT);
     }
 }
