@@ -4,6 +4,7 @@ namespace App\Editorial;
 
 use App\Models\EditorialFinding;
 use App\Models\ManuscriptSection;
+use App\Models\ManuscriptVersion;
 use App\Services\ManuscriptWriter;
 use RuntimeException;
 
@@ -74,6 +75,57 @@ class SuggestionApplier
             reason: 'ai_suggestion',
             userId: $userId,
             label: "Applied: {$finding->title}",
+        );
+    }
+
+    /**
+     * Take an applied fix back out of the manuscript.
+     *
+     * When nothing has been saved to the chapter since the fix, the chapter
+     * goes back to the snapshot the fix replaced, exactly. Otherwise only
+     * the replacement is reversed, and only where the applied wording is
+     * still there once: an undo that guessed would be a second silent
+     * rewrite. Recorded as a restore, so the history shows the undo too.
+     *
+     * @throws RuntimeException when the fix can no longer be undone safely
+     */
+    public function undo(EditorialFinding $finding, ?int $userId = null): ManuscriptSection
+    {
+        $section = $finding->section;
+        $label = "Undid: {$finding->title}";
+
+        $version = $finding->applied_version_id
+            ? ManuscriptVersion::whereKey($finding->applied_version_id)
+                ->where('manuscript_section_id', $section->id)
+                ->first()
+            : null;
+
+        if ($version && $finding->resolved_at && $section->updated_at
+            && $section->updated_at->lte($finding->resolved_at)) {
+            return $this->writer->save(
+                section: $section,
+                content: $version->content,
+                reason: 'restore',
+                userId: $userId,
+                label: $label,
+            );
+        }
+
+        $content = $section->content ?? ['type' => 'doc', 'content' => []];
+
+        if (! $finding->suggestion || ! $finding->excerpt
+            || $this->countOccurrences($content, $finding->suggestion) !== 1) {
+            throw new RuntimeException(
+                'The chapter has changed since this fix was applied, so it cannot be undone automatically. Restore an earlier version from History instead.',
+            );
+        }
+
+        return $this->writer->save(
+            section: $section,
+            content: $this->replaceFirst($content, $finding->suggestion, $finding->excerpt),
+            reason: 'restore',
+            userId: $userId,
+            label: $label,
         );
     }
 

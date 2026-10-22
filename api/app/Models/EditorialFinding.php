@@ -23,7 +23,7 @@ class EditorialFinding extends Model
 
     protected $fillable = [
         'editorial_review_id', 'manuscript_section_id', 'agent', 'severity',
-        'title', 'detail', 'excerpt', 'suggestion',
+        'title', 'detail', 'excerpt', 'suggestion', 'applied_version_id',
         'from_offset', 'to_offset', 'status', 'resolved_by', 'resolved_at',
     ];
 

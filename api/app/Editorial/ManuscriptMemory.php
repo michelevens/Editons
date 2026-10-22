@@ -5,6 +5,7 @@ namespace App\Editorial;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * What the whole book looks like, in a form something can reason over.
@@ -52,7 +53,7 @@ class ManuscriptMemory
     public static function of(Book $book): self
     {
         $sections = $book->sections()
-            ->whereIn('type', ['chapter', 'part', 'front_matter', 'back_matter'])
+            ->whereIn('type', self::TYPES)
             ->orderBy('position')
             ->get();
 
@@ -119,6 +120,33 @@ class ManuscriptMemory
             words: array_sum(array_column($chapters, 'words')),
             medianChapterWords: self::median($written),
         );
+    }
+
+    /** The section types the memory reads; anything else cannot change it. */
+    private const TYPES = ['chapter', 'part', 'front_matter', 'back_matter'];
+
+    /**
+     * A hash of everything of() reads, without reading it into PHP.
+     *
+     * For caching what is derived from the memory (the Director's review):
+     * the content is hashed by the database, so a 150k-word book costs one
+     * small query rather than the parse that took 1-4 seconds per call.
+     * Changes with any section's content, title, word count, type, order or
+     * parent, with a section added or deleted, and with the book's type.
+     */
+    public static function fingerprint(Book $book): string
+    {
+        $rows = DB::table('manuscript_sections')
+            ->where('book_id', $book->id)
+            ->whereNull('deleted_at')
+            ->whereIn('type', self::TYPES)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->selectRaw("concat_ws(':', id, type, coalesce(parent_id, 0), position, word_count, md5(title), md5(coalesce(content::text, ''))) as row")
+            ->pluck('row')
+            ->implode('|');
+
+        return sha1(implode('#', [$book->id, $book->book_type, $rows]));
     }
 
     /** @return Collection<int, array<string, mixed>> */

@@ -2,6 +2,7 @@
 
 use App\Billing\CreditLedger;
 use App\Editorial\Contracts\EditorialDriver;
+use App\Editorial\Drivers\FakeDriver;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewRunner;
 use App\Models\Book;
@@ -25,6 +26,10 @@ function reviewable(User $user): ManuscriptSection
             'content' => [['type' => 'text', 'text' => 'Roughly 47 percent of practices close early.']],
         ]]]]);
 }
+
+// Charging is for a provider's review; the suite's FakeDriver is sample
+// output and is never charged (tested at the end of this file).
+beforeEach(fn () => useChargingDriver());
 
 it('debits the account for a general agent', function () {
     $user = User::factory()->subscribed('studio', 100)->create();
@@ -198,4 +203,57 @@ it('does not price work that nothing performs, without saying so', function () {
                 .'that tells the author it is not built.',
         );
     }
+});
+
+// --- Sample output (FakeDriver) is never charged ----------------------------
+
+it('does not charge for a review from the heuristic driver', function () {
+    // Production ran EDITORIAL_DRIVER=fake and debited 5 credits a run for
+    // template findings. Sample output is free.
+    app()->bind(EditorialDriver::class, fn () => new FakeDriver);
+    $user = User::factory()->subscribed('studio', 100)->create();
+
+    $review = app(ReviewRunner::class)->run(reviewable($user), EditorialAgent::Copy, $user->id);
+
+    expect($review->status)->toBe('completed')
+        ->and($review->driver)->toBe('fake')
+        ->and(app(CreditLedger::class)->balanceFor($user))->toBe(100)
+        ->and($user->creditTransactions()->where('kind', 'spend')->count())->toBe(0);
+});
+
+it('runs sample reviews on an empty balance and labels them over HTTP', function () {
+    app()->bind(EditorialDriver::class, fn () => new FakeDriver);
+    $user = User::factory()->broke()->create();
+    $section = reviewable($user);
+
+    $response = $this->actingAs($user)
+        ->postJson("/sections/{$section->id}/review", ['agent' => 'copy'])
+        ->assertOk()
+        ->assertJsonPath('review.simulated', true)
+        ->assertJsonPath('billing.reviews_simulated', true);
+
+    expect(collect($response->json('findings'))->every(fn ($f) => $f['simulated'] === true))->toBeTrue()
+        ->and(app(CreditLedger::class)->balanceFor($user))->toBe(0);
+});
+
+it('does not label a provider review as sample output', function () {
+    $user = User::factory()->subscribed('studio', 100)->create();
+    $section = reviewable($user);
+
+    $this->actingAs($user)
+        ->postJson("/sections/{$section->id}/review", ['agent' => 'copy'])
+        ->assertOk()
+        ->assertJsonPath('review.simulated', false);
+});
+
+it('tells every page whether reviews are sample output', function () {
+    $this->actingAs(User::factory()->create())
+        ->get('/books')
+        ->assertInertia(fn ($page) => $page->where('editorial.simulated', true));
+
+    config(['editorial.driver' => 'anthropic']);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/books')
+        ->assertInertia(fn ($page) => $page->where('editorial.simulated', false));
 });

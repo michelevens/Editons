@@ -1,5 +1,9 @@
 <?php
 
+use App\Editorial\Contracts\EditorialDriver;
+use App\Editorial\Drivers\FakeDriver;
+use App\Editorial\EditorialAgent;
+use App\Editorial\ReviewResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +51,28 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Bind an editorial driver that is not sample output.
+ *
+ * The suite runs on FakeDriver, whose reviews are never charged. Tests about
+ * charging for a review need a driver that stands in for a real provider:
+ * this one gives FakeDriver's findings under another name, without the
+ * SimulatesReview marker.
+ */
+function useChargingDriver(): void
+{
+    app()->bind(EditorialDriver::class, fn () => new class implements EditorialDriver
+    {
+        public function review(EditorialAgent $agent, string $text): ReviewResult
+        {
+            return (new FakeDriver)->review($agent, $text);
+        }
+
+        public function name(): string
+        {
+            return 'test-provider';
+        }
+    });
 }

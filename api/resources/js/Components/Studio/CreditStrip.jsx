@@ -38,7 +38,13 @@ export default function CreditStrip({ balance }) {
 
     if (!summary) return null;
 
-    const { credits, monthly_credits: monthly, plan_name: planName, costs } = summary;
+    const {
+        credits,
+        monthly_credits: monthly,
+        plan_name: planName,
+        costs,
+        reviews_simulated: simulated,
+    } = summary;
     const low = monthly > 0 && credits < monthly * 0.15;
 
     return (
@@ -55,7 +61,12 @@ export default function CreditStrip({ balance }) {
                 {monthly > 0 ? ` of ${monthly.toLocaleString()}` : ''} left
             </span>
 
-            {costs && (
+            {simulated ? (
+                <span data-a="credits:sample" className="hidden sm:inline">
+                    Reviews here are sample output (automated checks, no AI) and
+                    use no credits
+                </span>
+            ) : costs && (
                 <span className="hidden sm:inline">
                     one editor {costs.agent_run} · specialist {costs.specialist_run} · whole
                     book {costs.book_review}

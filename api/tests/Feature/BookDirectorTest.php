@@ -6,6 +6,7 @@ use App\Editorial\ManuscriptMemory;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Services\ManuscriptWriter;
 
 /**
  * The Book Director, and the memory it reads.
@@ -388,4 +389,53 @@ it('requires signing in', function () {
     $book = directedBook(User::factory()->create());
 
     $this->getJson("/books/{$book->id}/direct")->assertUnauthorized();
+});
+
+it('serves a repeat call from cache until the book changes', function () {
+    // The review parsed every chapter on each panel open: 3.9 s a call on a
+    // 150k-word book. It is deterministic, so it is cached by content.
+    $user = User::factory()->create();
+    $book = directedBook($user);
+    $chapters = collect(range(1, 5))->map(
+        fn ($n) => directedChapter($book, "Chapter {$n}", 2000, $n * 10, 'The practice that lasts is built slowly.'),
+    );
+
+    $first = $this->actingAs($user)->getJson("/books/{$book->id}/direct")->json();
+
+    $spy = Mockery::spy(BookDirector::class);
+    app()->instance(BookDirector::class, $spy);
+
+    expect($this->actingAs($user)->getJson("/books/{$book->id}/direct")->json())->toBe($first);
+    $spy->shouldNotHaveReceived('review');
+
+    // An edit anywhere in the book is a new fingerprint, so a new review.
+    app(ManuscriptWriter::class)->save(
+        section: $chapters[2],
+        content: ['type' => 'doc', 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Something new.']],
+        ]]],
+        reason: 'manual',
+    );
+
+    $this->actingAs($user)->getJson("/books/{$book->id}/direct")->assertOk();
+    $spy->shouldHaveReceived('review')->once();
+});
+
+it('changes the fingerprint with content, order and type but not with a read', function () {
+    $user = User::factory()->create();
+    $book = directedBook($user);
+    $one = directedChapter($book, 'One', 500, 10);
+    directedChapter($book, 'Two', 500, 20);
+
+    $before = ManuscriptMemory::fingerprint($book);
+    $this->actingAs($user)->getJson("/books/{$book->id}/direct");
+    expect(ManuscriptMemory::fingerprint($book->fresh()))->toBe($before);
+
+    $one->forceFill(['position' => 30])->save();
+    $moved = ManuscriptMemory::fingerprint($book);
+    expect($moved)->not->toBe($before);
+
+    $book->update(['book_type' => 'fiction']);
+    expect(ManuscriptMemory::fingerprint($book))->not->toBe($moved);
 });

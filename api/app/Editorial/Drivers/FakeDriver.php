@@ -3,6 +3,7 @@
 namespace App\Editorial\Drivers;
 
 use App\Editorial\Contracts\EditorialDriver;
+use App\Editorial\Contracts\SimulatesReview;
 use App\Editorial\EditorialAgent;
 use App\Editorial\Finding;
 use App\Editorial\ReviewResult;
@@ -24,7 +25,7 @@ use App\Editorial\ReviewResult;
  * mechanical problems. They cannot assess an argument, verify a fact, or
  * judge whether a chapter earns its place. Those need a model.
  */
-class FakeDriver implements EditorialDriver
+class FakeDriver implements EditorialDriver, SimulatesReview
 {
     /** Sentences longer than this are hard to follow in print. */
     private const LONG_SENTENCE_WORDS = 34;
