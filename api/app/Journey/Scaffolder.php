@@ -50,6 +50,10 @@ class Scaffolder
                 $this->matter($book, 'back_matter', $title, $position);
                 $position += ManuscriptSection::POSITION_STEP;
             }
+
+            // The chapters carry their prompts' word counts; the book's
+            // total is denormalised and read by the shelf and Overview.
+            $book->recalculateWordCount();
         });
 
         return $book->refresh();

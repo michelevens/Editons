@@ -47,6 +47,13 @@ class ManuscriptSection extends Model
 
                 $section->part = BookPart::infer($section->title, $section->type, $language)?->value;
             }
+
+            // A section created with content counts its words, whoever
+            // created it: editions, templates and imports copied content in
+            // and left the count at 0 until somebody re-saved the chapter.
+            if (! $section->isDirty('word_count') && $section->content) {
+                $section->word_count = self::countWords($section->content);
+            }
         });
     }
 

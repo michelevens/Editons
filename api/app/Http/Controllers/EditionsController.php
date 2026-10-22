@@ -41,6 +41,14 @@ class EditionsController extends Controller
             'language' => ['required_if:type,translation', 'nullable', 'string', 'max:50'],
         ]);
 
+        // An edition is a new book on the owner's shelf, so the plan's book
+        // limit applies exactly as it does to New book and Import.
+        abort_unless(
+            $request->user()->canCreateBook(),
+            403,
+            'This plan does not allow another book. Archive one, or upgrade.',
+        );
+
         $chapters = $book->sections()
             ->where('type', '!=', 'part')
             ->orderBy('position')
@@ -54,10 +62,18 @@ class EditionsController extends Controller
 
         // One transaction: an edition that exists with half its chapters is
         // worse than one that failed to be created.
-        $edition = DB::transaction(fn () => match ($data['type']) {
-            'workbook' => $this->workbook($request, $book, $chapters),
-            'translation' => $this->translation($request, $book, $chapters, $data['language']),
-            'large_print' => $this->largePrint($request, $book, $chapters),
+        $edition = DB::transaction(function () use ($request, $book, $chapters, $data) {
+            $edition = match ($data['type']) {
+                'workbook' => $this->workbook($request, $book, $chapters),
+                'translation' => $this->translation($request, $book, $chapters, $data['language']),
+                'large_print' => $this->largePrint($request, $book, $chapters),
+            };
+
+            // The shelf, Overview and Journey read the denormalised count;
+            // without this every new edition said "0 words".
+            $edition->recalculateWordCount();
+
+            return $edition;
         });
 
         return response()->json([
@@ -115,7 +131,7 @@ class EditionsController extends Controller
             $edition->sections()->create([
                 'title' => $chapter->title,
                 'type' => 'chapter',
-                'position' => $index,
+                'position' => ($index + 1) * ManuscriptSection::POSITION_STEP,
                 'content' => ['type' => 'doc', 'content' => $blocks],
             ]);
         }
@@ -144,7 +160,7 @@ class EditionsController extends Controller
             $edition->sections()->create([
                 'title' => $chapter->title,
                 'type' => 'chapter',
-                'position' => $index,
+                'position' => ($index + 1) * ManuscriptSection::POSITION_STEP,
                 'content' => $chapter->content,
             ]);
         }
@@ -182,7 +198,7 @@ class EditionsController extends Controller
             $edition->sections()->create([
                 'title' => $chapter->title,
                 'type' => 'chapter',
-                'position' => $index,
+                'position' => ($index + 1) * ManuscriptSection::POSITION_STEP,
                 'content' => $chapter->content,
             ]);
         }
