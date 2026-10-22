@@ -567,10 +567,53 @@ class DocumentRenderer
     /** Pictures placed by docx() since the last reset, for the package. */
     private array $docxMedia = [];
 
+    /** Lists placed by docx() since the last reset, one numbering each. */
+    private array $docxLists = [];
+
     public function resetDocxMedia(): void
     {
         $this->docxMedia = [];
         $this->docxNotes = [];
+        $this->docxLists = [];
+    }
+
+    /** The numbering part for the lists placed, or null when there are none. */
+    public function docxNumbering(): ?string
+    {
+        if ($this->docxLists === []) {
+            return null;
+        }
+
+        // Bullets alternate •, ◦, ▪ by depth; numbers go 1., a., i.
+        $levels = function (bool $ordered): string {
+            $out = '';
+
+            for ($i = 0; $i < 9; $i++) {
+                [$format, $text] = $ordered
+                    ? [['decimal', 'lowerLetter', 'lowerRoman'][$i % 3], '%'.($i + 1).'.']
+                    : ['bullet', ['•', '◦', '▪'][$i % 3]];
+
+                $out .= '<w:lvl w:ilvl="'.$i.'"><w:start w:val="1"/><w:numFmt w:val="'.$format.'"/>'
+                    .'<w:lvlText w:val="'.$text.'"/><w:lvlJc w:val="left"/>'
+                    .'<w:pPr><w:ind w:left="'.(720 + 360 * $i).'" w:hanging="360"/></w:pPr></w:lvl>';
+            }
+
+            return $out;
+        };
+
+        $instances = '';
+
+        foreach ($this->docxLists as $i => $list) {
+            $instances .= '<w:num w:numId="'.($i + 1).'"><w:abstractNumId w:val="'.($list['ordered'] ? 1 : 0).'"/>'
+                .($list['ordered'] ? '<w:lvlOverride w:ilvl="'.$list['level'].'"><w:startOverride w:val="'.$list['start'].'"/></w:lvlOverride>' : '')
+                .'</w:num>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
+            .'<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            .'<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/>'.$levels(false).'</w:abstractNum>'
+            .'<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>'.$levels(true).'</w:abstractNum>'
+            .$instances.'</w:numbering>';
     }
 
     /** The footnotes part, or null when the document has none. */
@@ -723,19 +766,29 @@ class DocumentRenderer
         return $out;
     }
 
-    /** @param array<string, mixed> $list */
+    /**
+     * A real Word list: each item a paragraph carrying the list's numbering,
+     * so Word draws the bullet or number, renumbers it, and restyles it with
+     * the rest. A typed "•" and a tab looked the same and were none of that.
+     *
+     * @param  array<string, mixed>  $list
+     */
     private function docxList(array $list, int $depth): string
     {
         $out = '';
         $ordered = ($list['type'] ?? '') === 'orderedList';
-        $number = (int) ($list['attrs']['start'] ?? 1);
+        $level = min(8, $depth);
+
+        // One numbering instance per list, so each ordered list counts from
+        // its own start rather than carrying on from the one before.
+        $this->docxLists[] = ['ordered' => $ordered, 'start' => max(1, (int) ($list['attrs']['start'] ?? 1)), 'level' => $level];
+        $numId = count($this->docxLists);
 
         foreach ($list['content'] ?? [] as $item) {
             if (! is_array($item)) {
                 continue;
             }
 
-            $marker = $ordered ? ($number++).".\t" : "•\t";
             $first = true;
 
             foreach ($item['content'] ?? [] as $child) {
@@ -744,10 +797,13 @@ class DocumentRenderer
                 }
 
                 if (($child['type'] ?? '') === 'paragraph') {
-                    $indent = 360 * ($depth + 1);
-                    $out .= '<w:p><w:pPr><w:ind w:left="'.($indent + 360).'" w:hanging="360"/></w:pPr>'
-                        .($first ? $this->docxRun($marker) : '')
-                        .$this->docxRuns($child['content'] ?? []).'</w:p>';
+                    // A second paragraph in an item lines up with the first,
+                    // without a bullet of its own.
+                    $out .= '<w:p><w:pPr><w:pStyle w:val="ListParagraph"/>'
+                        .($first
+                            ? '<w:numPr><w:ilvl w:val="'.$level.'"/><w:numId w:val="'.$numId.'"/></w:numPr>'
+                            : '<w:ind w:left="'.(720 + 360 * $level).'"/>')
+                        .'</w:pPr>'.$this->docxRuns($child['content'] ?? []).'</w:p>';
                     $first = false;
                 } else {
                     $out .= $this->nodesToDocx([$child], null, $depth + 1);
