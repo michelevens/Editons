@@ -894,6 +894,43 @@ class Anatomy
         return $section;
     }
 
+    /**
+     * The author's own order for one level of the binder: the book's
+     * top-level sections, or the chapters inside one part.
+     *
+     * $ids must name exactly the siblings there now. A list that leaves one
+     * out or names another level's section is refused rather than guessed
+     * at, so a binder that went stale in another tab cannot drop a chapter
+     * to the end or graft one into the wrong part. Returns false then.
+     *
+     * @param  list<int>  $ids
+     */
+    public static function arrange(Book $book, ?int $parentId, array $ids): bool
+    {
+        return DB::transaction(function () use ($book, $parentId, $ids) {
+            $current = $book->sections()
+                ->where('parent_id', $parentId)
+                ->lockForUpdate()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+
+            $wanted = array_map('intval', $ids);
+            $sorted = $wanted;
+            sort($sorted);
+
+            if ($sorted !== $current || count(array_unique($wanted)) !== count($wanted)) {
+                return false;
+            }
+
+            self::renumber($wanted);
+
+            return true;
+        });
+    }
+
     /** Sparse positions in the given order, without touching updated_at. */
     private static function renumber(array $ids): void
     {

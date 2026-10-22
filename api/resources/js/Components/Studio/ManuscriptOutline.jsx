@@ -1,5 +1,5 @@
 import { router, usePage } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 
 /**
@@ -7,7 +7,28 @@ import Icon from './Icon';
  *
  * HANDOFF.md component 3. Rows are h27, parts collapse, the active row uses
  * the outline tokens, and search hides parts with no matches.
+ *
+ * Chapters reorder within their level (the top level, or inside one part):
+ * by dragging a row, by the move up/down buttons on each row, or with
+ * Alt+ArrowUp / Alt+ArrowDown on the focused row. Each move saves at once
+ * (books.sections.order) and reloads only the binder; the chapter open in
+ * the editor is never reloaded under the author. Not while searching: a
+ * filtered list has no honest "position".
  */
+
+/** The children of `parentId` (null for the top level) in a binder tree. */
+function siblingsOf(nodes, parentId) {
+    if (!parentId) return nodes;
+
+    for (const node of nodes) {
+        if (node.id === parentId) return node.children ?? [];
+
+        const found = siblingsOf(node.children ?? [], parentId);
+        if (found.length) return found;
+    }
+
+    return [];
+}
 
 const TABS = [
     { key: 'Manuscript', ready: true },
@@ -30,6 +51,80 @@ export default function ManuscriptOutline({
     const [query, setQuery] = useState('');
     const [collapsed, setCollapsed] = useState(() => new Set());
     const [partError, setPartError] = useState('');
+    const [moving, setMoving] = useState(false);
+    const [dragging, setDragging] = useState(null);
+    const [dropAt, setDropAt] = useState(null);
+    const [announcement, setAnnouncement] = useState('');
+    const refocus = useRef(null);
+
+    const bookId = usePage().props.book?.id;
+    const reorderable = Boolean(bookId) && !query.trim();
+
+    // After a move the binder re-renders from the server; put keyboard focus
+    // back on the row that moved, so Alt+Arrow can be pressed again.
+    useEffect(() => {
+        if (!refocus.current) return;
+
+        document.querySelector(`[data-a="outline:open:${refocus.current}"]`)?.focus();
+        refocus.current = null;
+    }, [nodes]);
+
+    const move = (node, parentId, toIndex) => {
+        const siblings = siblingsOf(nodes, parentId);
+        const ids = siblings.map((sibling) => sibling.id);
+        const from = ids.indexOf(node.id);
+
+        if (moving || from < 0 || toIndex < 0 || toIndex >= ids.length || from === toIndex) return;
+
+        ids.splice(from, 1);
+        ids.splice(toIndex, 0, node.id);
+
+        setPartError('');
+        setMoving(true);
+
+        window.axios
+            .patch(route('books.sections.order', bookId), { parent_id: parentId, ids })
+            .then(() => {
+                setAnnouncement(`${node.title} moved to position ${toIndex + 1} of ${ids.length}.`);
+                refocus.current = node.id;
+                router.reload({ only: ['binder'], onFinish: () => setMoving(false) });
+            })
+            .catch((error) => {
+                setMoving(false);
+                setPartError(error?.response?.data?.message ?? 'The chapter was not moved.');
+            });
+    };
+
+    const drag = reorderable
+        ? {
+              dragging,
+              dropAt,
+              start: (node, parentId) => setDragging({ id: node.id, parentId }),
+              over: (event, node, parentId) => {
+                  // Only between siblings: moving a chapter into another part
+                  // is a different act, and not this one.
+                  if (!dragging || dragging.parentId !== parentId) return;
+
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropAt(node.id);
+              },
+              drop: (event, parentId, index) => {
+                  event.preventDefault();
+
+                  const source = dragging && siblingsOf(nodes, parentId).find((n) => n.id === dragging.id);
+
+                  if (source && dragging.parentId === parentId) move(source, parentId, index);
+
+                  setDragging(null);
+                  setDropAt(null);
+              },
+              end: () => {
+                  setDragging(null);
+                  setDropAt(null);
+              },
+          }
+        : null;
 
     // The binder's "Book part" menu (BookPart on the server), sent by the
     // editor page. Read from the page rather than passed down, so the
@@ -154,6 +249,11 @@ export default function ManuscriptOutline({
                         )}
                     </div>
 
+                    {/* Read out after a move, for screen-reader users. */}
+                    <p aria-live="polite" className="sr-only">
+                        {announcement}
+                    </p>
+
                     {partError && (
                         <p role="alert" className="mx-3 mb-2 rounded-control bg-status-danger-bg px-2.5 py-1.5 text-[11.5px] text-status-danger">
                             {partError}
@@ -169,17 +269,22 @@ export default function ManuscriptOutline({
                                     No chapters match “{query}”.
                                 </p>
                             ) : (
-                                visible.map((node) => (
+                                visible.map((node, index) => (
                                     <TreeNode
                                         key={node.id}
                                         node={node}
                                         depth={0}
+                                        parentId={null}
+                                        index={index}
+                                        count={visible.length}
                                         activeId={activeId}
                                         collapsed={collapsed}
                                         onToggle={toggle}
                                         onSelect={onSelect}
                                         partOptions={partOptions}
                                         onSetPart={setPart}
+                                        onMove={reorderable ? move : null}
+                                        drag={drag}
                                     />
                                 ))
                             )}
@@ -191,16 +296,60 @@ export default function ManuscriptOutline({
     );
 }
 
-function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect, partOptions = [], onSetPart }) {
+function TreeNode({
+    node,
+    depth,
+    parentId = null,
+    index = 0,
+    count = 1,
+    activeId,
+    collapsed,
+    onToggle,
+    onSelect,
+    partOptions = [],
+    onSetPart,
+    onMove,
+    drag,
+}) {
     const isPart = node.type === 'part';
     const isActive = node.id === activeId;
     const isCollapsed = collapsed.has(node.id);
+    const isDropTarget = drag?.dropAt === node.id && drag?.dragging?.id !== node.id;
+
+    // Alt+ArrowUp / Alt+ArrowDown on the focused row moves it.
+    const onKeyDown = (event) => {
+        if (!onMove || !event.altKey) return;
+
+        if (event.key === 'ArrowUp' && index > 0) {
+            event.preventDefault();
+            onMove(node, parentId, index - 1);
+        } else if (event.key === 'ArrowDown' && index < count - 1) {
+            event.preventDefault();
+            onMove(node, parentId, index + 1);
+        }
+    };
 
     return (
         <div>
             <div
+                data-a={`outline:item:${node.id}`}
+                draggable={Boolean(drag)}
+                onDragStart={
+                    drag
+                        ? (event) => {
+                              event.dataTransfer.effectAllowed = 'move';
+                              event.dataTransfer.setData('text/plain', String(node.id));
+                              drag.start(node, parentId);
+                          }
+                        : undefined
+                }
+                onDragOver={drag ? (event) => drag.over(event, node, parentId) : undefined}
+                onDrop={drag ? (event) => drag.drop(event, parentId, index) : undefined}
+                onDragEnd={drag ? drag.end : undefined}
                 className={`group flex h-[27px] items-center gap-1.5 pr-2 ${
                     isActive ? 'bg-outline-active-bg' : 'hover:bg-bg-subtle'
+                } ${isDropTarget ? 'border-t-2 border-brand-primary' : ''} ${
+                    drag?.dragging?.id === node.id ? 'opacity-50' : ''
                 }`}
                 style={{ paddingLeft: 12 + depth * 14 }}
             >
@@ -228,7 +377,9 @@ function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect, partOp
                 <button
                     data-a={`outline:open:${node.id}`}
                     onClick={() => !isPart && onSelect(node.id)}
-                    disabled={isPart}
+                    onKeyDown={onKeyDown}
+                    aria-disabled={isPart || undefined}
+                    aria-keyshortcuts={onMove ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
                     className={`min-w-0 flex-1 truncate text-left ${
                         isPart
                             ? 'cursor-default text-[12px] font-semibold text-text-primary'
@@ -241,8 +392,33 @@ function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect, partOp
                 </button>
 
                 {!isPart && node.word_count > 0 && (
-                    <span className="shrink-0 text-[10px] tabular-nums text-text-secondary">
+                    <span className="shrink-0 text-[10px] tabular-nums text-text-secondary group-focus-within:hidden group-hover:hidden">
                         {node.word_count.toLocaleString()}
+                    </span>
+                )}
+
+                {onMove && count > 1 && (
+                    <span className="hidden shrink-0 items-center group-focus-within:flex group-hover:flex">
+                        <button
+                            data-a={`outline:up:${node.id}`}
+                            onClick={() => onMove(node, parentId, index - 1)}
+                            disabled={index === 0}
+                            aria-label={`Move ${node.title} up`}
+                            title="Move up (Alt+↑)"
+                            className="grid h-[20px] w-[18px] place-items-center rounded text-text-secondary hover:text-text-primary disabled:opacity-30"
+                        >
+                            <Icon name="chev" size={12} strokeWidth={2} className="rotate-180" />
+                        </button>
+                        <button
+                            data-a={`outline:down:${node.id}`}
+                            onClick={() => onMove(node, parentId, index + 1)}
+                            disabled={index === count - 1}
+                            aria-label={`Move ${node.title} down`}
+                            title="Move down (Alt+↓)"
+                            className="grid h-[20px] w-[18px] place-items-center rounded text-text-secondary hover:text-text-primary disabled:opacity-30"
+                        >
+                            <Icon name="chev" size={12} strokeWidth={2} />
+                        </button>
                     </span>
                 )}
             </div>
@@ -252,17 +428,22 @@ function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect, partOp
             )}
 
             {!isCollapsed &&
-                node.children?.map((child) => (
+                node.children?.map((child, childIndex) => (
                     <TreeNode
                         key={child.id}
                         node={child}
                         depth={depth + 1}
+                        parentId={node.id}
+                        index={childIndex}
+                        count={node.children.length}
                         activeId={activeId}
                         collapsed={collapsed}
                         onToggle={onToggle}
                         onSelect={onSelect}
                         partOptions={partOptions}
                         onSetPart={onSetPart}
+                        onMove={onMove}
+                        drag={drag}
                     />
                 ))}
         </div>
