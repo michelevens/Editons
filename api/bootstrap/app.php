@@ -1,8 +1,14 @@
 <?php
 
+use App\Http\Middleware\ForceHttps;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\TrustedProxies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -12,16 +18,24 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Global rather than web-only: the health check, the Stripe webhook
+        // and any error page get the headers too. Both run after the
+        // framework's TrustProxies, so the forwarded scheme is already known.
+        $middleware->append([
+            ForceHttps::class,
+            SecurityHeaders::class,
+        ]);
+
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            HandleInertiaRequests::class,
+            AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         // app.ecrivain.ai renders the studio and api.ecrivain.ai answers its
         // data calls, so those requests are cross-origin and carry the
         // session cookie. Without this they are rejected by the browser
         // before Laravel ever sees them.
-        $middleware->prependToGroup('web', \Illuminate\Http\Middleware\HandleCors::class);
+        $middleware->prependToGroup('web', HandleCors::class);
 
         // Host validation, only when a list is actually configured.
         //
@@ -44,8 +58,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Railway terminates TLS at its edge, so without trusting the proxy
         // Laravel builds http:// URLs behind an https:// request — which
         // breaks secure-cookie issuance and every absolute redirect.
+        //
+        // Which hops are trusted is spelled out rather than '*', so that
+        // request()->ip() is the client and not whatever the client wrote in
+        // X-Forwarded-For. See App\Http\TrustedProxies.
         $middleware->trustProxies(
-            at: '*',
+            at: TrustedProxies::all(),
             // X-Forwarded-Host must be trusted explicitly; Symfony omits it
             // from the default header set because honouring it from an
             // untrusted proxy allows host-header poisoning. Here the only

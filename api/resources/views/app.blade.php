@@ -30,7 +30,9 @@
              from a third party, and referenced by nothing. --}}
 
         <!-- Scripts -->
-        @routes
+        {{-- The nonce is the per-request one SecurityHeaders puts in the
+             Content-Security-Policy; @vite applies it to its own tags. --}}
+        @routes(nonce: \Illuminate\Support\Facades\Vite::cspNonce())
         @viteReactRefresh
         @vite(['resources/js/app.jsx', "resources/js/Pages/{$page['component']}.jsx"])
         @inertiaHead
