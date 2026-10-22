@@ -4,9 +4,10 @@ import Icon from './Icon';
 /**
  * Who else is on this book.
  *
- * Invitations are recorded but not emailed — nothing in this application
- * sends mail yet. Rather than imply an email went out, the screen says so and
- * hands over the link to send by hand.
+ * Invitations are emailed when the server has a mail transport, and the
+ * link is always shown for copying. Where mail goes nowhere (the "log"
+ * mailer), the server says delivery is manual and the screen says so rather
+ * than imply an email went out.
  */
 export default function TeamPanel({ bookId }) {
     const [data, setData] = useState(null);
@@ -158,12 +159,16 @@ export default function TeamPanel({ bookId }) {
                 )}
 
                 <p className="mt-3 flex items-start gap-2 text-[11.5px] leading-relaxed text-text-secondary">
-                    <span className="mt-px shrink-0 text-status-warning">
+                    <span
+                        className={`mt-px shrink-0 ${
+                            data.delivery === 'email' ? 'text-brand-primary' : 'text-status-warning'
+                        }`}
+                    >
                         <Icon name="info" size={14} />
                     </span>
-                    Nothing is emailed yet — this app has no mail transport
-                    configured. The invitation is recorded and its link appears
-                    below for you to send however you like.
+                    {data.delivery === 'email'
+                        ? 'We email the invitation to them. Its link also appears below, in case you would rather send it yourself.'
+                        : 'Nothing is emailed from this server — no mail transport is configured. The invitation is recorded and its link appears below for you to send however you like.'}
                 </p>
             </form>
 

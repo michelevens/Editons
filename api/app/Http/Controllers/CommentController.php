@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\Comment;
 use App\Models\ManuscriptSection;
@@ -53,7 +54,7 @@ class CommentController extends Controller
             );
         }
 
-        $section->comments()->create([
+        $comment = $section->comments()->create([
             'parent_id' => $parent?->id,
             'user_id' => $request->user()->id,
             'author_name' => $request->user()->name,
@@ -61,6 +62,9 @@ class CommentController extends Controller
             // Replies carry no anchor; the thread owns it.
             'excerpt' => $parent ? null : ($data['excerpt'] ?? null),
         ]);
+
+        // @mentions, and replies to everybody else in the thread.
+        Notify::commentPosted($comment);
 
         return response()->json($this->payload($section->book), 201);
     }

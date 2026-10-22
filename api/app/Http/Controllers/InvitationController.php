@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\Notify;
 use App\Models\BookMember;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,6 +70,8 @@ class InvitationController extends Controller
             // Spend the token. An accepted invitation must not be replayable.
             'invite_token' => null,
         ])->save();
+
+        Notify::invitationAccepted($member->fresh(['book.user', 'user']));
 
         return redirect()->route('books.overview', $member->book_id);
     }

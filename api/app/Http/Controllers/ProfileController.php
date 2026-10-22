@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Billing\CreditLedger;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Journey\BookType;
+use App\Mail\EmailPreferences;
+use App\Mail\Notify;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,6 +51,7 @@ class ProfileController extends Controller
                 'books' => $user->books()->count(),
                 'book_limit' => $limits['books'],
             ],
+            'email_preferences' => EmailPreferences::describe($user),
         ]);
     }
 
@@ -59,13 +62,42 @@ class ProfileController extends Controller
     {
         $request->user()->fill($request->validated());
 
-        if ($request->user()->isDirty('email')) {
+        // Captured before the save: the security notice goes to the address
+        // the account had, which is the one the real owner still reads.
+        $previousEmail = $request->user()->isDirty('email')
+            ? $request->user()->getOriginal('email')
+            : null;
+
+        if ($previousEmail) {
             $request->user()->email_verified_at = null;
         }
 
         $request->user()->save();
 
+        if ($previousEmail) {
+            Notify::emailChanged($request->user(), $previousEmail);
+        }
+
         return Redirect::route('profile.edit');
+    }
+
+    /**
+     * Switch email categories on or off.
+     *
+     * Mandatory categories (security, billing, receipts) are ignored rather
+     * than refused: EmailPreferences::update only ever stores toggleable
+     * keys, so a crafted request cannot silence a security notice.
+     */
+    public function updateEmailPreferences(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'preferences' => ['required', 'array'],
+            'preferences.*' => ['boolean'],
+        ]);
+
+        EmailPreferences::update($request->user(), $data['preferences']);
+
+        return Redirect::route('profile.edit')->with('status', 'email-preferences-updated');
     }
 
     /**
@@ -79,9 +111,15 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // Plain values, read before the row goes: the confirmation is
+        // rendered by a queue worker after the account no longer exists.
+        $farewell = [$user->name, $user->email, $user->books()->withTrashed()->count()];
+
         Auth::logout();
 
         $user->delete();
+
+        Notify::accountDeleted(...$farewell);
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

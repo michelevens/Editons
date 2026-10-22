@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookMember;
 use App\Models\User;
@@ -70,10 +71,11 @@ class TeamController extends Controller
         $book->members()->save($member);
         $member->issueInvite();
 
-        // The invitation is recorded but not delivered: this application has
-        // no mail transport configured, and pretending otherwise would leave
-        // an author believing an email went out. The screen says so, and the
-        // link is shown for copying.
+        // Emailed, and the link is still shown for copying: an invitation
+        // that lands in spam should not leave the author with no way to
+        // send it themselves.
+        Notify::bookInvitation($member->fresh(['book.user', 'inviter', 'user']));
+
         return response()->json($this->payload($book), 201);
     }
 
@@ -95,6 +97,8 @@ class TeamController extends Controller
         abort_if($member->status === 'active', 422, 'They have already accepted.');
 
         $member->issueInvite();
+
+        Notify::bookInvitation($member->fresh(['book.user', 'inviter', 'user']));
 
         return response()->json($this->payload($member->book));
     }
@@ -159,7 +163,7 @@ class TeamController extends Controller
                 'status' => $member->status,
                 'invite_live' => $member->inviteIsLive(),
                 'invited_at' => $member->invited_at?->diffForHumans(),
-                // Shown for copying, because nothing emails it.
+                // Emailed too; shown for copying in case it lands in spam.
                 'invite_url' => $member->inviteIsLive()
                     ? url("/invitations/{$member->invite_token}")
                     : null,
@@ -179,8 +183,10 @@ class TeamController extends Controller
                 // collaborator rather than two.
                 'used' => collect($members)->whereIn('status', ['invited', 'active'])->count() + 1,
             ],
-            // Stated rather than implied: no mail is sent.
-            'delivery' => 'manual',
+            // Invitations are emailed (App\Mail\Notify::bookInvitation) unless
+            // the mailer goes nowhere, in which case the screen must not
+            // claim an email went out. The link is returned either way.
+            'delivery' => in_array(config('mail.default'), ['log', 'array'], true) ? 'manual' : 'email',
         ];
     }
 }
