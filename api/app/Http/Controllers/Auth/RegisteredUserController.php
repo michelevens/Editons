@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Editorial\EditorialAgent;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
@@ -21,7 +22,24 @@ class RegisteredUserController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('Auth/Register');
+        // What the free plan gives, from the plan and the agent catalogue
+        // rather than written into the page: the copy said "all seven
+        // editorial agents ... free" when there were nine and four ran on
+        // the free plan.
+        $free = config('billing.plans.free');
+        $agents = EditorialAgent::cases();
+
+        return Inertia::render('Auth/Register', [
+            'offer' => [
+                'books' => $free['books'],
+                'credits' => (int) $free['credits'],
+                'agents_total' => count($agents),
+                'agents_free' => array_values(array_map(
+                    fn (EditorialAgent $agent) => $agent->label(),
+                    array_filter($agents, fn (EditorialAgent $agent) => $agent->minimumTier() <= ($free['tier'] ?? 0)),
+                )),
+            ],
+        ]);
     }
 
     /**

@@ -2,7 +2,14 @@ import { AuthField, AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
-export default function Register() {
+/** "A, B, C and D" */
+function listOf(items) {
+    if (items.length <= 1) return items.join('');
+
+    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+export default function Register({ offer = null }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: '',
@@ -24,7 +31,15 @@ export default function Register() {
 
             <AuthHeading
                 title="Start writing"
-                subtitle="Your first book, all seven editorial agents, and a research library — free."
+                subtitle={
+                    offer
+                        ? `${offer.books === 1 ? 'Your first book' : `${offer.books} books`}, ${
+                              offer.agents_free.length
+                          } of the ${offer.agents_total} editorial agents (${listOf(
+                              offer.agents_free,
+                          )}), and a research library — free.`
+                        : 'Your first book and a research library — free.'
+                }
             />
 
             {/* What the free plan actually gives, stated before the form
@@ -46,8 +61,9 @@ export default function Register() {
                     <path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
                 </svg>
                 <p className="text-[12.5px] leading-relaxed text-brand-primary-hover">
-                    The free plan includes 100 AI credits a month and needs no
-                    card. Nothing is charged unless you choose a paid plan.
+                    The free plan includes {offer?.credits ?? 100} AI credits a
+                    month and needs no card. Nothing is charged unless you choose
+                    a paid plan.
                 </p>
             </div>
 
