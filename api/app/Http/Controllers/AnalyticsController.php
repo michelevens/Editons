@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Editorial\EditorialAgent;
 use App\Models\Book;
 use App\Models\EditorialFinding;
 use App\Models\ManuscriptSection;
@@ -77,14 +78,18 @@ class AnalyticsController extends Controller
 
         // Where each chapter stood before the window opened, so the first
         // day's change is measured against reality rather than from zero.
-        $baseline = [];
-
-        foreach ($sectionIds as $id) {
-            $baseline[$id] = (int) ManuscriptVersion::where('manuscript_section_id', $id)
-                ->where('created_at', '<', $since)
-                ->orderByDesc('created_at')
-                ->value('word_count');
-        }
+        // One query for every chapter (it was one per chapter): the newest
+        // snapshot of each before the window, served by the
+        // (manuscript_section_id, created_at) index.
+        $baseline = ManuscriptVersion::whereIn('manuscript_section_id', $sectionIds)
+            ->where('created_at', '<', $since)
+            ->selectRaw('DISTINCT ON (manuscript_section_id) manuscript_section_id, word_count')
+            ->orderBy('manuscript_section_id')
+            ->orderByDesc('created_at')
+            ->orderByDesc('version_number')
+            ->pluck('word_count', 'manuscript_section_id')
+            ->map(fn ($words) => (int) $words)
+            ->all();
 
         $buckets = [];
 
@@ -118,9 +123,9 @@ class AnalyticsController extends Controller
         $today = now()->toDateString();
 
         if (isset($buckets[$today])) {
-            foreach (ManuscriptSection::whereIn('id', $sectionIds)->get() as $section) {
-                $buckets[$today]['words'] += $section->word_count
-                    - ($baseline[$section->id] ?? 0);
+            // Counts only: the content of every chapter is not needed here.
+            foreach (ManuscriptSection::whereIn('id', $sectionIds)->pluck('word_count', 'id') as $id => $words) {
+                $buckets[$today]['words'] += (int) $words - ($baseline[$id] ?? 0);
             }
         }
 
@@ -133,7 +138,7 @@ class AnalyticsController extends Controller
         return $book->sections()
             ->where('type', '!=', 'part')
             ->orderBy('position')
-            ->get()
+            ->get(['id', 'title', 'word_count', 'status'])
             ->map(fn (ManuscriptSection $section) => [
                 'id' => $section->id,
                 'title' => $section->title,
@@ -146,7 +151,7 @@ class AnalyticsController extends Controller
     /** @return array<int, array<string, mixed>> */
     private function byAgent($findings): array
     {
-        return collect(\App\Editorial\EditorialAgent::catalogue())
+        return collect(EditorialAgent::catalogue())
             ->map(fn (array $agent) => [
                 'value' => $agent['value'],
                 'label' => $agent['label'],

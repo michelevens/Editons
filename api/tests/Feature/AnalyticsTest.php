@@ -1,10 +1,12 @@
 <?php
 
+use App\Editorial\EditorialAgent;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Models\ManuscriptVersion;
 use App\Models\User;
 use App\Services\ManuscriptWriter;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The prototype generates its daily chart from a seeded random number and
@@ -128,7 +130,7 @@ it('reports every agent, including those with nothing open', function () {
     $user = User::factory()->create();
     $book = Book::factory()->for($user)->create();
 
-    expect(analyticsFor($user, $book)['by_agent'])->toHaveCount(count(App\Editorial\EditorialAgent::cases()));
+    expect(analyticsFor($user, $book)['by_agent'])->toHaveCount(count(EditorialAgent::cases()));
 });
 
 it('keeps the window within sane bounds', function () {
@@ -152,4 +154,34 @@ it('refuses another author\'s analytics', function () {
     $this->actingAs(User::factory()->create())
         ->getJson("/books/{$book->id}/analytics")
         ->assertForbidden();
+});
+
+it('reads every chapter baseline in one query, whatever the chapter count', function () {
+    // One baseline query per chapter: 50 of the 61 queries on a 50-chapter
+    // book. And no chapter content is loaded just to read a word count.
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+
+    $sections = collect(range(1, 6))->map(fn ($n) => ManuscriptSection::factory()->for($book)->create(['position' => $n * 10]));
+
+    foreach ($sections as $section) {
+        writeChapter($section, 'one two three');
+        writeChapter($section, 'one two three four');
+    }
+
+    // Push the history before the window, so every chapter has a baseline.
+    ManuscriptVersion::query()->update(['created_at' => now()->subDays(30)]);
+    writeChapter($sections[0], 'one two three four five six');
+
+    $queries = collect();
+    DB::listen(fn ($query) => $queries->push($query->sql));
+
+    $data = analyticsFor($user, $book);
+
+    $baselineQueries = $queries->filter(fn ($sql) => str_contains($sql, 'from "manuscript_versions"') && str_contains($sql, '"created_at" <'));
+    $contentReads = $queries->filter(fn ($sql) => str_contains($sql, 'from "manuscript_sections"') && str_contains($sql, 'select *'));
+
+    expect($baselineQueries)->toHaveCount(1)
+        ->and($contentReads)->toHaveCount(0)
+        ->and($data['by_section'])->toHaveCount(6);
 });

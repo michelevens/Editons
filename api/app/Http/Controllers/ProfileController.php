@@ -48,7 +48,7 @@ class ProfileController extends Controller
                 'price' => $limits['price'],
                 'credits' => app(CreditLedger::class)->balanceFor($user),
                 'monthly_credits' => $limits['credits'],
-                'books' => $user->books()->count(),
+                'books' => $user->activeBookCount(),
                 'book_limit' => $limits['books'],
             ],
             'email_preferences' => EmailPreferences::describe($user),
@@ -114,6 +114,22 @@ class ProfileController extends Controller
         // Plain values, read before the row goes: the confirmation is
         // rendered by a queue worker after the account no longer exists.
         $farewell = [$user->name, $user->email, $user->books()->withTrashed()->count()];
+
+        // Stop the billing before the account goes. The subscription rows
+        // cascade with the user, and a Stripe subscription nobody can see
+        // any more would go on charging the card. If Stripe cannot be
+        // reached the account stays, rather than being deleted mid-billing.
+        foreach ($user->subscriptions()->active()->get() as $subscription) {
+            try {
+                $subscription->cancelNow();
+            } catch (\Throwable $e) {
+                report($e);
+
+                return back()->withErrors([
+                    'password' => 'Your subscription could not be cancelled just now, so the account was not deleted. Try again in a moment.',
+                ]);
+            }
+        }
 
         Auth::logout();
 
