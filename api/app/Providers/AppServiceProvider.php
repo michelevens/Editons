@@ -4,9 +4,14 @@ namespace App\Providers;
 
 use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\DriverFactory;
+use App\Http\Controllers\StripeWebhookController;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Cashier\Http\Controllers\WebhookController;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,7 +30,12 @@ class AppServiceProvider extends ServiceProvider
             fn ($app) => $app->make(DriverFactory::class)->make(),
         );
 
-        //
+        // Cashier's route resolves its controller through the container,
+        // so this swaps in the stricter one without redefining the route.
+        $this->app->bind(
+            WebhookController::class,
+            StripeWebhookController::class,
+        );
     }
 
     /**
@@ -34,6 +44,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        $this->configureAuthRateLimits();
 
         // Generate every URL from APP_URL rather than from the request host.
         //
@@ -53,6 +65,49 @@ class AppServiceProvider extends ServiceProvider
             if (str_starts_with($url, 'https://')) {
                 URL::forceHttps();
             }
+        }
+    }
+
+    /**
+     * Per-IP limits on the doors that do not need an account.
+     *
+     * Sign-in already locks one address after five failures (LoginRequest),
+     * but that is keyed on the email, so one password tried against many
+     * accounts was never slowed. Registration and password resets had no
+     * limit at all: every new account is granted free credits, and every
+     * reset request is a mail sent on somebody else's behalf.
+     *
+     * Two windows each: a burst limit a person retrying will not reach, and
+     * an hourly one a script will. The IP is the real client — see
+     * App\Http\TrustedProxies for why that took more than request()->ip().
+     */
+    private function configureAuthRateLimits(): void
+    {
+        // Answer the way the form already shows errors — back, with a
+        // message under the email field — rather than with a bare 429 page.
+        $tooMany = function (Request $request, array $headers) {
+            $seconds = (int) ($headers['Retry-After'] ?? 60);
+            $message = "Too many attempts. Please try again in {$seconds} seconds.";
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 429, $headers);
+            }
+
+            return back()->withErrors(['email' => $message])->withHeaders($headers);
+        };
+
+        $limits = [
+            'login' => [20, 200],
+            'register' => [5, 30],
+            'password-reset' => [5, 20],
+        ];
+
+        foreach ($limits as $name => [$perMinute, $perHour]) {
+            RateLimiter::for($name, fn (Request $request) => [
+                // Distinct keys: two limits sharing one would share a counter.
+                Limit::perMinute($perMinute)->by('minute|'.$request->ip())->response($tooMany),
+                Limit::perHour($perHour)->by('hour|'.$request->ip())->response($tooMany),
+            ]);
         }
     }
 }

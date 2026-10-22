@@ -62,8 +62,11 @@ class NewPasswordController extends Controller
             return redirect()->route('login')->with('status', __($status));
         }
 
+        // An unknown address gets the invalid-token answer, not "We can't
+        // find a user": the reset form must not confirm who has an account
+        // any more than the request form does.
         throw ValidationException::withMessages([
-            'email' => [trans($status)],
+            'email' => [trans($status === Password::INVALID_USER ? Password::INVALID_TOKEN : $status)],
         ]);
     }
 }

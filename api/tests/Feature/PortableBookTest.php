@@ -343,6 +343,67 @@ it('gives an untitled book a title', function () {
     expect($book->title)->toBe('Untitled book');
 });
 
+it('holds layout, rights and listing copy to the rules the screens apply', function () {
+    // From the audit: a crafted file stored layout.font = "serif</style>…"
+    // and an unbounded size, which the Design screen would have refused.
+    $user = User::factory()->create();
+    $path = tempnam(sys_get_temp_dir(), 'ecr').'.ecrivain';
+
+    $zip = new ZipArchive;
+    $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('manifest.json', json_encode(['format' => 'ecrivain', 'version' => 1]));
+    $zip->addFromString('book.json', json_encode(['book' => [
+        'title' => 'Crafted',
+        'journey_stage' => 'nowhere',
+        'language' => null,
+        'assistance' => 'collaborative',
+        'target_words' => 'lots',
+        'layout' => [
+            'font' => 'serif</style><script>alert(11)</script>',
+            'size' => '11;}</style><script>alert(12)</script>',
+            'leading' => 1.4,
+            'trim' => '5 x 8 in',
+            'dropcap' => true,
+            'injected' => 'anything',
+        ],
+        'rights' => ['registered_copyright' => true, 'permissions_cleared' => '<b>yes</b>', 'extra' => true],
+        'meta' => ['description' => 'Fine copy.', 'keywords' => str_repeat('k', 600), 'html' => '<script>'],
+    ], 'sections' => []]));
+    $zip->close();
+
+    $book = app(PortableBook::class)->import($path, $user->id);
+    @unlink($path);
+
+    expect($book->layout)->toEqual(['trim' => '5 x 8 in', 'leading' => 1.4, 'dropcap' => true])
+        ->and($book->layout()['font'])->toBe('serif')
+        ->and($book->layout()['size'])->toBe(11.0)
+        ->and($book->rights)->toBe(['registered_copyright' => true])
+        ->and($book->meta)->toBe(['description' => 'Fine copy.'])
+        ->and($book->assistance)->toBe('collaborative')
+        ->and($book->journey_stage)->toBe('discover')
+        ->and($book->language)->toBe('English (US)')
+        ->and($book->target_words)->not->toBe('lots');
+});
+
+it('keeps every layout setting a real export carries', function () {
+    $user = User::factory()->create();
+    $layout = [
+        'trim' => '5.5 x 8.5 in', 'margins' => 'Wide', 'font' => 'sans',
+        'size' => 12.5, 'leading' => 1.6, 'dropcap' => true, 'headers' => false,
+    ];
+    $book = portableBook($user, [
+        'layout' => $layout,
+        'rights' => ['registered_copyright' => true, 'permissions_cleared' => false, 'image_licenses' => true],
+        'meta' => ['description' => 'Listing copy.', 'category' => 'Memoir', 'keywords' => 'one, two'],
+    ]);
+
+    $copy = roundTrip($book->fresh());
+
+    expect($copy->layout)->toEqual($layout)
+        ->and($copy->rights)->toEqual($book->rights)
+        ->and($copy->meta)->toEqual($book->meta);
+});
+
 // --- Over HTTP -----------------------------------------------------------
 
 it('downloads as a file', function () {

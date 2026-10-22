@@ -44,5 +44,8 @@
         "mathjax-full": "^3.2.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0"
+    },
+    "overrides": {
+        "@xmldom/xmldom": "0.9.12"
     }
 }

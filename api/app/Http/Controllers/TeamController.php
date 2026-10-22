@@ -154,7 +154,10 @@ class TeamController extends Controller
             ->map(fn (BookMember $member) => [
                 'id' => $member->id,
                 'email' => $member->email,
-                'name' => $member->user?->name,
+                // Only once they have accepted. Before that the name would
+                // tell whoever typed the address that it has an account here,
+                // and whose it is.
+                'name' => $member->status === 'active' ? $member->user?->name : null,
                 'role' => $member->role,
                 'status' => $member->status,
                 'invite_live' => $member->inviteIsLive(),

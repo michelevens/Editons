@@ -31,6 +31,18 @@ export default {
             });
         }
 
+        // Plain HTTP never reaches the app. http://app.ecrivain.ai/login used
+        // to answer 200 with the sign-in form, whose relative POST then sent
+        // the password in clear text. Everything below forwards
+        // X-Forwarded-Proto: https, so the app cannot see this itself.
+        // 308 rather than 301 for writes, so the method survives.
+        if (url.protocol === 'http:') {
+            url.protocol = 'https:';
+            const status = request.method === 'GET' || request.method === 'HEAD' ? 301 : 308;
+
+            return Response.redirect(url.toString(), status);
+        }
+
         const target = new URL(request.url);
         target.hostname = env[originVar];
         target.protocol = 'https:';
@@ -51,6 +63,17 @@ export default {
         headers.set('X-Forwarded-Host', url.hostname);
         headers.set('X-Forwarded-Proto', 'https');
         headers.set('X-Forwarded-Port', '443');
+
+        // The client's address, as Cloudflare saw it, replacing whatever the
+        // client put in X-Forwarded-For. Railway appends this Worker's own
+        // (Cloudflare) address after it, and the app trusts exactly those
+        // hops (api/app/Http/TrustedProxies.php) — so its rate limits key on
+        // the real client, not on a header the client wrote.
+        const client = request.headers.get('CF-Connecting-IP');
+
+        if (client) {
+            headers.set('X-Forwarded-For', client);
+        }
 
         const upstream = new Request(target.toString(), {
             method: request.method,

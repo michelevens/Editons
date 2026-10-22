@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\ManuscriptSection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * The review board: which chapters are drafted, in review, in revision or
@@ -45,13 +46,40 @@ class WorkflowController extends Controller
     {
         $this->authorize('update', $section);
 
+        $book = $section->book;
+
+        // Only somebody who can already reach the book. A bare
+        // exists:users,id let any author assign any account and read its
+        // name back from the board, which is a directory of every user.
         $data = $request->validate([
-            'reviewer_id' => ['nullable', 'integer', 'exists:users,id'],
+            'reviewer_id' => [
+                'nullable',
+                'integer',
+                Rule::in($this->assignable($book)),
+            ],
         ]);
 
         $section->update($data);
 
-        return response()->json(['chapters' => $this->board($section->book)]);
+        return response()->json(['chapters' => $this->board($book)]);
+    }
+
+    /**
+     * The owner and the active members: the people a chapter can go to.
+     *
+     * @return array<int, int>
+     */
+    private function assignable(Book $book): array
+    {
+        return $book->members()
+            ->where('status', 'active')
+            ->whereNotNull('user_id')
+            ->pluck('user_id')
+            ->push($book->user_id)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /** @return array<int, array<string, mixed>> */
