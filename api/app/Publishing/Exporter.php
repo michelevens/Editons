@@ -178,8 +178,8 @@ class Exporter
         return $entries;
     }
 
-    /** The contents page, as HTML. */
-    private function contentsHtml(array $entries): string
+    /** The contents page, as HTML, headed in the book's language. */
+    private function contentsHtml(array $entries, string $language): string
     {
         if (count($entries) < 2) {
             return '';
@@ -193,7 +193,7 @@ class Exporter
                 .e($entry['title']).'</a></li>'."\n";
         }
 
-        return '<nav class="toc" id="contents"><h1>Contents</h1><ol>'."\n"
+        return '<nav class="toc" id="contents"><h1>'.e(PrintBook::words($language)['contents']).'</h1><ol>'."\n"
             .$items.'</ol></nav>'."\n";
     }
 
@@ -313,7 +313,7 @@ class Exporter
         $sections = $this->structure($book);
         $entries = $this->contents($sections);
 
-        $body = $this->titlePageHtml($book).$this->contentsHtml($entries);
+        $body = $this->titlePageHtml($book).$this->contentsHtml($entries, self::languageCode($book->language));
 
         foreach ($sections as $i => $section) {
             $body .= $this->structuredHtml($section, $entries[$i]['id']);
@@ -335,7 +335,7 @@ class Exporter
     private function pdf(Book $book, $sections, BookExport $export): string
     {
         return $this->put($book, $export, $this->print->pdf(
-            $book, $this->structure($book), $this->languageCode($book->language),
+            $book, $this->structure($book), self::languageCode($book->language),
         ));
     }
 
@@ -365,7 +365,7 @@ class Exporter
     private function printable(Book $book, $sections, BookExport $export): string
     {
         return $this->put($book, $export, $this->print->html(
-            $book, $this->structure($book), $this->languageCode($book->language),
+            $book, $this->structure($book), self::languageCode($book->language),
         ));
     }
 
@@ -407,9 +407,11 @@ class Exporter
             .'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
             .'<w:body>'.$paragraphs.'</w:body></w:document>';
 
-        // Pictures placed in the text, as package parts; footnotes as theirs.
+        // Pictures placed in the text, as package parts; footnotes and list
+        // numbering as theirs.
         $media = $this->renderer->docxMedia();
         $footnotes = $this->renderer->docxFootnotes();
+        $numbering = $this->renderer->docxNumbering();
 
         $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -420,17 +422,21 @@ class Exporter
             .'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
             .'<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
             .($footnotes ? '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' : '')
+            .($numbering ? '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' : '')
+            .'<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
             .'</Types>';
 
         $rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'
             .'</Relationships>';
 
         $documentRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
             .($footnotes ? '<Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>' : '')
+            .($numbering ? '<Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' : '')
             .collect($media)->map(fn ($m, $id) => '<Relationship Id="'.$id.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'.$m['file'].'"/>')->implode('')
             .'</Relationships>';
 
@@ -439,8 +445,10 @@ class Exporter
             '_rels/.rels' => $rels,
             'word/document.xml' => $document,
             'word/_rels/document.xml.rels' => $documentRels,
-            'word/styles.xml' => $this->docxStyles(),
+            'word/styles.xml' => $this->docxStyles(self::wordLanguage(self::languageCode($book->language))),
+            'docProps/core.xml' => $this->docxCore($book),
             ...($footnotes ? ['word/footnotes.xml' => $footnotes] : []),
+            ...($numbering ? ['word/numbering.xml' => $numbering] : []),
             ...collect($media)->mapWithKeys(fn ($m) => ['word/media/'.$m['file'] => $m['data']])->all(),
         ]);
     }
@@ -456,10 +464,51 @@ class Exporter
             .'</w:t></w:r></w:p>';
     }
 
-    private function docxStyles(): string
+    /**
+     * The document's properties: its title and language, and the author
+     * only when the book names one. Many of these books are anonymous, and
+     * Word would otherwise show whoever's machine last saved the file.
+     */
+    private function docxCore(Book $book): string
+    {
+        $x = fn (string $value) => htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $now = now()->utc()->format('Y-m-d\TH:i:s\Z');
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
+            .'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
+            .'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
+            .'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+            .'<dc:title>'.$x($book->title).'</dc:title>'
+            .($book->subtitle ? '<dc:subject>'.$x($book->subtitle).'</dc:subject>' : '')
+            .($book->author_name ? '<dc:creator>'.$x($book->author_name).'</dc:creator>' : '')
+            .'<dc:language>'.$x(self::languageCode($book->language)).'</dc:language>'
+            .'<dcterms:created xsi:type="dcterms:W3CDTF">'.$now.'</dcterms:created>'
+            .'<dcterms:modified xsi:type="dcterms:W3CDTF">'.$now.'</dcterms:modified>'
+            .'</cp:coreProperties>';
+    }
+
+    /** The language tag Word proofs in: it expects a region (fr-FR, ht-HT). */
+    private static function wordLanguage(string $code): string
+    {
+        return match ($code) {
+            'fr' => 'fr-FR',
+            'es' => 'es-ES',
+            'de' => 'de-DE',
+            'pt' => 'pt-PT',
+            'ht' => 'ht-HT',
+            default => $code,
+        };
+    }
+
+    private function docxStyles(string $language = 'en-US'): string
     {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            // The book's language for every run, so Word proofs the text in
+            // it rather than in the reader's own.
+            .'<w:docDefaults><w:rPrDefault><w:rPr><w:lang w:val="'.$language.'" w:eastAsia="'.$language.'" w:bidi="ar-SA"/></w:rPr></w:rPrDefault></w:docDefaults>'
+            .'<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>'
+            .'<w:pPr><w:spacing w:after="60"/><w:ind w:left="720"/><w:contextualSpacing/></w:pPr></w:style>'
             .'<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/>'
             .'<w:rPr><w:sz w:val="56"/><w:b/></w:rPr></w:style>'
             .'<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/>'
@@ -505,7 +554,7 @@ class Exporter
     {
         $uuid = 'urn:uuid:'.Str::uuid()->toString();
         $identifier = $book->isbn ? 'urn:isbn:'.$book->isbn : $uuid;
-        $language = $this->languageCode($book->language);
+        $language = self::languageCode($book->language);
         $modified = now()->utc()->format('Y-m-d\TH:i:s\Z');
 
         $files = [];
@@ -605,11 +654,24 @@ class Exporter
             .'</manifest>'
             .'<spine>'.$spine.'</spine></package>';
 
+        $contents = PrintBook::words($language)['contents'];
+
+        // Landmarks: where the cover and the text begin. The cover sits
+        // outside the reading order (linear="no"), and EPUB requires such a
+        // page to be reachable by a link; without this one epubcheck failed
+        // every book with a cover (OPF-096). Only spine pages are linked: a
+        // link back into this file is itself an error (RSC-011).
+        $landmarks = '<nav epub:type="landmarks" id="landmarks" hidden="hidden"><ol>'
+            .($coverManifest !== '' ? '<li><a epub:type="cover" href="cover.xhtml">'.e($book->title).'</a></li>' : '')
+            .($sections->isNotEmpty() ? '<li><a epub:type="bodymatter" href="ch1.xhtml">'.e($sections->first()->title).'</a></li>' : '')
+            .'</ol></nav>';
+
         $navDocument = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
             .'<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" '
             .'xmlns:epub="http://www.idpf.org/2007/ops" lang="'.e($language).'" xml:lang="'.e($language).'">'
-            .'<head><title>Contents</title><meta charset="utf-8"/></head><body>'
-            .'<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>'.$nav.'</ol></nav>'
+            .'<head><title>'.e($contents).'</title><meta charset="utf-8"/></head><body>'
+            .'<nav epub:type="toc" id="toc"><h1>'.e($contents).'</h1><ol>'.$nav.'</ol></nav>'
+            .$landmarks
             .'</body></html>';
 
         $container = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
@@ -664,7 +726,7 @@ class Exporter
     /** A standalone HTML page. */
     private function page(Book $book, string $body, bool $standalone = false, string $css = ''): string
     {
-        $language = $this->languageCode($book->language);
+        $language = self::languageCode($book->language);
 
         $default = $css !== '' ? $css : <<<'CSS'
         body { max-width: 38em; margin: 3em auto; padding: 0 1.25em;
@@ -696,13 +758,16 @@ class Exporter
      * Map a display language to a BCP 47 code.
      *
      * EPUB requires one, and stores reject a file whose dc:language is a
-     * display string like "English (US)".
+     * display string like "English (US)". Every language the book settings
+     * offer needs a case here: a Kreyòl book that fell through to en-US was
+     * catalogued, hyphenated and labelled as English.
      */
-    private function languageCode(?string $language): string
+    public static function languageCode(?string $language): string
     {
         return match ($language) {
             'Spanish' => 'es',
             'French' => 'fr',
+            'Haitian Creole', 'Kreyòl', 'Kreyol' => 'ht',
             'German' => 'de',
             'Portuguese' => 'pt',
             'English (UK)' => 'en-GB',

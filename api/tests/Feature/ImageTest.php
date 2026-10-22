@@ -120,3 +120,21 @@ it('does not embed another book\'s picture', function () {
 
     expect($html)->not->toContain('data:image/png');
 });
+
+it('does not put another book\'s picture in a Word export', function () {
+    // The Word export once resolved pictures without asking whose they
+    // were, so pasting another author's image path into your own chapter
+    // and exporting a .docx handed you their file.
+    $owner = User::factory()->create();
+    $image = uploadPicture($this, $owner, pictureBook($owner));
+
+    $book = pictureBook(User::factory()->create(), $image['src']);
+    $docx = app(Exporter::class)->generate($book, 'docx');
+
+    $zip = new ZipArchive;
+    $zip->open(Storage::disk('local')->path($docx->path));
+
+    expect($zip->getFromName('word/media/image1.png'))->toBeFalse()
+        ->and($zip->getFromName('word/document.xml'))->toContain('[Image: Bar chart of weekly response rates]');
+    $zip->close();
+});

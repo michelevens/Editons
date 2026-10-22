@@ -25,6 +25,9 @@ class DocumentRenderer
         'underline' => 'u',
     ];
 
+    /** The book whose stored pictures a render may embed. */
+    private ?int $bookId = null;
+
     /** How equations come out of html(): MathML for readers, SVG for print. */
     private string $mathMode = 'mathml';
 
@@ -35,6 +38,18 @@ class DocumentRenderer
     {
         $copy = clone $this;
         $copy->mathMode = $mode === 'svg' ? 'svg' : 'mathml';
+
+        return $copy;
+    }
+
+    /** The text width and type size in points, for print: [measure, em]. */
+    private ?array $measure = null;
+
+    /** A copy that fits print equations to a measure of this many points. */
+    public function withMeasure(float $points, float $em): static
+    {
+        $copy = clone $this;
+        $copy->measure = [$points, $em];
 
         return $copy;
     }
@@ -185,6 +200,7 @@ class DocumentRenderer
             return $this->listHtml($kind);
         }
 
+        $this->bookId = $section->book_id;
         $nodes = $this->numbered($section);
 
         // One typesetting call per section, not one per equation.
@@ -329,7 +345,8 @@ class DocumentRenderer
     }
 
     /**
-     * Collects every path and rect with its full transform applied.
+     * Collects every path and rect, and text as outlines, with its full
+     * transform applied.
      *
      * @param  array<int, float>  $matrix  [a, b, c, d, e, f]
      */
@@ -352,6 +369,28 @@ class DocumentRenderer
 
                 $out .= '<'.$name.' '.$attributes.' fill="#1a1a1a" transform="matrix('
                     .implode(',', array_map(fn ($v) => round($v, 6), $local)).')"/>';
+
+                continue;
+            }
+
+            // Letters outside the TeX fonts (é in \text{réel}) come as text,
+            // which the PDF's SVG reader set in a Times without them. Drawn
+            // as outlines they print like the rest of the formula.
+            if ($name === 'text') {
+                $size = (float) $child->getAttribute('font-size') ?: 1000.0;
+                $variant = $child->getAttribute('data-variant');
+                $at = $this->multiply($local, [1, 0, 0, 1, (float) $child->getAttribute('x'), (float) $child->getAttribute('y')]);
+                $glyphs = app(GlyphOutlines::class)->paths(
+                    $child->textContent,
+                    $size,
+                    italic: $child->getAttribute('font-style') === 'italic' || str_contains($variant, 'italic'),
+                    bold: $child->getAttribute('font-weight') === 'bold' || str_contains($variant, 'bold'),
+                );
+
+                foreach ($glyphs as [$d, $glyph]) {
+                    $out .= '<path d="'.e($d).'" fill="#1a1a1a" transform="matrix('
+                        .implode(',', array_map(fn ($v) => round($v, 6), $this->multiply($at, $glyph))).')"/>';
+                }
 
                 continue;
             }
@@ -447,7 +486,13 @@ class DocumentRenderer
             // points. MathJax's ex is half its em; at the 11pt text size that
             // is 5.5pt, set a touch smaller because the math face runs large
             // beside Garamond.
-            $pt = fn (string $ex) => round(((float) $ex) * 4.8, 2);
+            //
+            // A formula wider than the measure is scaled down whole. Left to
+            // the stylesheet's max-width, only its width shrank and the
+            // letters came out condensed.
+            $room = $this->measure === null ? null : $this->measure[0] - ($display ? 6 * $this->measure[1] : 0);
+            $scale = $room !== null && (float) $result['width'] * 4.8 > $room ? $room / ((float) $result['width'] * 4.8) : 1.0;
+            $pt = fn (string $ex) => round(((float) $ex) * 4.8 * $scale, 2);
             $svg = $this->printableSvg($result['svg'], $pt($result['width']), $pt($result['height']));
             $style = 'width:'.$pt($result['width']).'pt;height:'.$pt($result['height']).'pt'
                 .($display ? '' : ';vertical-align:'.$pt((string) $result['valign']).'pt');
@@ -483,6 +528,7 @@ class DocumentRenderer
         }
 
         $this->notes = [];
+        $this->bookId = $section->book_id;
         $body = trim($this->nodesToMarkdown($this->numbered($section)));
 
         // Pandoc's footnote syntax: references in the text, definitions after.
@@ -509,6 +555,7 @@ class DocumentRenderer
                 ->implode('');
         }
 
+        $this->bookId = $section->book_id;
         $nodes = $this->numbered($section);
 
         // One typesetting call for the section's equations.
@@ -520,10 +567,53 @@ class DocumentRenderer
     /** Pictures placed by docx() since the last reset, for the package. */
     private array $docxMedia = [];
 
+    /** Lists placed by docx() since the last reset, one numbering each. */
+    private array $docxLists = [];
+
     public function resetDocxMedia(): void
     {
         $this->docxMedia = [];
         $this->docxNotes = [];
+        $this->docxLists = [];
+    }
+
+    /** The numbering part for the lists placed, or null when there are none. */
+    public function docxNumbering(): ?string
+    {
+        if ($this->docxLists === []) {
+            return null;
+        }
+
+        // Bullets alternate •, ◦, ▪ by depth; numbers go 1., a., i.
+        $levels = function (bool $ordered): string {
+            $out = '';
+
+            for ($i = 0; $i < 9; $i++) {
+                [$format, $text] = $ordered
+                    ? [['decimal', 'lowerLetter', 'lowerRoman'][$i % 3], '%'.($i + 1).'.']
+                    : ['bullet', ['•', '◦', '▪'][$i % 3]];
+
+                $out .= '<w:lvl w:ilvl="'.$i.'"><w:start w:val="1"/><w:numFmt w:val="'.$format.'"/>'
+                    .'<w:lvlText w:val="'.$text.'"/><w:lvlJc w:val="left"/>'
+                    .'<w:pPr><w:ind w:left="'.(720 + 360 * $i).'" w:hanging="360"/></w:pPr></w:lvl>';
+            }
+
+            return $out;
+        };
+
+        $instances = '';
+
+        foreach ($this->docxLists as $i => $list) {
+            $instances .= '<w:num w:numId="'.($i + 1).'"><w:abstractNumId w:val="'.($list['ordered'] ? 1 : 0).'"/>'
+                .($list['ordered'] ? '<w:lvlOverride w:ilvl="'.$list['level'].'"><w:startOverride w:val="'.$list['start'].'"/></w:lvlOverride>' : '')
+                .'</w:num>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
+            .'<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            .'<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/>'.$levels(false).'</w:abstractNum>'
+            .'<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>'.$levels(true).'</w:abstractNum>'
+            .$instances.'</w:numbering>';
     }
 
     /** The footnotes part, or null when the document has none. */
@@ -572,7 +662,10 @@ class DocumentRenderer
     /** @param array<string, mixed> $node */
     private function docxImage(array $node): string
     {
-        $image = app(BookImages::class)->resolve((string) ($node['attrs']['src'] ?? ''));
+        // Only this book's pictures: an src naming another book's image is
+        // someone else's file, whatever the manuscript says.
+        $image = $this->bookId === null ? null
+            : app(BookImages::class)->resolve((string) ($node['attrs']['src'] ?? ''), $this->bookId);
 
         if ($image === null) {
             // An image that cannot be embedded keeps its description, so the
@@ -673,19 +766,29 @@ class DocumentRenderer
         return $out;
     }
 
-    /** @param array<string, mixed> $list */
+    /**
+     * A real Word list: each item a paragraph carrying the list's numbering,
+     * so Word draws the bullet or number, renumbers it, and restyles it with
+     * the rest. A typed "•" and a tab looked the same and were none of that.
+     *
+     * @param  array<string, mixed>  $list
+     */
     private function docxList(array $list, int $depth): string
     {
         $out = '';
         $ordered = ($list['type'] ?? '') === 'orderedList';
-        $number = (int) ($list['attrs']['start'] ?? 1);
+        $level = min(8, $depth);
+
+        // One numbering instance per list, so each ordered list counts from
+        // its own start rather than carrying on from the one before.
+        $this->docxLists[] = ['ordered' => $ordered, 'start' => max(1, (int) ($list['attrs']['start'] ?? 1)), 'level' => $level];
+        $numId = count($this->docxLists);
 
         foreach ($list['content'] ?? [] as $item) {
             if (! is_array($item)) {
                 continue;
             }
 
-            $marker = $ordered ? ($number++).".\t" : "•\t";
             $first = true;
 
             foreach ($item['content'] ?? [] as $child) {
@@ -694,10 +797,13 @@ class DocumentRenderer
                 }
 
                 if (($child['type'] ?? '') === 'paragraph') {
-                    $indent = 360 * ($depth + 1);
-                    $out .= '<w:p><w:pPr><w:ind w:left="'.($indent + 360).'" w:hanging="360"/></w:pPr>'
-                        .($first ? $this->docxRun($marker) : '')
-                        .$this->docxRuns($child['content'] ?? []).'</w:p>';
+                    // A second paragraph in an item lines up with the first,
+                    // without a bullet of its own.
+                    $out .= '<w:p><w:pPr><w:pStyle w:val="ListParagraph"/>'
+                        .($first
+                            ? '<w:numPr><w:ilvl w:val="'.$level.'"/><w:numId w:val="'.$numId.'"/></w:numPr>'
+                            : '<w:ind w:left="'.(720 + 360 * $level).'"/>')
+                        .'</w:pPr>'.$this->docxRuns($child['content'] ?? []).'</w:p>';
                     $first = false;
                 } else {
                     $out .= $this->nodesToDocx([$child], null, $depth + 1);
@@ -1003,8 +1109,14 @@ class DocumentRenderer
     /** @param array<string, mixed> $node */
     private function imageHtml(array $node): string
     {
-        $src = (string) ($node['attrs']['src'] ?? '');
+        $src = self::safeImageSrc((string) ($node['attrs']['src'] ?? ''));
         $alt = (string) ($node['attrs']['alt'] ?? '');
+
+        if ($src === null) {
+            // A picture from somewhere the book cannot vouch for is not
+            // fetched by a reader's browser; its description stands in.
+            return trim($alt) !== '' ? '<p class="image-missing"><em>'.e('[Image: '.trim($alt).']')."</em></p>\n" : '';
+        }
 
         // alt is always emitted, empty if unset. A missing attribute fails
         // accessibility validation; an empty one declares the image
@@ -1016,8 +1128,12 @@ class DocumentRenderer
     private function inlineHtml(array $nodes): string
     {
         $out = '';
+        $nodes = array_values($nodes);
 
-        foreach ($nodes as $node) {
+        // By index: gluing punctuation to a formula edits the node after it.
+        for ($i = 0; $i < count($nodes); $i++) {
+            $node = $nodes[$i];
+
             if (! is_array($node)) {
                 continue;
             }
@@ -1031,7 +1147,18 @@ class DocumentRenderer
             }
 
             if ($type === 'inlineMath') {
-                $out .= $this->mathHtml($node, false);
+                $math = $this->mathHtml($node, false);
+                $next = $nodes[$i + 1] ?? null;
+
+                // Punctuation after a formula stays on its line: a full stop
+                // wrapped to the start of the next line reads as a stray mark.
+                if (is_array($next) && ($next['type'] ?? '') === 'text' && empty($next['marks'])
+                    && preg_match('/^[\x{00A0}\x{202F}]?[.,;:!?…)\]»]+/u', (string) ($next['text'] ?? ''), $punctuation)) {
+                    $math = '<span style="white-space:nowrap">'.$math.e($punctuation[0]).'</span>';
+                    $nodes[$i + 1]['text'] = mb_substr((string) $next['text'], mb_strlen($punctuation[0]));
+                }
+
+                $out .= $math;
 
                 continue;
             }
@@ -1060,10 +1187,11 @@ class DocumentRenderer
                 $markType = $mark['type'] ?? '';
 
                 if ($markType === 'link') {
-                    $href = (string) ($mark['attrs']['href'] ?? '');
+                    $href = self::safeHref((string) ($mark['attrs']['href'] ?? ''));
                     // rel on every outbound link: these files are opened in
-                    // store apps and browsers we do not control.
-                    $text = '<a href="'.e($href).'" rel="noopener">'.$text.'</a>';
+                    // store apps and browsers we do not control. A link to
+                    // anything else (javascript:, data:) keeps its words only.
+                    $text = $href === null ? $text : '<a href="'.e($href).'" rel="noopener">'.$text.'</a>';
 
                     continue;
                 }
@@ -1232,7 +1360,7 @@ class DocumentRenderer
                     'italic', 'em' => '*'.$text.'*',
                     'code' => '`'.$text.'`',
                     'strike' => '~~'.$text.'~~',
-                    'link' => '['.$text.']('.($mark['attrs']['href'] ?? '').')',
+                    'link' => ($href = self::safeHref((string) ($mark['attrs']['href'] ?? ''))) === null ? $text : '['.$text.']('.$href.')',
                     default => $text,
                 };
             }
@@ -1241,6 +1369,45 @@ class DocumentRenderer
         }
 
         return $out;
+    }
+
+    /**
+     * A link target a reader may follow, or null.
+     *
+     * Manuscript content is untrusted: a collaborator or an imported
+     * .ecrivain file can carry any href, and "javascript:" in the Design
+     * preview runs on the app's own origin. Only web and mail links and
+     * anchors inside the book survive. Browsers ignore tabs, newlines and
+     * leading control characters in a scheme, so they are ignored here too.
+     */
+    public static function safeHref(string $href): ?string
+    {
+        $href = trim($href);
+        $scheme = strtolower((string) preg_replace('/[\x00-\x20]+/', '', $href));
+
+        return $href !== '' && (str_starts_with($href, '#')
+            || preg_match('#^(https?://|mailto:)#', $scheme)) ? $href : null;
+    }
+
+    /**
+     * A picture source safe to put in front of a reader, or null.
+     *
+     * The app's own paths and inline raster data. A remote URL would make
+     * every reader of the preview or the EPUB fetch it (a tracking pixel),
+     * and the PDF cannot fetch it anyway; data:image/svg+xml can carry script.
+     */
+    public static function safeImageSrc(string $src): ?string
+    {
+        $src = trim($src);
+        $scheme = strtolower((string) preg_replace('/[\x00-\x20]+/', '', $src));
+
+        if (preg_match('#^data:image/(png|jpe?g|gif|webp);base64,#', $scheme)) {
+            return $src;
+        }
+
+        // No scheme and not protocol-relative ("//host", "/\host"): a path
+        // on this site.
+        return $src !== '' && ! preg_match('#^([a-z][a-z0-9+.\-]*:|[/\\\\]{2})#', $scheme) ? $src : null;
     }
 
     /** @param array<int, mixed> $nodes */

@@ -143,6 +143,72 @@ it('builds a docx that is a real Open XML package', function () {
     $zip->close();
 });
 
+it('gives the docx its title and language, and no author it was not given', function () {
+    $book = exportableBook();
+    $book->update(['author_name' => null, 'language' => 'French']);
+
+    $zip = new ZipArchive;
+    $zip->open(Storage::disk('local')->path(app(Exporter::class)->generate($book->fresh(), 'docx')->path));
+    $core = $zip->getFromName('docProps/core.xml');
+
+    expect($core)->toContain('<dc:title>A Practical Guide</dc:title>')
+        ->toContain('<dc:language>fr</dc:language>')
+        ->not->toContain('dc:creator')
+        ->and($zip->getFromName('_rels/.rels'))->toContain('Target="docProps/core.xml"')
+        ->and($zip->getFromName('[Content_Types].xml'))->toContain('PartName="/docProps/core.xml"')
+        // Word proofs the text in the book's language, not the reader's.
+        ->and($zip->getFromName('word/styles.xml'))->toContain('<w:lang w:val="fr-FR"')
+        ->and(simplexml_load_string($core))->not->toBeFalse();
+    $zip->close();
+
+    $book->update(['author_name' => 'A Writer']);
+    $zip->open(Storage::disk('local')->path(app(Exporter::class)->generate($book->fresh(), 'docx')->path));
+    expect($zip->getFromName('docProps/core.xml'))->toContain('<dc:creator>A Writer</dc:creator>');
+    $zip->close();
+});
+
+it('writes Word lists, not typed bullets', function () {
+    $book = exportableBook();
+    $item = fn (string $text, array $more = []) => ['type' => 'listItem', 'content' => [
+        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]], ...$more,
+    ]];
+    $book->sections()->first()->update(['content' => ['type' => 'doc', 'content' => [
+        ['type' => 'bulletList', 'content' => [
+            $item('First', [['type' => 'orderedList', 'attrs' => ['start' => 3], 'content' => [$item('Third')]]]),
+            $item('Second'),
+        ]],
+    ]]]);
+
+    $zip = new ZipArchive;
+    $zip->open(Storage::disk('local')->path(app(Exporter::class)->generate($book->fresh(), 'docx')->path));
+    $document = $zip->getFromName('word/document.xml');
+    $numbering = $zip->getFromName('word/numbering.xml');
+
+    expect($document)->not->toContain('•')
+        ->toContain('<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t xml:space="preserve">First')
+        ->toContain('<w:numPr><w:ilvl w:val="1"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t xml:space="preserve">Third')
+        ->and($numbering)->toContain('<w:numFmt w:val="bullet"/>')
+        // The ordered list counts from its own start.
+        ->toContain('<w:num w:numId="2"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="1"><w:startOverride w:val="3"/>')
+        ->and(simplexml_load_string($numbering))->not->toBeFalse()
+        ->and($zip->getFromName('word/_rels/document.xml.rels'))->toContain('Target="numbering.xml"')
+        ->and($zip->getFromName('[Content_Types].xml'))->toContain('PartName="/word/numbering.xml"');
+    $zip->close();
+});
+
+it('links the cover from the EPUB navigation, as epubcheck requires', function () {
+    // A non-linear spine item must be reachable by a link (OPF-096); every
+    // EPUB with a cover failed validation without one.
+    $zip = new ZipArchive;
+    $zip->open(Storage::disk('local')->path(app(Exporter::class)->generate(exportableBook(), 'epub')->path));
+
+    expect($zip->getFromName('OEBPS/content.opf'))->toContain('<itemref idref="cover" linear="no"/>')
+        ->and($zip->getFromName('OEBPS/nav.xhtml'))->toContain('<nav epub:type="landmarks"')
+        ->toContain('<a epub:type="cover" href="cover.xhtml">')
+        ->not->toContain('href="#toc"');
+    $zip->close();
+});
+
 it('skips parts, which hold chapters rather than prose', function () {
     // A part exported as a chapter prints its title twice: once as the part
     // and once as the chapter under it.

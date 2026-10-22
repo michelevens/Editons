@@ -67,13 +67,16 @@ class BookImages
      * The stored image an src points at, or null for anything else (an
      * external URL, another book's image, a missing file).
      *
+     * The book is required: resolving without one embedded any book's
+     * picture in whatever book was being exported.
+     *
      * @return array{name: string, mime: string, data: string}|null
      */
-    public function resolve(string $src, ?int $bookId = null): ?array
+    public function resolve(string $src, int $bookId): ?array
     {
         if (! preg_match('#^(?:https?://[^/]+)?/books/(\d+)/images/([a-z0-9]+\.[a-z]+)$#', $src, $m)
             || ! self::validName($m[2])
-            || ($bookId !== null && (int) $m[1] !== $bookId)) {
+            || (int) $m[1] !== $bookId) {
             return null;
         }
 
