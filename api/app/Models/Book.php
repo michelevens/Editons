@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -196,6 +197,12 @@ class Book extends Model
     public function channels(): HasMany
     {
         return $this->hasMany(BookChannel::class);
+    }
+
+    /** The book on sale in the author's own storefront, if it is. */
+    public function product(): HasOne
+    {
+        return $this->hasOne(Product::class);
     }
 
     /** Generated files, newest first. Append-only, so this is a history. */

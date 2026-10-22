@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Cashier\Billable;
 
 /*
@@ -114,6 +115,31 @@ class User extends Authenticatable
     public function isbns(): HasMany
     {
         return $this->hasMany(Isbn::class);
+    }
+
+    /** Books this user has on sale in their storefront. */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /**
+     * The storefront's public address, minted on first use.
+     *
+     * Opaque rather than the id or a name: the id counts accounts, and an
+     * author who sells anonymously has no name to put in a URL.
+     */
+    public function storeHandle(): string
+    {
+        if (! $this->store_handle) {
+            do {
+                $handle = Str::lower(Str::random(12));
+            } while (self::where('store_handle', $handle)->exists());
+
+            $this->forceFill(['store_handle' => $handle])->saveQuietly();
+        }
+
+        return $this->store_handle;
     }
 
     /** Memberships of books belonging to somebody else. */
