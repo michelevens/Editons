@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ManuscriptSection;
 use App\Models\ManuscriptVersion;
+use App\Publishing\Numbering;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -67,7 +68,11 @@ class ManuscriptWriter
                 'title' => $title,
             ], fn ($v) => $v !== null));
 
-            $section->content = $content;
+            // Captions, numbered equations and headings get the label a
+            // cross-reference points at, here on the chapter's own save,
+            // under its lock. Reading the book for cross-references used to
+            // give them, and wrote other chapters back from a stale copy.
+            $section->content = Numbering::label($content) ?? $content;
             $section->word_count = ManuscriptSection::countWords($content);
             $section->save();
 

@@ -35,7 +35,10 @@ test('a picture is inserted as a captioned figure and survives a reload', async 
 
     await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 15_000 });
     await page.reload();
-    await expect(page.locator('.manuscript .ProseMirror img[alt="A test figure"]')).toBeVisible();
+    const saved = page.locator('.manuscript .ProseMirror img[alt="A test figure"]');
+    await expect(saved).toBeVisible();
+    // A real picture, not a figure saved with no source.
+    await expect.poll(() => saved.evaluate((img) => img.complete && img.naturalWidth)).toBeGreaterThan(0);
 
     // Leave the demo book as it was.
     await page.locator('.manuscript .ProseMirror img[alt="A test figure"]').click();

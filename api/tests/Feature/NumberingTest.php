@@ -7,6 +7,7 @@ use App\Publishing\DocumentRenderer;
 use App\Publishing\Exporter;
 use App\Publishing\Numbering;
 use App\Publishing\PrintBook;
+use App\Services\ManuscriptWriter;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -127,9 +128,14 @@ it('resolves cross-references in every export, and flags a missing one', functio
     $zip->close();
 });
 
-it('labels targets in closed chapters and lists them for the editor', function () {
+it('labels targets when they are saved and lists them for the editor', function () {
     $book = numberedBook();
     $intro = $book->sections()->where('title', 'Introduction')->first();
+
+    // As the author's editor would save them.
+    foreach ($book->sections()->get() as $section) {
+        app(ManuscriptWriter::class)->save($section, $section->content);
+    }
 
     $response = $this->actingAs($book->user)
         ->getJson("/books/{$book->id}/cross-references?section={$intro->id}")
@@ -140,7 +146,8 @@ it('labels targets in closed chapters and lists them for the editor', function (
     expect($response->json('section.prefix'))->toBe('1.')
         ->and($targets->pluck('text'))->toContain('Table 2.1', 'Table 2.2', 'Figure 2.1', 'Equation (2.1)', 'Chapter 2', 'Table A.1');
 
-    // The unlabelled table got a label, quietly, without a new version.
+    // The table written without a label got one when it was saved,
+    // quietly, without a new version.
     $method = $book->sections()->where('title', 'Method')->first();
     expect($method->content['content'][0]['attrs']['label'])->toStartWith('tbl-')
         ->and($method->versions()->count())->toBe(0);

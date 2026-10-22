@@ -38,9 +38,18 @@ export default function ImageDialog({ bookId, onInsert, onClose }) {
             const form = new FormData();
             form.append('image', file);
             const response = await window.axios.post(`/books/${bookId}/images`, form);
+            const src = response.data?.src;
+
+            // A reply without the picture's address is a failed upload,
+            // whatever its status: a PHP notice printed ahead of the JSON
+            // left axios a string, and the figure was saved with src null,
+            // a picture that was never there after a reload.
+            if (typeof src !== 'string' || src === '') {
+                throw new Error('The server did not return the picture.');
+            }
 
             onInsert({
-                src: response.data.src,
+                src,
                 alt: alt.trim(),
                 label: label.trim(),
                 caption: caption.trim(),
