@@ -871,7 +871,10 @@ class DocumentRenderer
                     .($this->mathMode === 'svg' && isset($node['attrs']['captionKey']) ? ' data-block="'.e($node['attrs']['captionKey']).'"' : '').'>'.$this->inlineHtml($children)."</p>\n",
                 'heading' => $this->headingHtml($node),
                 'bulletList' => "<ul>\n".$this->nodesToHtml($children)."</ul>\n",
-                'orderedList' => "<ol>\n".$this->nodesToHtml($children)."</ol>\n",
+                // A list that continues a numbering ("15. …" in an exam
+                // paper) keeps its first number.
+                'orderedList' => '<ol'.((int) ($node['attrs']['start'] ?? 1) !== 1 ? ' start="'.(int) $node['attrs']['start'].'"' : '').">\n"
+                    .$this->nodesToHtml($children)."</ol>\n",
                 'listItem' => '<li>'.trim($this->listItemHtml($children))."</li>\n",
                 'blockquote' => "<blockquote>\n".$this->nodesToHtml($children)."</blockquote>\n",
                 'codeBlock' => '<pre><code>'.e($this->plain($children))."</code></pre>\n",
@@ -1111,7 +1114,7 @@ class DocumentRenderer
                         continue;
                     }
 
-                    $bullet = $type === 'bulletList' ? '- ' : ($index + 1).'. ';
+                    $bullet = $type === 'bulletList' ? '- ' : ($index + (int) ($node['attrs']['start'] ?? 1)).'. ';
                     $body = trim($this->nodesToMarkdown($item['content'] ?? [], $depth + 1));
                     $out .= str_repeat('  ', $depth).$bullet.$body."\n";
                 }
