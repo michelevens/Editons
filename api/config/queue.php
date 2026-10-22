@@ -40,7 +40,12 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // Longer than the worker's --timeout (1900 s), which is longer
+            // than GenerateExport's (1800 s). A reserved job becomes free
+            // for any other worker after retry_after: at 90 s a second
+            // worker took a PDF still rendering, failed it as over its one
+            // try, and the two then fought over the row.
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 2000),
             'after_commit' => false,
         ],
 
