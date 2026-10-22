@@ -111,8 +111,28 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+        'address' => env('MAIL_FROM_ADDRESS', 'no-reply@ecrivain.ai'),
+        'name' => env('MAIL_FROM_NAME', 'Écrivain'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Écrivain transactional mail
+    |--------------------------------------------------------------------------
+    |
+    | The sender every App\Mail\EcrivainMail uses, independent of the global
+    | "from" above: APP_NAME is the codename (Editons) and a local .env often
+    | still carries Laravel's hello@example.com, neither of which should reach
+    | an author's inbox. The brand name lives here, once, and every template
+    | reads it from config rather than spelling it.
+    |
+    */
+
+    'ecrivain' => [
+        'brand' => env('MAIL_BRAND_NAME', 'Écrivain'),
+        'from_address' => env('MAIL_SENDER_ADDRESS', 'no-reply@ecrivain.ai'),
+        'from_name' => env('MAIL_SENDER_NAME', 'Écrivain'),
+        'support_address' => env('MAIL_SUPPORT_ADDRESS', 'support@ecrivain.ai'),
     ],
 
 ];
