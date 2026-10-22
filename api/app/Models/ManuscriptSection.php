@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Publishing\BookPart;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,8 +28,33 @@ class ManuscriptSection extends Model
     public const POSITION_STEP = 10;
 
     protected $fillable = [
-        'type', 'title', 'subtitle', 'content', 'position', 'status', 'reviewer_id',
+        'type', 'part', 'title', 'subtitle', 'content', 'position', 'status', 'reviewer_id',
     ];
+
+    /**
+     * A new section is named from its title when nobody named it: the
+     * scaffolder's "Preface", an import's "Épilogue", the binder's "Chapter
+     * 4". Only on create: renaming a chapter later never silently changes
+     * what kind of page it is.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $section) {
+            if ($section->part === null) {
+                $language = $section->book_id
+                    ? Book::whereKey($section->book_id)->value('language')
+                    : null;
+
+                $section->part = BookPart::infer($section->title, $section->type, $language)?->value;
+            }
+        });
+    }
+
+    /** The conventional part this section is, if it has been named. */
+    public function bookPart(): ?BookPart
+    {
+        return $this->part ? BookPart::tryFrom($this->part) : null;
+    }
 
     /** The review states a chapter moves through, in board order. */
     public const STATUSES = ['draft', 'review', 'revisions', 'approved'];

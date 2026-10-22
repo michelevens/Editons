@@ -1,3 +1,4 @@
+import { router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import Icon from './Icon';
 
@@ -27,6 +28,25 @@ export default function ManuscriptOutline({
 }) {
     const [query, setQuery] = useState('');
     const [collapsed, setCollapsed] = useState(() => new Set());
+    const [partError, setPartError] = useState('');
+
+    // The binder's "Book part" menu (BookPart on the server), sent by the
+    // editor page. Read from the page rather than passed down, so the
+    // editor's own props stay as they were.
+    const partOptions = usePage().props.book_parts ?? [];
+
+    // Naming a section's part saves on its own and reloads only the binder:
+    // the chapter open in the editor is never reloaded under the author.
+    const setPart = (id, part) => {
+        setPartError('');
+
+        window.axios
+            .patch(route('sections.part', id), { part: part || null })
+            .then(() => router.reload({ only: ['binder'] }))
+            .catch((error) =>
+                setPartError(error?.response?.data?.message ?? 'The book part was not saved.'),
+            );
+    };
 
     const toggle = (id) =>
         setCollapsed((prev) => {
@@ -121,6 +141,12 @@ export default function ManuscriptOutline({
                         </button>
                     </div>
 
+                    {partError && (
+                        <p role="alert" className="mx-3 mb-2 rounded-control bg-status-danger-bg px-2.5 py-1.5 text-[11.5px] text-status-danger">
+                            {partError}
+                        </p>
+                    )}
+
                     {tab === 'Outline' ? (
                         <OutlineTable nodes={nodes} onSelect={onSelect} />
                     ) : (
@@ -139,6 +165,8 @@ export default function ManuscriptOutline({
                                         collapsed={collapsed}
                                         onToggle={toggle}
                                         onSelect={onSelect}
+                                        partOptions={partOptions}
+                                        onSetPart={setPart}
                                     />
                                 ))
                             )}
@@ -150,7 +178,7 @@ export default function ManuscriptOutline({
     );
 }
 
-function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect }) {
+function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect, partOptions = [], onSetPart }) {
     const isPart = node.type === 'part';
     const isActive = node.id === activeId;
     const isCollapsed = collapsed.has(node.id);
@@ -206,6 +234,10 @@ function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect }) {
                 )}
             </div>
 
+            {isActive && onSetPart && partOptions.length > 0 && (
+                <PartSelect node={node} depth={depth} options={partOptions} onChange={onSetPart} />
+            )}
+
             {!isCollapsed &&
                 node.children?.map((child) => (
                     <TreeNode
@@ -216,8 +248,51 @@ function TreeNode({ node, depth, activeId, collapsed, onToggle, onSelect }) {
                         collapsed={collapsed}
                         onToggle={onToggle}
                         onSelect={onSelect}
+                        partOptions={partOptions}
+                        onSetPart={onSetPart}
                     />
                 ))}
+        </div>
+    );
+}
+
+const PART_GROUPS = [
+    ['front', 'Front matter'],
+    ['body', 'Text'],
+    ['back', 'Back matter'],
+];
+
+/**
+ * Which conventional part the open section is (Preface, Epilogue, Index…).
+ * Shown under the active row only, so the binder stays one line per
+ * section; keyboard users reach it by Tab from the row.
+ */
+function PartSelect({ node, depth, options, onChange }) {
+    return (
+        <div className="flex items-center gap-1.5 pb-1.5 pr-2" style={{ paddingLeft: 32 + depth * 14 }}>
+            <label htmlFor={`part-${node.id}`} className="shrink-0 text-[10.5px] text-text-secondary">
+                Book part
+            </label>
+            <select
+                id={`part-${node.id}`}
+                value={node.part ?? ''}
+                data-a={`outline:part:${node.id}`}
+                onChange={(event) => onChange(node.id, event.target.value)}
+                className="h-[24px] min-w-0 flex-1 rounded-control border border-border-input bg-bg-surface px-1.5 py-0 text-[11px] text-text-body focus:border-brand-primary focus:ring-0"
+            >
+                <option value="">Not set</option>
+                {PART_GROUPS.map(([group, label]) => (
+                    <optgroup key={group} label={label}>
+                        {options
+                            .filter((option) => option.group === group)
+                            .map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                    </optgroup>
+                ))}
+            </select>
         </div>
     );
 }

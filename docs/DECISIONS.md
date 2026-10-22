@@ -632,3 +632,67 @@ accounts.
   sentence; reset-password reports an unknown address as an invalid token.
 - *Stripe.* Without `STRIPE_WEBHOOK_SECRET`, `/stripe/webhook` answers 403
   outside local and testing; malformed events get 400, not 500.
+
+## ADR-00XX — Book anatomy
+
+*Number to be assigned at merge: ADR-0019 is the last on this branch's
+base, and parallel branches may add others first.*
+
+**Context.** A book has conventional parts — half title, title and
+copyright pages, dedication, contents, foreword, preface, epilogue,
+appendixes, glossary, index, colophon — in a conventional order with
+conventional page treatment (The Chicago Manual of Style, ch. 1). The binder
+only knew five coarse types (`front_matter`, `part`, `chapter`, `section`,
+`back_matter`), so the renderers guessed a dedication from its title, the
+copyright page printed only what `PrintBook` happened to know, and nothing
+helped an author include what their kind of book needs. The exam-prep series
+also needed a series page, anonymous books and Haitian legal deposit.
+
+**Decisions.**
+
+- *Taxonomy.* `App\Publishing\BookPart` is a string enum, one case per
+  Chicago part, carrying its Chicago name, group (front, body, back, cover),
+  conventional order, generated-by-app or author-written, opening side
+  (recto, verso, any), folio style (roman front matter, arabic from the text;
+  a prologue opens the arabic count), whether its folio and running head
+  print, and its title in en, fr, es, ht, de and pt. Language conventions are
+  part of the data: French *Préface* is Chicago's foreword (by someone else)
+  and *Avant-propos* the author's preface (likewise *Geleitwort*/*Vorwort*,
+  *Prefas*/*Avanpwopo*); Spanish *Índice* is the contents and *Índice
+  analítico* the index; the French colophon is the *Achevé d'imprimer*.
+- *Storage.* A nullable `manuscript_sections.part` column next to `type`,
+  not instead of it, with a CHECK on the enum's values. `type` keeps its
+  meaning for every existing consumer; `BookPart::sectionType()` maps a part
+  to the type a new section gets, and `compatibleTypes()` says which existing
+  types a part may already have (an Introduction typed as a chapter is still
+  recognised). Unnumbered text parts (conclusion, epilogue, afterword) are
+  stored as `back_matter` so today's renderers never number them as chapters.
+- *Inference.* A section's part is inferred from its title when it is
+  created, and once for existing rows by migration (`books:infer-parts` does
+  the same on demand). Conservative: the whole title must be the part's name
+  in one of the languages ("Chapter 1: Introduction" stays a chapter), the
+  part must fit the section's type, and anything else stays null for the
+  author to set in the binder. The backfill writes only `part`.
+- *Metadata.* `books.publication` (jsonb) holds what the generated pages
+  print — publisher, imprint, place, edition statement, copyright holder and
+  year, rights statement, ISBN per format, legal deposit, printing line,
+  credits, disclaimer — and `series_name`/`series_number` are columns
+  because the series page is a query. ISBNs must pass the ISBN-13 checksum
+  and may not repeat across formats; none is generated. The legacy
+  `books.isbn` is copied into the print ISBN when valid and stays readable.
+- *Nothing invented.* `Anatomy::copyrightLines()` prints only what exists:
+  no current year standing in for a copyright year, no default publisher.
+  The copyright holder is the stated holder, else the author, else — for an
+  anonymous book — the publisher.
+- *One planner.* `App\Publishing\Anatomy::plan()` is what renderers consume:
+  the binder order (respected, never silently re-sorted), generated pages
+  merged in at their conventional places, and each page's treatment. The
+  conventional order is applied only when the author asks, from a preview,
+  guarded by a fingerprint of the binder the preview was made from.
+- *Templates.* Adding a part writes bracketed guidance in the book's
+  language, never prose or facts. Untouched guidance is detectable, so the
+  checklist reports "template not filled in" and renderers can refuse to
+  print instructions.
+- *Not in this change.* The renderers (`PrintBook`, `Exporter`,
+  `DocumentRenderer`) were being rewritten in parallel and are untouched;
+  `docs/INTEGRATION-book-parts.md` says how they adopt the plan.

@@ -32,6 +32,32 @@ class Book extends Model
         'studio', 'book_type', 'started_with', 'assistance',
         'journey_stage', 'journey_tasks',
         'premise', 'audience', 'promise',
+        'series_name', 'series_number', 'publication',
+    ];
+
+    /**
+     * What the generated pages print (App\Publishing\Anatomy). Every key
+     * defaults to null: an empty field prints nothing, it is never filled
+     * in with a guess.
+     *
+     * credits is a list of {role, name}; the rest are strings, except
+     * copyright_year, an integer.
+     */
+    public const DEFAULT_PUBLICATION = [
+        'publisher' => null,
+        'imprint' => null,
+        'place' => null,
+        'edition_statement' => null,
+        'copyright_holder' => null,
+        'copyright_year' => null,
+        'rights_statement' => null,
+        'isbn_print' => null,
+        'isbn_epub' => null,
+        'isbn_pdf' => null,
+        'legal_deposit' => null,
+        'printing' => null,
+        'credits' => [],
+        'disclaimer' => null,
     ];
 
     /** The two product experiences. Academic Studio is not built yet. */
@@ -132,6 +158,15 @@ class Book extends Model
         return array_merge(self::DEFAULT_LAYOUT, $this->layout ?? []);
     }
 
+    /** Publishing metadata with defaults applied. */
+    public function publication(): array
+    {
+        return array_merge(
+            self::DEFAULT_PUBLICATION,
+            array_intersect_key($this->publication ?? [], self::DEFAULT_PUBLICATION),
+        );
+    }
+
     /** Rights attestations with defaults applied. */
     public function rights(): array
     {
@@ -146,6 +181,8 @@ class Book extends Model
             'cover' => 'array',
             'meta' => 'array',
             'rights' => 'array',
+            'publication' => 'array',
+            'series_number' => 'integer',
             'launch_date' => 'date',
             'launch_tasks' => 'array',
             'marketing_kit' => 'array',

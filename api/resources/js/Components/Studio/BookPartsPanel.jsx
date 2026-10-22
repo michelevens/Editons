@@ -1,0 +1,375 @@
+import { router } from "@inertiajs/react";
+import { useId, useState } from "react";
+
+/**
+ * Book parts: the conventional parts of a book (The Chicago Manual of
+ * Style, ch. 1), which this book has, and which its kind of book usually
+ * carries.
+ *
+ * Adds a missing part from a template in the book's language, and puts the
+ * binder in the conventional order — previewed first, applied only on
+ * confirmation, and refused if the binder changed in between.
+ */
+
+const GROUPS = [
+    { key: "front", label: "Front matter" },
+    { key: "body", label: "Text" },
+    { key: "back", label: "Back matter" },
+    { key: "cover", label: "Cover" },
+];
+
+const STATES = {
+    present: {
+        label: "Included",
+        tone: "bg-status-success-bg text-status-success",
+    },
+    generated: {
+        label: "Generated",
+        tone: "bg-brand-primary/10 text-brand-primary",
+    },
+    empty: { label: "Empty", tone: "bg-status-warning-bg text-status-warning" },
+    placeholder: {
+        label: "Template not filled in",
+        tone: "bg-status-warning-bg text-status-warning",
+    },
+    missing: {
+        label: "Not included",
+        tone: "bg-bg-subtle text-text-secondary",
+    },
+    unavailable: {
+        label: "Nothing to generate",
+        tone: "bg-bg-subtle text-text-secondary",
+    },
+};
+
+const PROFILES = {
+    fiction: "fiction",
+    nonfiction: "nonfiction",
+    educational: "educational and exam-preparation",
+    academic: "academic",
+};
+
+export default function BookPartsPanel({ bookId, initial }) {
+    const [checklist, setChecklist] = useState(initial);
+    const [busy, setBusy] = useState(null);
+    const [message, setMessage] = useState("");
+    const [preview, setPreview] = useState(null);
+    const [showAll, setShowAll] = useState(false);
+    const headingId = useId();
+
+    const fail = (error) =>
+        setMessage(
+            error?.response?.data?.message ?? "That did not work. Try again.",
+        );
+
+    const add = (row) => {
+        setBusy(`add:${row.key}`);
+        setMessage("");
+
+        window.axios
+            .post(route("books.parts.store", bookId), { part: row.key })
+            .then(({ data }) => {
+                setChecklist(data.checklist);
+                setMessage(
+                    `Added “${data.section.title}”. Open it in the manuscript to write it.`,
+                );
+                router.reload({ only: ["copyright_preview"] });
+            })
+            .catch(fail)
+            .finally(() => setBusy(null));
+    };
+
+    const askOrder = () => {
+        setBusy("preview");
+        setMessage("");
+
+        window.axios
+            .get(route("books.parts.order", bookId))
+            .then(({ data }) => setPreview(data))
+            .catch(fail)
+            .finally(() => setBusy(null));
+    };
+
+    const applyOrder = () => {
+        setBusy("reorder");
+
+        window.axios
+            .post(route("books.parts.reorder", bookId), {
+                fingerprint: preview.fingerprint,
+            })
+            .then(({ data }) => {
+                setChecklist(data);
+                setPreview(null);
+                setMessage("The binder is now in the conventional order.");
+            })
+            .catch((error) => {
+                if (error?.response?.status === 409) {
+                    // Show what would happen now, rather than applying an
+                    // order the author never saw.
+                    setPreview(error.response.data.preview);
+                    setMessage(error.response.data.message);
+
+                    return;
+                }
+
+                fail(error);
+            })
+            .finally(() => setBusy(null));
+    };
+
+    const rows = checklist.parts.filter(
+        (row) =>
+            showAll ||
+            row.recommended ||
+            row.state !== "missing" ||
+            row.key === "chapter",
+    );
+
+    return (
+        <section
+            aria-labelledby={headingId}
+            className="mt-5 rounded-panel border border-border-default bg-bg-surface p-6"
+            data-a="parts:panel"
+        >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h2
+                        id={headingId}
+                        className="text-[15px] font-semibold text-text-primary"
+                    >
+                        Book parts
+                    </h2>
+                    <p className="mt-1 max-w-[520px] text-[12.5px] leading-relaxed text-text-secondary">
+                        The parts of a book in their conventional order (Chicago
+                        Manual of Style). Recommended for a{" "}
+                        {PROFILES[checklist.profile] ?? checklist.profile} book:{" "}
+                        {checklist.missing_recommended === 0
+                            ? "all present."
+                            : `${checklist.missing_recommended} still to add.`}
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    data-a="parts:order:preview"
+                    onClick={askOrder}
+                    disabled={busy !== null || checklist.in_order}
+                    className="h-[34px] shrink-0 rounded-control border border-border-input bg-bg-surface px-3.5 text-[13px] font-medium text-text-body transition hover:bg-bg-subtle disabled:opacity-60"
+                >
+                    {checklist.in_order
+                        ? "Binder is in order"
+                        : "Put in conventional order…"}
+                </button>
+            </div>
+
+            <p
+                role="status"
+                aria-live="polite"
+                className="mt-3 min-h-[1em] text-[12.5px] text-text-secondary"
+            >
+                {message}
+            </p>
+
+            {preview && (
+                <OrderPreview
+                    preview={preview}
+                    busy={busy === "reorder"}
+                    onApply={applyOrder}
+                    onCancel={() => setPreview(null)}
+                />
+            )}
+
+            {GROUPS.map((group) => {
+                const list = rows.filter((row) => row.group === group.key);
+
+                if (list.length === 0) return null;
+
+                return (
+                    <div key={group.key} className="mt-4">
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
+                            {group.label}
+                        </h3>
+                        <ul className="mt-1 divide-y divide-border-divider">
+                            {list.map((row) => (
+                                <PartRow
+                                    key={row.key}
+                                    row={row}
+                                    adding={busy === `add:${row.key}`}
+                                    disabled={busy !== null}
+                                    onAdd={() => add(row)}
+                                />
+                            ))}
+                        </ul>
+                    </div>
+                );
+            })}
+
+            <button
+                type="button"
+                data-a="parts:show-all"
+                aria-expanded={showAll}
+                onClick={() => setShowAll((value) => !value)}
+                className="mt-4 text-[12.5px] font-medium text-brand-primary hover:underline"
+            >
+                {showAll
+                    ? "Show only what this book uses"
+                    : "Show every conventional part"}
+            </button>
+
+            {checklist.unclassified.length > 0 && (
+                <div className="mt-4 rounded-control bg-bg-subtle px-3.5 py-3">
+                    <p className="text-[12.5px] font-medium text-text-primary">
+                        Sections without a book part
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-text-secondary">
+                        Name these in the manuscript binder (select the section,
+                        then choose its part) so they print in the right place.
+                    </p>
+                    <ul className="mt-1.5 list-disc pl-5 text-[12.5px] text-text-body">
+                        {checklist.unclassified.map((section) => (
+                            <li key={section.id}>{section.title}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </section>
+    );
+}
+
+function PartRow({ row, adding, disabled, onAdd }) {
+    const state = STATES[row.state] ?? STATES.missing;
+    const showAdd =
+        row.can_add && (row.state === "missing" || row.key === "appendix");
+
+    return (
+        <li
+            className="flex items-center justify-between gap-4 py-2.5"
+            data-a={`parts:row:${row.key}`}
+        >
+            <div className="min-w-0">
+                <p className="text-[13.5px] font-medium text-text-primary">
+                    {row.name}
+                    {row.name !== row.english && (
+                        <span className="ml-1.5 text-[12px] font-normal text-text-secondary">
+                            {row.english}
+                        </span>
+                    )}
+                    {row.count > 1 && (
+                        <span className="ml-1.5 text-[12px] font-normal text-text-secondary">
+                            ×{row.count}
+                        </span>
+                    )}
+                </p>
+                <p className="mt-0.5 text-[11.5px] text-text-secondary">
+                    {row.recommended && (
+                        <span className="font-medium text-text-primary">
+                            Recommended
+                            {row.alternatives.length > 0 &&
+                                " (or another listed with it)"}
+                            {" · "}
+                        </span>
+                    )}
+                    {row.source === "generated"
+                        ? "Made from the book’s details"
+                        : "Written by the author"}
+                </p>
+                {row.issues.map((issue) => (
+                    <p
+                        key={issue}
+                        className="mt-0.5 text-[11.5px] text-status-warning"
+                    >
+                        {issue}
+                    </p>
+                ))}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+                <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${state.tone}`}
+                >
+                    {state.label}
+                </span>
+                {showAdd && (
+                    <button
+                        type="button"
+                        data-a={`parts:add:${row.key}`}
+                        onClick={onAdd}
+                        disabled={disabled}
+                        aria-label={`Add ${row.english}`}
+                        className="h-[30px] rounded-control bg-brand-primary px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
+                    >
+                        {adding ? "Adding…" : "Add"}
+                    </button>
+                )}
+            </div>
+        </li>
+    );
+}
+
+function OrderPreview({ preview, busy, onApply, onCancel }) {
+    const titleId = useId();
+
+    return (
+        <div
+            role="region"
+            aria-labelledby={titleId}
+            className="mt-3 rounded-control border border-brand-primary/30 bg-brand-primary/5 p-4"
+            data-a="parts:order:dialog"
+        >
+            <h3
+                id={titleId}
+                className="text-[13.5px] font-semibold text-text-primary"
+            >
+                Preview: conventional order
+            </h3>
+
+            {preview.moves.length === 0 ? (
+                <p className="mt-1 text-[12.5px] text-text-secondary">
+                    Nothing needs to move.
+                </p>
+            ) : (
+                <>
+                    <p className="mt-1 text-[12.5px] text-text-secondary">
+                        {preview.moves.length} section
+                        {preview.moves.length === 1 ? "" : "s"} would move. Only
+                        the order changes; no text is touched.
+                    </p>
+                    <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-[12.5px] text-text-body">
+                        {preview.order.map((row) => (
+                            <li key={row.id}>
+                                {row.title}
+                                {row.from !== row.to && (
+                                    <span className="ml-1.5 text-text-secondary">
+                                        (was {row.from})
+                                    </span>
+                                )}
+                            </li>
+                        ))}
+                    </ol>
+                </>
+            )}
+
+            <div className="mt-3 flex gap-2">
+                <button
+                    type="button"
+                    data-a="parts:order:cancel"
+                    onClick={onCancel}
+                    className="h-[32px] rounded-control border border-border-input bg-bg-surface px-3 text-[12.5px] font-medium text-text-body"
+                >
+                    Cancel
+                </button>
+                {preview.moves.length > 0 && (
+                    <button
+                        type="button"
+                        data-a="parts:order:apply"
+                        onClick={onApply}
+                        disabled={busy}
+                        className="h-[32px] rounded-control bg-brand-primary px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
+                    >
+                        {busy ? "Reordering…" : "Reorder the binder"}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}

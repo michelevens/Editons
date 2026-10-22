@@ -6,6 +6,7 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BookImageController;
+use App\Http\Controllers\BookPartsController;
 use App\Http\Controllers\ChartController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\CrossReferenceController;
@@ -118,6 +119,22 @@ Route::middleware('auth')->group(function () {
         ->name('sections.versions');
     Route::post('/sections/{section}/versions/{version}/restore', [ManuscriptSectionController::class, 'restore'])
         ->name('sections.restore');
+
+    /*
+     | Book anatomy: the conventional parts (Chicago ch. 1). The checklist,
+     | adding a part from its template, the conventional order (previewed
+     | before anything moves), and naming a section's part in the binder.
+     */
+    Route::get('/books/{book}/parts', [BookPartsController::class, 'show'])
+        ->name('books.parts');
+    Route::post('/books/{book}/parts', [BookPartsController::class, 'store'])
+        ->name('books.parts.store');
+    Route::get('/books/{book}/parts/order', [BookPartsController::class, 'preview'])
+        ->name('books.parts.order');
+    Route::post('/books/{book}/parts/order', [BookPartsController::class, 'reorder'])
+        ->name('books.parts.reorder');
+    Route::patch('/sections/{section}/part', [BookPartsController::class, 'assign'])
+        ->name('sections.part');
 });
 
 /*

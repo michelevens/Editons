@@ -6,13 +6,18 @@ use App\Editorial\EditorialAgent;
 use App\Journey\BookType;
 use App\Journey\Scaffolder;
 use App\Models\Book;
+use App\Models\Isbn;
 use App\Models\ManuscriptSection;
+use App\Publishing\Anatomy;
+use App\Publishing\BookPart;
 use App\Research\Bibliography;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -248,6 +253,8 @@ class BookController extends Controller
                     'verification' => $s->verification,
                 ]),
             'binder' => $book->rootSections->map(fn ($s) => $this->binderNode($s)),
+            // What the binder's "Book part" menu offers, in Chicago order.
+            'book_parts' => self::partOptions(),
             'activeSection' => $active ? [
                 'id' => $active->id,
                 'title' => $active->title,
@@ -280,9 +287,16 @@ class BookController extends Controller
                 'target_words' => $book->target_words,
                 'settings' => $book->settings(),
                 'cover' => $book->coverFor(),
+                'series_name' => $book->series_name,
+                'series_number' => $book->series_number,
+                'publication' => $book->publication(),
             ],
+            // The Book parts checklist renders on first paint, not after a
+            // fetch that would flash an empty panel.
+            'anatomy' => Anatomy::checklist($book),
+            'copyright_preview' => Anatomy::copyrightLines($book),
             'genres' => ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'],
-            'languages' => ['English (US)', 'English (UK)', 'Spanish', 'French', 'Haitian Creole'],
+            'languages' => ['English (US)', 'English (UK)', 'Spanish', 'French', 'Haitian Creole', 'German', 'Portuguese'],
             'citation_styles' => Bibliography::options(),
             // Archiving the last active book would leave the author with an
             // empty shelf and nowhere to go, so the screen needs to know.
@@ -308,7 +322,33 @@ class BookController extends Controller
             'settings.inline_ai' => ['boolean'],
             'settings.review_on_save' => ['boolean'],
             'settings.citation_style' => ['string', 'in:'.implode(',', Bibliography::STYLES)],
+
+            // Publishing metadata, printed by the generated pages. Every
+            // field optional: an empty one prints nothing.
+            'series_name' => ['nullable', 'string', 'max:255'],
+            'series_number' => ['nullable', 'integer', 'min:1', 'max:9999'],
+            'publication' => ['sometimes', 'array'],
+            'publication.publisher' => ['nullable', 'string', 'max:255'],
+            'publication.imprint' => ['nullable', 'string', 'max:255'],
+            'publication.place' => ['nullable', 'string', 'max:255'],
+            'publication.edition_statement' => ['nullable', 'string', 'max:255'],
+            'publication.copyright_holder' => ['nullable', 'string', 'max:255'],
+            'publication.copyright_year' => ['nullable', 'integer', 'min:1450', 'max:'.(now()->year + 2)],
+            'publication.rights_statement' => ['nullable', 'string', 'max:1000'],
+            'publication.isbn_print' => ['nullable', 'string', 'max:20', $this->isbnRule()],
+            'publication.isbn_epub' => ['nullable', 'string', 'max:20', $this->isbnRule()],
+            'publication.isbn_pdf' => ['nullable', 'string', 'max:20', $this->isbnRule()],
+            'publication.legal_deposit' => ['nullable', 'string', 'max:500'],
+            'publication.printing' => ['nullable', 'string', 'max:500'],
+            'publication.disclaimer' => ['nullable', 'string', 'max:3000'],
+            'publication.credits' => ['nullable', 'array', 'max:20'],
+            'publication.credits.*.role' => ['nullable', 'string', 'max:120'],
+            'publication.credits.*.name' => ['nullable', 'string', 'max:255'],
         ]);
+
+        if (isset($data['publication'])) {
+            $data['publication'] = $this->mergePublication($book, $data['publication']);
+        }
 
         // Merge rather than replace: the form may send one toggle, and
         // overwriting the column would silently reset the others.
@@ -319,6 +359,70 @@ class BookController extends Controller
         $book->update($data);
 
         return back();
+    }
+
+    /** An ISBN must pass the ISBN-13 checksum; none is ever generated. */
+    private function isbnRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) {
+            if ($value !== null && trim((string) $value) !== '' && ! Isbn::isValid((string) $value)) {
+                $fail('That is not a valid ISBN-13. Check the digits.');
+            }
+        };
+    }
+
+    /**
+     * Merge a partial publication update into what is stored, as settings
+     * are, and refuse one number for two formats.
+     *
+     * @return array<string, mixed>
+     */
+    private function mergePublication(Book $book, array $incoming): array
+    {
+        $merged = array_merge($book->publication(), array_intersect_key($incoming, Book::DEFAULT_PUBLICATION));
+
+        foreach ($merged as $key => $value) {
+            if (is_string($value)) {
+                $merged[$key] = trim($value) === '' ? null : trim($value);
+            }
+        }
+
+        // A half-filled credit row (a role with no name) prints nothing.
+        $merged['credits'] = array_values(array_map(
+            fn ($c) => ['role' => trim((string) $c['role']), 'name' => trim((string) $c['name'])],
+            array_filter(
+                $merged['credits'] ?? [],
+                fn ($c) => trim((string) ($c['role'] ?? '')) !== '' && trim((string) ($c['name'] ?? '')) !== '',
+            ),
+        ));
+
+        $numbers = array_filter([
+            'isbn_print' => $merged['isbn_print'] ? Isbn::normalise($merged['isbn_print']) : null,
+            'isbn_epub' => $merged['isbn_epub'] ? Isbn::normalise($merged['isbn_epub']) : null,
+            'isbn_pdf' => $merged['isbn_pdf'] ? Isbn::normalise($merged['isbn_pdf']) : null,
+        ]);
+
+        if (count($numbers) !== count(array_unique($numbers))) {
+            throw ValidationException::withMessages([
+                'publication.isbn_epub' => 'Each format needs its own ISBN: the same number is entered twice.',
+            ]);
+        }
+
+        return $merged;
+    }
+
+    /**
+     * The binder's part menu: every part a section can be, in Chicago order.
+     *
+     * @return list<array{value: string, label: string, group: string}>
+     */
+    public static function partOptions(): array
+    {
+        return array_map(fn (BookPart $p) => [
+            'value' => $p->value,
+            'label' => $p->title('en'),
+            'group' => $p->group(),
+        ], BookPart::sectionKinds());
     }
 
     public function destroy(Book $book): RedirectResponse
@@ -396,6 +500,7 @@ class BookController extends Controller
         return [
             'id' => $s->id,
             'type' => $s->type,
+            'part' => $s->part,
             'title' => $s->title,
             'word_count' => $s->word_count,
             'children' => $s->children->map(fn ($c) => $this->binderNode($c))->all(),
