@@ -101,10 +101,16 @@ class MathRenderer
         return $results;
     }
 
+    /**
+     * Bumped whenever math.cjs changes what it produces, so equations cached
+     * by an older typesetter are set again rather than served stale.
+     */
+    private const VERSION = 2;
+
     /** @param array{latex: string, display: bool} $item */
     private function key(array $item): string
     {
-        return sha1(($item['display'] ? 'D' : 'I').'|'.$item['latex']);
+        return sha1('v'.self::VERSION.'|'.($item['display'] ? 'D' : 'I').'|'.$item['latex']);
     }
 
     private function path(string $key): string

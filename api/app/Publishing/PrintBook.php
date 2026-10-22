@@ -126,17 +126,19 @@ class PrintBook
 
         try {
             // Pass one: where does every page-starting block land?
-            [, $starts, $total] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor));
+            [, $starts, $total] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor, dompdf: true));
 
             $this->paginate($plan, $starts, $total);
 
             // Pass two: blanks inserted, contents numbered, heads and folios on.
             // A fresh closure, since an arrow function captures $plan by value
             // and the one above still holds the plan from before pagination.
-            [$dompdf, $landed, $pages] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor), $plan);
+            [$dompdf, $landed, $pages] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor, dompdf: true), $plan);
 
             return [
-                'pdf' => (string) $dompdf->output(),
+                // Bookmarks for the contents, parts and chapters, and the
+                // book's language, which dompdf does not write.
+                'pdf' => app(PdfOutline::class)->add((string) $dompdf->output(), $this->bookmarks($plan, $landed), $plan['language']),
                 'pages' => $pages,
                 'blocks' => $plan['blocks'],
                 'landed' => $landed,
@@ -149,6 +151,38 @@ class PrintBook
 
             $this->tempDirs = [];
         }
+    }
+
+    /**
+     * The PDF's bookmarks: the contents, then each part with its chapters
+     * under it, at the pages they landed on.
+     *
+     * @param  array<string, int>  $landed
+     * @return array<int, array{title: string, page: int, level: int}>
+     */
+    private function bookmarks(array $plan, array $landed): array
+    {
+        $entries = [];
+        $inPart = false;
+
+        foreach ($plan['blocks'] as $block) {
+            $page = $landed[$block['id']] ?? null;
+
+            if ($page === null || ! in_array($block['kind'], ['contents', 'part', 'chapter', 'matter', 'references'], true)) {
+                continue;
+            }
+
+            $inPart = $inPart || $block['kind'] === 'part';
+            $back = in_array($block['section']->type ?? null, ['front_matter', 'back_matter'], true);
+
+            $entries[] = [
+                'title' => $block['kind'] === 'contents' ? $plan['words']['contents'] : (string) $block['section']->title,
+                'page' => $page,
+                'level' => $inPart && $block['kind'] !== 'part' && ! $back ? 1 : 0,
+            ];
+        }
+
+        return $entries;
     }
 
     /** The image folders made by render() for the book being typeset. @var array<int, string> */
@@ -530,8 +564,8 @@ class PrintBook
         self::$fontsRegistered = true;
     }
 
-    /** The whole document, as HTML. */
-    private function document(Book $book, array $plan, float $factor = 1.0): string
+    /** The whole document, as HTML; $dompdf when it is for the PDF. */
+    private function document(Book $book, array $plan, float $factor = 1.0, bool $dompdf = false): string
     {
         $body = '';
 
@@ -543,7 +577,11 @@ class PrintBook
             $body .= $this->block($book, $block, $plan)."\n";
         }
 
-        $body = $this->fallbackGlyphs($body);
+        $body = $this->fallbackGlyphs($body, $book->layout()['font'] === 'sans' ? 'sans' : 'serif');
+
+        if ($dompdf) {
+            $body = $this->seatInlineMath($body, $book, $factor);
+        }
 
         return '<!doctype html>'."\n".'<html lang="'.e($plan['language']).'">'."\n"
             .'<head><meta charset="utf-8">'
@@ -554,34 +592,41 @@ class PrintBook
     }
 
     /**
-     * Characters the book face cannot draw, set in DejaVu Sans instead.
+     * Characters the face in use cannot draw, set in DejaVu Sans instead.
      *
      * dompdf has no glyph fallback: a character missing from the face prints
      * as an empty box. EB Garamond has no ★ or ☆, so every exercise's
      * difficulty rating came out as boxes, along with ♭ and ♯ in a music
      * book, ☐ in a checklist and ℝ in prose. Each run of such characters in
      * the text (never inside a tag) is wrapped in a span in DejaVu Sans,
-     * which ships with dompdf and has them. The face's own character map
-     * decides, so nothing is listed by hand.
+     * which ships with dompdf and has them. The character map of the face
+     * actually drawing decides, so nothing is listed by hand: the book's
+     * face for prose (Source Sans 3 lacks hundreds of characters Garamond
+     * has), and DejaVu Sans Mono inside code.
      */
-    private function fallbackGlyphs(string $html): string
+    private function fallbackGlyphs(string $html, string $face = 'serif'): string
     {
-        static $has = null;
-        $has ??= (function () {
-            $font = \FontLib\Font::load(resource_path('fonts/EBGaramond-Regular.ttf'));
-            $font->parse();
-            $map = $font->getUnicodeCharMap();
-            $font->close();
-
-            return $map;
-        })();
+        $text = self::charMap($face);
+        $mono = self::charMap('mono');
+        $code = 0;
 
         $parts = preg_split('/(<[^>]*>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
 
         foreach ($parts as $i => $part) {
-            if ($i % 2 === 1 || ! preg_match('/[^\x00-\x7F]/', $part)) {
+            if ($i % 2 === 1) {
+                // Inside <code> or <pre> the monospaced face is drawing.
+                if (preg_match('#^<(/?)(code|pre)\b#i', $part, $tag)) {
+                    $code = max(0, $code + ($tag[1] === '/' ? -1 : 1));
+                }
+
                 continue;
             }
+
+            if (! preg_match('/[^\x00-\x7F]/', $part)) {
+                continue;
+            }
+
+            $has = $code > 0 ? $mono : $text;
 
             $parts[$i] = preg_replace_callback('/[^\x00-\x7F]+/u', function (array $m) use ($has) {
                 $out = '';
@@ -601,6 +646,89 @@ class PrintBook
         }
 
         return implode('', $parts);
+    }
+
+    /**
+     * Inline formulas placed on the text's baseline, with room above and
+     * below, the way dompdf actually lays a line out.
+     *
+     * dompdf sets a line's text baseline at 80% of the line box and hangs an
+     * inline image from the line's top by the font's baseline less its
+     * vertical-align, whatever the image's height. A formula given the
+     * vertical-align a browser wants sat a little high, and a tall one (an
+     * inline \dfrac) rose into the line above and hung into the line below.
+     * Here each formula gets the offset that puts its own baseline on the
+     * text's, and, when it is tall, a top margin that opens the line box just
+     * enough to clear the descenders above and the ascenders below. The
+     * margin under it is in em, so it holds at the smaller size of a table
+     * or a note.
+     */
+    private function seatInlineMath(string $html, Book $book, float $factor): string
+    {
+        $layout = $book->layout();
+        $size = (float) $layout['size'];
+        $leading = (float) $layout['leading'];
+        $line = $leading * $size;
+        // The face's baseline, as dompdf reckons it (font height over its
+        // default font-height ratio of 1.1), less where the text's falls.
+        $under = $factor / 1.1 - 0.8 * $leading;
+
+        return preg_replace_callback(
+            '/(<img class="math" alt="[^"]*" style=")width:([\d.]+)pt;height:([\d.]+)pt;vertical-align:(-?[\d.]+)pt"/',
+            function (array $m) use ($size, $line, $under) {
+                [$width, $height, $depth] = [(float) $m[2], (float) $m[3], -(float) $m[4]];
+
+                $box = max(
+                    $line,
+                    $height + $under * $size,
+                    // Its top below the descenders of the line above…
+                    ($height - $depth - 0.2 * $line + 0.3 * $size) / 0.8,
+                    // …and its foot above the ascenders of the line below.
+                    ($depth - (0.8 * $line - 0.8 * $size)) / 0.2,
+                );
+                $top = $box - $height - $under * $size;
+                $align = -$depth - 0.8 * ($box - $line);
+
+                return $m[1].'width:'.$width.'pt;height:'.$height.'pt;vertical-align:'.round($align, 2).'pt;'
+                    .'margin:'.round($top, 2).'pt 0 '.round($under, 3).'em 0"';
+            },
+            $html,
+        ) ?? $html;
+    }
+
+    /**
+     * The characters every style of a face can draw, keyed by code point.
+     *
+     * Every style, because a character the italic lacks prints as a box in
+     * italic even where the roman has it.
+     *
+     * @return array<int, int>
+     */
+    private static function charMap(string $face): array
+    {
+        static $maps = [];
+
+        return $maps[$face] ??= (function () use ($face) {
+            $files = match ($face) {
+                'sans' => ['SourceSans3-Regular', 'SourceSans3-It', 'SourceSans3-Semibold', 'SourceSans3-SemiboldIt'],
+                // The copy dompdf ships and embeds.
+                'mono' => [(new Options)->getRootDir().'/lib/fonts/DejaVuSansMono.ttf'],
+                default => ['EBGaramond-Regular', 'EBGaramond-Italic', 'EBGaramond-SemiBold', 'EBGaramond-SemiBoldItalic'],
+            };
+
+            $map = null;
+
+            foreach ($files as $file) {
+                $font = \FontLib\Font::load(str_ends_with($file, '.ttf') ? $file : resource_path("fonts/{$file}.ttf"));
+                // The table directory only, then the cmap alone: a full
+                // parse reads every glyph and took eight seconds a face.
+                $font->parseTableEntries();
+                $map = $map === null ? $font->getUnicodeCharMap() : array_intersect_key($map, $font->getUnicodeCharMap());
+                $font->close();
+            }
+
+            return $map ?? [];
+        })();
     }
 
     private function block(Book $book, array $block, array $plan): string
@@ -675,7 +803,11 @@ class PrintBook
         $copy->content = ['type' => 'doc', 'content' => array_values($nodes)];
 
         // SVG equations: dompdf has no math engine, but draws SVG paths.
-        $html = $this->renderer->withMath('svg')->withNumbering($this->numbering)->html($copy);
+        // Fitted to the measure, so a long one is scaled rather than squeezed.
+        $layout = $book->layout();
+        $html = $this->renderer->withMath('svg')->withNumbering($this->numbering)
+            ->withMeasure(($this->trim($layout['trim'])[0] - 2 * $this->margin($layout)) * 72, (float) $layout['size'])
+            ->html($copy);
         // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
         $html = $this->images->inline($html, $book->id);
         $html = str_replace('<hr />', '<p class="scene-break">&#x2767;</p>', $html);
@@ -838,6 +970,10 @@ class PrintBook
         section.half-title { page-break-before: avoid; }
         .blank { page-break-before: always; height: 1pt; }
 
+        /* A run with no break in it (an answer line of underscores, a long
+           URL) breaks at the margin rather than running off the page. */
+        body { overflow-wrap: break-word; }
+
         p { margin: 0; text-indent: 1.35em; text-align: justify; orphans: 2; widows: 2; }
         .text > p:first-child, h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p,
         ul + p, ol + p, blockquote + p, pre + p, img + p, table + p, .scene-break + p { text-indent: 0; }
@@ -929,6 +1065,11 @@ class PrintBook
         .math-side { width: 3em; }
         .text td.math-body { text-align: center; }
         .text td.math-number { text-align: right; }
+        /* Code in the monospaced face dompdf embeds. Left to itself it fell
+           back to the PDF's built-in Courier, which is not embedded and
+           printed "←" as "?". */
+        code, kbd, samp { font-family: 'DejaVu Sans Mono', monospace; font-size: .84em; }
+        pre code { font-size: 1em; }
         code.math-tex { font-family: 'DejaVu Sans Mono', monospace; font-size: .78em; color: #9b1c1c; }
         .glyph { font-family: 'DejaVu Sans', sans-serif; font-size: .9em; }
         .scene-break { text-align: center; text-indent: 0; color: #6d6d6d; margin: .9em 0; }

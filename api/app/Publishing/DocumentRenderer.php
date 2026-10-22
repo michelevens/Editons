@@ -42,6 +42,18 @@ class DocumentRenderer
         return $copy;
     }
 
+    /** The text width and type size in points, for print: [measure, em]. */
+    private ?array $measure = null;
+
+    /** A copy that fits print equations to a measure of this many points. */
+    public function withMeasure(float $points, float $em): static
+    {
+        $copy = clone $this;
+        $copy->measure = [$points, $em];
+
+        return $copy;
+    }
+
     /** 'html' (linked endnotes) or 'epub' (pop-up footnotes in readers). */
     private string $noteMode = 'html';
 
@@ -333,7 +345,8 @@ class DocumentRenderer
     }
 
     /**
-     * Collects every path and rect with its full transform applied.
+     * Collects every path and rect, and text as outlines, with its full
+     * transform applied.
      *
      * @param  array<int, float>  $matrix  [a, b, c, d, e, f]
      */
@@ -356,6 +369,28 @@ class DocumentRenderer
 
                 $out .= '<'.$name.' '.$attributes.' fill="#1a1a1a" transform="matrix('
                     .implode(',', array_map(fn ($v) => round($v, 6), $local)).')"/>';
+
+                continue;
+            }
+
+            // Letters outside the TeX fonts (é in \text{réel}) come as text,
+            // which the PDF's SVG reader set in a Times without them. Drawn
+            // as outlines they print like the rest of the formula.
+            if ($name === 'text') {
+                $size = (float) $child->getAttribute('font-size') ?: 1000.0;
+                $variant = $child->getAttribute('data-variant');
+                $at = $this->multiply($local, [1, 0, 0, 1, (float) $child->getAttribute('x'), (float) $child->getAttribute('y')]);
+                $glyphs = app(GlyphOutlines::class)->paths(
+                    $child->textContent,
+                    $size,
+                    italic: $child->getAttribute('font-style') === 'italic' || str_contains($variant, 'italic'),
+                    bold: $child->getAttribute('font-weight') === 'bold' || str_contains($variant, 'bold'),
+                );
+
+                foreach ($glyphs as [$d, $glyph]) {
+                    $out .= '<path d="'.e($d).'" fill="#1a1a1a" transform="matrix('
+                        .implode(',', array_map(fn ($v) => round($v, 6), $this->multiply($at, $glyph))).')"/>';
+                }
 
                 continue;
             }
@@ -451,7 +486,13 @@ class DocumentRenderer
             // points. MathJax's ex is half its em; at the 11pt text size that
             // is 5.5pt, set a touch smaller because the math face runs large
             // beside Garamond.
-            $pt = fn (string $ex) => round(((float) $ex) * 4.8, 2);
+            //
+            // A formula wider than the measure is scaled down whole. Left to
+            // the stylesheet's max-width, only its width shrank and the
+            // letters came out condensed.
+            $room = $this->measure === null ? null : $this->measure[0] - ($display ? 6 * $this->measure[1] : 0);
+            $scale = $room !== null && (float) $result['width'] * 4.8 > $room ? $room / ((float) $result['width'] * 4.8) : 1.0;
+            $pt = fn (string $ex) => round(((float) $ex) * 4.8 * $scale, 2);
             $svg = $this->printableSvg($result['svg'], $pt($result['width']), $pt($result['height']));
             $style = 'width:'.$pt($result['width']).'pt;height:'.$pt($result['height']).'pt'
                 .($display ? '' : ';vertical-align:'.$pt((string) $result['valign']).'pt');
@@ -1032,8 +1073,12 @@ class DocumentRenderer
     private function inlineHtml(array $nodes): string
     {
         $out = '';
+        $nodes = array_values($nodes);
 
-        foreach ($nodes as $node) {
+        // By index: gluing punctuation to a formula edits the node after it.
+        for ($i = 0; $i < count($nodes); $i++) {
+            $node = $nodes[$i];
+
             if (! is_array($node)) {
                 continue;
             }
@@ -1047,7 +1092,18 @@ class DocumentRenderer
             }
 
             if ($type === 'inlineMath') {
-                $out .= $this->mathHtml($node, false);
+                $math = $this->mathHtml($node, false);
+                $next = $nodes[$i + 1] ?? null;
+
+                // Punctuation after a formula stays on its line: a full stop
+                // wrapped to the start of the next line reads as a stray mark.
+                if (is_array($next) && ($next['type'] ?? '') === 'text' && empty($next['marks'])
+                    && preg_match('/^[\x{00A0}\x{202F}]?[.,;:!?…)\]»]+/u', (string) ($next['text'] ?? ''), $punctuation)) {
+                    $math = '<span style="white-space:nowrap">'.$math.e($punctuation[0]).'</span>';
+                    $nodes[$i + 1]['text'] = mb_substr((string) $next['text'], mb_strlen($punctuation[0]));
+                }
+
+                $out .= $math;
 
                 continue;
             }
