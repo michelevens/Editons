@@ -20,7 +20,7 @@ class OrderReceiptMail extends EcrivainMail implements ShouldQueue
     public const CATEGORY = 'receipts';
 
     /**
-     * @param  list<array{title: string, format: string, amount_cents: int, download_url?: ?string}>  $items
+     * @param  list<array{title: string, format: string, amount_cents: int, download_url?: ?string, downloads?: list<array{detail: string, url: string}>}>  $items
      */
     public function __construct(
         public string $buyerEmail,
@@ -56,11 +56,27 @@ class OrderReceiptMail extends EcrivainMail implements ShouldQueue
             $rows[] = [__('Tax'), '', Money::format($this->taxCents, $this->currency)];
         }
 
-        $downloads = array_values(array_filter(array_map(fn (array $item) => empty($item['download_url']) ? null : [
-            'title' => __('Download :title', ['title' => $item['title']]),
-            'detail' => $item['format'],
-            'url' => $item['download_url'],
-        ], $this->items)));
+        // One link per item (download_url), or one per file when an item
+        // delivers several formats (downloads: [{detail, url}]).
+        $downloads = [];
+
+        foreach ($this->items as $item) {
+            if (! empty($item['download_url'])) {
+                $downloads[] = [
+                    'title' => __('Download :title', ['title' => $item['title']]),
+                    'detail' => $item['format'],
+                    'url' => $item['download_url'],
+                ];
+            }
+
+            foreach ($item['downloads'] ?? [] as $file) {
+                $downloads[] = [
+                    'title' => __('Download :title', ['title' => $item['title']]),
+                    'detail' => (string) $file['detail'],
+                    'url' => (string) $file['url'],
+                ];
+            }
+        }
 
         $letter = Letter::make(__('Your order :number from :seller', ['number' => $this->orderNumber, 'seller' => $seller]))
             ->preheader(trans_choice('{1} :total paid. Your book is ready to download.|[2,*] :total paid. Your :count books are ready to download.', $count, ['total' => $total, 'count' => $count]))
