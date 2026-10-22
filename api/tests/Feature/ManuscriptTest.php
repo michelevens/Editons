@@ -161,6 +161,33 @@ it('autosaves over HTTP and reports the new counts', function () {
         ->assertJsonPath('word_count', 5);
 });
 
+it('saves the text exactly as written, spaces between runs included', function () {
+    $user = User::factory()->create();
+    $section = ManuscriptSection::factory()->for(Book::factory()->for($user))->create();
+    $content = ['type' => 'doc', 'content' => [
+        ['type' => 'paragraph', 'content' => [
+            ['type' => 'text', 'text' => 'Results are in '],
+            ['type' => 'text', 'text' => 'bold', 'marks' => [['type' => 'bold']]],
+            ['type' => 'text', 'text' => ' and '],
+            ['type' => 'xref', 'attrs' => ['target' => 'tbl-a', 'text' => '']],
+            ['type' => 'text', 'text' => ' after. '],
+        ]],
+    ]];
+
+    $this->actingAs($user)
+        ->putJson("/sections/{$section->id}/content", ['content' => $content])
+        ->assertOk();
+
+    expect($section->fresh()->content)->toEqual($content);
+
+    // And through the POST route kept for saves sent as a beacon.
+    $this->actingAs($user)
+        ->postJson("/sections/{$section->id}/content", ['content' => $content])
+        ->assertOk();
+
+    expect($section->fresh()->content)->toEqual($content);
+});
+
 it('refuses to save into a section of a book you do not own', function () {
     $section = ManuscriptSection::factory()->for(Book::factory()->for(User::factory()))->create();
 

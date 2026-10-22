@@ -23,6 +23,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // before Laravel ever sees them.
         $middleware->prependToGroup('web', \Illuminate\Http\Middleware\HandleCors::class);
 
+        // A manuscript is saved exactly as written. Laravel trims every
+        // string in a request and turns empty ones into null, and in a
+        // ProseMirror document the strings are the text: "Results are in "
+        // before a bold word or a cross-reference lost its space on every
+        // autosave, and the words ran together after a reload.
+        $verbatim = fn (Request $request) => $request->is('sections/*/content');
+        $middleware->trimStrings(except: [$verbatim]);
+        $middleware->convertEmptyStringsToNull(except: [$verbatim]);
+
         // Host validation, only when a list is actually configured.
         //
         // Calling trustHosts() turns the check ON, so an empty or missing
