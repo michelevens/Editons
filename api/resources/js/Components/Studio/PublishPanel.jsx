@@ -11,20 +11,45 @@ import Icon from './Icon';
  */
 export default function PublishPanel({ bookId, onNotify }) {
     const [data, setData] = useState(null);
+    // When the payload arrived, and the clock it is read against: a
+    // generating row's wait_seconds counts from the former.
+    const [loadedAt, setLoadedAt] = useState(0);
+    const [now, setNow] = useState(() => Date.now());
     const [busy, setBusy] = useState(null);
+    // A reply that lands after the panel closed must not set state.
+    const alive = useRef(true);
     const pending = useRef(null);
     // Every change since the last send. A single timer used to send only
     // the last edit, so a second field typed within the debounce dropped
     // the first, and the server's reply then put the old value back.
     const queued = useRef({});
 
+    const apply = useCallback((payload) => {
+        if (!alive.current) return;
+
+        const at = Date.now();
+        setData(payload);
+        setLoadedAt(at);
+        setNow(at);
+    }, []);
+
     const load = useCallback(async () => {
-        const response = await window.axios.get(`/books/${bookId}/publishing`);
-        setData(response.data);
-    }, [bookId]);
+        try {
+            const response = await window.axios.get(`/books/${bookId}/publishing`);
+            apply(response.data);
+        } catch {
+            // A failed poll is retried by the next one; the first load
+            // leaves "Loading…" up, which is honest.
+        }
+    }, [bookId, apply]);
 
     useEffect(() => {
+        alive.current = true;
         load();
+
+        return () => {
+            alive.current = false;
+        };
     }, [load]);
 
     const save = (changes) => {
@@ -39,7 +64,7 @@ export default function PublishPanel({ bookId, onNotify }) {
 
             try {
                 const response = await window.axios.patch(`/books/${bookId}/publishing`, batch);
-                setData(response.data);
+                apply(response.data);
             } catch (error) {
                 onNotify?.(error.response?.data?.message ?? 'That change was not saved.');
                 load();
@@ -56,7 +81,7 @@ export default function PublishPanel({ bookId, onNotify }) {
                 enabled,
             });
 
-            setData(response.data);
+            apply(response.data);
         } catch (error) {
             onNotify?.(error.response?.data?.message ?? 'That store could not be changed.');
         } finally {
@@ -75,7 +100,27 @@ export default function PublishPanel({ bookId, onNotify }) {
                 `/books/${bookId}/channels/${channelId}/unpublish`,
             );
 
-            setData(response.data);
+            apply(response.data);
+        } catch (error) {
+            onNotify?.(error.response?.data?.message ?? 'That store could not be changed.');
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    // Écrivain does not send books to stores: the author uploads the file
+    // and then says so here, which is when the store's review begins.
+    const markSubmitted = async (channelId) => {
+        setBusy(`submitted:${channelId}`);
+
+        try {
+            const response = await window.axios.post(
+                `/books/${bookId}/channels/${channelId}/submitted`,
+            );
+
+            apply(response.data);
+        } catch (error) {
+            onNotify?.(error.response?.data?.message ?? 'That store could not be changed.');
         } finally {
             setBusy(null);
         }
@@ -86,8 +131,11 @@ export default function PublishPanel({ bookId, onNotify }) {
 
         try {
             const response = await window.axios.post(`/books/${bookId}/submit`);
-            setData(response.data);
-            onNotify?.('Submitted. Each store reviews a book before it goes on sale.');
+            apply(response.data);
+            onNotify?.(
+                response.data.message ??
+                    'Ready to upload. Upload the file at each store, then mark it submitted.',
+            );
         } catch (error) {
             // Flushed into the payload so every message lands beside its
             // field, rather than appearing only in a toast that scrolls away.
@@ -98,7 +146,7 @@ export default function PublishPanel({ bookId, onNotify }) {
                 }));
                 onNotify?.(error.response.data.message ?? 'This book is not ready to submit.');
             } else {
-                onNotify?.('The submission could not be sent.');
+                onNotify?.('The book could not be marked ready.');
             }
         } finally {
             setBusy(null);
@@ -106,13 +154,21 @@ export default function PublishPanel({ bookId, onNotify }) {
     };
 
     // A PDF or EPUB renders on a worker and can take minutes: while any
-    // export is still generating, check back every few seconds.
-    const generating = data?.exports.some((item) => item.status === 'generating');
+    // export is still generating, check back every few seconds. Not for
+    // ever: past the job timeout the server fails the row, and a row still
+    // "generating" then belongs to a worker that died, so the screen stops
+    // asking and offers to try again.
+    const waiting = (item) =>
+        item.status === 'generating' && loadedAt + (item.wait_seconds ?? 0) * 1000 > now;
+    const generating = data?.exports.some(waiting);
 
     useEffect(() => {
         if (!generating) return undefined;
 
-        const timer = setInterval(load, 5000);
+        const timer = setInterval(() => {
+            setNow(Date.now());
+            load();
+        }, 5000);
 
         return () => clearInterval(timer);
     }, [generating, load]);
@@ -122,11 +178,13 @@ export default function PublishPanel({ bookId, onNotify }) {
 
         try {
             const response = await window.axios.post(`/books/${bookId}/exports`, { format });
-            setData(response.data.book);
+            apply(response.data.book);
             onNotify?.(
-                response.data.export.status === 'generating'
-                    ? `${response.data.export.label} is being generated. It will appear below when it is ready.`
-                    : `${response.data.export.label} is ready.`,
+                response.data.already
+                    ? `${response.data.export.label} is already being generated. It will appear below when it is ready.`
+                    : response.data.export.status === 'generating'
+                      ? `${response.data.export.label} is being generated. It will appear below when it is ready.`
+                      : `${response.data.export.label} is ready.`,
             );
         } catch (error) {
             onNotify?.(error.response?.data?.message ?? 'That file could not be generated.');
@@ -146,7 +204,11 @@ export default function PublishPanel({ bookId, onNotify }) {
 
     const live = channels.filter((channel) => channel.status === 'live').length;
     const reviewing = channels.filter((channel) => channel.status === 'in_review').length;
+    const toUpload = channels.filter((channel) => channel.status === 'ready_to_submit').length;
     const ready = Object.keys(blockers).length === 0;
+    // One render per format at a time: the button stays off while one runs.
+    const rendering = (format) => exports.some((item) => item.format === format && waiting(item));
+    const available = (format) => formats.find((item) => item.format === format)?.available;
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -160,7 +222,9 @@ export default function PublishPanel({ bookId, onNotify }) {
                             ? `Live in ${live} store${live === 1 ? '' : 's'}${reviewing ? ` · ${reviewing} in review` : ''}`
                             : reviewing > 0
                               ? `${reviewing} store${reviewing === 1 ? '' : 's'} reviewing this book`
-                              : 'Not published yet'}
+                              : toUpload > 0
+                                ? `Ready to upload to ${toUpload} store${toUpload === 1 ? '' : 's'}`
+                                : 'Not published yet'}
                     </p>
                 </div>
 
@@ -171,7 +235,7 @@ export default function PublishPanel({ bookId, onNotify }) {
                     className="ml-auto inline-flex items-center gap-1.5 rounded-control bg-brand-primary px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
                     <Icon name="exp" size={13} strokeWidth={2} />
-                    {busy === 'submit' ? 'Submitting…' : 'Submit for publishing'}
+                    {busy === 'submit' ? 'Checking…' : 'Prepare for stores'}
                 </button>
             </header>
 
@@ -293,6 +357,10 @@ export default function PublishPanel({ bookId, onNotify }) {
                             <h3 className="mb-1 text-[13px] font-semibold text-text-primary">
                                 Stores
                             </h3>
+                            <p className="mb-1.5 text-[11px] leading-snug text-text-secondary">
+                                Écrivain checks the book and prepares the files. You upload them
+                                at each store yourself, then mark the store submitted here.
+                            </p>
                             {problem('channels') && (
                                 <p className="mb-1.5 text-[11px] font-medium text-status-warning">
                                     {blockers.channels}
@@ -313,9 +381,34 @@ export default function PublishPanel({ bookId, onNotify }) {
                                             {' · '}
                                             <ChannelStatus channel={channel} />
                                         </p>
+                                        {channel.status === 'ready_to_submit' && channel.upload?.url && (
+                                            <p
+                                                data-a={`publish:upload:${channel.channel}`}
+                                                className="mt-0.5 text-[11px] leading-snug text-text-body"
+                                            >
+                                                {channel.upload.steps}{' '}
+                                                <a
+                                                    href={channel.upload.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="font-semibold text-brand-primary hover:underline"
+                                                >
+                                                    Open {channel.label}
+                                                </a>
+                                            </p>
+                                        )}
                                     </div>
 
-                                    {channel.status === 'live' ? (
+                                    {channel.status === 'ready_to_submit' ? (
+                                        <button
+                                            data-a={`publish:submitted:${channel.channel}`}
+                                            disabled={busy !== null}
+                                            onClick={() => markSubmitted(channel.id)}
+                                            className="shrink-0 rounded-control border border-border-input px-2 py-1 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
+                                        >
+                                            I uploaded it
+                                        </button>
+                                    ) : channel.status === 'live' ? (
                                         <button
                                             data-a={`publish:unpublish:${channel.channel}`}
                                             disabled={busy !== null}
@@ -372,11 +465,15 @@ export default function PublishPanel({ bookId, onNotify }) {
 
                                     <button
                                         data-a={`publish:generate:${format.format}`}
-                                        disabled={busy === `format:${format.format}`}
+                                        disabled={
+                                            busy === `format:${format.format}` ||
+                                            rendering(format.format)
+                                        }
                                         onClick={() => generate(format.format)}
                                         className="shrink-0 rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
                                     >
-                                        {busy === `format:${format.format}`
+                                        {busy === `format:${format.format}` ||
+                                        rendering(format.format)
                                             ? 'Generating…'
                                             : 'Generate'}
                                     </button>
@@ -435,13 +532,39 @@ export default function PublishPanel({ bookId, onNotify }) {
                                                     >
                                                         Download
                                                     </a>
-                                                ) : item.status === 'generating' ? (
-                                                    <span className="text-[11px] text-text-secondary">
+                                                ) : waiting(item) ? (
+                                                    <span
+                                                        data-a={`publish:generating:${item.id}`}
+                                                        className="text-[11px] text-text-secondary"
+                                                    >
                                                         Generating…
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[11px] text-status-danger">
-                                                        {item.status}
+                                                    <span
+                                                        data-a={`publish:state:${item.id}`}
+                                                        className={`text-[11px] ${item.status === 'expired' ? 'text-text-secondary' : 'text-status-danger'}`}
+                                                    >
+                                                        {item.status === 'expired'
+                                                            ? 'File no longer stored'
+                                                            : 'Failed'}
+                                                        {available(item.format) && (
+                                                            <>
+                                                                {' — '}
+                                                                <button
+                                                                    data-a={`publish:retry:${item.id}`}
+                                                                    disabled={
+                                                                        busy !== null ||
+                                                                        rendering(item.format)
+                                                                    }
+                                                                    onClick={() => generate(item.format)}
+                                                                    className="font-semibold text-brand-primary hover:underline disabled:opacity-50"
+                                                                >
+                                                                    {item.status === 'expired'
+                                                                        ? 'generate again'
+                                                                        : 'try again'}
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </span>
                                                 )}
                                             </td>
@@ -469,9 +592,13 @@ function ChannelStatus({ channel }) {
     if (channel.status === 'in_review') {
         return (
             <span className="font-medium text-status-warning">
-                In review{channel.submitted_at ? ` · sent ${channel.submitted_at}` : ''}
+                In review{channel.submitted_at ? ` · uploaded ${channel.submitted_at}` : ''}
             </span>
         );
+    }
+
+    if (channel.status === 'ready_to_submit') {
+        return <span className="font-medium text-status-warning">Ready to upload</span>;
     }
 
     if (channel.status === 'unpublished') {

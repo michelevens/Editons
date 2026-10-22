@@ -47,7 +47,7 @@ class BookUnpublishedMail extends EcrivainMail implements ShouldQueue
                 __('Unpublished') => now()->translatedFormat('F j, Y'),
                 __('Reason') => $this->reason,
             ])
-            ->cta(__('Open publishing'), route('publishing.show', $book))
+            ->cta(__('Open publishing'), route('books.edit', ['book' => $book, 'pane' => 'export']))
             ->callout('info', __('Readers who already bought it usually keep their copy; the store\'s own policy decides. You can publish the book again whenever you like.'))
             ->reason(__('You received this because you publish “:title”. You can switch publishing emails off in your preferences.', ['title' => $book->title]));
     }

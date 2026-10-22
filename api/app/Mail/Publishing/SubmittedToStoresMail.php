@@ -9,7 +9,13 @@ use App\Models\BookChannel;
 use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
-/** A book was sent to one or more stores for review. */
+/**
+ * A book passed the store checks and is ready for the author to upload.
+ *
+ * Écrivain has no store integration yet, so nothing was sent anywhere. The
+ * email says so and gives each store's upload page; it used to say the book
+ * was "on its way to the stores", which an author would wait on for ever.
+ */
 class SubmittedToStoresMail extends EcrivainMail implements ShouldQueue
 {
     public const CATEGORY = 'publishing';
@@ -30,30 +36,30 @@ class SubmittedToStoresMail extends EcrivainMail implements ShouldQueue
     {
         $count = count($this->channels);
 
-        return Letter::make(trans_choice('{1} “:title” was submitted to :count store|[2,*] “:title” was submitted to :count stores', $count, [
+        return Letter::make(trans_choice('{1} “:title” is ready to upload to :count store|[2,*] “:title” is ready to upload to :count stores', $count, [
                 'title' => $this->book->title,
                 'count' => $count,
             ]))
-            ->preheader(__('Each store reviews new books on its own schedule. We will email you as each one goes live.'))
-            ->subtitle(__('Submitted to stores'))
+            ->preheader(__('Download the file from Écrivain and upload it at each store. Nothing has been sent yet.'))
+            ->subtitle(__('Ready to submit'))
             ->eyebrow(__('Publishing'))
             ->severity('confirmed')
-            ->headline(__('Your book is on its way to the stores'))
-            ->lede(self::greet($this->recipient->name, __('“:title” has been submitted. Each store checks a new book before it goes on sale, on its own schedule — usually a few days.', [
+            ->headline(__('Your book is ready for the stores'))
+            ->lede(self::greet($this->recipient->name, __('“:title” passed every check. Écrivain does not send books to stores itself yet, so the last step is yours: download the file and upload it at each store below, then mark it submitted on the Publish screen.', [
                 'title' => $this->book->title,
             ])))
             ->book($this->book)
             ->items(array_map(fn (string $channel) => [
                 'title' => BookChannel::CHANNELS[$channel][0] ?? $channel,
-                'detail' => (BookChannel::CHANNELS[$channel][1] ?? null) === 'print' ? __('Print edition') : __('eBook edition'),
-                'badge' => __('In review'),
+                'detail' => BookChannel::UPLOAD[$channel][2] ?? null,
+                'badge' => __('To upload'),
                 'tone' => 'warning',
-            ], $this->channels), __('Submitted to'))
+                'url' => BookChannel::UPLOAD[$channel][0] ?? null,
+            ], $this->channels), __('Upload to'))
             ->facts([
-                __('Submitted') => now()->translatedFormat('F j, Y'),
                 __('List price') => $this->book->list_price ? '$'.number_format((float) $this->book->list_price, 2) : null,
             ])
-            ->cta(__('Track your submissions'), route('publishing.show', $this->book))
-            ->reason(__('You received this because you submitted “:title”. You can switch publishing emails off in your preferences.', ['title' => $this->book->title]));
+            ->cta(__('Open the Publish screen'), route('books.edit', ['book' => $this->book, 'pane' => 'export']))
+            ->reason(__('You received this because you asked to publish “:title”. You can switch publishing emails off in your preferences.', ['title' => $this->book->title]));
     }
 }

@@ -114,15 +114,15 @@ final class EmailCatalog
                 ])],
 
             // Exports & publishing
-            [ExportReadyMail::class, 'Exports & publishing', 'Export ready', 'Helper: Notify::exportReady — wire in GenerateExport after merge',
+            [ExportReadyMail::class, 'Exports & publishing', 'Export ready', 'Wired: Exporter::run() for PDF and EPUB',
                 fn (array $s) => new ExportReadyMail($s['export'], $s['author'])],
-            [ExportFailedMail::class, 'Exports & publishing', 'Export failed', 'Helper: Notify::exportFailed — wire in GenerateExport::failed after merge',
+            [ExportFailedMail::class, 'Exports & publishing', 'Export failed', 'Wired: Exporter::run(), GenerateExport::failed() and the stale-export sweep',
                 fn (array $s) => new ExportFailedMail($s['failedExport'], $s['author'], 'An image in chapter 9 could not be read (cover-detail.heic).')],
-            [SubmittedToStoresMail::class, 'Exports & publishing', 'Submitted to stores', 'Helper: Notify::submittedToStores — wire in PublishingController::submit after merge',
+            [SubmittedToStoresMail::class, 'Exports & publishing', 'Submitted to stores', 'Wired: PublishingController::submit (ready to upload)',
                 fn (array $s) => new SubmittedToStoresMail($s['book'], $s['author'], ['amazon_kdp', 'apple_books', 'kobo', 'ingram_print'])],
             [BookLiveMail::class, 'Exports & publishing', 'Book live', 'Helper: Notify::bookLive — wire where a channel becomes live',
                 fn (array $s) => new BookLiveMail($s['channel'], $s['author'], 'https://books.apple.com/book/id0000000000')],
-            [BookUnpublishedMail::class, 'Exports & publishing', 'Book unpublished', 'Helper: Notify::bookUnpublished — wire in PublishingController::unpublish after merge',
+            [BookUnpublishedMail::class, 'Exports & publishing', 'Book unpublished', 'Wired: PublishingController::unpublish',
                 fn (array $s) => new BookUnpublishedMail($s['channel'], $s['author'], null, true)],
 
             // Billing
