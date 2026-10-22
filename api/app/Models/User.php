@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Notifications\ResetPasswordNotification;
+use App\Notifications\VerifyEmailNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -71,8 +73,23 @@ class User extends Authenticatable
             // on it fails at runtime, which is how the monthly allowance
             // broke the moment anything read it.
             'credits_granted_at' => 'datetime',
+            'credits_low_notified_at' => 'datetime',
+            // Overrides only; App\Mail\EmailPreferences resolves defaults.
+            'email_preferences' => 'array',
             'password' => 'hashed',
         ];
+    }
+
+    /** The reset link, in Écrivain's email template rather than Laravel's. */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
+
+    /** Ready for when MustVerifyEmail is switched on. */
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailNotification);
     }
 
     /**
