@@ -1,7 +1,9 @@
 <?php
 
+// Écrivain's own reset notification (it extends Laravel's ResetPassword, so
+// the token and broker behave exactly as before; only the email changed).
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Notifications\ResetPasswordNotification as ResetPassword;
 use Illuminate\Support\Facades\Notification;
 
 test('reset password link screen can be rendered', function () {
