@@ -25,6 +25,9 @@ class DocumentRenderer
         'underline' => 'u',
     ];
 
+    /** The book whose stored pictures a render may embed. */
+    private ?int $bookId = null;
+
     /** How equations come out of html(): MathML for readers, SVG for print. */
     private string $mathMode = 'mathml';
 
@@ -185,6 +188,7 @@ class DocumentRenderer
             return $this->listHtml($kind);
         }
 
+        $this->bookId = $section->book_id;
         $nodes = $this->numbered($section);
 
         // One typesetting call per section, not one per equation.
@@ -483,6 +487,7 @@ class DocumentRenderer
         }
 
         $this->notes = [];
+        $this->bookId = $section->book_id;
         $body = trim($this->nodesToMarkdown($this->numbered($section)));
 
         // Pandoc's footnote syntax: references in the text, definitions after.
@@ -509,6 +514,7 @@ class DocumentRenderer
                 ->implode('');
         }
 
+        $this->bookId = $section->book_id;
         $nodes = $this->numbered($section);
 
         // One typesetting call for the section's equations.
@@ -572,7 +578,10 @@ class DocumentRenderer
     /** @param array<string, mixed> $node */
     private function docxImage(array $node): string
     {
-        $image = app(BookImages::class)->resolve((string) ($node['attrs']['src'] ?? ''));
+        // Only this book's pictures: an src naming another book's image is
+        // someone else's file, whatever the manuscript says.
+        $image = $this->bookId === null ? null
+            : app(BookImages::class)->resolve((string) ($node['attrs']['src'] ?? ''), $this->bookId);
 
         if ($image === null) {
             // An image that cannot be embedded keeps its description, so the
@@ -1003,8 +1012,15 @@ class DocumentRenderer
     /** @param array<string, mixed> $node */
     private function imageHtml(array $node): string
     {
-        $src = (string) ($node['attrs']['src'] ?? '');
+        $src = self::safeImageSrc((string) ($node['attrs']['src'] ?? ''));
         $alt = (string) ($node['attrs']['alt'] ?? '');
+
+        if ($src === null) {
+            // A picture from somewhere the book cannot vouch for is not
+            // fetched by a reader's browser; its description stands in.
+            return trim($alt) !== '' ? '<p class="image-missing"><em>'.e('[Image: '.trim($alt).']')."</em></p>
+" : '';
+        }
 
         // alt is always emitted, empty if unset. A missing attribute fails
         // accessibility validation; an empty one declares the image
@@ -1060,10 +1076,11 @@ class DocumentRenderer
                 $markType = $mark['type'] ?? '';
 
                 if ($markType === 'link') {
-                    $href = (string) ($mark['attrs']['href'] ?? '');
+                    $href = self::safeHref((string) ($mark['attrs']['href'] ?? ''));
                     // rel on every outbound link: these files are opened in
-                    // store apps and browsers we do not control.
-                    $text = '<a href="'.e($href).'" rel="noopener">'.$text.'</a>';
+                    // store apps and browsers we do not control. A link to
+                    // anything else (javascript:, data:) keeps its words only.
+                    $text = $href === null ? $text : '<a href="'.e($href).'" rel="noopener">'.$text.'</a>';
 
                     continue;
                 }
@@ -1232,7 +1249,7 @@ class DocumentRenderer
                     'italic', 'em' => '*'.$text.'*',
                     'code' => '`'.$text.'`',
                     'strike' => '~~'.$text.'~~',
-                    'link' => '['.$text.']('.($mark['attrs']['href'] ?? '').')',
+                    'link' => ($href = self::safeHref((string) ($mark['attrs']['href'] ?? ''))) === null ? $text : '['.$text.']('.$href.')',
                     default => $text,
                 };
             }
@@ -1241,6 +1258,45 @@ class DocumentRenderer
         }
 
         return $out;
+    }
+
+    /**
+     * A link target a reader may follow, or null.
+     *
+     * Manuscript content is untrusted: a collaborator or an imported
+     * .ecrivain file can carry any href, and "javascript:" in the Design
+     * preview runs on the app's own origin. Only web and mail links and
+     * anchors inside the book survive. Browsers ignore tabs, newlines and
+     * leading control characters in a scheme, so they are ignored here too.
+     */
+    public static function safeHref(string $href): ?string
+    {
+        $href = trim($href);
+        $scheme = strtolower((string) preg_replace('/[\x00-\x20]+/', '', $href));
+
+        return $href !== '' && (str_starts_with($href, '#')
+            || preg_match('#^(https?://|mailto:)#', $scheme)) ? $href : null;
+    }
+
+    /**
+     * A picture source safe to put in front of a reader, or null.
+     *
+     * The app's own paths and inline raster data. A remote URL would make
+     * every reader of the preview or the EPUB fetch it (a tracking pixel),
+     * and the PDF cannot fetch it anyway; data:image/svg+xml can carry script.
+     */
+    public static function safeImageSrc(string $src): ?string
+    {
+        $src = trim($src);
+        $scheme = strtolower((string) preg_replace('/[\x00-\x20]+/', '', $src));
+
+        if (preg_match('#^data:image/(png|jpe?g|gif|webp);base64,#', $scheme)) {
+            return $src;
+        }
+
+        // No scheme and not protocol-relative ("//host", "/\host"): a path
+        // on this site.
+        return $src !== '' && ! preg_match('#^([a-z][a-z0-9+.\-]*:|[/\\\\]{2})#', $scheme) ? $src : null;
     }
 
     /** @param array<int, mixed> $nodes */
