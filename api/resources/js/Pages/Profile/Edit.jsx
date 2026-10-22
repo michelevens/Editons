@@ -14,7 +14,14 @@ import UpdatePasswordForm from './Partials/UpdatePasswordForm';
  * into eBook metadata, onto a store listing, into the About the Author page —
  * and the part nothing else can fill in for you.
  */
-export default function Edit({ mustVerifyEmail, status, author, book_types: bookTypes, plan }) {
+export default function Edit({
+    mustVerifyEmail,
+    status,
+    author,
+    book_types: bookTypes,
+    plan,
+    email_preferences: emailPreferences = [],
+}) {
     const { auth } = usePage().props;
 
     return (
@@ -54,6 +61,11 @@ export default function Edit({ mustVerifyEmail, status, author, book_types: book
 
                     <div className="mt-4 space-y-4">
                         <PlanCard plan={plan} />
+
+                        <EmailPreferences
+                            categories={emailPreferences}
+                            saved={status === 'email-preferences-updated'}
+                        />
 
                         <Box
                             title="Password"
@@ -300,6 +312,120 @@ function PlanCard({ plan }) {
                 Plans &amp; billing
             </button>
         </Box>
+    );
+}
+
+/**
+ * Which emails arrive.
+ *
+ * Security, billing and purchase emails are listed but locked on: they are
+ * how somebody finds out their password changed or a payment failed, so
+ * switching them off would switch off the warning, not the noise. The
+ * server ignores those keys whatever this form sends.
+ */
+function EmailPreferences({ categories, saved }) {
+    const { data, setData, setDefaults, patch, processing, isDirty, recentlySuccessful } = useForm({
+        preferences: Object.fromEntries(
+            categories.filter((c) => !c.mandatory).map((c) => [c.key, c.enabled]),
+        ),
+    });
+
+    if (!categories.length) {
+        return null;
+    }
+
+    const submit = (event) => {
+        event.preventDefault();
+        patch(route('profile.email-preferences'), {
+            preserveScroll: true,
+            onSuccess: () => setDefaults(),
+        });
+    };
+
+    return (
+        <form onSubmit={submit} id="email-preferences" className="scroll-mt-6">
+            <Box
+                title="Email"
+                detail="Choose what we email you about. Security and billing emails always arrive, because they are how you hear that something needs you."
+            >
+                <ul className="divide-y divide-border-divider rounded-tile border border-border-default">
+                    {categories.map((category) => {
+                        const on = category.mandatory
+                            ? true
+                            : Boolean(data.preferences[category.key]);
+                        const id = `email-pref-${category.key}`;
+
+                        return (
+                            <li key={category.key} className="flex items-start gap-3 px-3.5 py-3">
+                                <div className="min-w-0 flex-1">
+                                    <label
+                                        htmlFor={id}
+                                        className="block text-[13px] font-semibold text-text-primary"
+                                    >
+                                        {category.label}
+                                    </label>
+                                    <p
+                                        id={`${id}-detail`}
+                                        className="mt-0.5 text-[11.5px] leading-relaxed text-text-secondary"
+                                    >
+                                        {category.description}
+                                    </p>
+                                </div>
+
+                                {category.mandatory ? (
+                                    <span className="mt-0.5 shrink-0 rounded-badge bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+                                        Always on
+                                    </span>
+                                ) : (
+                                    <button
+                                        id={id}
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={on}
+                                        aria-describedby={`${id}-detail`}
+                                        data-a={`profile:email:${category.key}`}
+                                        onClick={() =>
+                                            setData('preferences', {
+                                                ...data.preferences,
+                                                [category.key]: !on,
+                                            })
+                                        }
+                                        className={`relative mt-0.5 h-[22px] w-[38px] shrink-0 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 ${
+                                            on ? 'bg-brand-primary' : 'bg-border-input'
+                                        }`}
+                                    >
+                                        <span className="sr-only">
+                                            {on ? 'On' : 'Off'}
+                                        </span>
+                                        <span
+                                            aria-hidden="true"
+                                            className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow transition-all ${
+                                                on ? 'left-[19px]' : 'left-[3px]'
+                                            }`}
+                                        />
+                                    </button>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
+
+                <div className="mt-3 flex items-center gap-3">
+                    <button
+                        data-a="profile:email:save"
+                        disabled={processing || !isDirty}
+                        className="h-[34px] rounded-control bg-brand-primary px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    >
+                        {processing ? 'Saving…' : 'Save email preferences'}
+                    </button>
+                    {(recentlySuccessful || (saved && !isDirty)) && (
+                        <span role="status" className="text-[12.5px] text-status-success">
+                            Saved.
+                        </span>
+                    )}
+                </div>
+            </Box>
+        </form>
     );
 }
 

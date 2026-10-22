@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -60,6 +62,16 @@ class WorkflowController extends Controller
         ]);
 
         $section->update($data);
+
+        // Only a real change of reviewer, and only to somebody who can open
+        // the book: an email about a book you cannot see would leak its title.
+        if ($section->wasChanged('reviewer_id') && $section->reviewer_id) {
+            $reviewer = User::find($section->reviewer_id);
+
+            if ($reviewer && $reviewer->can('view', $section->book)) {
+                Notify::reviewerAssigned($section, $reviewer, $request->user());
+            }
+        }
 
         return response()->json(['chapters' => $this->board($book)]);
     }
