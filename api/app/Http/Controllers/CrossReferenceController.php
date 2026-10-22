@@ -65,7 +65,7 @@ class CrossReferenceController extends Controller
             }
 
             $kind = match (true) {
-                (bool) ($caption = Numbering::captionKind($node)) => strtolower($caption[0]),
+                (bool) ($caption = Numbering::captionKind($node)) => $caption[2],
                 ($node['type'] ?? '') === 'blockMath' && str_contains((string) ($node['attrs']['latex'] ?? ''), '\tag{') => 'equation',
                 ($node['type'] ?? '') === 'heading' => 'section',
                 default => null,

@@ -8,7 +8,6 @@ use App\Models\Book;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
 use App\Models\User;
-use RuntimeException;
 
 /**
  * Charging for an AI review.

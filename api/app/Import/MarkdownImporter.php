@@ -176,6 +176,19 @@ class MarkdownImporter
             return "\n\n".self::CODE.(count($code) - 1).self::CODE."\n\n";
         }, str_replace(["\r\n", "\r"], "\n", $body)) ?? $body;
 
+        // $$ … $$ in the middle of a line ("tels que : $$a = bq + r$$", a
+        // list item, "$$V = …$$ (25 pts)") is set inline in display style,
+        // which keeps the sentence, list or paragraph it belongs to whole.
+        $body = implode("\n", array_map(function (string $line) {
+            $text = ltrim(preg_replace('/^(?:\s*>)+\s?/', '', $line));
+
+            if (preg_match('/^\$\$.*\$\$\s*$/', $text) || ! str_contains($text, '$$')) {
+                return $line;
+            }
+
+            return preg_replace('/\$\$([^$\n]+?)\$\$/', '\$\\displaystyle $1\$', $line) ?? $line;
+        }, explode("\n", $body)));
+
         // Display math, $$ … $$, is lifted out the same way: an aligned
         // equation can span lines, and none of it is Markdown.
         $math = [];
@@ -257,12 +270,13 @@ class MarkdownImporter
             if (str_starts_with($block, '> ')) {
                 $quoted = preg_replace('/^>\s?/m', '', $block);
 
+                // A box is Markdown too: its paragraphs, lists, equations
+                // and tables survive inside it.
+                $inner = $this->toProseMirror((string) $quoted, $report)['content'];
+
                 $content[] = [
                     'type' => 'blockquote',
-                    'content' => [[
-                        'type' => 'paragraph',
-                        'content' => $this->inline(trim((string) $quoted)),
-                    ]],
+                    'content' => $inner ?: [['type' => 'paragraph']],
                 ];
 
                 continue;
@@ -412,6 +426,22 @@ class MarkdownImporter
     {
         if (trim($text) === '') {
             return [];
+        }
+
+        // A line ending in a backslash keeps its break, as in Markdown: the
+        // lines of a poem, an address, a dialogue.
+        $lines = preg_split('/\\\\\n/', $text);
+
+        if (count($lines) > 1) {
+            $nodes = [];
+            foreach ($lines as $i => $line) {
+                if ($i > 0) {
+                    $nodes[] = ['type' => 'hardBreak'];
+                }
+                array_push($nodes, ...$this->inline($line));
+            }
+
+            return $nodes;
         }
 
         // Collapse the single newlines left inside a paragraph. Markdown

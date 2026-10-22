@@ -145,3 +145,30 @@ it('labels targets in closed chapters and lists them for the editor', function (
     expect($method->content['content'][0]['attrs']['label'])->toStartWith('tbl-')
         ->and($method->versions()->count())->toBe(0);
 });
+
+it('numbers captions written in French, Spanish and Kreyòl', function () {
+    $nodes = Numbering::apply([
+        nbCaption('Tableau', '9.9', 'Fréquence des thèmes'),
+        nbCaption('Figure', '?', 'Évolution'),
+        nbCaption('Tablo', '1', 'Rezilta'),
+        nbCaption('Figura', '7', 'Gráfico'),
+    ], '3.');
+
+    expect(collect($nodes)->map(fn ($n) => $n['content'][0]['text'])->all())
+        ->toBe(['Tableau 3.1', 'Figure 3.1', 'Tablo 3.2', 'Figura 3.2'])
+        ->and(Numbering::captionKind($nodes[0]))->toBe(['Tableau', '3.1', 'table'])
+        ->and(Numbering::captionKind($nodes[3]))->toBe(['Figura', '3.2', 'figure']);
+});
+
+it('keeps the prefix an author gave captions in an unnumbered section', function () {
+    $nodes = Numbering::apply([
+        nbCaption('Tableau', '0.1', 'Fréquences'),
+        nbCaption('Tableau', '0.7', 'Plan sur 8 semaines'),
+        nbCaption('Table', 'D.4', 'Grille'),
+        nbCaption('Figure', '3', 'Sans préfixe'),
+        nbCaption('Tableau', '70.5.4', 'Barème'),
+    ], '');
+
+    expect(collect($nodes)->map(fn ($n) => $n['content'][0]['text'])->all())
+        ->toBe(['Tableau 0.1', 'Tableau 0.2', 'Table D.1', 'Figure 1', 'Tableau 70.5.1']);
+});

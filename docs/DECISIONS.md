@@ -550,3 +550,42 @@ verified real works. In a notes style every citation token becomes a
 footnote, full on a work's first citation in the book and short after
 (`Bibliography::note`); a token inside a discursive note becomes the note's
 own words.
+
+---
+
+## ADR-0018 — PDF and EPUB render on a queue worker
+
+Laying out a long book takes minutes: the exam-prep books (75,000–150,000
+words, thousands of typeset formulas) need 4 to 25 minutes each for a PDF.
+Inside the request that ran past every web server's time limit, and the
+export row stayed "generating" for good, because the process died before it
+could record anything. ADR-0015 had predicted that a 100k-word book would
+need a queued job.
+
+- `Exporter::start()` checks the book and records the row; `run()` renders
+  it. `generate()` is still both, for the formats that take under a second
+  (Word, Markdown, HTML) and for tests.
+- PDF and EPUB answer `202` with the row as `generating` and dispatch
+  `App\Jobs\GenerateExport` (one try, 30-minute timeout, `failed()` marks the
+  row failed if the worker dies). The Publish screen polls every five seconds
+  while any row is generating.
+- Production runs a third service, **`ecrivain-worker`**: the same code and
+  variables as `ecrivain-api`, start command
+  `php -d memory_limit=2048M artisan queue:work --memory=1536 --timeout=1900 --tries=1
+  --sleep=3 --max-time=3600`, restart policy ALWAYS, no pre-deploy command
+  (`ecrivain-app` migrates). ADR-0014 applies to it: a build-level change is
+  a change to all three services.
+
+**Two print fixes found on the way.**
+
+- *dompdf temp files.* dompdf unpacks data-URI images to temp files and
+  caches each image's type and size by file name for the life of the
+  process. Windows names temp files from 65,536 values and reuses them, so a
+  chart PNG was taken for an SVG (a division by zero) and a formula could be
+  drawn at another's size. Each render now gets its own temp folder, removed
+  afterwards; that also protects a worker rendering many books in one
+  process.
+- *Missing glyphs.* dompdf has no glyph fallback and EB Garamond lacks ★ ☆ ♭
+  ♯ ☐ ♂ ♀ ℝ ℂ ℕ and more, which printed as empty boxes. `PrintBook` wraps any
+  run of characters missing from the face (read from its own cmap) in a
+  span set in DejaVu Sans, which ships with dompdf.

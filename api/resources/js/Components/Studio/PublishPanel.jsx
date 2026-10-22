@@ -105,13 +105,29 @@ export default function PublishPanel({ bookId, onNotify }) {
         }
     };
 
+    // A PDF or EPUB renders on a worker and can take minutes: while any
+    // export is still generating, check back every few seconds.
+    const generating = data?.exports.some((item) => item.status === 'generating');
+
+    useEffect(() => {
+        if (!generating) return undefined;
+
+        const timer = setInterval(load, 5000);
+
+        return () => clearInterval(timer);
+    }, [generating, load]);
+
     const generate = async (format) => {
         setBusy(`format:${format}`);
 
         try {
             const response = await window.axios.post(`/books/${bookId}/exports`, { format });
             setData(response.data.book);
-            onNotify?.(`${response.data.export.label} is ready.`);
+            onNotify?.(
+                response.data.export.status === 'generating'
+                    ? `${response.data.export.label} is being generated. It will appear below when it is ready.`
+                    : `${response.data.export.label} is ready.`,
+            );
         } catch (error) {
             onNotify?.(error.response?.data?.message ?? 'That file could not be generated.');
         } finally {
@@ -419,6 +435,10 @@ export default function PublishPanel({ bookId, onNotify }) {
                                                     >
                                                         Download
                                                     </a>
+                                                ) : item.status === 'generating' ? (
+                                                    <span className="text-[11px] text-text-secondary">
+                                                        Generating…
+                                                    </span>
                                                 ) : (
                                                     <span className="text-[11px] text-status-danger">
                                                         {item.status}

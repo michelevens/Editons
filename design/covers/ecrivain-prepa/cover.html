@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Écrivain Prépa front cover (digital), 1600 × 2560. One layout for both
+   * levels; the navy level bar names the level. The series is anonymous:
+   * no author appears anywhere, only the series/publisher wordmark.
+   *
+   * Tokens: ivory #FFFDF5, navy #06243E, yellow #FFC62B; the subject colour
+   * (c1, darkened for type) for PRÉPA in the wordmark and the check marks.
+   *
+   * Zones, top to bottom; nothing crosses a zone boundary:
+   *   0–230      header: wordmark, edition
+   *   250–410    level bar
+   *   440–1060   title zone: kicker + subject, fitted and centred as one block
+   *   1090–1850  illustration panel (art/<book>.png, cropped to fill)
+   *   1850–2000  promise band
+   *   2050–2320  three learning benefits
+   *   2360–2560  footer: wordmark
+   * Side margin 100 px; the level bar 60 px.
+   */
+  :root { --m: 100px; --ivory: #FFFDF5; --navy: #06243E; --yellow: #FFC62B; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 2560px; overflow: hidden; }
+  body { font-family: Inter, Arial, sans-serif; background: var(--ivory); color: var(--navy); position: relative; }
+
+  .top { position: absolute; top: 0; left: 0; right: 0; height: 230px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--m); }
+  .mark { font-family: Anton, Impact, sans-serif; font-weight: 400; line-height: 1; letter-spacing: 1px; position: relative; color: var(--navy); }
+  .mark b { font-weight: 400; color: var(--brand); margin-left: .22em; }
+  .mark::after { content: ''; position: absolute; left: .03em; bottom: -.2em; width: 2.6em; height: .12em; border-radius: .06em; background: var(--yellow); }
+  .top .mark { font-size: 112px; }
+  .edition { text-align: right; font-size: 40px; font-weight: 600; letter-spacing: 8px; text-transform: uppercase; line-height: 1.1; }
+  .edition b { display: block; font-size: 84px; font-weight: 900; letter-spacing: 2px; border-bottom: 12px solid var(--yellow); padding-bottom: 6px; }
+
+  .level { position: absolute; top: 250px; left: 60px; right: 60px; height: 160px; border-radius: 22px; background: var(--navy); color: #fff;
+        display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 84px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
+  .level sup { font-size: .58em; letter-spacing: 0; text-transform: none; vertical-align: .62em; line-height: 0; }
+  .level i { font-style: normal; margin: 0 .35em; color: var(--yellow); }
+
+  .titleblock { position: absolute; left: var(--m); right: var(--m); }
+  .kicker { font-size: 80px; font-weight: 600; line-height: 1.1; margin-bottom: 10px; }
+  .subject { white-space: nowrap; font-family: Anton, Impact, sans-serif; text-transform: uppercase; font-weight: 400;
+        line-height: 1.12; padding-top: .12em; letter-spacing: 1px; }
+  .subject .sub { display: block; font-size: .3em; letter-spacing: 8px; margin-top: .2em; line-height: 1.1; }
+
+  .panel { position: absolute; top: 1090px; left: 0; right: 0; height: 760px; overflow: hidden; background: linear-gradient(120deg, var(--c1), var(--c2)); }
+  .panel img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+
+  .band { position: absolute; top: 1850px; left: 0; right: 0; height: 150px; background: var(--navy); color: #fff;
+        display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 58px; letter-spacing: 5px; text-transform: uppercase; white-space: nowrap; }
+
+  .list { position: absolute; top: 2050px; left: var(--m); right: var(--m); list-style: none; }
+  .list li { display: flex; gap: 40px; align-items: center; font-size: 58px; font-weight: 600; line-height: 1.15; margin-bottom: 22px; white-space: nowrap; }
+  .list li i { flex: 0 0 76px; height: 76px; border-radius: 50%; background: var(--brand); color: #fff; font-style: normal; font-weight: 900;
+        display: flex; align-items: center; justify-content: center; font-size: 46px; }
+
+  .foot { position: absolute; bottom: 0; left: var(--m); right: var(--m); height: 200px; display: flex; align-items: center; justify-content: flex-end;
+        border-top: 4px solid rgba(6,36,62,.12); }
+  .foot .mark { font-size: 84px; }
+</style>
+</head>
+<body>
+<header class="top"><div class="mark">ÉCRIVAIN<b>PRÉPA</b></div><div class="edition" id="edition"></div></header>
+<div class="level" id="level"></div>
+<div class="titleblock" id="titleblock"><div class="kicker" id="kicker"></div><h1 class="subject" id="subject"></h1></div>
+<div class="panel" id="panel"></div>
+<div class="band" id="tagline"></div>
+<ul class="list" id="list"></ul>
+<footer class="foot"><div class="mark">ÉCRIVAIN<b>PRÉPA</b></div></footer>
+<script>
+const d = window.COVER;
+const r = document.documentElement.style;
+for (const k of ['c1', 'c2']) r.setProperty('--' + k, d[k]);
+r.setProperty('--brand', d.c1Ink);
+const set = (id, html) => { document.getElementById(id).innerHTML = html; };
+set('edition', d.edition); set('level', `<span>${d.level}</span>`); set('kicker', d.kicker); set('subject', d.subject); set('tagline', d.tagline);
+set('list', d.promises.map(b => `<li><i>✓</i><span>${b}</span></li>`).join(''));
+if (d.art) set('panel', `<img src="${d.art}" alt="">`);
+// Largest subject size, up to the house maximum, at which the title block
+// fits 1400 × (1060 − 440); the block is then centred in that zone. Words
+// are never split: a long title only breaks where specs.py puts a <br>.
+const ready = Promise.all([document.fonts.ready, ...[...document.images].map(i => i.decode().catch(() => {}))]);
+ready.then(() => {
+    const ZONE_TOP = 440, ZONE_BOTTOM = 1060;
+    const block = document.getElementById('titleblock');
+    const subject = document.getElementById('subject');
+    const fits = (s) => { subject.style.fontSize = s + 'px'; return subject.scrollWidth <= subject.clientWidth && block.offsetHeight <= ZONE_BOTTOM - ZONE_TOP; };
+    let lo = 100, hi = d.maxSize;
+    if (fits(hi)) lo = hi;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; fits(mid) ? (lo = mid) : (hi = mid); }
+    fits(lo);
+    block.style.top = (ZONE_TOP + (ZONE_BOTTOM - ZONE_TOP - block.offsetHeight) / 2) + 'px';
+    // The benefits and the band must fit on one line each.
+    const over = [...document.querySelectorAll('.list li span, .band')].filter(e => e.scrollWidth > e.clientWidth + 1
+        || (e.tagName === 'SPAN' && e.getBoundingClientRect().right > 1600 - 100));
+    window.OVERFLOW = over.map(e => e.textContent);
+    window.FITTED = lo;
+});
+</script>
+</body>
+</html>

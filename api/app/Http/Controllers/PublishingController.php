@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Billing\Entitlements;
+use App\Jobs\GenerateExport;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
@@ -185,18 +186,28 @@ class PublishingController extends Controller
         // and nothing called it, so every plan could export everything.
         $this->entitlements->assertCanExport($request->user(), $this->planFormat($data['format']));
 
+        // PDF and EPUB take minutes for a long book, so they render on a
+        // worker and the screen polls; the small formats stay immediate.
+        $queued = in_array($data['format'], GenerateExport::FORMATS, true);
+
         try {
-            $export = $this->exporter->generate($book, $data['format'], $request->user()->id);
+            $export = $queued
+                ? $this->exporter->start($book, $data['format'], $request->user()->id)
+                : $this->exporter->generate($book, $data['format'], $request->user()->id);
         } catch (Throwable $e) {
             // 422 rather than 500: an empty manuscript is the author's to
             // fix, and the message says what to do about it.
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        if ($queued) {
+            GenerateExport::dispatch($export->id);
+        }
+
         return response()->json([
-            'export' => $this->exportRow($export),
+            'export' => $this->exportRow($export->fresh()),
             'book' => $this->payload($book->fresh()),
-        ]);
+        ], $queued ? 202 : 200);
     }
 
     /**
@@ -231,6 +242,14 @@ class PublishingController extends Controller
          * new exports; it still rescues ones written before the bucket.
          */
         if (! $export->path || ! Storage::disk('files')->exists($export->path)) {
+            // A PDF or EPUB takes too long to rebuild while the browser
+            // waits: queue it, and the history shows it when it is ready.
+            if (in_array($export->format, GenerateExport::FORMATS, true)) {
+                GenerateExport::dispatch($this->exporter->start($book, $export->format, $request->user()->id)->id);
+
+                abort(503, 'That file is being rebuilt. It will appear in your export history in a few minutes.');
+            }
+
             $export = $this->exporter->generate($book, $export->format, $request->user()->id);
 
             abort_unless(

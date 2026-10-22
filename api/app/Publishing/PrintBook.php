@@ -11,6 +11,7 @@ use Dompdf\FontMetrics;
 use Dompdf\Frame;
 use Dompdf\Options;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Vanderlee\Syllable\Hyphen\Text;
 use Vanderlee\Syllable\Syllable;
 
@@ -107,23 +108,35 @@ class PrintBook
     {
         $plan = $this->plan($sections, $language);
 
-        // Pass one: where does every page-starting block land?
-        [, $starts, $total] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor));
+        try {
+            // Pass one: where does every page-starting block land?
+            [, $starts, $total] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor));
 
-        $this->paginate($plan, $starts, $total);
+            $this->paginate($plan, $starts, $total);
 
-        // Pass two: blanks inserted, contents numbered, heads and folios on.
-        // A fresh closure, since an arrow function captures $plan by value
-        // and the one above still holds the plan from before pagination.
-        [$dompdf, $landed, $pages] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor), $plan);
+            // Pass two: blanks inserted, contents numbered, heads and folios on.
+            // A fresh closure, since an arrow function captures $plan by value
+            // and the one above still holds the plan from before pagination.
+            [$dompdf, $landed, $pages] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor), $plan);
 
-        return [
-            'pdf' => (string) $dompdf->output(),
-            'pages' => $pages,
-            'blocks' => $plan['blocks'],
-            'landed' => $landed,
-        ];
+            return [
+                'pdf' => (string) $dompdf->output(),
+                'pages' => $pages,
+                'blocks' => $plan['blocks'],
+                'landed' => $landed,
+            ];
+        } finally {
+            foreach ($this->tempDirs as $dir) {
+                array_map('unlink', glob($dir.'/*') ?: []);
+                @rmdir($dir);
+            }
+
+            $this->tempDirs = [];
+        }
     }
+
+    /** The image folders made by render() for the book being typeset. @var array<int, string> */
+    private array $tempDirs = [];
 
     /**
      * The book as an ordered list of page-starting blocks.
@@ -308,11 +321,27 @@ class PrintBook
             mkdir($fonts, 0755, true);
         }
 
+        /*
+         * A folder of its own for the images dompdf unpacks from data URIs.
+         *
+         * dompdf caches each image's type and size by its temporary file name
+         * for the life of the PHP process, and Windows makes those names from
+         * 65,536 values (ca_XXXX) and reuses them once a file is deleted. In
+         * a book of thousands of formulas a reused name brought back another
+         * image's cached type and size: a chart taken for an SVG stopped the
+         * PDF with a division by zero, and a formula could be drawn at
+         * another's size. A fresh folder per render makes every path new, and
+         * a queue worker renders many books in one process.
+         */
+        $this->tempDirs[] = $tempDir = storage_path('app/tmp/print-'.Str::random(16));
+        @mkdir($tempDir, 0755, true);
+
         $dompdf = new Dompdf(new Options([
             // No remote fetching: a manuscript is untrusted input, and a
             // renderer that follows URLs in it is a request forgery waiting
             // to happen.
             'isRemoteEnabled' => false,
+            'tempDir' => $tempDir,
             'isHtml5ParserEnabled' => true,
             'isFontSubsettingEnabled' => true,
             'defaultMediaType' => 'print',
@@ -494,12 +523,64 @@ class PrintBook
             $body .= $this->block($book, $block, $plan)."\n";
         }
 
+        $body = $this->fallbackGlyphs($body);
+
         return '<!doctype html>'."\n".'<html lang="'.e($plan['language']).'">'."\n"
             .'<head><meta charset="utf-8">'
             .'<meta name="viewport" content="width=device-width, initial-scale=1">'
             .'<title>'.e($book->title).'</title>'
             .'<style>'.$this->css($book, $factor).'</style></head>'."\n"
             .'<body>'."\n".$body.'</body></html>'."\n";
+    }
+
+    /**
+     * Characters the book face cannot draw, set in DejaVu Sans instead.
+     *
+     * dompdf has no glyph fallback: a character missing from the face prints
+     * as an empty box. EB Garamond has no ★ or ☆, so every exercise's
+     * difficulty rating came out as boxes, along with ♭ and ♯ in a music
+     * book, ☐ in a checklist and ℝ in prose. Each run of such characters in
+     * the text (never inside a tag) is wrapped in a span in DejaVu Sans,
+     * which ships with dompdf and has them. The face's own character map
+     * decides, so nothing is listed by hand.
+     */
+    private function fallbackGlyphs(string $html): string
+    {
+        static $has = null;
+        $has ??= (function () {
+            $font = \FontLib\Font::load(resource_path('fonts/EBGaramond-Regular.ttf'));
+            $font->parse();
+            $map = $font->getUnicodeCharMap();
+            $font->close();
+
+            return $map;
+        })();
+
+        $parts = preg_split('/(<[^>]*>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        foreach ($parts as $i => $part) {
+            if ($i % 2 === 1 || ! preg_match('/[^\x00-\x7F]/', $part)) {
+                continue;
+            }
+
+            $parts[$i] = preg_replace_callback('/[^\x00-\x7F]+/u', function (array $m) use ($has) {
+                $out = '';
+                $run = '';
+
+                foreach (mb_str_split($m[0]) as $ch) {
+                    if (isset($has[mb_ord($ch)])) {
+                        $out .= ($run !== '' ? '<span class="glyph">'.$run.'</span>' : '').$ch;
+                        $run = '';
+                    } else {
+                        $run .= $ch;
+                    }
+                }
+
+                return $out.($run !== '' ? '<span class="glyph">'.$run.'</span>' : '');
+            }, $part);
+        }
+
+        return implode('', $parts);
     }
 
     private function block(Book $book, array $block, array $plan): string
@@ -829,6 +910,7 @@ class PrintBook
         .text td.math-body { text-align: center; }
         .text td.math-number { text-align: right; }
         code.math-tex { font-family: 'DejaVu Sans Mono', monospace; font-size: .78em; color: #9b1c1c; }
+        .glyph { font-family: 'DejaVu Sans', sans-serif; font-size: .9em; }
         .scene-break { text-align: center; text-indent: 0; color: #6d6d6d; margin: .9em 0; }
         a { color: inherit; text-decoration: none; }
 

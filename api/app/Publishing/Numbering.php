@@ -26,7 +26,11 @@ use Illuminate\Support\Str;
 class Numbering
 {
     /** A caption's opening: the kind and the number as typed. */
-    public const CAPTION = '/^(Table|Figure)\s+((?:[A-Z]\.?)?\d+(?:[.\-]\d+)*|\?)\.?$/u';
+    public const CAPTION = '/^(Table|Tableau|Tabla|Tablo|Figure|Figura|Figi)\s+((?:[A-Z]\.?)?\d+(?:[.\-]\d+)*|\?)\.?$/u';
+
+    /** The caption word in English, French, Spanish or Kreyòl, by what it numbers. */
+    private const CAPTION_KINDS = ['Table' => 'table', 'Tableau' => 'table', 'Tabla' => 'table', 'Tablo' => 'table',
+        'Figure' => 'figure', 'Figura' => 'figure', 'Figi' => 'figure'];
 
     /** A \tag the numbering owns; anything else ("*", "A1a") is the author's. */
     public const AUTO_TAG = '/^(?:(?:[A-Z]\.?)?\d+(?:\.\d+)?|\?)$/';
@@ -73,7 +77,7 @@ class Numbering
                 if ($kind = self::captionKind($node)) {
                     $result['captions'][] = [
                         'key' => 'cap-'.$section->id.'-'.(++$n),
-                        'kind' => strtolower($kind[0]),
+                        'kind' => $kind[2],
                         'number' => $kind[1],
                         'text' => self::captionText($node),
                         'label' => $node['attrs']['label'] ?? null,
@@ -107,8 +111,8 @@ class Numbering
     public static function listKind(ManuscriptSection $section): ?string
     {
         return match (true) {
-            (bool) preg_match('/^\s*list\s+of\s+tables\s*$/iu', $section->title) => 'table',
-            (bool) preg_match('/^\s*list\s+of\s+(figures|illustrations)\s*$/iu', $section->title) => 'figure',
+            (bool) preg_match('/^\s*(?:list\s+of\s+tables|liste\s+des\s+tableaux)\s*$/iu', $section->title) => 'table',
+            (bool) preg_match('/^\s*(?:list\s+of\s+(?:figures|illustrations)|liste\s+des\s+(?:figures|illustrations))\s*$/iu', $section->title) => 'figure',
             default => null,
         };
     }
@@ -174,11 +178,21 @@ class Numbering
     public static function apply(array $nodes, string $prefix, array $offsets = [], array &$counts = []): array
     {
         $counts = ['table' => 0, 'figure' => 0, 'equation' => 0];
+        $own = [];
 
         foreach ($nodes as $i => $node) {
             if ($kind = self::captionKind($node)) {
-                $key = strtolower($kind[0]);
-                $number = $prefix.(($offsets[$key] ?? 0) + ++$counts[$key]);
+                $key = $kind[2];
+
+                // An unnumbered section (front matter, a diagnostic test)
+                // keeps the prefix its author chose, "Tableau 0.2" or
+                // "Table D.1", and only the count after it follows position.
+                if ($prefix === '' && preg_match('/^((?:[A-Z]|\d+)(?:\.\d+)*)\.\d+$/', $kind[1], $m)) {
+                    $own[$key][$m[1]] = ($own[$key][$m[1]] ?? 0) + 1;
+                    $number = $m[1].'.'.$own[$key][$m[1]];
+                } else {
+                    $number = $prefix.(($offsets[$key] ?? 0) + ++$counts[$key]);
+                }
                 // A full stop typed after the number is kept: "Table 4.2." is a
                 // house style, not a mistake.
                 $stop = str_ends_with(trim((string) $node['content'][0]['text']), '.') ? '.' : '';
@@ -201,9 +215,10 @@ class Numbering
     }
 
     /**
-     * ['Table', '4.2'] for a caption paragraph, else null.
+     * ['Tableau', '4.2', 'table'] for a caption paragraph: the word as
+     * written, its number and what it numbers. Null for anything else.
      *
-     * @return array{0: string, 1: string}|null
+     * @return array{0: string, 1: string, 2: string}|null
      */
     public static function captionKind(mixed $node): ?array
     {
@@ -218,7 +233,7 @@ class Numbering
             return null;
         }
 
-        return preg_match(self::CAPTION, trim((string) ($first['text'] ?? '')), $m) ? [$m[1], $m[2]] : null;
+        return preg_match(self::CAPTION, trim((string) ($first['text'] ?? '')), $m) ? [$m[1], $m[2], self::CAPTION_KINDS[$m[1]]] : null;
     }
 
     /**
@@ -239,7 +254,7 @@ class Numbering
             }
 
             if ($kind = self::captionKind($node)) {
-                $targets[$label] = ['kind' => strtolower($kind[0]), 'text' => $kind[0].' '.$kind[1]];
+                $targets[$label] = ['kind' => $kind[2], 'text' => $kind[0].' '.$kind[1]];
             } elseif (($node['type'] ?? '') === 'blockMath'
                 && preg_match('/\\\\tag\{([^{}]*)\}/u', (string) ($node['attrs']['latex'] ?? ''), $m)) {
                 $targets[$label] = ['kind' => 'equation', 'text' => 'Equation ('.$m[1].')'];

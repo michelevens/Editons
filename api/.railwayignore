@@ -9,3 +9,6 @@ storage/framework/views/*
 .env
 .phpunit.result.cache
 tests
+storage/app/private/*
+storage/app/tmp/*
+test-results

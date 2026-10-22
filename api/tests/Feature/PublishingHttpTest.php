@@ -1,11 +1,13 @@
 <?php
 
+use App\Jobs\GenerateExport;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\ManuscriptSection;
 use App\Models\User;
 use App\Publishing\Exporter;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -184,18 +186,52 @@ it('unpublishes a live book from one store', function () {
         ->and($channel->fresh()->submitted_at)->not->toBeNull();
 });
 
-it('generates a file and lists it in history', function () {
+it('generates a PDF or EPUB on a worker and lists it in history', function () {
     // EPUB is on every plan, but subscribed() keeps this about export
     // history rather than entitlements.
+    Queue::fake();
     $user = User::factory()->subscribed()->create();
     $book = chapteredBook($user);
 
+    // Answered at once: a long book takes minutes to lay out, longer than
+    // any web server waits.
     $response = $this->actingAs($user)
         ->postJson("/books/{$book->id}/exports", ['format' => 'epub'])
-        ->assertOk();
+        ->assertStatus(202);
 
-    expect($response->json('export.status'))->toBe('ready')
+    expect($response->json('export.status'))->toBe('generating')
         ->and($response->json('book.exports'))->toHaveCount(1);
+
+    Queue::assertPushed(GenerateExport::class, fn ($job) => $job->exportId === $response->json('export.id'));
+
+    // The worker's turn.
+    (new GenerateExport($response->json('export.id')))->handle(app(Exporter::class));
+
+    $export = BookExport::find($response->json('export.id'));
+    expect($export->status)->toBe('ready')
+        ->and($export->byte_size)->toBeGreaterThan(0);
+});
+
+it('records a job that died as failed, not as generating for ever', function () {
+    $user = User::factory()->create();
+    $export = app(Exporter::class)->start(chapteredBook($user), 'pdf', $user->id);
+
+    (new GenerateExport($export->id))->failed(new RuntimeException('Killed by the timeout'));
+
+    expect($export->fresh()->status)->toBe('failed');
+});
+
+it('still makes the small formats while the author waits', function () {
+    Queue::fake();
+    $user = User::factory()->subscribed()->create();
+    $book = chapteredBook($user);
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/exports", ['format' => 'md'])
+        ->assertOk()
+        ->assertJsonPath('export.status', 'ready');
+
+    Queue::assertNothingPushed();
 });
 
 it('explains an empty manuscript rather than failing with a 500', function () {

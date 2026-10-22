@@ -186,3 +186,36 @@ it('numbers equations by chapter when the author does, even without captions', f
         ->and(Numbering::apply($book->sections()->first()->content['content'], '3.')[0]['attrs']['latex'])
         ->toBe('a = b \tag{3.1}');
 });
+
+it('sets display maths written mid-line in display style, and keeps whole boxes', function () {
+    $doc = mathDoc(implode("\n", [
+        'On cherche q et r tels que : $$a = bq + r$$ avec 0 ≤ r < b.',
+        '',
+        '1. Calcule $$\frac{1}{2} + \frac{1}{3}$$ (25 pts)',
+        '',
+        '> **À retenir.** Le produit est nul si :',
+        '>',
+        '> $$A \times B = 0$$',
+        '>',
+        '> - si $A = 0$ ;',
+        '> - ou si $B = 0$.',
+    ]));
+
+    $json = json_encode($doc);
+    $nodes = $doc['content'];
+
+    expect($json)->not->toContain('$$')
+        ->and($json)->toContain('\\displaystyle a = bq + r')
+        ->and($nodes[0]['type'])->toBe('paragraph')
+        ->and($nodes[1]['type'])->toBe('orderedList')
+        ->and($nodes[2]['type'])->toBe('blockquote')
+        ->and(array_column($nodes[2]['content'], 'type'))->toBe(['paragraph', 'blockMath', 'bulletList']);
+});
+
+it('keeps the line breaks a backslash asks for', function () {
+    $doc = mathDoc("Lapli tonbe sou lakou a,\\\nVan an chante nan pye mango,\\\nTi zwazo yo kache.\n\nNouvo paragraf\nsou de liy.");
+
+    expect(array_column($doc['content'][0]['content'], 'type'))->toBe(['text', 'hardBreak', 'text', 'hardBreak', 'text'])
+        ->and($doc['content'][0]['content'][0]['text'])->toBe('Lapli tonbe sou lakou a,')
+        ->and($doc['content'][1]['content'])->toBe([['type' => 'text', 'text' => 'Nouvo paragraf sou de liy.']]);
+});

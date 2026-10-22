@@ -14,10 +14,13 @@ import { useMemo, useState } from 'react';
  * server, which alone knows where this chapter sits in the book; until they
  * arrive nothing is renumbered.
  */
-export const CAPTION = /^(Table|Figure)\s+((?:[A-Z]\.?)?\d+(?:[.-]\d+)*|\?)\.?$/;
+export const CAPTION = /^(Table|Tableau|Tabla|Tablo|Figure|Figura|Figi)\s+((?:[A-Z]\.?)?\d+(?:[.-]\d+)*|\?)\.?$/;
 const AUTO_TAG = /^(?:(?:[A-Z]\.?)?\d+(?:\.\d+)?|\?)$/;
 const TAG = /\\tag\{([^{}]*)\}/;
 const PREFIX = { table: 'tbl', figure: 'fig', equation: 'eq', section: 'sec' };
+
+// The caption word in English, French, Spanish or Kreyòl, by what it numbers.
+const CAPTION_KINDS = { Table: 'table', Tableau: 'table', Tabla: 'table', Tablo: 'table', Figure: 'figure', Figura: 'figure', Figi: 'figure' };
 
 const key = new PluginKey('crossRef');
 
@@ -32,7 +35,7 @@ function captionKind(node) {
 
     const match = first.text.trim().match(CAPTION);
 
-    return match ? [match[1], match[2]] : null;
+    return match ? [match[1], match[2], CAPTION_KINDS[match[1]]] : null;
 }
 
 /** Labelled things in this chapter, as a reference would read them. */
@@ -47,7 +50,7 @@ export function localTargets(doc) {
         const caption = captionKind(node);
 
         if (caption) {
-            targets.push({ label, kind: caption[0].toLowerCase(), text: `${caption[0]} ${caption[1]}` });
+            targets.push({ label, kind: caption[2], text: `${caption[0]} ${caption[1]}` });
         } else if (node.type.name === 'blockMath' && TAG.test(node.attrs.latex ?? '')) {
             targets.push({ label, kind: 'equation', text: `Equation (${node.attrs.latex.match(TAG)[1]})` });
         } else if (node.type.name === 'heading') {
@@ -67,6 +70,7 @@ export function localTargets(doc) {
 function corrections(doc, place, remote, schema) {
     const prefix = place.scheme === 'continuous' ? '' : place.prefix;
     const counts = { table: 0, figure: 0, equation: 0 };
+    const own = { table: {}, figure: {} };
     const changes = [];
 
     doc.forEach((node, offset) => {
@@ -74,8 +78,13 @@ function corrections(doc, place, remote, schema) {
         let attrs = null;
 
         if (caption) {
-            const kind = caption[0].toLowerCase();
-            const number = `${prefix}${(place.offsets?.[kind] ?? 0) + ++counts[kind]}`;
+            const kind = caption[2];
+            // An unnumbered section keeps its author's prefix ("Tableau 0.2",
+            // "Table D.1"); only the count after it follows position.
+            const authored = prefix === '' ? caption[1].match(/^((?:[A-Z]|\d+)(?:\.\d+)*)\.\d+$/) : null;
+            const number = authored
+                ? `${authored[1]}.${(own[kind][authored[1]] = (own[kind][authored[1]] ?? 0) + 1)}`
+                : `${prefix}${(place.offsets?.[kind] ?? 0) + ++counts[kind]}`;
             const first = node.firstChild;
             const stop = first.text.trim().endsWith('.') ? '.' : '';
             const wanted = `${caption[0]} ${number}${stop}`;

@@ -32,31 +32,44 @@ class Exporter
         private readonly BookImages $images,
     ) {}
 
-    /**
-     * Generate one file and record it.
-     *
-     * The row is created as `generating` first, so a format that throws
-     * halfway leaves a visible failure rather than a silent absence.
-     */
+    /** Generate one file now and record it: start() then run(). */
     public function generate(Book $book, string $format, ?int $userId = null): BookExport
+    {
+        return $this->run($this->start($book, $format, $userId));
+    }
+
+    /**
+     * Record a file as `generating`, after checking it can be made.
+     *
+     * The row exists before any rendering, so a format that throws halfway
+     * leaves a visible failure rather than a silent absence. The checks that
+     * the author can act on (no such format, nothing written yet) happen
+     * here, so they are refused at once even when run() is left to a job.
+     */
+    public function start(Book $book, string $format, ?int $userId = null): BookExport
     {
         if (! isset(BookExport::FORMATS[$format])) {
             throw new RuntimeException("There is no {$format} export.");
         }
 
-        $sections = $this->chapters($book);
-
-        if ($sections->isEmpty()) {
+        if ($this->chapters($book)->isEmpty()) {
             throw new RuntimeException('There is nothing to export yet. Write a chapter first.');
         }
 
-        $export = $book->exports()->create([
+        return $book->exports()->create([
             'format' => $format,
             'status' => 'generating',
             'word_count' => $book->word_count,
             'user_id' => $userId,
         ]);
+    }
 
+    /** Render a `generating` row's file from the book as it is now. */
+    public function run(BookExport $export): BookExport
+    {
+        $book = $export->book;
+        $format = $export->format;
+        $sections = $this->chapters($book);
         $base = $this->renderer;
 
         try {

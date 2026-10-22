@@ -117,7 +117,7 @@ class CoverConcepts
                                     'properties' => [
                                         'name' => ['type' => 'string'],
                                         'rationale' => ['type' => 'string'],
-                                        'layout' => ['type' => 'string', 'enum' => array_keys(CoverRenderer::LAYOUTS)],
+                                        'layout' => ['type' => 'string', 'enum' => self::layouts()],
                                         'palette' => ['type' => 'integer'],
                                         'font' => ['type' => 'string', 'enum' => ['serif', 'sans']],
                                         'shade' => ['type' => 'integer'],
@@ -191,11 +191,17 @@ class CoverConcepts
         return [
             'name' => mb_substr(trim((string) ($c['name'] ?? 'Concept')), 0, 80),
             'rationale' => mb_substr(trim((string) ($c['rationale'] ?? '')), 0, 400),
-            'layout' => array_key_exists($c['layout'] ?? '', CoverRenderer::LAYOUTS) ? $c['layout'] : 'classic',
+            'layout' => in_array($c['layout'] ?? '', self::layouts(), true) ? $c['layout'] : 'classic',
             'palette' => max(0, min($palettes - 1, (int) ($c['palette'] ?? 0))),
             'font' => ($c['font'] ?? 'serif') === 'sans' ? 'sans' : 'serif',
             'shade' => max(0, min(100, (int) ($c['shade'] ?? 45))),
             'art_brief' => mb_substr(trim((string) ($c['art_brief'] ?? '')), 0, 1200),
         ];
+    }
+
+    /** Layouts a concept may choose: a finished cover is the author's own artwork, never a concept. */
+    private static function layouts(): array
+    {
+        return array_values(array_diff(array_keys(CoverRenderer::LAYOUTS), ['finished']));
     }
 }

@@ -908,7 +908,7 @@ class DocumentRenderer
 
         return match (true) {
             (in_array('bold', $marks, true) || in_array('strong', $marks, true))
-                && (bool) preg_match('/^(Table|Figure|Tableau|Tabla|Exhibit)\s+(?:[A-Z]\.?)?\d+([.\-]\d+)*\.?$/u', $text) => ' class="caption"',
+                && (bool) preg_match('/^(Table|Figure|Tableau|Tabla|Tablo|Figura|Figi|Exhibit)\s+(?:[A-Z]\.?)?\d+([.\-]\d+)*\.?$/u', $text) => ' class="caption"',
             in_array('italic', $marks, true) && (bool) preg_match('/^(Note|Notes|Source|Sources)\.?$/u', $text) => ' class="table-note"',
             default => '',
         };

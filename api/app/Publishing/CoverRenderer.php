@@ -31,6 +31,7 @@ class CoverRenderer
         'classic' => 'Classic',
         'bold' => 'Bold',
         'band' => 'Band',
+        'finished' => 'Finished cover',
     ];
 
     /** Bumped when the drawing changes, so every cover is redrawn once. */
@@ -130,7 +131,11 @@ class CoverRenderer
         $onArt = (bool) $art;
         $ink = $onArt ? '#ffffff' : $palette['ink'];
 
-        match ($settings['layout']) {
+        // A finished cover from a designer already carries its type: it is
+        // the cover, untouched. Without artwork there is nothing finished, so
+        // the classic layout draws instead.
+        match ($art ? $settings['layout'] : ($settings['layout'] === 'finished' ? 'classic' : $settings['layout'])) {
+            'finished' => null,
             'bold' => $this->bold($image, $settings, $ink, $onArt),
             'band' => $this->band($image, $settings, $palette, $onArt),
             default => $this->classic($image, $settings, $ink, $onArt),
