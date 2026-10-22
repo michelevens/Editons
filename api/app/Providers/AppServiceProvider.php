@@ -4,9 +4,11 @@ namespace App\Providers;
 
 use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\DriverFactory;
+use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Cashier\Http\Controllers\WebhookController;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,7 +27,12 @@ class AppServiceProvider extends ServiceProvider
             fn ($app) => $app->make(DriverFactory::class)->make(),
         );
 
-        //
+        // Cashier's route resolves its controller through the container,
+        // so this swaps in the stricter one without redefining the route.
+        $this->app->bind(
+            WebhookController::class,
+            StripeWebhookController::class,
+        );
     }
 
     /**
