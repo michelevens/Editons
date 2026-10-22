@@ -506,8 +506,16 @@ equations and headings carry a `label` attribute; an `xref` node points at
 a label (or `section-{id}` for a chapter) and keeps the words it last
 resolved to. The editor numbers its chapter live once
 `GET /books/{book}/cross-references` has given the chapter's prefix and
-offsets; that endpoint also labels targets in closed chapters (quietly, no
-version) so they can be referred to. Exports resolve references from the
+offsets. That endpoint is a read only, cached per book under a fingerprint
+of every section's order, title and content hash; labels are given when a
+chapter is saved (`ManuscriptWriter::save`, plus a one-off migration for
+older content), because labelling other chapters from a GET wrote them back
+from a stale copy and could undo an autosave. The editor's renumbering and
+labelling on opening a chapter is not an author edit: it neither marks the
+chapter unsaved nor saves it. The scheme on screen is the rest of the
+book's (`scheme_elsewhere`) plus the open chapter's own captions as they
+stand, so a dotted caption typed there no longer flips the numbers after a
+reload. Exports resolve references from the
 book's numbering: links in PDF, HTML and EPUB (across files), text in Word
 and Markdown, "[missing reference]" when the target has gone.
 

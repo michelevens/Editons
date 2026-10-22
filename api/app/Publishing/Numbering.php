@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  * ("Table 4.2", the usual thesis form) when any caption has a dot in its
  * number, otherwise continuous through the book ("Table 12", APA's habit).
  * Appendices number by their letter (Table A.1). The editor runs the same
- * rules (resources/js/Components/Editor/numbering.js), so what the author
+ * rules (resources/js/Components/Editor/CrossRef.jsx), so what the author
  * sees is what exports.
  */
 class Numbering
@@ -40,7 +40,11 @@ class Numbering
      * scheme, the running offsets, and every labelled target.
      *
      * @param  Collection<int, ManuscriptSection>  $sections  in reading order
-     * @return array{scheme: string, sections: array<int, array{prefix: string, offsets: array<string, int>}>, targets: array<string, array{kind: string, text: string, section_id: int}>}
+     * `running` is what continuous numbering would give a section as its
+     * offsets, whatever the scheme: the editor needs it when the chapter
+     * being written changes the scheme on screen.
+     *
+     * @return array{scheme: string, sections: array<int, array{prefix: string, offsets: array<string, int>, running: array<string, int>}>, targets: array<string, array{kind: string, text: string, section_id: int}>}
      */
     public static function forBook(Collection $sections): array
     {
@@ -54,7 +58,7 @@ class Numbering
             // Continuous numbering runs on across chapters; by-chapter
             // numbering restarts in each.
             $offsets = $scheme === 'continuous' ? $running : ['table' => 0, 'figure' => 0, 'equation' => 0];
-            $result['sections'][$section->id] = ['prefix' => $prefix, 'offsets' => $offsets];
+            $result['sections'][$section->id] = ['prefix' => $prefix, 'offsets' => $offsets, 'running' => $running];
 
             $counts = ['table' => 0, 'figure' => 0, 'equation' => 0];
             $nodes = self::apply($section->content['content'] ?? [], $scheme === 'continuous' ? '' : $prefix, $offsets, $counts);
@@ -120,22 +124,67 @@ class Numbering
     /** by-chapter when any caption number has a dot, else continuous. */
     public static function scheme(Collection $sections): string
     {
-        foreach ($sections as $section) {
-            foreach ($section->content['content'] ?? [] as $node) {
-                if (($kind = self::captionKind($node)) && str_contains($kind[1], '.')) {
-                    return 'chapter';
-                }
+        return $sections->contains(fn ($section) => self::numbersByChapter($section->content))
+            ? 'chapter'
+            : 'continuous';
+    }
 
-                // An equation numbered (3.1) says the same about the book as a
-                // table numbered 3.1, and may be all a mathematical book has.
-                if (($node['type'] ?? '') === 'blockMath'
-                    && preg_match('/\\\\tag\{\s*[A-Z]?\d+\.\d+\s*\}/u', (string) ($node['attrs']['latex'] ?? ''))) {
-                    return 'chapter';
-                }
+    /**
+     * Does this one document ask for numbering by chapter? The editor asks
+     * the same of the chapter on screen (CrossRef.jsx, numbersByChapter),
+     * so a dotted caption typed there changes the scheme as it is typed,
+     * not after a save and a reload.
+     */
+    public static function numbersByChapter(?array $content): bool
+    {
+        foreach ($content['content'] ?? [] as $node) {
+            if (($kind = self::captionKind($node)) && str_contains($kind[1], '.')) {
+                return true;
+            }
+
+            // An equation numbered (3.1) says the same about the book as a
+            // table numbered 3.1, and may be all a mathematical book has.
+            if (is_array($node) && ($node['type'] ?? '') === 'blockMath'
+                && preg_match('/\\\\tag\{\s*[A-Z]?\d+\.\d+\s*\}/u', (string) ($node['attrs']['latex'] ?? ''))) {
+                return true;
             }
         }
 
-        return 'continuous';
+        return false;
+    }
+
+    /**
+     * The document with a label on every caption, numbered equation and
+     * heading that lacks one, so it can be referred to; null when none
+     * lacked one. Labels are not words: the text is untouched.
+     *
+     * Runs when a section's content is saved (ManuscriptWriter::save), never
+     * on a read: a read that wrote back a copy it had loaded seconds earlier
+     * could undo an autosave that landed in between.
+     */
+    public static function label(?array $content): ?array
+    {
+        $changed = false;
+
+        foreach ($content['content'] ?? [] as $i => $node) {
+            if (! is_array($node) || ! empty($node['attrs']['label'])) {
+                continue;
+            }
+
+            $kind = match (true) {
+                (bool) ($caption = self::captionKind($node)) => $caption[2],
+                ($node['type'] ?? '') === 'blockMath' && str_contains((string) ($node['attrs']['latex'] ?? ''), '\tag{') => 'equation',
+                ($node['type'] ?? '') === 'heading' => 'section',
+                default => null,
+            };
+
+            if ($kind) {
+                $content['content'][$i]['attrs']['label'] = self::newLabel($kind);
+                $changed = true;
+            }
+        }
+
+        return $changed ? $content : null;
     }
 
     /**
