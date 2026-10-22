@@ -114,7 +114,10 @@ class Numbering
      */
     public static function listKind(ManuscriptSection $section): ?string
     {
+        // A section named as a list in the binder, in any language, is one.
         return match (true) {
+            $section->part === 'list_of_tables' => 'table',
+            $section->part === 'list_of_illustrations' => 'figure',
             (bool) preg_match('/^\s*(?:list\s+of\s+tables|liste\s+des\s+tableaux)\s*$/iu', $section->title) => 'table',
             (bool) preg_match('/^\s*(?:list\s+of\s+(?:figures|illustrations)|liste\s+des\s+(?:figures|illustrations))\s*$/iu', $section->title) => 'figure',
             default => null,

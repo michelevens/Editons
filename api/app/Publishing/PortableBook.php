@@ -50,10 +50,11 @@ class PortableBook
         'book_type', 'started_with', 'assistance', 'journey_stage',
         'premise', 'audience', 'promise', 'target_words',
         'layout', 'meta', 'rights',
+        'series_name', 'series_number',
     ];
 
     /** Per-section fields. parent_id is rewired on import, never trusted. */
-    private const SECTION_FIELDS = ['type', 'title', 'position', 'content'];
+    private const SECTION_FIELDS = ['type', 'part', 'title', 'position', 'content'];
 
     private const MAX_UPLOAD = 25 * 1024 * 1024;
 
@@ -225,6 +226,9 @@ class PortableBook
                         ? $section['type']
                         : 'chapter',
                     'title' => mb_substr(trim((string) ($section['title'] ?? 'Untitled')), 0, 255),
+                    // A part the taxonomy does not know, or one that does not
+                    // fit the section's type, is dropped and inferred again.
+                    'part' => $this->part($section),
                     'position' => (int) ($section['position'] ?? ($i + 1) * ManuscriptSection::POSITION_STEP),
                     'content' => is_array($section['content'] ?? null)
                         ? $section['content']
@@ -331,6 +335,8 @@ class PortableBook
             'audience' => ['nullable', 'string', 'max:2000'],
             'promise' => ['nullable', 'string', 'max:2000'],
             'target_words' => ['nullable', 'integer', 'min:100', 'max:2000000'],
+            'series_name' => ['nullable', 'string', 'max:255'],
+            'series_number' => ['nullable', 'integer', 'min:1', 'max:9999'],
         ];
     }
 
@@ -369,6 +375,17 @@ class PortableBook
     private function passes(mixed $value, array $rules): bool
     {
         return Validator::make(['value' => $value], ['value' => $rules])->passes();
+    }
+
+    /** The section's book part from the file, if it is valid for its type. */
+    private function part(array $section): ?string
+    {
+        $part = BookPart::tryFrom((string) ($section['part'] ?? ''));
+        $type = in_array($section['type'] ?? null, ManuscriptSection::TYPES, true) ? $section['type'] : 'chapter';
+
+        return $part && $part->isSectionKind() && in_array($type, $part->compatibleTypes(), true)
+            ? $part->value
+            : null;
     }
 
     private function title(?string $title): string
