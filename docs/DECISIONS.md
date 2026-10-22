@@ -633,7 +633,7 @@ accounts.
 - *Stripe.* Without `STRIPE_WEBHOOK_SECRET`, `/stripe/webhook` answers 403
   outside local and testing; malformed events get 400, not 500.
 
-## ADR-00XX — Book anatomy
+## ADR-0020 — Book anatomy
 
 *Number to be assigned at merge: ADR-0019 is the last on this branch's
 base, and parallel branches may add others first.*
