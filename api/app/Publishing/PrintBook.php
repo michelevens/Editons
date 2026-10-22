@@ -10,6 +10,7 @@ use Dompdf\Dompdf;
 use Dompdf\FontMetrics;
 use Dompdf\Frame;
 use Dompdf\Options;
+use FontLib\Font;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Vanderlee\Syllable\Hyphen\Text;
@@ -719,7 +720,7 @@ class PrintBook
             $map = null;
 
             foreach ($files as $file) {
-                $font = \FontLib\Font::load(str_ends_with($file, '.ttf') ? $file : resource_path("fonts/{$file}.ttf"));
+                $font = Font::load(str_ends_with($file, '.ttf') ? $file : resource_path("fonts/{$file}.ttf"));
                 // The table directory only, then the cmap alone: a full
                 // parse reads every glyph and took eight seconds a face.
                 $font->parseTableEntries();

@@ -1115,8 +1115,7 @@ class DocumentRenderer
         if ($src === null) {
             // A picture from somewhere the book cannot vouch for is not
             // fetched by a reader's browser; its description stands in.
-            return trim($alt) !== '' ? '<p class="image-missing"><em>'.e('[Image: '.trim($alt).']')."</em></p>
-" : '';
+            return trim($alt) !== '' ? '<p class="image-missing"><em>'.e('[Image: '.trim($alt).']')."</em></p>\n" : '';
         }
 
         // alt is always emitted, empty if unset. A missing attribute fails
