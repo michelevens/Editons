@@ -43,7 +43,7 @@ function numberedBook(): Book
         'title' => $title, 'type' => 'chapter', 'position' => $position, 'content' => ['type' => 'doc', 'content' => $content],
     ]);
 
-    $chapter(10, 'Introduction', [
+    $chapter(10, 'Background', [
         nbProse(['type' => 'text', 'text' => 'Results are in '], nbXref('tbl-results'), ['type' => 'text', 'text' => ', and the model is '], nbXref('eq-model'), ['type' => 'text', 'text' => '.']),
     ]);
     $chapter(20, 'Method', [
@@ -101,7 +101,7 @@ it('numbers continuously when the author does', function () {
 
 it('resolves cross-references in every export, and flags a missing one', function () {
     $book = numberedBook();
-    $intro = $book->sections()->where('title', 'Introduction')->first();
+    $intro = $book->sections()->where('title', 'Background')->first();
     $intro->update(['content' => ['type' => 'doc', 'content' => [
         ...$intro->content['content'],
         nbProse(nbXref('tbl-gone')),
@@ -130,7 +130,7 @@ it('resolves cross-references in every export, and flags a missing one', functio
 
 it('labels targets when they are saved and lists them for the editor', function () {
     $book = numberedBook();
-    $intro = $book->sections()->where('title', 'Introduction')->first();
+    $intro = $book->sections()->where('title', 'Background')->first();
 
     // As the author's editor would save them.
     foreach ($book->sections()->get() as $section) {

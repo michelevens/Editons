@@ -249,11 +249,16 @@ it('opens every part on a right-hand page with a blank behind it', function () {
 it('numbers the pages from the first page of the text', function () {
     $blocks = collect(typeset(structuredBook(User::factory()->create()))['blocks']);
 
-    $body = $blocks->filter(fn ($b) => $b['body'] ?? false)->values();
+    // The Introduction is front matter, numbered in roman; the text starts
+    // at 1 with the first part, on a recto.
+    $body = $blocks->skipUntil(fn ($b) => $b['restart'])->values();
+    $intro = $blocks->firstWhere('title', 'Introduction');
 
-    expect($body->first()['page'])->toBe(1)
-        ->and($body->first()['title'])->toBe('Introduction')
-        ->and($body->pluck('page')->all())->toBe($body->pluck('page')->sort()->values()->all())
+    expect($body->first()['page'])->toBe('1')
+        ->and($body->first()['title'])->toBe('Beginnings')
+        ->and($body->first()['physical'] % 2)->toBe(1)
+        ->and($intro['page'])->toMatch('/^[ivx]+$/')
+        ->and($body->pluck('page')->map(fn ($p) => (int) $p)->all())->toBe($body->pluck('page')->map(fn ($p) => (int) $p)->sort()->values()->all())
         // The title page, copyright and contents come before page one.
         ->and($blocks->first()['kind'])->toBe('half-title');
 });

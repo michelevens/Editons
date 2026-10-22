@@ -693,6 +693,24 @@ also needed a series page, anonymous books and Haitian legal deposit.
   language, never prose or facts. Untouched guidance is detectable, so the
   checklist reports "template not filled in" and renderers can refuse to
   print instructions.
-- *Not in this change.* The renderers (`PrintBook`, `Exporter`,
-  `DocumentRenderer`) were being rewritten in parallel and are untouched;
-  `docs/INTEGRATION-book-parts.md` says how they adopt the plan.
+- *Renderers.* `PrintBook`, the EPUB, the DOCX and the HTML and Markdown
+  exports walk `Anatomy::plan()` as `docs/INTEGRATION-book-parts.md`
+  describes. Print: generated half title, series, title and copyright pages;
+  lower-case roman folios through the front matter and arabic from 1 at the
+  first page of the text; recto and verso starts with blank pages inserted;
+  blind folios and no running heads on display pages; empty sections and
+  sections still holding template guidance never print. A chapter the
+  binder names as something else (an Introduction typed as a chapter) takes
+  no number, and `Numbering::takesNumber()` is the one test both the printed
+  label and the cross-reference label use. EPUB: the spine from the plan,
+  XHTML title, copyright and series pages, `epub:type` per part, landmarks,
+  the EPUB ISBN as identifier. DOCX: a Word section per page, `lowerRoman`
+  then `decimal` restarting at 1, odd- and even-page breaks, an empty footer
+  on display pages.
+- *Cover.* The reading PDF (format `pdf`) opens with the rendered front
+  cover (the uploaded finished artwork, or Cover Studio's design) drawn full
+  bleed over page 1, scaled to fill the trim and cropped rather than
+  distorted, and closes with a back cover when `cover.back_artwork` names an
+  uploaded image (no screen sets it yet). Recto and verso still count from
+  the half title. The print-ready interior (`pdf_print`) never carries the
+  cover; the EPUB keeps it as its cover image.

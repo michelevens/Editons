@@ -206,7 +206,7 @@ class Numbering
         foreach ($sections as $section) {
             $number = null;
 
-            if ($section->type === 'chapter' && ! preg_match('/^\s*(bridge|interlude|linking chapter)\b/iu', $section->title)) {
+            if (self::takesNumber($section)) {
                 $number = $explicit ? $stated($section->title) : (string) ++$sequence;
             } elseif (preg_match('/^\s*appendix\s+([A-Z])\b/iu', $section->title, $m)) {
                 $number = strtoupper($m[1]);
@@ -216,6 +216,20 @@ class Numbering
         }
 
         return $prefixes;
+    }
+
+    /**
+     * Does this section take a chapter number? A chapter does, unless the
+     * author named it as something else in the binder (a chapter marked as
+     * the Introduction or the Epilogue) or it is a bridge between chapters.
+     * PrintBook numbers its openers with this same test, so a reference to
+     * "Chapter 4" always names the chapter printed as Chapter 4.
+     */
+    public static function takesNumber(ManuscriptSection $section): bool
+    {
+        return $section->type === 'chapter'
+            && in_array($section->part, [null, 'chapter'], true)
+            && ! preg_match('/^\s*(bridge|interlude|linking chapter)\b/iu', $section->title);
     }
 
     /**

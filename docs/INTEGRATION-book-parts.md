@@ -5,6 +5,13 @@ Branch `feat/book-parts` adds the book-anatomy model (ADR "Book anatomy" in
 in parallel. This note is for whoever merges the two: what to call, what you
 get back, and what each renderer should change.
 
+**Status: integrated** (branch `fix/anatomy-render`). `PrintBook`, the EPUB,
+DOCX, HTML and Markdown exports now follow this guide; the tests are in
+`tests/Feature/BookAnatomyRenderTest.php`. Two choices beyond the guide:
+the EPUB places the navigation document in the spine where the contents
+falls, and the reading PDF closes with a back cover when
+`books.cover.back_artwork` names an uploaded image.
+
 Files: `app/Publishing/BookPart.php` (taxonomy), `app/Publishing/Anatomy.php`
 (planner), `app/Publishing/BookPartTemplates.php` (guidance detection).
 Everything below is static; no container binding is needed.
