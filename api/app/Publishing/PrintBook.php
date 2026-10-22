@@ -62,7 +62,23 @@ class PrintBook
         'es' => ['chapter' => 'Capítulo', 'part' => 'Parte', 'contents' => 'Índice', 'rights' => 'Todos los derechos reservados.', 'set' => 'Compuesto en %s.'],
         'de' => ['chapter' => 'Kapitel', 'part' => 'Teil', 'contents' => 'Inhalt', 'rights' => 'Alle Rechte vorbehalten.', 'set' => 'Gesetzt in %s.'],
         'pt' => ['chapter' => 'Capítulo', 'part' => 'Parte', 'contents' => 'Sumário', 'rights' => 'Todos os direitos reservados.', 'set' => 'Composto em %s.'],
+        'ht' => ['chapter' => 'Chapit', 'part' => 'Pati', 'contents' => 'Tab matyè', 'rights' => 'Tout dwa rezève.', 'set' => 'Konpoze an %s.'],
     ];
+
+    /** "Chapter", "Chapitre", "Chapit"…: how a title can state its own number. */
+    private const CHAPTER_WORDS = 'chapter|chapitre|chapit|cap[ií]tulo|kapitel';
+
+    private const PART_WORDS = 'part|partie|pati|parte|teil';
+
+    /**
+     * The book's words for its own furniture, in its language.
+     *
+     * @return array{chapter: string, part: string, contents: string, rights: string, set: string}
+     */
+    public static function words(string $language): array
+    {
+        return self::WORDS[strtolower(substr($language, 0, 2))] ?? self::WORDS['en'];
+    }
 
     private const SHY = "\u{00AD}";
 
@@ -153,7 +169,7 @@ class PrintBook
         // sections the pages are planned from.
         $this->numbering = Numbering::forBook($sections);
 
-        $words = self::WORDS[substr($language, 0, 2)] ?? self::WORDS['en'];
+        $words = self::words($language);
         $blocks = [];
 
         $add = function (string $kind, array $extra = []) use (&$blocks): void {
@@ -207,11 +223,15 @@ class PrintBook
 
             $title = $this->cleanTitle($section->title, $kind);
 
+            // A title that is only "Chapitre 3" or "Pati II" already says
+            // what the label would, and set twice it reads as a stutter.
+            $bare = (bool) preg_match('/^\s*(?:'.self::CHAPTER_WORDS.'|'.self::PART_WORDS.')\s+(?:\d+|[ivxlcdm]+)\s*$/iu', $title);
+
             $add($kind, [
                 'section' => $section,
                 'number' => $number,
                 'title' => $title,
-                'label' => $number === null ? null
+                'label' => $number === null || $bare ? null
                     : $words[$kind].' '.($language === 'en' || str_starts_with($language, 'en')
                         ? (self::NUMBERS[$number] ?? (string) $number)
                         : ($kind === 'part' ? $this->roman($number) : (string) $number)),
@@ -981,7 +1001,7 @@ class PrintBook
     /** The number in "Chapter 4: …", if the title states one. */
     private function statedNumber(string $title): ?int
     {
-        return preg_match('/^\s*(?:chapter|chapitre|cap[ií]tulo|kapitel)\s+(\d+)\s*[:.\-–—]/iu', $title, $m)
+        return preg_match('/^\s*(?:'.self::CHAPTER_WORDS.')\s+(\d+)\s*(?:[:.\-–—]|$)/iu', $title, $m)
             ? (int) $m[1]
             : null;
     }
@@ -989,8 +1009,8 @@ class PrintBook
     private function cleanTitle(string $title, string $kind): string
     {
         $clean = match ($kind) {
-            'part' => preg_replace('/^\s*(part|partie|parte|teil)\s+([ivxlcdm]+|\d+|[a-z]+)\s*[:.\-–—]\s*/iu', '', $title),
-            'chapter' => preg_replace('/^\s*(?:(?:chapter|chapitre|cap[ií]tulo|kapitel)\s+)?\d+\s*[:.\-–—]\s*/iu', '', $title),
+            'part' => preg_replace('/^\s*(?:'.self::PART_WORDS.')\s+([ivxlcdm]+|\d+|[a-z]+)\s*[:.\-–—]\s*/iu', '', $title),
+            'chapter' => preg_replace('/^\s*(?:(?:'.self::CHAPTER_WORDS.')\s+)?\d+\s*[:.\-–—]\s*/iu', '', $title),
             default => $title,
         };
 
@@ -1000,7 +1020,7 @@ class PrintBook
     private function sameTitle(string $heading, string $title): bool
     {
         $norm = fn (string $s) => mb_strtolower(trim(preg_replace(
-            '/^\s*(?:(?:chapter|chapitre|cap[ií]tulo|kapitel)\s+)?\d+\s*[:.\-–—]?\s*/iu', '', $s) ?? $s));
+            '/^\s*(?:(?:'.self::CHAPTER_WORDS.')\s+)?\d+\s*[:.\-–—]?\s*/iu', '', $s) ?? $s));
 
         return $norm($heading) === $norm($title);
     }

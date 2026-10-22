@@ -178,8 +178,8 @@ class Exporter
         return $entries;
     }
 
-    /** The contents page, as HTML. */
-    private function contentsHtml(array $entries): string
+    /** The contents page, as HTML, headed in the book's language. */
+    private function contentsHtml(array $entries, string $language): string
     {
         if (count($entries) < 2) {
             return '';
@@ -193,7 +193,7 @@ class Exporter
                 .e($entry['title']).'</a></li>'."\n";
         }
 
-        return '<nav class="toc" id="contents"><h1>Contents</h1><ol>'."\n"
+        return '<nav class="toc" id="contents"><h1>'.e(PrintBook::words($language)['contents']).'</h1><ol>'."\n"
             .$items.'</ol></nav>'."\n";
     }
 
@@ -313,7 +313,7 @@ class Exporter
         $sections = $this->structure($book);
         $entries = $this->contents($sections);
 
-        $body = $this->titlePageHtml($book).$this->contentsHtml($entries);
+        $body = $this->titlePageHtml($book).$this->contentsHtml($entries, self::languageCode($book->language));
 
         foreach ($sections as $i => $section) {
             $body .= $this->structuredHtml($section, $entries[$i]['id']);
@@ -335,7 +335,7 @@ class Exporter
     private function pdf(Book $book, $sections, BookExport $export): string
     {
         return $this->put($book, $export, $this->print->pdf(
-            $book, $this->structure($book), $this->languageCode($book->language),
+            $book, $this->structure($book), self::languageCode($book->language),
         ));
     }
 
@@ -365,7 +365,7 @@ class Exporter
     private function printable(Book $book, $sections, BookExport $export): string
     {
         return $this->put($book, $export, $this->print->html(
-            $book, $this->structure($book), $this->languageCode($book->language),
+            $book, $this->structure($book), self::languageCode($book->language),
         ));
     }
 
@@ -505,7 +505,7 @@ class Exporter
     {
         $uuid = 'urn:uuid:'.Str::uuid()->toString();
         $identifier = $book->isbn ? 'urn:isbn:'.$book->isbn : $uuid;
-        $language = $this->languageCode($book->language);
+        $language = self::languageCode($book->language);
         $modified = now()->utc()->format('Y-m-d\TH:i:s\Z');
 
         $files = [];
@@ -605,11 +605,13 @@ class Exporter
             .'</manifest>'
             .'<spine>'.$spine.'</spine></package>';
 
+        $contents = PrintBook::words($language)['contents'];
+
         $navDocument = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
             .'<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" '
             .'xmlns:epub="http://www.idpf.org/2007/ops" lang="'.e($language).'" xml:lang="'.e($language).'">'
-            .'<head><title>Contents</title><meta charset="utf-8"/></head><body>'
-            .'<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>'.$nav.'</ol></nav>'
+            .'<head><title>'.e($contents).'</title><meta charset="utf-8"/></head><body>'
+            .'<nav epub:type="toc" id="toc"><h1>'.e($contents).'</h1><ol>'.$nav.'</ol></nav>'
             .'</body></html>';
 
         $container = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
@@ -664,7 +666,7 @@ class Exporter
     /** A standalone HTML page. */
     private function page(Book $book, string $body, bool $standalone = false, string $css = ''): string
     {
-        $language = $this->languageCode($book->language);
+        $language = self::languageCode($book->language);
 
         $default = $css !== '' ? $css : <<<'CSS'
         body { max-width: 38em; margin: 3em auto; padding: 0 1.25em;
@@ -696,13 +698,16 @@ class Exporter
      * Map a display language to a BCP 47 code.
      *
      * EPUB requires one, and stores reject a file whose dc:language is a
-     * display string like "English (US)".
+     * display string like "English (US)". Every language the book settings
+     * offer needs a case here: a Kreyòl book that fell through to en-US was
+     * catalogued, hyphenated and labelled as English.
      */
-    private function languageCode(?string $language): string
+    public static function languageCode(?string $language): string
     {
         return match ($language) {
             'Spanish' => 'es',
             'French' => 'fr',
+            'Haitian Creole', 'Kreyòl', 'Kreyol' => 'ht',
             'German' => 'de',
             'Portuguese' => 'pt',
             'English (UK)' => 'en-GB',
