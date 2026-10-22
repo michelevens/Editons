@@ -26,7 +26,11 @@ import { goTo } from './navigation';
  * come back when they exist.
  */
 const ITEMS = [
-    [{ key: 'billing', label: 'Plans & billing', icon: 'card', route: 'billing.show' }],
+    [
+        { key: 'billing', label: 'Plans & billing', icon: 'card', route: 'billing.show' },
+        { key: 'sales', label: 'Storefront sales', icon: 'sales', route: 'sales.overview' },
+        { key: 'purchases', label: 'Your purchases', icon: 'doc', route: 'purchases.index' },
+    ],
     [
         { key: 'books', label: 'My books', icon: 'doc', route: 'books.index' },
         // Team is per book, so it needs one; called without, route()

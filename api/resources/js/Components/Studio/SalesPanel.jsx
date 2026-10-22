@@ -1,3 +1,5 @@
+import ProductEditor from '@/Components/Store/ProductEditor';
+import SalesReport from '@/Components/Store/SalesReport';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -6,6 +8,10 @@ import { useCallback, useEffect, useState } from 'react';
  * There is no store reporting, so there are no sales figures. This says so
  * once, plainly, and then shows what is actually known: which stores have the
  * book, and what each would pay per copy at the current price.
+ *
+ * Direct sales are the exception: the author's own storefront takes real
+ * orders, so its figures are real (`data.direct`, owner only). Distribution
+ * carries the product editor; Royalties carries the sales report.
  *
  * `variant` picks which of the two menu items this is. They read the same data
  * and differ in emphasis — distribution is about where the book is, royalties
@@ -27,7 +33,7 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
         return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
     }
 
-    const { channels, status, price, reporting } = data;
+    const { channels, status, price, reporting, direct } = data;
     const royalties = variant === 'royalties';
 
     return (
@@ -52,6 +58,17 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                 >
                     {reporting.message}
                 </p>
+
+                {!royalties && <ProductEditor bookId={bookId} onSaved={load} />}
+
+                {royalties && direct && (
+                    <section data-a="sales:direct" className="space-y-2">
+                        <h3 className="text-[13px] font-semibold text-text-primary">
+                            Your storefront
+                        </h3>
+                        <SalesReport report={direct} compact />
+                    </section>
+                )}
 
                 {channels.length === 0 ? (
                     <section className="rounded-tile border border-border-default bg-bg-surface p-6 text-center">
