@@ -22,6 +22,7 @@ use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\OverviewController;
+use App\Http\Controllers\PreviewController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublishingController;
@@ -362,6 +363,17 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover.paint');
     Route::delete('/books/{book}/cover/artwork', [DesignController::class, 'removeArtwork'])
         ->name('design.cover.artwork.destroy');
+
+    // The full-screen preview (PreviewController): contents first, then a
+    // page at a time.
+    Route::get('/books/{book}/preview', [PreviewController::class, 'show'])
+        ->name('preview.show');
+    Route::get('/books/{book}/preview/page', [PreviewController::class, 'page'])
+        ->middleware('throttle:240,1')
+        ->name('preview.page');
+    Route::get('/preview/fonts/{name}', [PreviewController::class, 'font'])
+        ->where('name', '[A-Za-z0-9-]+\.ttf')
+        ->name('preview.font');
 });
 
 /*

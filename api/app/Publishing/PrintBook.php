@@ -98,6 +98,13 @@ class PrintBook
     /** @var array<string, Syllable> */
     private array $syllables = [];
 
+    /**
+     * Pictures by the app's URL rather than as data, for the preview: a
+     * browser fetches them itself, and a chapter of photographs inlined as
+     * base64 is megabytes a phone does not need to download twice.
+     */
+    private bool $linkImages = false;
+
     public function __construct(
         private readonly DocumentRenderer $renderer,
         private readonly BookImages $images = new BookImages,
@@ -167,6 +174,96 @@ class PrintBook
 
             $this->tempDirs = [];
         }
+    }
+
+    /**
+     * The printed book's blocks, page geometry and stylesheet, for the
+     * full-screen preview's Print mode.
+     *
+     * The plan the PDF is laid out from, so the preview shows the same
+     * openers, labels and running heads; each block is fetched on its own
+     * with previewBlock(). dompdf does not run: a browser paginates the
+     * blocks into pages of the trim size with this stylesheet, which is an
+     * approximation of where dompdf breaks pages (see ADR on the preview),
+     * and page numbers on the contents page are left blank for that reason.
+     *
+     * @param  Collection<int, ManuscriptSection>  $sections
+     * @return array{blocks: list<array<string, mixed>>, css: string, page: array<string, mixed>}
+     */
+    public function previewContents(Book $book, Collection $sections, string $language): array
+    {
+        $plan = $this->plan($book, $sections, $language);
+        $layout = $book->layout();
+        [$width, $height] = $this->trim($layout['trim']);
+        $side = $this->margin($layout);
+
+        return [
+            'blocks' => array_map(fn (array $block) => [
+                'key' => $this->previewKey($block),
+                'kind' => $block['kind'],
+                'title' => $block['title'] ?? $book->title,
+                'label' => $block['label'],
+                'section_id' => $block['section']?->id,
+                'words' => (int) ($block['section']?->word_count ?? 0),
+                'depth' => $block['kind'] === 'part' ? 0 : 1,
+                'start' => $block['start'],
+                'folio' => (bool) $block['showFolio'],
+                'running_head' => (bool) $block['runningHead'],
+                'running' => $block['running'],
+                'roman' => (bool) $block['roman'],
+                'restart' => (bool) $block['restart'],
+            ], $plan['blocks']),
+            'css' => $this->css($book),
+            // Inches, as the stylesheet's @page rule sets them.
+            'page' => [
+                'width' => $width,
+                'height' => $height,
+                'top' => 0.9,
+                'bottom' => 0.95,
+                'inside' => $side,
+                'outside' => $side,
+                'font' => $layout['font'] === 'sans' ? self::SANS : self::SERIF,
+                'headers' => (bool) $layout['headers'],
+                'title' => $book->title,
+            ],
+        ];
+    }
+
+    /**
+     * One block of the printed book, as the PDF's HTML sets it, or null
+     * when the book no longer has it.
+     *
+     * @param  Collection<int, ManuscriptSection>  $sections
+     */
+    public function previewBlock(Book $book, Collection $sections, string $language, string $key): ?string
+    {
+        $plan = $this->plan($book, $sections, $language);
+        $block = collect($plan['blocks'])->first(fn (array $b) => $this->previewKey($b) === $key);
+
+        if ($block === null) {
+            return null;
+        }
+
+        $this->linkImages = true;
+
+        try {
+            return $this->fallbackGlyphs(
+                $this->block($book, ['blankBefore' => false] + $block, $plan),
+                $book->layout()['font'] === 'sans' ? 'sans' : 'serif',
+            );
+        } finally {
+            $this->linkImages = false;
+        }
+    }
+
+    /**
+     * A block's name that survives an edit: its section, or what it is for
+     * a page made from the book's details. Block ids renumber whenever a
+     * chapter is added, and the preview asks for blocks one at a time.
+     */
+    private function previewKey(array $block): string
+    {
+        return $block['section'] ? 's'.$block['section']->id : $block['kind'];
     }
 
     /**
@@ -1110,7 +1207,9 @@ class PrintBook
             ->withMeasure(($this->trim($layout['trim'])[0] - 2 * $this->margin($layout)) * 72, (float) $layout['size'])
             ->html($copy);
         // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
-        $html = $this->images->inline($html, $book->id);
+        if (! $this->linkImages) {
+            $html = $this->images->inline($html, $book->id);
+        }
         $html = str_replace('<hr />', '<p class="scene-break">&#x2767;</p>', $html);
 
         if (! $lead) {
