@@ -69,7 +69,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
     const uncited = data.usage.filter((row) => row.citation_count === 0);
 
     return (
-        <div className="mx-auto max-w-[1040px] p-8">
+        <div className="mx-auto max-w-[1040px] p-4 sm:p-8">
             <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
@@ -80,14 +80,14 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                    <label className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                    <label className="flex min-w-0 items-center gap-2 text-[12.5px] text-text-secondary">
                         Style
                         <select
                             value={data.style}
                             data-a="references:style"
                             onChange={(event) => setStyle(event.target.value)}
-                            className="h-[34px] rounded-control border border-border-input px-2.5 text-[13px] focus:border-brand-primary focus:ring-0"
+                            className="h-[34px] min-w-0 rounded-control border border-border-input px-2.5 text-[13px] focus:border-brand-primary focus:ring-0"
                         >
                             {data.options.map((option) => (
                                 <option key={option.value} value={option.value}>

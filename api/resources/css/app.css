@@ -291,3 +291,64 @@
     outline: 2px solid var(--color-brand-primary);
     border-radius: 2px;
 }
+
+/* --- Touch screens ------------------------------------------------------
+ * The studio was drawn for a mouse: 24-28px controls are fine under a cursor
+ * and a miss under a thumb. These rules only apply where the primary pointer
+ * is coarse, so the desktop layout keeps the handoff's measurements. */
+
+/* A sideways-scrolling row (the phone toolbar, tab strips) shows its overflow
+   by the cut-off control at the edge, not by a scrollbar over the controls. */
+.no-scrollbar {
+    scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+@media (pointer: coarse) {
+    /* iOS zooms the page into any field set below 16px and does not zoom back
+       out, which leaves the studio wider than the screen after one tap. */
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea {
+        font-size: max(16px, 1em);
+    }
+
+    /* Checkboxes and radios: the box can stay small, the target cannot. */
+    input[type='checkbox'],
+    input[type='radio'] {
+        min-width: 22px;
+        min-height: 22px;
+    }
+
+    /* Opt-in for compact controls (chips, small icon buttons) that need a
+       thumb-sized target without changing how they look on a desktop. */
+    .tap {
+        min-height: 40px;
+        min-width: 40px;
+    }
+
+    /* Switches, round checkmarks and the like keep their drawn size and get
+       an invisible margin of target around them. */
+    [role='switch'],
+    [role='checkbox'],
+    .hit {
+        position: relative;
+    }
+
+    [role='switch']::before,
+    [role='checkbox']::before,
+    .hit::before {
+        content: '';
+        position: absolute;
+        inset: -10px;
+    }
+}
+
+/* The bottom tab bar sits above the iPhone home indicator rather than under
+   it. Needs viewport-fit=cover (app.blade.php). */
+.safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+}

@@ -929,3 +929,43 @@ asks for.
   `/books/{id}/cover/image?size=thumb` serves it, `coverFor()['thumb']`
   links it, and the shelf and sidebar use it (`loading="lazy"` on the
   shelf).
+
+## ADR-0024 — Phone and tablet shell: a context-aware tab bar
+
+**Status:** accepted (2026-10-23)
+
+**Context.** ADR-0023 made the studio fit a phone, but it was the desktop
+squeezed: a hamburger behind which every area sat, pills floating over the
+text, a formatting toolbar three rows tall, panels nested three boxes deep,
+24–28px controls, `100vh` shells whose bottom row hid behind mobile browser
+chrome, and fields that made iOS zoom in on focus.
+
+**Decision.**
+- *Tab bar.* `Studio/MobileNav` is the last row of every signed-in page's
+  `h-dvh` flex column below 1024px (not a fixed overlay, so nothing scrolls
+  under it), with the iOS safe-area inset. Five tabs: four follow the area
+  the author is in — library, writing, review, publishing, selling
+  (`tabSet()`), each book set keeping a way back to the manuscript — and
+  More, always last. Write while writing opens the chapters; AI beside the
+  manuscript opens the chapter's findings drawer. It replaces the header's
+  menu button and the floating pills (one AI pill remains for 1024–1279px,
+  where the tab bar is gone and the AI panel is not yet in the grid).
+- *More.* A bottom sheet of icon tiles for every built screen, grouped Book,
+  Review, Publish, Sell & grow, then the account's own pages.
+- *Phone layout.* No outer padding, panel border or credit strip below
+  640px; the chapter title is the chapter switcher; the toolbar is one row
+  that scrolls sideways with 40px buttons; centred dialogs become bottom
+  sheets; responsive grids get `grid-cols-1` so a long title cannot widen
+  the column past the screen; the tablet loses the four bottom cards.
+- *Touch.* Under `(pointer: coarse)`: fields at 16px (no iOS zoom),
+  switches and round checkmarks get a 10px invisible hit margin, `.tap`
+  sets a 40px minimum, toolbar buttons grow on touch tablets.
+
+**Tests.** `tests/Browser/mobile.spec.js` (tabs per area, tab and More
+navigation, chapters and AI from the bar, one-row toolbar, no sideways
+scroll); the phone tests in `a11y.spec.js` and `crawl.spec.js` follow the
+new controls.
+
+**Next (from research of mobile writing apps).** Toolbar above the
+keyboard (`visualViewport`), save-status chip, typewriter scrolling,
+one-at-a-time AI review with undo, installable PWA.

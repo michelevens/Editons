@@ -61,7 +61,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
     }
 
     return (
-        <div className="mx-auto max-w-[1040px] p-8">
+        <div className="mx-auto max-w-[1040px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
                     Review Workflow
@@ -77,7 +77,10 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                     No chapters yet.
                 </p>
             ) : (
-                <div className="grid gap-[14px] md:grid-cols-2 xl:grid-cols-4">
+                // On a phone the columns sit side by side and swipe, as a
+                // board does: stacked, "Draft" with 39 chapters pushed the
+                // other three columns a long scroll out of sight.
+                <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 md:mx-0 md:grid md:grid-cols-2 md:gap-[14px] md:overflow-visible md:px-0 xl:grid-cols-4">
                     {COLUMNS.map((column, columnIndex) => {
                         const cards = chapters.filter(
                             (chapter) => chapter.status === column.key,
@@ -86,7 +89,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                         return (
                             <section
                                 key={column.key}
-                                className="rounded-panel border border-border-default bg-bg-surface"
+                                className="w-[84%] shrink-0 snap-start rounded-panel border border-border-default bg-bg-surface md:w-auto"
                             >
                                 <header className="flex items-center justify-between border-b border-border-divider px-3.5 py-3">
                                     <span className="text-[13px] font-semibold text-text-primary">
@@ -133,7 +136,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                                                             moving === chapter.id
                                                         }
                                                         aria-label="Move back"
-                                                        className="rounded p-1 text-text-secondary transition hover:bg-bg-subtle disabled:opacity-30"
+                                                        className="tap grid place-items-center rounded p-1 text-text-secondary transition hover:bg-bg-subtle disabled:opacity-30"
                                                     >
                                                         <Icon name="left" size={14} />
                                                     </button>
@@ -146,7 +149,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                                                             moving === chapter.id
                                                         }
                                                         aria-label="Move forward"
-                                                        className="rounded p-1 text-text-secondary transition hover:bg-bg-subtle disabled:opacity-30"
+                                                        className="tap grid place-items-center rounded p-1 text-text-secondary transition hover:bg-bg-subtle disabled:opacity-30"
                                                     >
                                                         <Icon name="right" size={14} />
                                                     </button>

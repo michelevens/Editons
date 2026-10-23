@@ -97,7 +97,7 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                         key={tab.key}
                         data-a={`comments:filter:${tab.key}`}
                         onClick={() => setFilter(tab.key)}
-                        className={`rounded-badge px-2.5 py-1 text-[11.5px] font-medium transition ${
+                        className={`rounded-badge px-2.5 py-1 text-[11.5px] font-medium transition max-sm:px-3 max-sm:py-2 max-sm:text-[12.5px] ${
                             filter === tab.key
                                 ? 'bg-brand-fill text-white'
                                 : 'text-text-secondary hover:text-text-primary'

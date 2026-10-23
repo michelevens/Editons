@@ -78,7 +78,7 @@ export default function EditionsPanel({ bookId, onNotify }) {
                     </p>
                 )}
 
-                <div className="grid gap-3 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <Card
                         title="Workbook edition"
                         body="Builds a companion workbook from this book's headings, with a reflection prompt under each one for the reader to fill in."

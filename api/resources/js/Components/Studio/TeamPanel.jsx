@@ -88,7 +88,7 @@ export default function TeamPanel({ bookId }) {
         data.seats.limit !== null && data.seats.used >= data.seats.limit;
 
     return (
-        <div className="mx-auto max-w-[840px] p-8">
+        <div className="mx-auto max-w-[840px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
                     Team Members

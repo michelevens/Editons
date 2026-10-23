@@ -1,4 +1,5 @@
 import AppHeader from '@/Components/Studio/AppHeader';
+import MobileNav from '@/Components/Studio/MobileNav';
 import Icon from '@/Components/Studio/Icon';
 import { goTo } from '@/Components/Studio/navigation';
 import StudioSidebar from '@/Components/Studio/StudioSidebar';
@@ -20,7 +21,7 @@ export default function Overview({ book, stats, checklist }) {
     const closeMenu = useCallback(() => setMenu(false), []);
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title={`${book.title} — Overview`} />
 
             <AppHeader
@@ -28,7 +29,6 @@ export default function Overview({ book, stats, checklist }) {
                 user={auth?.user}
                 account={auth?.account}
                 bookId={book.id}
-                onMenu={() => setMenu(true)}
             />
 
             <div className="flex min-h-0 flex-1">
@@ -93,13 +93,15 @@ export default function Overview({ book, stats, checklist }) {
 
                         <Kpis stats={stats} onOpen={open} />
 
-                        <div className="mt-6 grid gap-[18px] lg:grid-cols-2">
+                        <div className="mt-6 grid grid-cols-1 gap-[18px] lg:grid-cols-2">
                             <WordTarget book={book} stats={stats} />
                             <Checklist items={checklist} onOpen={open} />
                         </div>
                     </div>
                 </main>
             </div>
+
+            <MobileNav current="overview" bookId={book.id} bookTitle={book.title} />
         </div>
     );
 }
@@ -139,7 +141,7 @@ function Kpis({ stats, onOpen }) {
     ];
 
     return (
-        <div className="mt-7 grid gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-7 grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
             {tiles.map((tile) => (
                 <button
                     key={tile.label}

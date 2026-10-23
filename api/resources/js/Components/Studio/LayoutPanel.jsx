@@ -102,7 +102,7 @@ export default function LayoutPanel({ bookId, onNotify }) {
                 </button>
             </header>
 
-            <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-4 lg:grid-cols-[320px_1fr]">
+            <div className="grid grid-cols-1 min-h-0 flex-1 gap-4 overflow-auto p-4 lg:grid-cols-[320px_1fr]">
                 <div className="space-y-4">
                     <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                         <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">Page</h3>
@@ -207,7 +207,7 @@ export default function LayoutPanel({ bookId, onNotify }) {
                                 data-a="layout:preview-section"
                                 aria-label="Chapter to preview"
                                 onChange={(event) => load(Number(event.target.value))}
-                                className="ml-auto rounded-control border border-border-input px-2 py-1 text-[11.5px] focus:border-brand-primary focus:ring-0"
+                                className="ml-auto min-w-0 max-w-full rounded-control border border-border-input px-2 py-1 text-[11.5px] focus:border-brand-primary focus:ring-0"
                             >
                                 {sections.map((section) => (
                                     <option key={section.id} value={section.id}>

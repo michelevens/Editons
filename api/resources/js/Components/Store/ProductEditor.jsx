@@ -127,7 +127,7 @@ export default function ProductEditor({ bookId, onSaved }) {
                 </p>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-[1fr_110px]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_110px]">
                 <Field label="Price" error={errors.price}>
                     <input
                         data-a="store:price"

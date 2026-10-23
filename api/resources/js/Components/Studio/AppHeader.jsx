@@ -61,7 +61,6 @@ export default function AppHeader({
     onOpenChapter,
     user,
     account,
-    onMenu,
     skipTo = '#main',
     skipLabel = 'Skip to content',
 }) {
@@ -136,20 +135,6 @@ export default function AppHeader({
             >
                 {skipLabel}
             </a>
-
-            {/* The book sidebar is a drawer below 1024px; this opens it on
-                every page that has one, not only the manuscript. */}
-            {onMenu && (
-                <button
-                    type="button"
-                    data-a="header:menu"
-                    onClick={onMenu}
-                    aria-label="Open menu"
-                    className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-control text-text-body transition hover:bg-bg-subtle lg:hidden"
-                >
-                    <Icon name="menu" size={20} />
-                </button>
-            )}
 
             {/*
               * The brand mark, from ecrivain-brand-assets. The symbol is the
