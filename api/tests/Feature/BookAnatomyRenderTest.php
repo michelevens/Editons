@@ -235,6 +235,32 @@ it('opens the reading PDF with the cover and keeps it out of the print interior'
     expect(($restart['physical'] - 1) % 2)->toBe(1)->and($restart['page'])->toBe('1');
 });
 
+it('fits the whole cover on the page and fills the bands in the cover\'s edge colours', function () {
+    // A 5:8 ebook cover on a 6x9 (2:3) page: filling the page cropped the
+    // wordmark off the top and the series name off the bottom. Fitted, the
+    // narrower cover leaves a band on each side.
+    $file = tempnam(sys_get_temp_dir(), 'cover');
+    $image = imagecreatetruecolor(800, 1280);
+    imagefill($image, 0, 0, imagecolorallocate($image, 255, 253, 245));
+    imagefilledrectangle($image, 700, 0, 799, 1279, imagecolorallocate($image, 6, 36, 62));
+    imagepng($image, $file);
+
+    $canvas = Mockery::mock(\Dompdf\Canvas::class);
+    $bands = [];
+    $canvas->shouldReceive('filled_rectangle')->twice()->andReturnUsing(function (...$args) use (&$bands) {
+        $bands[] = $args;
+    });
+    // The whole image, centred: the page's full height, 13.5pt in from each side.
+    $canvas->shouldReceive('image')->once()->withArgs(fn ($f, $x, $y, $w, $h) => abs($x - 13.5) < 0.01 && abs($y) < 0.01 && abs($w - 405) < 0.01 && abs($h - 648) < 0.01);
+
+    (new ReflectionMethod(PrintBook::class, 'drawCover'))->invoke(app(PrintBook::class), $canvas, $file, 432.0, 648.0);
+    unlink($file);
+
+    // The left band takes the ivory left edge, the right one the navy edge.
+    expect($bands[0][4][0])->toBeGreaterThan(0.95)
+        ->and($bands[1][4][2])->toBeLessThan(0.3);
+});
+
 it('exports the reading PDF with its cover and ends with the back cover when there is one', function () {
     $book = arBook();
     $disk = Storage::disk('files');

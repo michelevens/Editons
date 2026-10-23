@@ -695,8 +695,13 @@ class PrintBook
     }
 
     /**
-     * A cover image scaled to fill the trim and centred; what overhangs
-     * the page is cropped by the page edge, never distorted.
+     * A cover image fitted whole inside the trim and centred, never
+     * distorted or cropped.
+     *
+     * Covers are made at the ebook shape (5:8) and trims are usually 2:3, so
+     * filling the page cut the wordmark off the top and the series name off
+     * the bottom. The bands a fitted cover leaves are painted in the colour
+     * of the image's own edge there, so they read as part of the cover.
      */
     private function drawCover(Canvas $canvas, string $file, float $w, float $h): void
     {
@@ -706,8 +711,65 @@ class PrintBook
             return;
         }
 
-        $scale = max($w / $size[0], $h / $size[1]);
-        $canvas->image($file, ($w - $size[0] * $scale) / 2, ($h - $size[1] * $scale) / 2, $size[0] * $scale, $size[1] * $scale);
+        $scale = min($w / $size[0], $h / $size[1]);
+        [$iw, $ih] = [$size[0] * $scale, $size[1] * $scale];
+        [$x, $y] = [($w - $iw) / 2, ($h - $ih) / 2];
+
+        if ($x > 0.5 || $y > 0.5) {
+            [$first, $second] = $this->edgeColours($file, $x > 0.5);
+            // Two bands, one each side of the image, each in its own edge's colour.
+            $x > 0.5
+                ? [$canvas->filled_rectangle(0, 0, $x + 1, $h, $first), $canvas->filled_rectangle($x + $iw - 1, 0, $x + 1, $h, $second)]
+                : [$canvas->filled_rectangle(0, 0, $w, $y + 1, $first), $canvas->filled_rectangle(0, $y + $ih - 1, $w, $y + 1, $second)];
+        }
+
+        $canvas->image($file, $x, $y, $iw, $ih);
+    }
+
+    /**
+     * The commonest colour along two opposite edges of an image, as dompdf
+     * colours (0-1 RGB): left and right when $sides, else top and bottom.
+     * The commonest, not the average: an edge crossing a paper ground, an
+     * illustration and a dark band averages to a colour on none of them.
+     *
+     * @return array{0: array<int, float>, 1: array<int, float>}
+     */
+    private function edgeColours(string $file, bool $sides): array
+    {
+        $white = [1.0, 1.0, 1.0];
+        $image = @imagecreatefromstring((string) file_get_contents($file));
+
+        if (! $image) {
+            return [$white, $white];
+        }
+
+        [$width, $height] = [imagesx($image), imagesy($image)];
+        $commonest = function (callable $point, int $count) use ($image): array {
+            // Colours bucketed to 4 bits a channel so JPEG noise votes together;
+            // each bucket remembers the exact colour of its first sample.
+            $votes = [];
+            $samples = min($count, 256);
+
+            for ($i = 0; $i < $samples; $i++) {
+                $rgb = imagecolorat($image, ...$point((int) floor(($i + 0.5) * $count / $samples))) & 0xFFFFFF;
+                $bucket = ($rgb >> 4) & 0x0F0F0F;
+                $votes[$bucket] ??= [0, $rgb];
+                $votes[$bucket][0]++;
+            }
+
+            uasort($votes, fn ($a, $b) => $b[0] <=> $a[0]);
+            $rgb = reset($votes)[1];
+
+            return [round((($rgb >> 16) & 0xFF) / 255, 4), round((($rgb >> 8) & 0xFF) / 255, 4), round(($rgb & 0xFF) / 255, 4)];
+        };
+
+        $colours = $sides
+            ? [$commonest(fn ($i) => [0, $i], $height), $commonest(fn ($i) => [$width - 1, $i], $height)]
+            : [$commonest(fn ($i) => [$i, 0], $width), $commonest(fn ($i) => [$i, $height - 1], $width)];
+
+        imagedestroy($image);
+
+        return $colours;
     }
 
     /** Shorten a running head that would not fit the measure. */
