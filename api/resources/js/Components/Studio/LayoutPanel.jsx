@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icon from './Icon';
 
 /**
  * Design & Layout.
@@ -8,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * how their book actually sets — which is the only question this screen
  * exists to answer.
  */
-export default function LayoutPanel({ bookId, onNotify }) {
+export default function LayoutPanel({ bookId, onNotify, onPreview }) {
     const [data, setData] = useState(null);
     const [sectionId, setSectionId] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -92,11 +93,23 @@ export default function LayoutPanel({ bookId, onNotify }) {
                     </p>
                 </div>
 
+                {onPreview && (
+                    <button
+                        type="button"
+                        data-a="layout:preview"
+                        onClick={onPreview}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                    >
+                        <Icon name="eye" size={13} strokeWidth={2} />
+                        Preview book
+                    </button>
+                )}
+
                 <button
                     data-a="layout:reset"
                     onClick={reset}
                     disabled={busy}
-                    className="ml-auto rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
+                    className={`${onPreview ? '' : 'ml-auto '}rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50`}
                 >
                     Reset to defaults
                 </button>

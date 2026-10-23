@@ -9,7 +9,7 @@ import Icon from './Icon';
  * input it is about: being told "description is required" and then having to
  * find the description is the failure this avoids.
  */
-export default function PublishPanel({ bookId, onNotify }) {
+export default function PublishPanel({ bookId, onNotify, onPreview }) {
     const [data, setData] = useState(null);
     // When the payload arrived, and the clock it is read against: a
     // generating row's wait_seconds counts from the former.
@@ -228,11 +228,23 @@ export default function PublishPanel({ bookId, onNotify }) {
                     </p>
                 </div>
 
+                {onPreview && (
+                    <button
+                        type="button"
+                        data-a="publish:preview"
+                        onClick={onPreview}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-control border border-border-input px-3 py-2 text-[12.5px] font-medium text-text-body transition hover:border-brand-primary/40"
+                    >
+                        <Icon name="eye" size={13} strokeWidth={2} />
+                        Preview
+                    </button>
+                )}
+
                 <button
                     data-a="publish:submit"
                     onClick={submit}
                     disabled={busy === 'submit'}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    className={`${onPreview ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50`}
                 >
                     <Icon name="exp" size={13} strokeWidth={2} />
                     {busy === 'submit' ? 'Checking…' : 'Prepare for stores'}

@@ -59,7 +59,7 @@ export function tabSet(current, hasBook) {
     if (!hasBook) return 'library';
 
     if (['ai', 'suggestions', 'comments', 'workflow', 'team'].includes(current)) return 'review';
-    if (['layout', 'cover', 'export', 'rights', 'editions', 'a11y', 'design', 'publishing'].includes(current)) return 'publish';
+    if (['layout', 'cover', 'export', 'preview', 'rights', 'editions', 'a11y', 'design', 'publishing'].includes(current)) return 'publish';
     if (['distribution', 'royalties', 'launch', 'marketing', 'analytics', 'sales'].includes(current)) return 'sell';
     if (['books', 'billing', 'store-sales', 'purchases', 'account'].includes(current)) return 'library';
 
@@ -197,6 +197,7 @@ const BOOK_GROUPS = [
             { key: 'layout', label: 'Design', icon: 'layout' },
             { key: 'cover', label: 'Cover', icon: 'cover' },
             { key: 'export', label: 'Export', icon: 'exp' },
+            { key: 'preview', label: 'Preview', icon: 'eye' },
             { key: 'rights', label: 'ISBN & Rights', icon: 'hash' },
             { key: 'editions', label: 'Editions', icon: 'copies' },
             { key: 'a11y', label: 'Accessibility', icon: 'access' },
