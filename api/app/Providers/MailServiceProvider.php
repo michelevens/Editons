@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Billing\SubscriptionEmails;
 use App\Mail\Notify;
 use App\Models\CreditTransaction;
 use App\Observers\CreditTransactionObserver;
@@ -9,6 +10,7 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Cashier\Events\WebhookHandled;
 
 /**
  * Where application events turn into email.
@@ -35,5 +37,10 @@ class MailServiceProvider extends ServiceProvider
         // observer rather than an edit to CreditLedger, which the billing
         // work is changing in another branch.
         CreditTransaction::observe(CreditTransactionObserver::class);
+
+        // Subscription receipts, failed payments, plan changes,
+        // cancellations and trial reminders, after Cashier has handled the
+        // Stripe event. Guarded against duplicate deliveries inside.
+        Event::listen(WebhookHandled::class, [SubscriptionEmails::class, 'handle']);
     }
 }

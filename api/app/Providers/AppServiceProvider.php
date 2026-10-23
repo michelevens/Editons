@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Commerce\Gateway\FakeGateway;
+use App\Commerce\Gateway\PaymentGateway;
+use App\Commerce\Gateway\StripeGateway;
 use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\DriverFactory;
 use App\Http\Controllers\StripeWebhookController;
@@ -28,6 +31,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             EditorialDriver::class,
             fn ($app) => $app->make(DriverFactory::class)->make(),
+        );
+
+        // The storefront's payment provider. Stripe when keys are set, the
+        // fake one (no network, test checkout page) otherwise; a singleton
+        // so a test can read back the sessions it was asked for.
+        $this->app->singleton(
+            PaymentGateway::class,
+            fn () => config('commerce.gateway') === 'stripe' ? new StripeGateway : new FakeGateway,
         );
 
         // Cashier's route resolves its controller through the container,
