@@ -59,9 +59,37 @@ export const SIDEBAR_GROUPS = [
     },
 ];
 
-export default function BookSidebar({ book, active, badges = {}, onSelect }) {
+/**
+ * `topNav` adds the header's areas (Writing Studio, AI Editor, Analytics...)
+ * as a first group. The phone drawer passes it: below 1024px the header hides
+ * its nav, and without this Analytics had no way in at all.
+ */
+export default function BookSidebar({
+    book,
+    active,
+    badges = {},
+    onSelect,
+    topNav = null,
+    activeNav = null,
+    onSelectTop,
+    className = '',
+}) {
+    const groups = topNav
+        ? [
+              {
+                  group: 'STUDIO',
+                  top: true,
+                  items: topNav.map((item) => ({
+                      ...item,
+                      icon: TOP_ICONS[item.key] ?? 'doc',
+                  })),
+              },
+              ...SIDEBAR_GROUPS,
+          ]
+        : SIDEBAR_GROUPS;
+
     return (
-        <aside className="flex w-[223px] shrink-0 flex-col overflow-hidden rounded-tr-panel bg-bg-sidebar">
+        <aside className={`flex w-[223px] shrink-0 flex-col overflow-hidden rounded-tr-panel bg-bg-sidebar ${className}`}>
             {/* Pinned: the book being worked on should not scroll out of
                 sight, and keeping it out of the scroll area leaves more of
                 the list reachable. */}
@@ -77,7 +105,7 @@ export default function BookSidebar({ book, active, badges = {}, onSelect }) {
              * appeared on hover. `sidebar-scroll` keeps it visible.
              */}
             <nav className="sidebar-scroll mt-1 min-h-0 flex-1 overflow-y-auto pb-4" aria-label="Book">
-                {SIDEBAR_GROUPS.map((section, index) => (
+                {groups.map((section, index) => (
                     <div key={section.group ?? index}>
                         {section.group && (
                             <p className="px-[18px] pb-1.5 pt-4 text-[11px] font-medium tracking-[1.6px] text-text-sidebar-muted">
@@ -86,14 +114,18 @@ export default function BookSidebar({ book, active, badges = {}, onSelect }) {
                         )}
 
                         {section.items.map((item) => {
-                            const isActive = active === item.key;
-                            const badge = badges[item.key];
+                            const isActive = section.top
+                                ? activeNav === item.key
+                                : active === item.key;
+                            const badge = section.top ? 0 : badges[item.key];
 
                             return (
                                 <button
                                     key={item.key}
-                                    data-a={`side:${item.key}`}
-                                    onClick={() => onSelect?.(item)}
+                                    data-a={`${section.top ? 'drawer:nav' : 'side'}:${item.key}`}
+                                    onClick={() =>
+                                        section.top ? onSelectTop?.(item) : onSelect?.(item)
+                                    }
                                     title={item.ready ? undefined : 'Not built yet'}
                                     aria-current={isActive ? 'page' : undefined}
                                     className={`flex h-[34px] w-full items-center gap-[15px] px-[18px] text-left text-[13px] transition ${
@@ -112,7 +144,7 @@ export default function BookSidebar({ book, active, badges = {}, onSelect }) {
                                     <span className="flex-1 truncate">{item.label}</span>
 
                                     {badge > 0 ? (
-                                        <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-badge bg-status-danger px-1 text-[10.5px] font-semibold text-white">
+                                        <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-badge bg-status-danger-fill px-1 text-[10.5px] font-semibold text-white">
                                             {badge}
                                         </span>
                                     ) : (
@@ -129,13 +161,25 @@ export default function BookSidebar({ book, active, badges = {}, onSelect }) {
                 ))}
             </nav>
 
-            <p className="mt-auto px-[18px] pt-6 text-[10px] leading-relaxed text-text-sidebar-muted/80">
+            <p className="mt-auto px-[18px] pt-6 text-[10px] leading-relaxed text-text-sidebar-muted">
                 <span aria-hidden="true">•</span> marks a section that is not
                 built yet. Nothing here shows simulated data.
             </p>
         </aside>
     );
 }
+
+/** Icons for the header's areas when they are listed in the drawer. */
+const TOP_ICONS = {
+    books: 'lib',
+    writing: 'doc',
+    ai: 'sugg',
+    research: 'refs',
+    design: 'layout',
+    publishing: 'exp',
+    sales: 'sales',
+    analytics: 'chart',
+};
 
 /**
  * The cover thumbnail.
@@ -149,8 +193,11 @@ function BookCover({ cover, title }) {
     if (cover?.url) {
         return (
             <img
-                src={cover.url}
+                src={cover.thumb ?? cover.url}
                 alt=""
+                width={46}
+                height={73}
+                decoding="async"
                 className="h-[73px] w-[46px] shrink-0 rounded-[3px] object-cover"
             />
         );

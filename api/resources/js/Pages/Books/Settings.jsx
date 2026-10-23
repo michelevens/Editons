@@ -1,10 +1,10 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import BookPartsPanel from '@/Components/Studio/BookPartsPanel';
-import BookSidebar from '@/Components/Studio/BookSidebar';
 import Icon from '@/Components/Studio/Icon';
 import { goTo } from '@/Components/Studio/navigation';
+import StudioSidebar from '@/Components/Studio/StudioSidebar';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 /**
  * Book Settings: the book's identity, the autosave preference, and archive.
@@ -25,6 +25,8 @@ export default function Settings({
     const { auth } = usePage().props;
 
     const open = (key) => goTo(book.id, key);
+    const [menu, setMenu] = useState(false);
+    const closeMenu = useCallback(() => setMenu(false), []);
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
@@ -35,10 +37,15 @@ export default function Settings({
                 user={auth?.user}
                 account={auth?.account}
                 bookId={book.id}
+                onMenu={() => setMenu(true)}
             />
 
             <div className="flex min-h-0 flex-1">
-                <BookSidebar
+                <StudioSidebar
+                    open={menu}
+                    onClose={closeMenu}
+                    activeNav="writing"
+                    onSelectNav={(item) => open(item.key)}
                     book={book}
                     active="settings"
                     onSelect={(item) => {
@@ -53,8 +60,8 @@ export default function Settings({
                     }}
                 />
 
-                <main className="min-w-0 flex-1 overflow-y-auto">
-                    <div className="mx-auto max-w-[760px] px-8 py-9">
+                <main id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
+                    <div className="mx-auto max-w-[760px] px-4 py-6 sm:px-8 sm:py-9">
                         <header className="mb-7">
                             <h1 className="font-display text-[28px] font-extrabold tracking-[-0.03em] text-text-primary">
                                 Book Settings
@@ -168,7 +175,7 @@ function DetailsForm({ book, genres, languages }) {
                 <button
                     disabled={processing}
                     data-a="settings:save"
-                    className="h-[38px] rounded-control bg-brand-primary px-4 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:opacity-60"
+                    className="h-[38px] rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:opacity-60"
                 >
                     {processing ? 'Saving…' : 'Save changes'}
                 </button>
@@ -461,7 +468,7 @@ function PublicationForm({ book, copyrightPreview }) {
                 <button
                     disabled={processing}
                     data-a="settings:publication:save"
-                    className="h-[38px] rounded-control bg-brand-primary px-4 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:opacity-60"
+                    className="h-[38px] rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:opacity-60"
                 >
                     {processing ? 'Saving…' : 'Save publishing details'}
                 </button>
@@ -586,7 +593,7 @@ function WritingPreferences({ book, citationStyles }) {
                             disabled={busy === row.key}
                             onClick={() => toggle(row.key)}
                             className={`relative h-[24px] w-[42px] shrink-0 rounded-full transition disabled:opacity-60 ${
-                                settings[row.key] ? 'bg-brand-primary' : 'bg-border-input'
+                                settings[row.key] ? 'bg-brand-fill' : 'bg-border-input'
                             }`}
                         >
                             <span
@@ -651,7 +658,7 @@ function ArchiveBox({ book, canArchive }) {
                 <button
                     data-a="settings:restore"
                     onClick={() => setStatus('draft')}
-                    className="mt-4 h-[36px] rounded-control bg-text-primary px-4 text-[13px] font-semibold text-white transition hover:opacity-90"
+                    className="mt-4 h-[36px] rounded-control bg-bg-inverse px-4 text-[13px] font-semibold text-text-inverse transition hover:opacity-90"
                 >
                     Restore to drafts
                 </button>
@@ -676,7 +683,7 @@ function ArchiveBox({ book, canArchive }) {
                     <button
                         data-a="settings:archive:confirm"
                         onClick={() => setStatus('archived')}
-                        className="h-[34px] rounded-control bg-status-danger px-3.5 text-[13px] font-semibold text-white transition hover:opacity-90"
+                        className="h-[34px] rounded-control bg-status-danger-fill px-3.5 text-[13px] font-semibold text-white transition hover:opacity-90"
                     >
                         Archive book
                     </button>

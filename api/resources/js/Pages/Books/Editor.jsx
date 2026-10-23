@@ -1,9 +1,9 @@
+import Dialog, { CloseButton } from '@/Components/Dialog';
 import ManuscriptEditor from '@/Components/Editor/ManuscriptEditor';
 import AIEditorPanel from '@/Components/Studio/AIEditorPanel';
 import AiEditorScreen from '@/Components/Studio/AiEditorScreen';
 import AnalyticsPanel from '@/Components/Studio/AnalyticsPanel';
 import AppHeader from '@/Components/Studio/AppHeader';
-import BookSidebar from '@/Components/Studio/BookSidebar';
 import { BottomRow } from '@/Components/Studio/BottomCards';
 import AccessibilityPanel from '@/Components/Studio/AccessibilityPanel';
 import CommentsPanel from '@/Components/Studio/CommentsPanel';
@@ -20,10 +20,12 @@ import LayoutPanel from '@/Components/Studio/LayoutPanel';
 import PublishPanel from '@/Components/Studio/PublishPanel';
 import RightsPanel from '@/Components/Studio/RightsPanel';
 import SalesPanel from '@/Components/Studio/SalesPanel';
+import Icon from '@/Components/Studio/Icon';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
 import NotesPanel from '@/Components/Studio/NotesPanel';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
+import StudioSidebar from '@/Components/Studio/StudioSidebar';
 import TeamPanel from '@/Components/Studio/TeamPanel';
 import TemplatesPanel from '@/Components/Studio/TemplatesPanel';
 import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
@@ -86,6 +88,27 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const [leftTab, setLeftTab] = useState('Manuscript');
     const [panelOpen, setPanelOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+    // Distraction-free writing: the manuscript alone, everything else out of
+    // sight. Ctrl/Cmd+Shift+F toggles it, Escape leaves it (a dialog open on
+    // top takes Escape first; see Components/Dialog).
+    const [focusMode, setFocusMode] = useState(false);
+
+    useEffect(() => {
+        const onKey = (event) => {
+            if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
+                event.preventDefault();
+                setFocusMode((on) => !on);
+            } else if (event.key === 'Escape') {
+                setFocusMode(false);
+            }
+        };
+
+        window.addEventListener('keydown', onKey);
+
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
 
     useEffect(() => setSection(activeSection), [activeSection?.id]);
 
@@ -409,6 +432,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     ].includes(nav);
     const effectivePane = nav === 'research' ? 'research' : pane;
     const isStudio = liveNav && effectivePane === 'manuscript';
+    // Only the manuscript has a distraction-free form.
+    const focused = focusMode && isStudio;
     const openFindings = findings.filter((f) => f.status === 'open');
 
     const panelProps = {
@@ -432,6 +457,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title={book.title} />
 
+            {!focused && (
             <AppHeader
                 active={nav}
                 bookId={book.id}
@@ -443,42 +469,31 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 onOpenChapter={openSection}
                 user={auth?.user}
                 account={auth?.account}
+                onMenu={() => setSidebarOpen(true)}
+                skipTo={isStudio ? '#manuscript' : '#main'}
+                skipLabel={isStudio ? 'Skip to manuscript' : 'Skip to content'}
             />
+            )}
 
             <div className="flex min-h-0 flex-1">
-                {/*
-                  * Static at >=1024, off-canvas below.
-                  *
-                  * flex + min-h-0 so this wrapper is bounded by the shell
-                  * rather than by its content. Without it the sidebar grew
-                  * past the viewport on a short screen, its own scroll area
-                  * never engaged, and the last items were unreachable.
-                  */}
-                <div
-                    className={`flex min-h-0 max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:pt-[54px] max-lg:transition-transform ${
-                        sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'
-                    }`}
-                >
-                    <BookSidebar
+                {/* Static at >=1024, a drawer below: Components/Studio/StudioSidebar. */}
+                {!focused && (
+                    <StudioSidebar
+                        open={sidebarOpen}
+                        onClose={closeSidebar}
+                        activeNav={nav}
+                        onSelectNav={(item) => navigate(item.key)}
                         book={{ ...book, word_count: bookWords }}
                         active={liveNav ? effectivePane : null}
                         badges={{ suggestions: openFindings.length }}
                         onSelect={(item) => navigate(item.key)}
                     />
-                </div>
-
-                {sidebarOpen && (
-                    <button
-                        aria-label="Close menu"
-                        onClick={() => setSidebarOpen(false)}
-                        className="fixed inset-0 z-30 bg-black/25 lg:hidden"
-                    />
                 )}
 
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-[11px]">
+                <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden p-[11px] outline-none">
                     {/* Above the panes: this is where credits are spent, so
                         this is where the balance belongs. */}
-                    <CreditStrip balance={credits} />
+                    {!focused && <CreditStrip balance={credits} />}
 
                     {nav === 'analytics' ? (
                         <Panel>
@@ -592,7 +607,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             milestone="a later milestone"
                         />
                     ) : (
-                        <div className="grid min-h-0 flex-1 gap-[11px] md:grid-rows-[minmax(0,1fr)_auto]">
+                        <div className={`grid min-h-0 flex-1 gap-[11px] ${focused ? '' : 'md:grid-rows-[minmax(0,1fr)_auto]'}`}>
                             {/*
                               * On a phone the manuscript is the whole screen.
                               * The binder and the AI panel become drawers,
@@ -600,8 +615,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                               * 268px column beside a 390px viewport leaves
                               * nothing to write in — which is what it did.
                               */}
-                            <div className="grid min-h-0 gap-[10px] md:[grid-template-columns:268px_minmax(0,1fr)] xl:[grid-template-columns:268px_minmax(0,1fr)_392px]">
-                                <div className="flex min-h-0 max-md:hidden">
+                            <div className={`grid min-h-0 gap-[10px] ${focused ? 'grid-cols-1' : 'md:[grid-template-columns:268px_minmax(0,1fr)] xl:[grid-template-columns:268px_minmax(0,1fr)_392px]'}`}>
+                                <div className={`flex min-h-0 max-md:hidden ${focused ? 'hidden' : ''}`}>
                                     <ManuscriptOutline
                                         nodes={binder}
                                         activeId={section?.id}
@@ -614,8 +629,36 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                     />
                                 </div>
 
-                                <section className="manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface max-xl:pb-12">
-                                    <ManuscriptEditor ref={manuscript} section={section} bookId={book.id} onSaved={onSaved} autosave={book.autosave ?? true} />
+                                <section
+                                    id="manuscript"
+                                    aria-label="Manuscript"
+                                    className={`manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface ${
+                                        focused ? 'mx-auto w-full max-w-[860px]' : 'max-xl:pb-12'
+                                    }`}
+                                >
+                                    <ManuscriptEditor
+                                        ref={manuscript}
+                                        section={section}
+                                        bookId={book.id}
+                                        onSaved={onSaved}
+                                        autosave={book.autosave ?? true}
+                                        headerActions={
+                                            <button
+                                                type="button"
+                                                data-a="editor:focus-mode"
+                                                onClick={() => setFocusMode((on) => !on)}
+                                                aria-pressed={focused}
+                                                aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
+                                                title={focused ? 'Leave distraction-free mode (Esc)' : 'Distraction-free mode (Ctrl+Shift+F)'}
+                                                className="grid h-7 w-7 shrink-0 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary"
+                                            >
+                                                <Icon name="expand" size={15} />
+                                                <span className="sr-only">
+                                                    {focused ? 'Leave distraction-free mode' : 'Distraction-free mode'}
+                                                </span>
+                                            </button>
+                                        }
+                                    />
 
                                     {/* Under the manuscript, where somebody
                                         writing will meet it without going
@@ -627,7 +670,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                     />
                                 </section>
 
-                                <div className="flex min-h-0 max-xl:hidden">
+                                <div className={`flex min-h-0 max-xl:hidden ${focused ? 'hidden' : ''}`}>
                                     <AIEditorPanel {...panelProps} />
                                 </div>
                             </div>
@@ -636,7 +679,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 phone that is four screens of scrolling before
                                 the manuscript, so it waits for the tablet
                                 breakpoint. */}
-                            <div className="h-[236px] min-h-0 max-md:hidden">
+                            <div className={`h-[236px] min-h-0 max-md:hidden ${focused ? 'hidden' : ''}`}>
                                 <BottomRow
                                     sources={library}
                                     onOpenLibrary={openLibrary}
@@ -654,10 +697,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             {/* Affordances for the two panels that leave the grid on smaller
                 screens. Without these they would be unreachable, not merely
                 hidden. */}
-            {isStudio && (
+            {isStudio && !focused && (
                 <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center gap-2 xl:hidden">
                     <button
                         data-a="mobile:menu"
+                        aria-haspopup="dialog"
                         onClick={() => setSidebarOpen(true)}
                         className="pointer-events-auto rounded-badge bg-bg-sidebar px-4 py-2 text-[12px] font-semibold text-white shadow-popover lg:hidden"
                     >
@@ -669,14 +713,17 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         phone is whichever one happened to open. */}
                     <button
                         data-a="mobile:chapters"
+                        aria-haspopup="dialog"
                         onClick={() => setBinderOpen(true)}
                         className="pointer-events-auto rounded-badge bg-bg-sidebar px-4 py-2 text-[12px] font-semibold text-white shadow-popover md:hidden"
                     >
                         Chapters
                     </button>
                     <button
+                        data-a="mobile:ai"
+                        aria-haspopup="dialog"
                         onClick={() => setPanelOpen(true)}
-                        className="pointer-events-auto rounded-badge bg-brand-primary px-4 py-2 text-[12px] font-semibold text-white shadow-popover"
+                        className="pointer-events-auto rounded-badge bg-brand-fill px-4 py-2 text-[12px] font-semibold text-white shadow-popover"
                     >
                         AI Editor
                         {openFindings.length > 0 && ` (${openFindings.length})`}
@@ -684,46 +731,56 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 </div>
             )}
 
+            {/* Phone drawers: dialogs, so focus moves in, Escape and a
+                visible button close them, and focus returns to the button
+                that opened them. */}
             {binderOpen && (
-                <div className="fixed inset-0 z-40 flex md:hidden">
-                    <div className="flex h-full w-[min(86vw,320px)] flex-col bg-bg-app p-2 shadow-popover">
-                        <ManuscriptOutline
-                            nodes={binder}
-                            activeId={section?.id}
-                            tab={leftTab}
-                            onTab={(t) => (t === 'Notes' ? go('notes') : setLeftTab(t))}
-                            onSelect={(id) => {
-                                openSection(id);
-                                setBinderOpen(false);
-                            }}
-                            onAddChapter={addChapter}
-                            onImport={() => {
-                                setBinderOpen(false);
-                                setImporting(true);
-                            }}
-                            adding={adding}
-                        />
+                <Dialog
+                    variant="drawer"
+                    label="Chapters"
+                    onClose={() => setBinderOpen(false)}
+                    data-a="drawer:chapters"
+                    className="flex h-full w-[min(86vw,320px)] flex-col bg-bg-app p-2 shadow-popover md:hidden"
+                >
+                    <div className="flex items-center justify-between pb-1 pl-2">
+                        <span className="text-[13px] font-semibold text-text-primary">Chapters</span>
+                        <CloseButton onClick={() => setBinderOpen(false)} label="Close chapters" />
                     </div>
-
-                    <button
-                        aria-label="Close chapters"
-                        onClick={() => setBinderOpen(false)}
-                        className="flex-1 bg-black/25"
+                    <ManuscriptOutline
+                        nodes={binder}
+                        activeId={section?.id}
+                        tab={leftTab}
+                        onTab={(t) => (t === 'Notes' ? go('notes') : setLeftTab(t))}
+                        onSelect={(id) => {
+                            openSection(id);
+                            setBinderOpen(false);
+                        }}
+                        onAddChapter={addChapter}
+                        onImport={() => {
+                            setBinderOpen(false);
+                            setImporting(true);
+                        }}
+                        adding={adding}
                     />
-                </div>
+                </Dialog>
             )}
 
             {panelOpen && (
-                <div className="fixed inset-0 z-40 flex justify-end xl:hidden">
-                    <button
-                        aria-label="Close panel"
-                        onClick={() => setPanelOpen(false)}
-                        className="flex-1 bg-black/25"
-                    />
-                    <div className="h-full max-w-[92vw] bg-bg-surface shadow-popover">
+                <Dialog
+                    variant="drawer"
+                    side="right"
+                    label="AI Editor"
+                    onClose={() => setPanelOpen(false)}
+                    data-a="drawer:ai"
+                    className="flex h-full max-w-[92vw] flex-col bg-bg-surface shadow-popover xl:hidden"
+                >
+                    <div className="flex items-center justify-end border-b border-border-divider px-2 py-1">
+                        <CloseButton onClick={() => setPanelOpen(false)} label="Close AI Editor" />
+                    </div>
+                    <div className="flex min-h-0 flex-1">
                         <AIEditorPanel {...panelProps} />
                     </div>
-                </div>
+                </Dialog>
             )}
 
             {importing && (
@@ -743,7 +800,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             {toast && (
                 <div
                     role="status"
-                    className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-control bg-text-primary px-4 py-2.5 text-[12.5px] font-medium text-white shadow-popover"
+                    className="fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 rounded-control bg-bg-inverse px-4 py-2.5 text-[12.5px] font-medium text-text-inverse shadow-popover"
                 >
                     {toast}
                 </div>
@@ -755,9 +812,9 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 function Panel({ children }) {
     // min-h-0 flex-1 rather than h-full: main is a flex column now that the
     // credit strip sits above the panes, and h-full in a flex child measures
-    // against the wrong box.
+    // against the wrong box. Focusable so a keyboard can scroll it.
     return (
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-panel border border-border-default bg-bg-surface">
+        <div tabIndex={0} className="min-h-0 flex-1 overflow-y-auto rounded-panel border border-border-default bg-bg-surface">
             {children}
         </div>
     );
@@ -774,7 +831,7 @@ function NotBuilt({ title, what, milestone }) {
                 <p className="mt-4 inline-block rounded-badge bg-bg-subtle px-3 py-1 text-[11.5px] font-semibold text-text-secondary">
                     Arrives in {milestone}
                 </p>
-                <p className="mt-4 text-[11px] leading-relaxed text-text-secondary/75">
+                <p className="mt-4 text-[11px] leading-relaxed text-text-secondary">
                     This screen is deliberately empty. Showing a mock-up here
                     would misrepresent what the application can do.
                 </p>

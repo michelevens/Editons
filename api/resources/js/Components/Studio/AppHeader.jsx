@@ -33,6 +33,25 @@ export const TOP_NAV = [
     { key: 'analytics', label: 'Analytics', ready: true },
 ];
 
+/**
+ * Move focus to the skip link's target: into its writing surface when it has
+ * one, so the next key typed lands in the manuscript, else the target itself.
+ */
+function skip(event, selector) {
+    const target = document.querySelector(selector);
+
+    if (!target) return;
+
+    event.preventDefault();
+
+    const into = target.querySelector('[contenteditable="true"]') ?? target;
+
+    if (!into.hasAttribute('tabindex') && into === target) into.setAttribute('tabindex', '-1');
+
+    into.focus();
+    into.scrollIntoView?.({ block: 'nearest' });
+}
+
 export default function AppHeader({
     active,
     bookId = null,
@@ -42,6 +61,9 @@ export default function AppHeader({
     onOpenChapter,
     user,
     account,
+    onMenu,
+    skipTo = '#main',
+    skipLabel = 'Skip to content',
 }) {
     const { recent_book_id: recentBookId } = usePage().props;
     const book = bookId ?? recentBookId ?? null;
@@ -104,6 +126,31 @@ export default function AppHeader({
 
     return (
         <header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-border-default bg-bg-surface px-3 sm:px-5">
+            {/* First stop for a keyboard: past the header and the sidebar
+                (about 40 Tab presses) straight to the page's work. */}
+            <a
+                href={skipTo}
+                onClick={(event) => skip(event, skipTo)}
+                data-a="skip"
+                className="sr-only rounded-control bg-brand-fill px-3 py-2 text-[13px] font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-2 focus:z-[60]"
+            >
+                {skipLabel}
+            </a>
+
+            {/* The book sidebar is a drawer below 1024px; this opens it on
+                every page that has one, not only the manuscript. */}
+            {onMenu && (
+                <button
+                    type="button"
+                    data-a="header:menu"
+                    onClick={onMenu}
+                    aria-label="Open menu"
+                    className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-control text-text-body transition hover:bg-bg-subtle lg:hidden"
+                >
+                    <Icon name="menu" size={20} />
+                </button>
+            )}
+
             {/*
               * The brand mark, from ecrivain-brand-assets. The symbol is the
               * packaged SVG rather than the icon set's `lib` glyph, so the
@@ -138,7 +185,7 @@ export default function AppHeader({
               * where the book sidebar becomes a drawer.
               */}
             <nav
-                className="ml-6 hidden min-w-0 shrink items-center gap-5 lg:flex xl:ml-[46px] xl:gap-[34px]"
+                className="ml-4 hidden min-w-0 shrink items-center gap-4 lg:flex xl:ml-[46px] xl:gap-[34px]"
                 aria-label="Main"
             >
                 {TOP_NAV.map((item) => {
@@ -156,7 +203,7 @@ export default function AppHeader({
                                     ? 'font-semibold text-brand-primary'
                                     : item.ready
                                       ? 'text-text-body hover:text-text-primary'
-                                      : 'text-text-secondary/60'
+                                      : 'text-text-secondary'
                             }`}
                         >
                             {item.label}
@@ -164,22 +211,30 @@ export default function AppHeader({
                                 <span className="ml-1 align-super text-[9px]">•</span>
                             )}
                             {isActive && (
-                                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t bg-brand-primary" />
+                                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t bg-brand-fill" />
                             )}
                         </button>
                     );
                 })}
             </nav>
 
-            <div className="ml-auto flex items-center gap-3.5">
+            <div className="ml-auto flex shrink-0 items-center gap-3.5">
+                {/*
+                  * Icon-only below 1280px. At full width between 1024 and
+                  * about 1115px the nav ran under it and "Analytics" was
+                  * printed over "Search...". On a phone it is the one way to
+                  * every area of the studio, so it is shown there too.
+                  */}
                 <button
                     data-a="palette:open"
                     onClick={() => setPalette(true)}
-                    className="hidden h-[33px] w-[206px] items-center gap-2 rounded-control border border-border-input px-2.5 text-left text-[12.5px] text-text-secondary transition hover:border-brand-primary/40 sm:flex"
+                    aria-label="Search (Ctrl+K)"
+                    aria-keyshortcuts="Control+K Meta+K"
+                    className="flex h-[33px] w-[33px] items-center justify-center gap-2 rounded-control border border-border-input text-left text-[12.5px] text-text-secondary transition hover:border-brand-primary/40 xl:w-[206px] xl:justify-start xl:px-2.5"
                 >
                     <Icon name="search" size={15} />
-                    <span className="flex-1">Search...</span>
-                    <kbd className="font-sans text-[11px] text-text-secondary/80">
+                    <span className="hidden flex-1 xl:inline" aria-hidden="true">Search...</span>
+                    <kbd className="hidden font-sans text-[11px] text-text-secondary xl:inline" aria-hidden="true">
                         ⌘ K
                     </kbd>
                 </button>

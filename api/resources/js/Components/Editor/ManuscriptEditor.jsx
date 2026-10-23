@@ -93,7 +93,7 @@ async function putContent(id, json, reason, keepalive) {
     return data;
 }
 
-export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, ref }) {
+export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, headerActions = null, ref }) {
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
     // The equation being written or edited: {kind, latex, pos} or null.
@@ -260,7 +260,10 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
             },
             editorProps: {
                 attributes: {
-                    class: 'prose prose-slate max-w-none focus:outline-none min-h-[60vh] px-2 py-4',
+                    class: 'prose prose-slate dark:prose-invert max-w-none focus:outline-none min-h-[60vh] px-2 py-4',
+                    // A screen reader announced an unnamed edit box.
+                    'aria-label': `${section?.title ?? 'Chapter'}, manuscript`,
+                    'aria-multiline': 'true',
                 },
             },
             // Tiptap 3 renders on the client only; without this React warns
@@ -426,6 +429,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                     {words.toLocaleString()} words
                 </span>
                 <SaveStatus status={status} />
+                {headerActions}
             </header>
 
             <Toolbar

@@ -1,8 +1,9 @@
 import AppHeader from '@/Components/Studio/AppHeader';
-import BookSidebar from '@/Components/Studio/BookSidebar';
 import Icon from '@/Components/Studio/Icon';
 import { goTo } from '@/Components/Studio/navigation';
+import StudioSidebar from '@/Components/Studio/StudioSidebar';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useCallback, useState } from 'react';
 
 /**
  * The book's home screen.
@@ -15,6 +16,8 @@ export default function Overview({ book, stats, checklist }) {
     const { auth } = usePage().props;
 
     const open = (key) => goTo(book.id, key);
+    const [menu, setMenu] = useState(false);
+    const closeMenu = useCallback(() => setMenu(false), []);
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
@@ -25,10 +28,15 @@ export default function Overview({ book, stats, checklist }) {
                 user={auth?.user}
                 account={auth?.account}
                 bookId={book.id}
+                onMenu={() => setMenu(true)}
             />
 
             <div className="flex min-h-0 flex-1">
-                <BookSidebar
+                <StudioSidebar
+                    open={menu}
+                    onClose={closeMenu}
+                    activeNav="writing"
+                    onSelectNav={(item) => open(item.key)}
                     book={book}
                     active="overview"
                     onSelect={(item) =>
@@ -36,11 +44,11 @@ export default function Overview({ book, stats, checklist }) {
                     }
                 />
 
-                <main className="min-w-0 flex-1 overflow-y-auto">
-                    <div className="mx-auto max-w-[1040px] px-8 py-9">
+                <main id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
+                    <div className="mx-auto max-w-[1040px] px-4 py-6 sm:px-8 sm:py-9">
                         <header className="flex flex-wrap items-start justify-between gap-5">
                             <div className="min-w-0">
-                                <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
+                                <h1 className="break-words font-display text-[26px] font-extrabold tracking-[-0.03em] text-text-primary sm:text-[30px]">
                                     {book.title}
                                 </h1>
                                 {book.subtitle && (
@@ -54,7 +62,7 @@ export default function Overview({ book, stats, checklist }) {
                                 </p>
                             </div>
 
-                            <div className="flex shrink-0 items-center gap-2.5">
+                            <div className="flex flex-wrap items-center gap-2.5">
                                 {/*
                                  * The guided view of the same book: the
                                  * stages, and one thing to do next. Offered
@@ -75,7 +83,7 @@ export default function Overview({ book, stats, checklist }) {
                                 <button
                                     data-a="overview:open-manuscript"
                                     onClick={() => open('manuscript')}
-                                    className="flex h-[40px] items-center gap-2 rounded-control bg-brand-primary px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover"
+                                    className="flex h-[40px] items-center gap-2 rounded-control bg-brand-fill px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover"
                                 >
                                     Open manuscript
                                     <Icon name="right" size={16} strokeWidth={2.2} />
@@ -188,7 +196,7 @@ function WordTarget({ book, stats }) {
 
                     <div className="mt-3.5 h-2 overflow-hidden rounded-full bg-bg-subtle">
                         <div
-                            className="h-full rounded-full bg-brand-primary transition-[width]"
+                            className="h-full rounded-full bg-brand-fill transition-[width]"
                             style={{ width: `${pct}%` }}
                         />
                     </div>
@@ -224,7 +232,7 @@ function WordTarget({ book, stats }) {
                 <button
                     disabled={processing}
                     data-a="overview:target:save"
-                    className="h-[38px] shrink-0 rounded-control bg-text-primary px-3.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                    className="h-[38px] shrink-0 rounded-control bg-bg-inverse px-3.5 text-[13px] font-semibold text-text-inverse transition hover:opacity-90 disabled:opacity-60"
                 >
                     {target ? 'Update' : 'Set target'}
                 </button>
