@@ -282,6 +282,8 @@ class Exporter
             ->orderBy('position')
             ->get()
             ->reject(fn (ManuscriptSection $section) => $section->isContainer())
+            // The book as it stands: pending suggestions read as rejected.
+            ->map(fn (ManuscriptSection $section) => $section->asPublished())
             // Generated lists are empty in the binder and full in the book.
             ->filter(fn (ManuscriptSection $section) => Numbering::listKind($section) !== null || trim($section->plainText()) !== '')
             ->values();
@@ -306,7 +308,9 @@ class Exporter
      */
     private function structure(Book $book)
     {
-        $sections = $book->sections()->get()->keyBy('id');
+        $sections = $book->sections()->get()
+            ->map(fn (ManuscriptSection $section) => $section->asPublished())
+            ->keyBy('id');
 
         return collect(Anatomy::plan($book)['pages'])
             ->filter(fn (array $page) => $page['section_id'] !== null && $page['state'] !== 'placeholder')
