@@ -674,9 +674,6 @@ accounts.
 
 ## ADR-0020 — Book anatomy
 
-*Number to be assigned at merge: ADR-0019 is the last on this branch's
-base, and parallel branches may add others first.*
-
 **Context.** A book has conventional parts — half title, title and
 copyright pages, dedication, contents, foreword, preface, epilogue,
 appendixes, glossary, index, colophon — in a conventional order with
