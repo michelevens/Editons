@@ -177,7 +177,7 @@ it('leaves bridges between papers unnumbered in print', function () {
     }
 
     $plan = (new ReflectionMethod(PrintBook::class, 'plan'))
-        ->invoke(app(PrintBook::class), $book->sections()->orderBy('position')->get(), 'en');
+        ->invoke(app(PrintBook::class), $book, $book->sections()->orderBy('position')->get(), 'en');
 
     $chapters = collect($plan['blocks'])->where('kind', 'chapter')->pluck('number', 'title')->all();
 

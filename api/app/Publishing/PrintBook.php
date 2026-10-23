@@ -12,6 +12,7 @@ use Dompdf\Frame;
 use Dompdf\Options;
 use FontLib\Font;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Vanderlee\Syllable\Hyphen\Text;
 use Vanderlee\Syllable\Syllable;
@@ -19,12 +20,21 @@ use Vanderlee\Syllable\Syllable;
 /**
  * The printed book: a typeset interior, as HTML and as a PDF.
  *
- * Laid out the way a trade book is. A half-title, a title page, a copyright
- * page, the dedication, and a contents page that carries page numbers. Every
- * part opens on a right-hand page with a blank verso behind it; chapters open
- * with sinkage, a label, an ornament and small-capped opening words. Running
- * heads carry the book title on the verso and the chapter on the recto, and
- * folios count from the first page of the text, not the title page.
+ * Laid out the way a trade book is, in the order and with the page treatment
+ * the book's anatomy gives (Anatomy::plan, ADR-0020): a half title, the
+ * series page when there is something to list, the title page, a copyright
+ * page from the book's publishing metadata, the dedication, a contents page
+ * that carries page numbers, then the author's front matter, text and back
+ * matter. Pages that must open on a recto (or, like the copyright page, on
+ * a verso) get a blank before them when needed; every part opens on a
+ * right-hand page with a blank verso behind it; chapters open with sinkage,
+ * a label, an ornament and small-capped opening words. Running heads carry
+ * the book title on the verso and the chapter on the recto. Folios are
+ * lower-case roman through the front matter, arabic from 1 at the first
+ * page of the text; display pages count but print none.
+ *
+ * The reading PDF opens with the front cover, full bleed, and closes with
+ * the back cover when there is one; the print-ready interior has neither.
  *
  * The PDF is rendered twice. The first pass measures where every section
  * lands; the second inserts the blank pages that put parts on the recto and
@@ -101,17 +111,22 @@ class PrintBook
      */
     public function html(Book $book, Collection $sections, string $language): string
     {
-        return $this->document($book, $this->plan($sections, $language));
+        return $this->document($book, $this->plan($book, $sections, $language));
     }
 
     /**
      * A PDF of the book.
      *
+     * $cover makes it the reading PDF: the front cover full bleed as page 1
+     * and the back cover, when the book has one, as the last page. Without
+     * it this is the print-ready interior, which a printer binds inside a
+     * separately supplied cover, so its page i is the half title.
+     *
      * @param  Collection<int, ManuscriptSection>  $sections
      */
-    public function pdf(Book $book, Collection $sections, string $language): string
+    public function pdf(Book $book, Collection $sections, string $language, bool $cover = false): string
     {
-        return $this->typeset($book, $sections, $language)['pdf'];
+        return $this->typeset($book, $sections, $language, $cover)['pdf'];
     }
 
     /**
@@ -121,11 +136,11 @@ class PrintBook
      * @param  Collection<int, ManuscriptSection>  $sections
      * @return array{pdf: string, pages: int, blocks: array<int, array<string, mixed>>, landed: array<string, int>}
      */
-    public function typeset(Book $book, Collection $sections, string $language): array
+    public function typeset(Book $book, Collection $sections, string $language, bool $cover = false): array
     {
-        $plan = $this->plan($sections, $language);
-
         try {
+            $plan = $this->plan($book, $sections, $language, $cover ? $this->coverFiles($book) : []);
+
             // Pass one: where does every page-starting block land?
             [, $starts, $total] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor, dompdf: true));
 
@@ -177,7 +192,7 @@ class PrintBook
             $back = in_array($block['section']->type ?? null, ['front_matter', 'back_matter'], true);
 
             $entries[] = [
-                'title' => $block['kind'] === 'contents' ? $plan['words']['contents'] : (string) $block['section']->title,
+                'title' => $block['kind'] === 'contents' ? (string) ($block['title'] ?? $plan['words']['contents']) : (string) $block['section']->title,
                 'page' => $page,
                 'level' => $inPart && $block['kind'] !== 'part' && ! $back ? 1 : 0,
             ];
@@ -189,68 +204,124 @@ class PrintBook
     /** The image folders made by render() for the book being typeset. @var array<int, string> */
     private array $tempDirs = [];
 
-    /**
-     * The book as an ordered list of page-starting blocks.
-     *
-     * @param  Collection<int, ManuscriptSection>  $sections
-     * @return array{blocks: array<int, array<string, mixed>>, words: array<string, string>, language: string}
-     */
     /** The book's numbering, from the sections being typeset. */
     private ?array $numbering = null;
 
-    private function plan(Collection $sections, string $language): array
+    /**
+     * The book as an ordered list of page-starting blocks.
+     *
+     * The order and the treatment of every page come from the book's
+     * anatomy (Anatomy::plan): the generated half title, series page, title
+     * page, copyright page and contents, then the author's parts in binder
+     * order. A section that is empty, or still holds a template's guidance,
+     * is never printed. $sections narrows which of the author's sections
+     * print; the generated pages always do.
+     *
+     * @param  Collection<int, ManuscriptSection>  $sections
+     * @param  array{front?: string, back?: string}  $covers  cover images, for the reading PDF
+     * @return array{blocks: array<int, array<string, mixed>>, words: array<string, string>, language: string}
+     */
+    private function plan(Book $book, Collection $sections, string $language, array $covers = []): array
     {
+        $anatomy = Anatomy::plan($book);
+        $wanted = $sections->keyBy('id');
+        $all = null;
+        $pages = [];
+
+        foreach ($anatomy['pages'] as $page) {
+            $section = null;
+
+            if ($page['section_id'] !== null) {
+                $section = $wanted->get($page['section_id']);
+
+                // A placed Contents or list section prints even when the
+                // caller left it out for having no text of its own.
+                if (! $section && $page['source'] === 'generated') {
+                    $all ??= $book->sections()->get()->keyBy('id');
+                    $section = $all->get($page['section_id']);
+                }
+
+                if (! $section || in_array($page['state'], ['empty', 'placeholder'], true)) {
+                    continue;
+                }
+            }
+
+            $pages[] = $page + ['model' => $section];
+        }
+
         // Captions, equations and cross-references number from the same
-        // sections the pages are planned from.
-        $this->numbering = Numbering::forBook($sections);
+        // sections, in the same order, as the pages.
+        $ordered = collect($pages)->pluck('model')->filter()->values();
+        $this->numbering = Numbering::forBook($ordered);
+
+        // The first arabic page restarts the count at 1. Recomputed here,
+        // since the page the anatomy marked may be an empty one left out.
+        $restart = collect($pages)->search(fn ($p) => $p['folio'] === 'arabic');
 
         $words = self::words($language);
         $blocks = [];
 
-        $add = function (string $kind, array $extra = []) use (&$blocks): void {
+        $add = function (string $kind, array $page, array $extra = []) use (&$blocks): void {
             // $extra first: in a PHP array union the left-hand keys win.
-            $blocks[] = ['id' => 'b'.count($blocks), 'kind' => $kind] + $extra
-                + ['recto' => false, 'running' => null, 'folio' => false, 'blankBefore' => false];
+            $blocks[] = ['id' => 'b'.count($blocks), 'kind' => $kind] + $extra + [
+                'part' => $page['part'] ?? null,
+                'source' => $page['source'] ?? 'generated',
+                'start' => $page['start'] ?? 'any',
+                'roman' => false,
+                'restart' => false,
+                'showFolio' => $page['show_folio'] ?? false,
+                'runningHead' => $page['running_head'] ?? false,
+                'running' => null,
+                'title' => $page['title'] ?? null,
+                'data' => $page['data'] ?? null,
+                'section' => null,
+                'number' => null,
+                'label' => null,
+                'toc' => false,
+                'page' => null,
+                'blankBefore' => false,
+            ];
         };
 
-        $add('half-title', ['recto' => true]);
-        $add('title-page', ['recto' => true]);
-        $add('copyright');
-
-        $quiet = $sections->filter(fn ($s) => $this->isQuiet($s));
-
-        foreach ($quiet as $section) {
-            $add('dedication', ['section' => $section, 'recto' => true]);
+        if (isset($covers['front'])) {
+            $add('cover', [], ['image' => $covers['front']]);
         }
-
-        $add('contents', ['recto' => true]);
 
         $chapter = 0;
         $part = 0;
-        $first = true;
 
         // When the author numbers chapters in their titles ("Chapter 4:
         // Paper 2"), those numbers are the ones the text cross-refers to, and
         // a chapter without one (a bridge between papers, an interlude) is
         // deliberately unnumbered rather than the next in sequence.
-        $explicit = $sections->contains(fn ($s) => $s->type === 'chapter' && $this->statedNumber($s->title) !== null);
+        $explicit = $ordered->contains(fn ($s) => Numbering::takesNumber($s) && $this->statedNumber($s->title) !== null);
 
-        foreach ($sections as $section) {
-            if ($this->isQuiet($section)) {
+        foreach ($pages as $i => $page) {
+            $section = $page['model'];
+            $kind = $this->kindOf($page, $section);
+            $folio = [
+                'roman' => $restart === false || $i < $restart,
+                'restart' => $i === $restart,
+                // The text always opens on a recto.
+                'start' => $i === $restart ? 'recto' : $page['start'],
+            ];
+
+            if (in_array($kind, ['half-title', 'series', 'title-page', 'copyright', 'contents'], true)) {
+                $add($kind, $page, $folio + ['section' => $section]);
+
                 continue;
             }
 
-            $kind = match (true) {
-                $section->type === 'part' => 'part',
-                $section->type === 'chapter' => 'chapter',
-                $this->isReferences($section) => 'references',
-                default => 'matter',
-            };
+            // A display page (dedication, epigraph, frontispiece) has no
+            // folio and no running head, named or not.
+            $display = $kind === 'dedication' ? ['showFolio' => false, 'runningHead' => false] : [];
 
+            // Only a chapter the binder has not named as something else
+            // takes a number, the same test Numbering::prefixes applies, so
+            // a cross-reference to "Chapter 4" names the chapter printed so.
             $number = match (true) {
                 $kind === 'part' => ++$part,
-                // A bridge or interlude links chapters; it is not one.
-                $kind === 'chapter' && (bool) preg_match('/^\s*(bridge|interlude|linking chapter)\b/iu', $section->title) => null,
+                $kind === 'chapter' && ! Numbering::takesNumber($section) => null,
                 $kind === 'chapter' && $explicit => $this->statedNumber($section->title),
                 $kind === 'chapter' => ++$chapter,
                 default => null,
@@ -262,7 +333,7 @@ class PrintBook
             // what the label would, and set twice it reads as a stutter.
             $bare = (bool) preg_match('/^\s*(?:'.self::CHAPTER_WORDS.'|'.self::PART_WORDS.')\s+(?:\d+|[ivxlcdm]+)\s*$/iu', $title);
 
-            $add($kind, [
+            $add($kind, $page, $display + $folio + [
                 'section' => $section,
                 'number' => $number,
                 'title' => $title,
@@ -270,23 +341,89 @@ class PrintBook
                     : $words[$kind].' '.($language === 'en' || str_starts_with($language, 'en')
                         ? (self::NUMBERS[$number] ?? (string) $number)
                         : ($kind === 'part' ? $this->roman($number) : (string) $number)),
-                // The text opens on a recto, and so does every part.
-                'recto' => $first || $kind === 'part',
                 'running' => $title,
-                'folio' => true,
-                'body' => true,
-                'page' => null,
+                'toc' => $kind !== 'dedication',
             ]);
+        }
 
-            $first = false;
+        if (isset($covers['back'])) {
+            $add('back-cover', [], ['image' => $covers['back']]);
         }
 
         return ['blocks' => $blocks, 'words' => $words, 'language' => $language];
     }
 
+    /** What a page of the anatomy is drawn as. */
+    private function kindOf(array $page, ?ManuscriptSection $section): string
+    {
+        return match (true) {
+            $page['part'] === 'half_title' => 'half-title',
+            $page['part'] === 'series_page' => 'series',
+            $page['part'] === 'title_page' => 'title-page',
+            $page['part'] === 'copyright_page' => 'copyright',
+            $page['part'] === 'table_of_contents' => 'contents',
+            $section === null => 'matter',
+            $section->type === 'part' => 'part',
+            in_array($page['part'], ['dedication', 'epigraph', 'frontispiece'], true),
+            $page['part'] === null && $this->isQuiet($section) => 'dedication',
+            $section->type === 'chapter' => 'chapter',
+            $page['part'] === 'bibliography', $this->isReferences($section) => 'references',
+            default => 'matter',
+        };
+    }
+
+    /**
+     * The cover images for the reading PDF, as local files dompdf can draw:
+     * the rendered front cover (the uploaded finished artwork, or the one
+     * Cover Studio draws), and a back cover when one was uploaded. A cover
+     * that cannot be drawn leaves the PDF without it rather than failing.
+     *
+     * @return array{front?: string, back?: string}
+     */
+    private function coverFiles(Book $book): array
+    {
+        $this->tempDirs[] = $dir = storage_path('app/tmp/cover-'.Str::random(16));
+        @mkdir($dir, 0755, true);
+
+        $disk = Storage::disk('files');
+        $files = [];
+
+        try {
+            file_put_contents($dir.'/front.jpg', $disk->get(app(CoverRenderer::class)->ensure($book)));
+            $files['front'] = $dir.'/front.jpg';
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $back = ($book->cover ?? [])['back_artwork'] ?? null;
+
+        if (is_string($back) && $back !== '' && $disk->exists($back)) {
+            $bytes = (string) $disk->get($back);
+            $type = @getimagesizefromstring($bytes)[2] ?? null;
+            $extension = match ($type) {
+                IMAGETYPE_JPEG => 'jpg',
+                IMAGETYPE_PNG => 'png',
+                default => null,
+            };
+
+            if ($extension) {
+                file_put_contents($dir.'/back.'.$extension, $bytes);
+                $files['back'] = $dir.'/back.'.$extension;
+            }
+        }
+
+        return $files;
+    }
+
     /**
      * From pass one's measurements, decide the blank pages and the page
      * numbers. A block's length is fixed, since every block starts a page.
+     *
+     * Recto and verso count from the half title: the cover of the reading
+     * PDF is not a page of the book. A page that must open on a recto
+     * (`start` recto, or anything after a part, whose verso stays blank)
+     * and would fall on a verso gets a blank before it; a verso page (the
+     * copyright page, the series page) that would fall on a recto likewise.
      *
      * @param  array<string, int>  $starts
      */
@@ -294,6 +431,7 @@ class PrintBook
     {
         $blocks = &$plan['blocks'];
         $count = count($blocks);
+        $offset = ($blocks[0]['kind'] ?? null) === 'cover' ? 1 : 0;
         $physical = 1;
         $previousKind = null;
 
@@ -302,10 +440,10 @@ class PrintBook
             $next = $i + 1 < $count ? ($starts[$blocks[$i + 1]['id']] ?? $total + 1) : $total + 1;
             $length = max(1, $next - ($starts[$id] ?? $next - 1));
 
-            // A part stands alone: the page behind it stays blank, so what
-            // follows also opens on a recto.
-            $wantsRecto = $blocks[$i]['recto'] || $previousKind === 'part';
-            $blocks[$i]['blankBefore'] = $wantsRecto && $physical % 2 === 0;
+            $recto = ($physical - $offset) % 2 === 1;
+            $wants = $previousKind === 'part' ? 'recto' : $blocks[$i]['start'];
+            $blocks[$i]['blankBefore'] = ! in_array($blocks[$i]['kind'], ['cover', 'back-cover'], true)
+                && (($wants === 'recto' && ! $recto) || ($wants === 'verso' && $recto));
             $physical += $blocks[$i]['blankBefore'] ? 1 : 0;
 
             $blocks[$i]['physical'] = $physical;
@@ -313,13 +451,11 @@ class PrintBook
             $previousKind = $blocks[$i]['kind'];
         }
 
-        $bodyStart = collect($blocks)->first(fn ($b) => $b['body'] ?? false)['physical'] ?? 1;
-        $plan['bodyStart'] = $bodyStart;
+        $plan['offset'] = $offset;
+        $plan['restartAt'] = collect($blocks)->firstWhere('restart', true)['physical'] ?? null;
 
         foreach ($blocks as &$block) {
-            if ($block['body'] ?? false) {
-                $block['page'] = $block['physical'] - $bodyStart + 1;
-            }
+            $block['page'] = in_array($block['kind'], ['cover', 'back-cover'], true) ? null : $this->folio($plan, $block['physical']);
         }
         unset($block);
 
@@ -337,9 +473,23 @@ class PrintBook
         foreach ($starts as $key => $page) {
             if (preg_match('/^cap-(\d+)-\d+$/', $key, $m) && isset($bySection[(int) $m[1]])) {
                 $block = $bySection[(int) $m[1]];
-                $plan['captionPages'][$key] = $block['physical'] + ($page - ($starts[$block['id']] ?? $page)) - $bodyStart + 1;
+                $plan['captionPages'][$key] = $this->folio($plan, $block['physical'] + ($page - ($starts[$block['id']] ?? $page)));
             }
         }
+    }
+
+    /**
+     * The folio printed on a physical page: lower-case roman through the
+     * front matter, counted from the half title, then arabic from 1 at the
+     * first page of the text.
+     */
+    private function folio(array $plan, int $physical): string
+    {
+        $restart = $plan['restartAt'] ?? null;
+
+        return $restart !== null && $physical >= $restart
+            ? (string) ($physical - $restart + 1)
+            : strtolower($this->roman(max(1, $physical - ($plan['offset'] ?? 0))));
     }
 
     /** A list of tables or figures, set like the contents, with pages. */
@@ -464,37 +614,52 @@ class PrintBook
             }
         }
 
-        // A part page is a display page, and display pages carry no folio.
-        if ($current === null || ! $current['folio'] || $current['kind'] === 'part'
-            || $page < ($plan['bodyStart'] ?? 1)) {
-            return;
-        }
-
-        // A blank verso inside the text sits before the block that starts
-        // on the next page, and is attributed to the one before; either way
-        // it has no block starting on it and no content, so skip it.
-        if ($this->isBlank($page, $starts, $plan)) {
+        if ($current === null) {
             return;
         }
 
         $layout = $book->layout();
-        $family = $layout['font'] === 'sans' ? self::SANS : self::SERIF;
-        $font = $metrics->getFont($family, 'normal');
-        $italic = $metrics->getFont($family, 'italic');
         [$width, $height] = $this->trim($layout['trim']);
         $w = $width * 72;
         $h = $height * 72;
-        $grey = [0.33, 0.33, 0.33];
 
-        $folio = (string) ($page - $plan['bodyStart'] + 1);
-        $size = 8.5;
-        $canvas->text(($w - $metrics->getTextWidth($folio, $font, $size)) / 2, $h - 0.62 * 72, $folio, $font, $size, $grey);
+        // The cover, full bleed: drawn over the whole page, margins and all.
+        if (in_array($current['kind'], ['cover', 'back-cover'], true)) {
+            if ($opens) {
+                $this->drawCover($canvas, $current['image'], $w, $h);
+            }
 
-        if ($opens || ! $layout['headers']) {
             return;
         }
 
-        if ($page % 2 === 0) {
+        // Display pages (half title, title, copyright, dedication, part
+        // openers) count but carry no folio: a blind folio.
+        if (! $current['showFolio']) {
+            return;
+        }
+
+        // A blank page sits before the block that starts on the next page,
+        // and is attributed to the one before; either way it has no block
+        // starting on it and no content, so skip it.
+        if ($this->isBlank($page, $starts, $plan)) {
+            return;
+        }
+
+        $family = $layout['font'] === 'sans' ? self::SANS : self::SERIF;
+        $font = $metrics->getFont($family, 'normal');
+        $italic = $metrics->getFont($family, 'italic');
+        $grey = [0.33, 0.33, 0.33];
+
+        $folio = $this->folio($plan, $page);
+        $size = 8.5;
+        $canvas->text(($w - $metrics->getTextWidth($folio, $font, $size)) / 2, $h - 0.62 * 72, $folio, $font, $size, $grey);
+
+        if ($opens || ! $layout['headers'] || ! $current['runningHead']) {
+            return;
+        }
+
+        // Verso and recto count from the half title, not the cover.
+        if (($page - ($plan['offset'] ?? 0)) % 2 === 0) {
             // Verso: the book, in spaced capitals.
             $text = mb_strtoupper($book->title);
             $size = 7.2;
@@ -527,6 +692,22 @@ class PrintBook
         }
 
         return false;
+    }
+
+    /**
+     * A cover image scaled to fill the trim and centred; what overhangs
+     * the page is cropped by the page edge, never distorted.
+     */
+    private function drawCover(Canvas $canvas, string $file, float $w, float $h): void
+    {
+        $size = @getimagesize($file);
+
+        if (! $size || $size[0] <= 0 || $size[1] <= 0) {
+            return;
+        }
+
+        $scale = max($w / $size[0], $h / $size[1]);
+        $canvas->image($file, ($w - $size[0] * $scale) / 2, ($h - $size[1] * $scale) / 2, $size[0] * $scale, $size[1] * $scale);
     }
 
     /** Shorten a running head that would not fit the measure. */
@@ -734,25 +915,45 @@ class PrintBook
 
     private function block(Book $book, array $block, array $plan): string
     {
-        $open = fn (string $class) => '<section class="'.$class.'" data-block="'.$block['id'].'">';
+        // The first page needs no break before it: the cover, or the half
+        // title of an interior.
+        $first = $block['id'] === 'b0' ? ' first' : '';
+        $open = fn (string $class) => '<section class="'.$class.$first.'" data-block="'.$block['id'].'">';
+        $data = $block['data'] ?? [];
+        $section = $block['section'];
 
         return match ($block['kind']) {
-            'half-title' => $open('half-title').'<p class="half-title-text">'.e($book->title).'</p></section>',
+            // Drawn full bleed onto the page by decorate(); the section only
+            // holds the page.
+            'cover', 'back-cover' => $open('cover').'<p>&#160;</p></section>',
 
-            'title-page' => $open('title-page')
-                .'<h1 class="tp-title">'.$this->balanced($book->title).'</h1>'
-                .($book->subtitle ? '<p class="tp-subtitle">'.e($book->subtitle).'</p>' : '')
-                .'<p class="tp-ornament">&#x2766;</p>'
-                .($book->author_name ? '<p class="tp-author">'.e($book->author_name).'</p>' : '')
-                .'</section>',
+            // Title only: no subtitle, no author.
+            'half-title' => $open('half-title').'<p class="half-title-text">'.e($data['title'] ?? $book->title).'</p></section>',
 
-            'copyright' => $open('copyright').$this->copyright($book, $plan['words']).'</section>',
+            'series' => $open('series-page').'<div class="series-text">'
+                .($data === [] && $section
+                    // The author wrote their own "Also by" page.
+                    ? $this->renderer->withMath('svg')->withNumbering($this->numbering)->html($section)
+                    : $this->seriesPage($data))
+                .'</div></section>',
+
+            'title-page' => $open('title-page').$this->titlePage($book, $data).'</section>',
+
+            // The notice sits low on its page, unless there is too much of it
+            // (a long disclaimer) to fit below the sinkage.
+            'copyright' => $open('copyright').'<div class="copyright-text'
+                .(mb_strlen(implode(' ', array_column($data['lines'] ?? [], 'text'))) > 600 || ($section && $block['source'] === 'author') ? ' copyright-long' : '').'">'
+                .($section && $block['source'] === 'author'
+                    // A hand-written copyright page takes the generated one's place.
+                    ? $this->renderer->withMath('svg')->withNumbering($this->numbering)->html($section)
+                    : $this->copyright($book, $data['lines'] ?? Anatomy::copyrightLines($book), $plan['words']))
+                .'</div></section>',
 
             'dedication' => $open('dedication')
-                .'<div class="dedication-text">'.$this->renderer->withMath('svg')->withNumbering($this->numbering)->html($block['section']).'</div></section>',
+                .'<div class="dedication-text">'.$this->renderer->withMath('svg')->withNumbering($this->numbering)->html($section).'</div></section>',
 
             'contents' => $open('contents')
-                .'<div class="opener opener-quiet"><h1 class="opener-title">'.e($plan['words']['contents']).'</h1>'
+                .'<div class="opener opener-quiet"><h1 class="opener-title">'.e($block['title'] ?? $plan['words']['contents']).'</h1>'
                 .'<div class="rule"></div></div>'
                 .$this->contents($plan).'</section>',
 
@@ -763,15 +964,52 @@ class PrintBook
                 .'</section>',
 
             default => $open($block['kind'])
-                .'<div class="opener" id="section-'.$block['section']->id.'">'
+                .'<div class="opener" id="section-'.$section->id.'">'
                 .($block['label'] ? '<p class="opener-label">'.e($block['label']).'</p>' : '')
                 .'<h1 class="opener-title">'.e($block['title']).'</h1>'
                 .'<div class="rule"></div></div>'
-                .'<div class="text">'.(($list = Numbering::listKind($block['section']))
+                .'<div class="text">'.(($list = Numbering::listKind($section))
                     ? $this->captionList($list, $plan)
-                    : $this->prose($book, $block['section'], $plan['language'], lead: $block['kind'] !== 'references')).'</div>'
+                    : $this->prose($book, $section, $plan['language'], lead: $block['kind'] !== 'references')).'</div>'
                 .'</section>',
         };
+    }
+
+    /**
+     * The title page, from the anatomy's data: title, subtitle, author and
+     * publisher. An anonymous book prints nothing where the author would be.
+     */
+    private function titlePage(Book $book, array $data): string
+    {
+        $data += ['title' => $book->title, 'subtitle' => $book->subtitle, 'author' => $book->author_name ?: null,
+            'publisher' => null, 'imprint' => null, 'place' => null];
+
+        $publisher = trim((string) ($data['imprint'] ?: $data['publisher']));
+
+        return '<h1 class="tp-title">'.$this->balanced((string) $data['title']).'</h1>'
+            .($data['subtitle'] ? '<p class="tp-subtitle">'.e($data['subtitle']).'</p>' : '')
+            .'<p class="tp-ornament">&#x2766;</p>'
+            .($data['author'] ? '<p class="tp-author">'.e($data['author']).'</p>' : '')
+            .($publisher !== '' ? '<p class="tp-publisher">'.e($publisher).'</p>' : '')
+            .(trim((string) $data['place']) !== '' ? '<p class="tp-place">'.e($data['place']).'</p>' : '');
+    }
+
+    /** "Dans la même collection" or "Also by": the other books, in order. */
+    private function seriesPage(array $data): string
+    {
+        $html = '<p class="series-heading">'.e($data['heading'] ?? '').'</p>';
+
+        if (($data['kind'] ?? '') === 'series' && trim((string) ($data['series'] ?? '')) !== '') {
+            $html .= '<p class="series-name">'.e($data['series']).'</p>';
+        }
+
+        foreach ($data['books'] ?? [] as $other) {
+            $html .= '<p class="series-book">'
+                .($other['number'] ? '<span class="series-number">'.e((string) $other['number']).'.</span> ' : '')
+                .e($other['title']).'</p>';
+        }
+
+        return $html;
     }
 
     /**
@@ -892,24 +1130,27 @@ class PrintBook
         ) ?? $html;
     }
 
-    private function copyright(Book $book, array $words): string
+    /**
+     * The copyright page: Anatomy::copyrightLines, one paragraph each, in
+     * order, then the colophon note naming the face. Nothing is filled in
+     * that the book does not say: no current year, no default publisher.
+     *
+     * @param  list<array{key: string, text: string}>  $lines
+     */
+    private function copyright(Book $book, array $lines, array $words): string
     {
-        $year = $book->launch_date?->format('Y') ?? now()->format('Y');
         $family = $book->layout()['font'] === 'sans' ? self::SANS : self::SERIF;
+        $html = '';
 
-        $lines = ['<p>'.e($book->title).($book->subtitle ? '<br />'.e($book->subtitle) : '').'</p>'];
-
-        if ($book->author_name) {
-            $lines[] = '<p>Copyright &#169; '.e($year).' '.e($book->author_name).'<br />'.e($words['rights']).'</p>';
+        foreach ($lines as $line) {
+            // A disclaimer or a rights statement can run to several
+            // paragraphs, separated by a blank line.
+            foreach (preg_split('/\R[ \t]*\R/', trim($line['text'])) as $paragraph) {
+                $html .= '<p class="cr-'.e($line['key']).'">'.nl2br(e(trim($paragraph))).'</p>';
+            }
         }
 
-        if ($book->isbn) {
-            $lines[] = '<p>ISBN '.e($book->isbn).'</p>';
-        }
-
-        $lines[] = '<p>'.e(sprintf($words['set'], $family)).'</p>';
-
-        return '<div class="copyright-text">'.implode('', $lines).'</div>';
+        return $html.'<p class="cr-set">'.e(sprintf($words['set'], $family)).'</p>';
     }
 
     /** The contents, as a table, so numbers align on the right. */
@@ -918,7 +1159,7 @@ class PrintBook
         $rows = '';
 
         foreach ($plan['blocks'] as $block) {
-            if (! ($block['body'] ?? false)) {
+            if (! $block['toc']) {
                 continue;
             }
 
@@ -968,7 +1209,7 @@ class PrintBook
         body { margin: 0; padding: 0; font-family: {$family}; font-size: {$size}pt; line-height: {$lh($leading)}; color: #1b1b1b; }
 
         section { page-break-before: always; }
-        section.half-title { page-break-before: avoid; }
+        section.first { page-break-before: avoid; }
         .blank { page-break-before: always; height: 1pt; }
 
         /* A run with no break in it (an answer line of underscores, a long
@@ -987,8 +1228,19 @@ class PrintBook
         .tp-subtitle { text-align: center; text-indent: 0; font-style: italic; font-size: 1.18em; line-height: {$lh(1.35)}; margin: 0 0 0; }
         .tp-ornament { text-align: center; text-indent: 0; font-size: 1.5em; color: #6d6d6d; margin: 1.3em 0 1.3em; }
         .tp-author { text-align: center; text-indent: 0; font-size: .95em; letter-spacing: .26em; text-transform: uppercase; }
+        .tp-publisher { text-align: center; text-indent: 0; margin: 2.1in 0 0; font-size: .82em; letter-spacing: .22em; text-transform: uppercase; }
+        .tp-place { text-align: center; text-indent: 0; font-size: .8em; font-style: italic; margin: .3em 0 0; }
+
+        .series-text { padding-top: 1.1in; text-align: center; }
+        .series-text p { text-align: center; text-indent: 0; }
+        .series-heading { font-size: .78em; letter-spacing: .24em; text-transform: uppercase; margin: 0 0 .6em; }
+        .series-name { font-style: italic; font-size: .9em; margin: 0 0 1.4em; }
+        .series-book { font-size: .9em; margin: 0 0 .45em; }
+        .series-number { color: #6d6d6d; }
 
         .copyright-text { padding-top: {$low}in; font-size: .74em; line-height: {$lh(1.55)}; }
+        .copyright-long { padding-top: 0; font-size: .7em; }
+        .copyright-long p { margin: 0 0 .6em; }
         .copyright-text p { text-indent: 0; text-align: left; margin: 0 0 .9em; }
 
         .dedication-text { padding-top: 1.6in; text-align: center; font-style: italic; }

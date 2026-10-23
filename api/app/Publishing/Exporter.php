@@ -298,15 +298,22 @@ class Exporter
      *
      * A part survives here as a title with no body — a part-title page,
      * which is what it is in a printed book.
+     *
+     * In the book's order (Anatomy::plan: the binder walked as a tree, a
+     * part then its chapters), so every format and the numbering read the
+     * sections in the order print sets them. A section still holding a
+     * template's guidance is never exported.
      */
     private function structure(Book $book)
     {
-        return $book->sections()
-            ->orderBy('position')
-            ->get()
-            ->filter(fn (ManuscriptSection $s) => $s->type === 'part'
+        $sections = $book->sections()->get()->keyBy('id');
+
+        return collect(Anatomy::plan($book)['pages'])
+            ->filter(fn (array $page) => $page['section_id'] !== null && $page['state'] !== 'placeholder')
+            ->map(fn (array $page) => $sections->get($page['section_id']))
+            ->filter(fn (?ManuscriptSection $s) => $s && ($s->type === 'part'
                 || Numbering::listKind($s) !== null
-                || trim($s->plainText()) !== '')
+                || trim($s->plainText()) !== ''))
             ->values();
     }
 
@@ -449,7 +456,9 @@ class Exporter
             $parts[] = "by {$book->author_name}";
         }
 
-        foreach ($sections as $section) {
+        // In the book's order, without template guidance; parts are
+        // containers with no prose of their own.
+        foreach ($this->structure($book)->reject(fn (ManuscriptSection $s) => $s->isContainer()) as $section) {
             // Same reason as the HTML exports: skip the title when the prose
             // already opens with one, rather than printing it twice.
             if (! $this->opensWithHeading($section)) {
@@ -470,7 +479,11 @@ class Exporter
         $sections = $this->structure($book);
         $entries = $this->contents($sections);
 
-        $body = $this->titlePageHtml($book).$this->contentsHtml($entries, self::languageCode($book->language));
+        $copyright = collect(Anatomy::copyrightLines($book))->map(fn ($line) => self::copyrightParagraphs($line['text']))->implode('');
+
+        $body = $this->titlePageHtml($book)
+            .($copyright !== '' ? '<section class="copyright">'.$copyright.'</section>'."\n" : '')
+            .$this->contentsHtml($entries, self::languageCode($book->language));
 
         foreach ($sections as $i => $section) {
             $body .= $this->structuredHtml($section, $entries[$i]['id']);
@@ -483,7 +496,7 @@ class Exporter
     }
 
     /**
-     * A real PDF, typeset as a printed book.
+     * A real PDF, typeset as a printed book, to read on screen.
      *
      * dompdf renders it; PrintBook does the book design. The print-ready
      * HTML is made from the same pages, so fix the layout once and both
@@ -491,9 +504,22 @@ class Exporter
      */
     private function pdf(Book $book, $sections, BookExport $export): string
     {
+        // The reading PDF: the front cover is its first page. The
+        // print-ready interior (pdf_print) never carries the cover.
         return $this->put($book, $export, $this->print->pdf(
-            $book, $this->structure($book), self::languageCode($book->language),
+            $book, $this->structure($book), self::languageCode($book->language), cover: true,
         ));
+    }
+
+    /**
+     * A copyright line as paragraphs: a disclaimer or a rights statement
+     * can run to several, separated by a blank line.
+     */
+    private static function copyrightParagraphs(string $text): string
+    {
+        return collect(preg_split('/\R[ \t]*\R/', trim($text)))
+            ->map(fn ($paragraph) => '<p>'.nl2br(e(trim($paragraph))).'</p>')
+            ->implode('');
     }
 
     /** The title page: what a reader opens to. */
@@ -533,42 +559,110 @@ class Exporter
      * prompts a repair dialog, which is where an author stops trusting the
      * export.
      *
+     * Laid out as a book, from the book's anatomy (Anatomy::plan): the half
+     * title, series page, title page and copyright page generated from the
+     * book's details, the contents as a Word TOC field, then the author's
+     * sections in the book's order. Every page is a Word section of its
+     * own, so it can open on a recto (an odd-page break) or a verso (an
+     * even-page break); front matter is numbered in lower-case roman and
+     * the text restarts at 1 in arabic; display pages print no folio.
+     *
      * @param  Collection<int, ManuscriptSection>  $sections
      */
     private function docx(Book $book, $sections, BookExport $export): string
     {
-        $paragraphs = $this->docxParagraph($book->title, 'Title');
-
-        if ($book->subtitle) {
-            $paragraphs .= $this->docxParagraph($book->subtitle, 'Subtitle');
-        }
-
-        if ($book->author_name) {
-            $paragraphs .= $this->docxParagraph($book->author_name, 'Subtitle');
-        }
-
         $this->renderer->resetDocxMedia();
 
-        foreach ($sections as $section) {
-            $paragraphs .= $this->docxParagraph($section->title, 'Heading1');
+        $plan = Anatomy::plan($book);
+        $byId = $this->structure($book)->keyBy('id');
+        $layout = $book->layout();
+        $size = preg_match('/([\d.]+)\s*x\s*([\d.]+)/', (string) $layout['trim'], $m)
+            ? [(int) round((float) $m[1] * 1440), (int) round((float) $m[2] * 1440)]
+            : [8640, 12960];
 
-            // Structure, not plain text: headings, italics, quotes, lists and
-            // tables survive, because Word is where an examiner or an editor
-            // will read it.
-            $paragraphs .= $this->renderer->docx($section);
+        // The pages that print, each with its content.
+        $pages = [];
+        $entries = [];
+
+        foreach ($plan['pages'] as $page) {
+            $section = $page['section_id'] !== null ? $byId->get($page['section_id']) : null;
+
+            if ($page['section_id'] !== null && $page['part'] !== 'table_of_contents'
+                && (! $section || in_array($page['state'], ['empty', 'placeholder'], true))) {
+                continue;
+            }
+
+            if ($section && $page['show_folio'] && $page['part'] !== 'table_of_contents') {
+                $entries[] = $section->title;
+            }
+
+            $pages[] = ['page' => $page, 'section' => $section];
+        }
+
+        $restart = collect($pages)->search(fn ($p) => $p['page']['folio'] === 'arabic');
+        $body = '';
+
+        foreach ($pages as $i => ['page' => $page, 'section' => $section]) {
+            $data = $page['data'] ?? [];
+
+            $content = match (true) {
+                $page['part'] === 'half_title' => $this->docxParagraph((string) ($data['title'] ?? $book->title), 'Title', center: true),
+
+                $page['part'] === 'title_page' => $this->docxTitlePage($book, $data),
+
+                $page['part'] === 'series_page' && $data !== [] => $this->docxParagraph((string) $data['heading'], 'Subtitle', center: true)
+                    .(($data['kind'] ?? '') === 'series' && ! empty($data['series']) ? $this->docxParagraph((string) $data['series'], null, center: true) : '')
+                    .collect($data['books'] ?? [])->map(fn ($b) => $this->docxParagraph(($b['number'] ? $b['number'].'. ' : '').$b['title'], null, center: true))->implode(''),
+
+                $page['part'] === 'copyright_page' && ! $section => collect($data['lines'] ?? [])
+                    ->flatMap(fn ($line) => preg_split('/\R[ \t]*\R/', trim($line['text'])))
+                    ->map(fn ($paragraph) => $this->docxParagraph(trim($paragraph), 'Copyright'))->implode(''),
+
+                $page['part'] === 'table_of_contents' => $this->docxParagraph((string) $page['title'], 'TOCHeading')
+                    .$this->docxContents($entries),
+
+                $section === null => '',
+
+                $section->type === 'part' => $this->docxParagraph($section->title, 'Heading1', center: true),
+
+                // Display pages (dedication, epigraph, a hand-written copyright
+                // page) carry no heading of their own.
+                ! $page['show_folio'] => $this->renderer->docx($section),
+
+                // Structure, not plain text: headings, italics, quotes, lists
+                // and tables survive, because Word is where an examiner or an
+                // editor will read it.
+                default => $this->docxParagraph($section->title, 'Heading1').$this->renderer->docx($section),
+            };
+
+            $properties = $this->docxSection(
+                start: $i === 0 ? 'any' : ($i === $restart ? 'recto' : $page['start']),
+                format: $restart === false || $i < $restart ? 'lowerRoman' : 'decimal',
+                restart: $i === 0 || $i === $restart,
+                folio: (bool) $page['show_folio'],
+                size: $size,
+            );
+
+            // A section's properties close it: on an empty paragraph after
+            // its content, and for the last section, at the end of the body.
+            $body .= ($content !== '' ? $content : '<w:p/>')
+                .($i < count($pages) - 1 ? '<w:p><w:pPr>'.$properties.'</w:pPr></w:p>' : $properties);
         }
 
         $document = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" '
             .'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
             .'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
-            .'<w:body>'.$paragraphs.'</w:body></w:document>';
+            .'<w:body>'.$body.'</w:body></w:document>';
 
         // Pictures placed in the text, as package parts; footnotes and list
         // numbering as theirs.
         $media = $this->renderer->docxMedia();
         $footnotes = $this->renderer->docxFootnotes();
         $numbering = $this->renderer->docxNumbering();
+
+        $footer = fn (string $paragraph) => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
+            .'<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'.$paragraph.'</w:ftr>';
 
         $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -578,6 +672,9 @@ class Exporter
                 ->map(fn ($mime, $extension) => '<Default Extension="'.$extension.'" ContentType="'.$mime.'"/>')->implode('')
             .'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
             .'<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+            .'<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>'
+            .'<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
+            .'<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
             .($footnotes ? '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' : '')
             .($numbering ? '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' : '')
             .'<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
@@ -592,10 +689,18 @@ class Exporter
         $documentRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'<Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>'
+            .'<Relationship Id="rIdFolio" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>'
+            .'<Relationship Id="rIdBlind" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>'
             .($footnotes ? '<Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>' : '')
             .($numbering ? '<Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' : '')
             .collect($media)->map(fn ($m, $id) => '<Relationship Id="'.$id.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'.$m['file'].'"/>')->implode('')
             .'</Relationships>';
+
+        // Word fills the contents field when the file is opened.
+        $settings = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
+            .'<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            .'<w:updateFields w:val="true"/><w:evenAndOddHeaders w:val="false"/></w:settings>';
 
         return $this->zip($book, $export, [
             '[Content_Types].xml' => $contentTypes,
@@ -603,6 +708,13 @@ class Exporter
             'word/document.xml' => $document,
             'word/_rels/document.xml.rels' => $documentRels,
             'word/styles.xml' => $this->docxStyles(self::wordLanguage(self::languageCode($book->language))),
+            'word/settings.xml' => $settings,
+            // The folio, centred at the foot; and an empty footer for the
+            // display pages, which a Word section would otherwise inherit.
+            'word/footer1.xml' => $footer('<w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
+                .'<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>'
+                .'<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'),
+            'word/footer2.xml' => $footer('<w:p/>'),
             'docProps/core.xml' => $this->docxCore($book),
             ...($footnotes ? ['word/footnotes.xml' => $footnotes] : []),
             ...($numbering ? ['word/numbering.xml' => $numbering] : []),
@@ -610,9 +722,83 @@ class Exporter
         ]);
     }
 
-    private function docxParagraph(string $text, ?string $style = null): string
+    /**
+     * One page's Word section properties.
+     *
+     * start: recto opens on the next odd page (Word inserts the blank),
+     * verso on the next even one. format: lowerRoman or decimal, restarting
+     * at 1 where asked. folio false: the empty footer, so a display page
+     * prints no number.
+     *
+     * @param  array{0: int, 1: int}  $size  twips
+     */
+    private function docxSection(string $start, string $format, bool $restart, bool $folio, array $size): string
     {
-        $properties = $style ? '<w:pPr><w:pStyle w:val="'.$style.'"/></w:pPr>' : '';
+        $type = ['recto' => 'oddPage', 'verso' => 'evenPage'][$start] ?? 'nextPage';
+        [$width, $height] = $size;
+        $side = (int) round(0.78 * 1440);
+
+        return '<w:sectPr>'
+            .'<w:footerReference w:type="default" r:id="'.($folio ? 'rIdFolio' : 'rIdBlind').'"/>'
+            .'<w:type w:val="'.$type.'"/>'
+            .'<w:pgSz w:w="'.$width.'" w:h="'.$height.'"/>'
+            .'<w:pgMar w:top="1296" w:right="'.$side.'" w:bottom="1368" w:left="'.$side.'" w:header="720" w:footer="720" w:gutter="0"/>'
+            .'<w:pgNumType w:fmt="'.$format.'"'.($restart ? ' w:start="1"' : '').'/>'
+            .'</w:sectPr>';
+    }
+
+    /** The title page: title, subtitle, the author if there is one, the publisher. */
+    private function docxTitlePage(Book $book, array $data): string
+    {
+        $data += ['title' => $book->title, 'subtitle' => $book->subtitle, 'author' => $book->author_name ?: null,
+            'publisher' => null, 'imprint' => null, 'place' => null];
+        $publisher = trim((string) ($data['imprint'] ?: $data['publisher']));
+
+        return $this->docxParagraph((string) $data['title'], 'Title', center: true)
+            .($data['subtitle'] ? $this->docxParagraph((string) $data['subtitle'], 'Subtitle', center: true) : '')
+            .($data['author'] ? $this->docxParagraph((string) $data['author'], 'Subtitle', center: true) : '')
+            .($publisher !== '' ? $this->docxParagraph($publisher, null, center: true) : '')
+            .(trim((string) $data['place']) !== '' ? $this->docxParagraph((string) $data['place'], null, center: true) : '');
+    }
+
+    /**
+     * The contents as a Word TOC field over the chapter headings. Its
+     * result is the chapter titles, so the page reads right before Word
+     * updates the field and adds the page numbers.
+     *
+     * @param  list<string>  $entries
+     */
+    private function docxContents(array $entries): string
+    {
+        $x = fn (string $value) => htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $begin = '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
+            .'<w:r><w:instrText xml:space="preserve"> TOC \o "1-1" \h \z \u </w:instrText></w:r>'
+            .'<w:r><w:fldChar w:fldCharType="separate"/></w:r>';
+        $end = '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
+
+        if ($entries === []) {
+            return '<w:p>'.$begin.$end.'</w:p>';
+        }
+
+        $html = '';
+        $last = count($entries) - 1;
+
+        foreach ($entries as $i => $entry) {
+            $html .= '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr>'
+                .($i === 0 ? $begin : '')
+                .'<w:r><w:t xml:space="preserve">'.$x($entry).'</w:t></w:r>'
+                .($i === $last ? $end : '')
+                .'</w:p>';
+        }
+
+        return $html;
+    }
+
+    private function docxParagraph(string $text, ?string $style = null, bool $center = false): string
+    {
+        $properties = $style || $center
+            ? '<w:pPr>'.($style ? '<w:pStyle w:val="'.$style.'"/>' : '').($center ? '<w:jc w:val="center"/>' : '').'</w:pPr>'
+            : '';
 
         // xml:space="preserve" so leading and trailing spaces inside a
         // paragraph are not silently collapsed by Word.
@@ -671,8 +857,16 @@ class Exporter
             .'<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/>'
             .'<w:rPr><w:sz w:val="28"/><w:i/></w:rPr></w:style>'
             .'<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/>'
-            .'<w:pPr><w:pageBreakBefore/><w:spacing w:after="240"/><w:outlineLvl w:val="0"/></w:pPr>'
+            // No page break of its own: every page of the book is a Word
+            // section, and the section break already starts the page.
+            .'<w:pPr><w:keepNext/><w:spacing w:before="720" w:after="240"/><w:outlineLvl w:val="0"/></w:pPr>'
             .'<w:rPr><w:sz w:val="36"/><w:b/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="TOCHeading"><w:name w:val="TOC Heading"/>'
+            .'<w:pPr><w:spacing w:before="720" w:after="360"/></w:pPr><w:rPr><w:sz w:val="36"/><w:b/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="TOC1"><w:name w:val="toc 1"/>'
+            .'<w:pPr><w:spacing w:after="80"/></w:pPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="Copyright"><w:name w:val="Copyright"/>'
+            .'<w:pPr><w:spacing w:after="120"/></w:pPr><w:rPr><w:sz w:val="17"/></w:rPr></w:style>'
             .'<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/>'
             .'<w:pPr><w:keepNext/><w:spacing w:before="320" w:after="120"/><w:outlineLvl w:val="1"/></w:pPr>'
             .'<w:rPr><w:sz w:val="28"/><w:b/></w:rPr></w:style>'
@@ -703,38 +897,143 @@ class Exporter
     }
 
     /**
+     * epub:type for each part (EPUB 3 Structural Semantics). Parts with no
+     * term of their own (an abbreviations list, an About the author) take
+     * only their matter's: frontmatter, bodymatter or backmatter. Index and
+     * glossary are left out on purpose: those terms make a reading system
+     * and epubcheck expect the EPUB Indexes and Dictionaries structures.
+     */
+    private const EPUB_TYPES = [
+        'half_title' => 'halftitlepage', 'series_page' => 'seriespage', 'title_page' => 'titlepage',
+        'copyright_page' => 'copyright-page', 'dedication' => 'dedication', 'epigraph' => 'epigraph',
+        'table_of_contents' => 'toc', 'list_of_illustrations' => 'loi', 'list_of_tables' => 'lot',
+        'foreword' => 'foreword', 'preface' => 'preface', 'acknowledgments' => 'acknowledgments',
+        'introduction' => 'introduction', 'prologue' => 'prologue', 'part' => 'part', 'chapter' => 'chapter',
+        'conclusion' => 'conclusion', 'epilogue' => 'epilogue', 'afterword' => 'afterword',
+        'appendix' => 'appendix', 'notes' => 'endnotes', 'bibliography' => 'bibliography',
+        'contributors' => 'contributors', 'colophon' => 'colophon',
+    ];
+
+    /**
      * A valid EPUB 3 container.
+     *
+     * The spine follows the book's anatomy (Anatomy::plan): the title page,
+     * copyright page and series page generated from the book's details, the
+     * contents (the navigation document, placed in the reading order where
+     * the contents page falls), then the author's sections. EPUB has no
+     * pages, so recto starts and folios do not apply; the half title is
+     * left out, as most stores prefer.
      *
      * @param  Collection<int, ManuscriptSection>  $sections
      */
     private function epub(Book $book, $sections, BookExport $export): string
     {
-        $uuid = 'urn:uuid:'.Str::uuid()->toString();
-        $identifier = $book->isbn ? 'urn:isbn:'.$book->isbn : $uuid;
+        // The EPUB's own ISBN; books set up before formats had their own
+        // numbers keep the identifier they had.
+        $isbn = Anatomy::isbns($book)['epub'] ?? ($book->isbn ?: null);
+        $identifier = $isbn ? 'urn:isbn:'.$isbn : 'urn:uuid:'.Str::uuid()->toString();
         $language = self::languageCode($book->language);
         $modified = now()->utc()->format('Y-m-d\TH:i:s\Z');
+        $plan = Anatomy::plan($book);
+        $publication = $book->publication();
 
         $files = [];
         $pictures = [];
         $manifest = '';
         $spine = '';
-        $nav = '';
+        $entries = [];
+        $landmarks = [];
 
         // The whole book, parts included: a reader opening the contents of
-        // an EPUB should see the same structure the binder shows.
-        $sections = $this->structure($book);
+        // an EPUB should see the same structure the binder shows. Files are
+        // named by place in structure(), as run() named them for the
+        // cross-reference links.
+        $structure = $this->structure($book)->values();
+        $names = $structure->mapWithKeys(fn ($s, $i) => [$s->id => 'ch'.($i + 1)])->all();
+        $byId = $structure->keyBy('id');
 
-        foreach ($sections as $index => $section) {
-            $id = 'ch'.($index + 1);
+        $declare = function (string $id, string $name) use (&$files, &$manifest, &$spine): void {
+            // EPUB 3 requires declaring MathML; a validator rejects the book
+            // otherwise, and a store with it.
+            $flags = array_filter([
+                str_contains($files[$name], '<math') ? 'mathml' : null,
+                str_contains($files[$name], '<svg') ? 'svg' : null,
+            ]);
+            $properties = $flags ? ' properties="'.implode(' ', $flags).'"' : '';
+            $manifest .= '<item id="'.$id.'" href="'.$id.'.xhtml" media-type="application/xhtml+xml"'.$properties.'/>';
+            $spine .= '<itemref idref="'.$id.'"/>';
+        };
+
+        $navInSpine = false;
+        $bodymatter = null;
+
+        foreach ($plan['pages'] as $page) {
+            $part = $page['part'];
+            $matter = ['front' => 'frontmatter', 'body' => 'bodymatter', 'back' => 'backmatter'][$page['group']] ?? null;
+
+            if ($part === 'half_title') {
+                continue;
+            }
+
+            // The contents is the navigation document, read where it falls.
+            if ($part === 'table_of_contents') {
+                if (! $navInSpine) {
+                    $spine .= '<itemref idref="nav"/>';
+                    $landmarks[] = ['toc', 'nav.xhtml#toc', $page['title']];
+                    $navInSpine = true;
+                }
+
+                continue;
+            }
+
+            if ($page['section_id'] === null) {
+                [$id, $body] = match ($part) {
+                    'title_page' => ['titlepage', $this->epubTitlePage($page['data'])],
+                    'copyright_page' => ['copyright', '<section epub:type="copyright-page" class="copyright">'
+                        .collect($page['data']['lines'] ?? [])->map(fn ($line) => self::copyrightParagraphs($line['text']))->implode('')
+                        .'</section>'],
+                    'series_page' => ['series', $this->epubSeriesPage($page['data'])],
+                    default => [null, null],
+                };
+
+                if ($id === null || ($id === 'copyright' && empty($page['data']['lines']))) {
+                    continue;
+                }
+
+                $files["OEBPS/{$id}.xhtml"] = $this->xhtml($page['title'], $body, $language, $matter);
+                $declare($id, "OEBPS/{$id}.xhtml");
+
+                if ($id === 'titlepage') {
+                    $landmarks[] = ['titlepage', 'titlepage.xhtml', $page['title']];
+                }
+
+                continue;
+            }
+
+            $section = $byId->get($page['section_id']);
+
+            // Empty, or still the template's guidance: not exported.
+            if (! $section || in_array($page['state'], ['empty', 'placeholder'], true)) {
+                continue;
+            }
+
+            $id = $names[$section->id];
             $name = "OEBPS/{$id}.xhtml";
+            $type = self::EPUB_TYPES[$part ?? ''] ?? match ($section->type) {
+                'part' => 'part',
+                'chapter' => 'chapter',
+                default => null,
+            };
+            $typeAttribute = $type ? ' epub:type="'.$type.'"' : '';
 
             $files[$name] = $this->xhtml(
                 $section->title,
                 $section->type === 'part'
-                    ? '<section class="part"><h1 class="part-title">'.e($section->title).'</h1></section>'
+                    ? '<section class="part"'.$typeAttribute.'><h1 class="part-title">'.e($section->title).'</h1></section>'
                     // EPUB footnotes, which readers open in a pop-up.
-                    : $this->chapterHtml($section, $this->renderer->withNotes('epub')),
+                    : '<section'.$typeAttribute.'>'.$this->chapterHtml($section, $this->renderer->withNotes('epub')).'</section>',
                 $language,
+                $matter,
             );
 
             // Pictures go into the package, each declared once.
@@ -745,16 +1044,13 @@ class Exporter
                 return 'images/'.$image['name'];
             });
 
-            // EPUB 3 requires declaring MathML; a validator rejects the book
-            // otherwise, and a store with it.
-            $flags = array_filter([
-                str_contains($files[$name], '<math') ? 'mathml' : null,
-                str_contains($files[$name], '<svg') ? 'svg' : null,
-            ]);
-            $properties = $flags ? ' properties="'.implode(' ', $flags).'"' : '';
-            $manifest .= '<item id="'.$id.'" href="'.$id.'.xhtml" media-type="application/xhtml+xml"'.$properties.'/>';
-            $spine .= '<itemref idref="'.$id.'"/>';
-            $nav .= '<li><a href="'.$id.'.xhtml">'.e($section->title).'</a></li>';
+            $declare($id, $name);
+            $entries[] = ['depth' => $page['depth'], 'href' => $id.'.xhtml', 'title' => $section->title];
+
+            // Where the text begins: the first arabic page.
+            if ($bodymatter === null && $page['folio'] === 'arabic') {
+                $bodymatter = [$id.'.xhtml', $section->title];
+            }
         }
 
         // The cover. Stores reject an EPUB without one, and every reading
@@ -790,6 +1086,8 @@ class Exporter
             .'<meta property="schema:accessModeSufficient">textual</meta>';
 
         $description = trim((string) (($book->meta ?? [])['description'] ?? ''));
+        $publisher = trim((string) ($publication['imprint'] ?: $publication['publisher']));
+        $rights = collect(Anatomy::copyrightLines($book))->whereIn('key', ['notice', 'rights'])->pluck('text')->implode(' ');
 
         $opf = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
             .'<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" prefix="schema: http://schema.org/">'
@@ -799,6 +1097,8 @@ class Exporter
             .($book->subtitle ? '<dc:title id="sub">'.e($book->subtitle).'</dc:title>' : '')
             .'<dc:language>'.e($language).'</dc:language>'
             .($book->author_name ? '<dc:creator>'.e($book->author_name).'</dc:creator>' : '')
+            .($publisher !== '' ? '<dc:publisher>'.e($publisher).'</dc:publisher>' : '')
+            .($rights !== '' ? '<dc:rights>'.e($rights).'</dc:rights>' : '')
             .($description !== '' ? '<dc:description>'.e($description).'</dc:description>' : '')
             .'<meta property="dcterms:modified">'.$modified.'</meta>'
             .$accessibility
@@ -811,24 +1111,28 @@ class Exporter
             .'</manifest>'
             .'<spine>'.$spine.'</spine></package>';
 
-        $contents = PrintBook::words($language)['contents'];
+        $contents = $plan['words']['contents'];
 
-        // Landmarks: where the cover and the text begin. The cover sits
-        // outside the reading order (linear="no"), and EPUB requires such a
-        // page to be reachable by a link; without this one epubcheck failed
-        // every book with a cover (OPF-096). Only spine pages are linked: a
-        // link back into this file is itself an error (RSC-011).
-        $landmarks = '<nav epub:type="landmarks" id="landmarks" hidden="hidden"><ol>'
-            .($coverManifest !== '' ? '<li><a epub:type="cover" href="cover.xhtml">'.e($book->title).'</a></li>' : '')
-            .($sections->isNotEmpty() ? '<li><a epub:type="bodymatter" href="ch1.xhtml">'.e($sections->first()->title).'</a></li>' : '')
-            .'</ol></nav>';
+        // Landmarks: the cover, the title page, the contents and where the
+        // text begins. The cover sits outside the reading order
+        // (linear="no"), and EPUB requires such a page to be reachable by a
+        // link; without this one epubcheck failed every book with a cover
+        // (OPF-096). Only spine pages are linked (RSC-011).
+        $bodymatter ??= isset($entries[0]) ? [$entries[0]['href'], $entries[0]['title']] : null;
+        $landmarks = array_merge(
+            $coverManifest !== '' ? [['cover', 'cover.xhtml', $book->title]] : [],
+            $landmarks,
+            $bodymatter ? [['bodymatter', $bodymatter[0], $bodymatter[1]]] : [],
+        );
 
         $navDocument = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
             .'<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" '
             .'xmlns:epub="http://www.idpf.org/2007/ops" lang="'.e($language).'" xml:lang="'.e($language).'">'
-            .'<head><title>'.e($contents).'</title><meta charset="utf-8"/></head><body>'
-            .'<nav epub:type="toc" id="toc"><h1>'.e($contents).'</h1><ol>'.$nav.'</ol></nav>'
-            .$landmarks
+            .'<head><title>'.e($contents).'</title><meta charset="utf-8"/><link rel="stylesheet" type="text/css" href="style.css"/></head><body epub:type="frontmatter">'
+            .'<nav epub:type="toc" id="toc"><h1>'.e($contents).'</h1>'.$this->navList($entries).'</nav>'
+            .'<nav epub:type="landmarks" id="landmarks" hidden="hidden"><ol>'
+            .collect($landmarks)->map(fn ($l) => '<li><a epub:type="'.$l[0].'" href="'.e($l[1]).'">'.e($l[2]).'</a></li>')->implode('')
+            .'</ol></nav>'
             .'</body></html>';
 
         $container = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
@@ -842,6 +1146,55 @@ class Exporter
             'OEBPS/nav.xhtml' => $navDocument,
             'OEBPS/style.css' => $this->epubCss($book),
         ], $files), mimetypeFirst: true);
+    }
+
+    /**
+     * The contents as nested lists: a part's chapters inside its entry.
+     *
+     * @param  list<array{depth: int, href: string, title: string}>  $entries
+     */
+    private function navList(array $entries, int $depth = 0): string
+    {
+        $html = '';
+        $count = count($entries);
+
+        for ($i = 0; $i < $count; $i++) {
+            $children = [];
+
+            while ($i + 1 < $count && $entries[$i + 1]['depth'] > $depth) {
+                $children[] = $entries[++$i];
+            }
+
+            // Search back for the entry that owns these children: the one
+            // at this depth just before them.
+            $html .= '<li><a href="'.e($entries[$i - count($children)]['href']).'">'.e($entries[$i - count($children)]['title']).'</a>'
+                .($children ? $this->navList($children, $depth + 1) : '').'</li>';
+        }
+
+        return '<ol>'.$html.'</ol>';
+    }
+
+    /** The EPUB title page. An anonymous book prints no author. */
+    private function epubTitlePage(array $data): string
+    {
+        $publisher = trim((string) (($data['imprint'] ?? null) ?: ($data['publisher'] ?? null)));
+
+        return '<section epub:type="titlepage" class="title-page">'
+            .'<h1 class="book-title">'.e($data['title']).'</h1>'
+            .(! empty($data['subtitle']) ? '<p class="book-subtitle">'.e($data['subtitle']).'</p>' : '')
+            .(! empty($data['author']) ? '<p class="book-author">'.e($data['author']).'</p>' : '')
+            .($publisher !== '' ? '<p class="book-publisher">'.e($publisher).'</p>' : '')
+            .'</section>';
+    }
+
+    /** "Dans la même collection" or "Also by", as a list. */
+    private function epubSeriesPage(array $data): string
+    {
+        return '<section epub:type="seriespage" class="series-page">'
+            .'<h2>'.e($data['heading']).'</h2>'
+            .(($data['kind'] ?? '') === 'series' && ! empty($data['series']) ? '<p class="series-name">'.e($data['series']).'</p>' : '')
+            .'<ul>'.collect($data['books'] ?? [])->map(fn ($b) => '<li>'.($b['number'] ? e((string) $b['number']).'. ' : '').e($b['title']).'</li>')->implode('').'</ul>'
+            .'</section>';
     }
 
     private function epubCss(Book $book): string
@@ -868,15 +1221,25 @@ class Exporter
             ."figure.chart svg { max-width: 100%; height: auto; }\n"
             .".math-display { position: relative; text-align: center; margin: 1em 0; }\n"
             .".math-number { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }\n"
+            .".title-page { text-align: center; margin: 3em 0; }\n"
+            .".title-page p, .copyright p, .series-page p { text-indent: 0; }\n"
+            .".book-subtitle { font-style: italic; }\n"
+            .".book-publisher { margin-top: 3em; letter-spacing: .1em; text-transform: uppercase; font-size: .85em; }\n"
+            .".copyright { margin-top: 2em; font-size: .8em; }\n"
+            .".copyright p { margin: 0 0 .7em; }\n"
+            .".series-page { text-align: center; }\n"
+            .".series-page ul { list-style: none; padding: 0; }\n"
             .'img { max-width: 100%; height: auto; }'."\n";
     }
 
-    private function xhtml(string $title, string $body, string $language): string
+    /** One content document; $matter is the body's epub:type (frontmatter, bodymatter, backmatter). */
+    private function xhtml(string $title, string $body, string $language, ?string $matter = null): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>'."\n"
             .'<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="'.e($language)
             .'" xml:lang="'.e($language).'"><head><meta charset="utf-8"/><title>'.e($title)
-            .'</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body>'
+            .'</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body'
+            .($matter ? ' epub:type="'.$matter.'"' : '').'>'
             .$body.'</body></html>';
     }
 
@@ -901,6 +1264,7 @@ class Exporter
         .toc a { text-decoration: none; color: inherit; }
         .part { text-align: center; margin: 5em 0 3em; }
         .part-title { font-size: 1.6em; letter-spacing: .04em; }
+        .copyright { font-size: .85em; margin: 0 0 4em; }
         CSS;
 
         return '<!doctype html>'."\n".'<html lang="'.e($language).'">'."\n"
