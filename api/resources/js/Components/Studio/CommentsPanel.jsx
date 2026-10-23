@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { onComments, publishComments } from './commentsBus';
 import Icon from './Icon';
 
 /**
@@ -7,14 +8,20 @@ import Icon from './Icon';
  * Anchored by a copied excerpt, like editorial findings. A thread whose
  * passage has been edited away is shown as detached rather than left pointing
  * at whatever now occupies that position.
+ *
+ * Above the threads, the open chapter's suggested changes (Suggest mode)
+ * when there are any: reviewing a chapter is one list, the way a word
+ * processor keeps suggestions and comments in the same margin.
  */
-export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChanged }) {
+export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChanged, changes = [], onDecide = null, onShowChange = null }) {
     const [data, setData] = useState(null);
     const [filter, setFilter] = useState('open');
     const [draft, setDraft] = useState('');
     const [replyTo, setReplyTo] = useState(null);
     const [replyBody, setReplyBody] = useState('');
     const [busy, setBusy] = useState(false);
+    const changedRef = useRef(onChanged);
+    changedRef.current = onChanged;
 
     const load = useCallback(async () => {
         const response = await window.axios.get(`/books/${bookId}/comments`);
@@ -25,6 +32,20 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
     useEffect(() => {
         load();
     }, [load]);
+
+    // A comment made from the manuscript's selection bubble, or a reply in
+    // its thread sheet, lands here too.
+    useEffect(() => onComments((next) => {
+        setData(next);
+        changedRef.current?.(next.counts);
+    }), []);
+
+    /** Take a fresh thread list and tell the manuscript about it. */
+    const take = (next) => {
+        setData(next);
+        onChanged?.(next.counts);
+        publishComments(next);
+    };
 
     const post = async (event) => {
         event.preventDefault();
@@ -44,8 +65,7 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                 excerpt: selection && selection.length <= 2000 ? selection : null,
             });
 
-            setData(response.data);
-            onChanged?.(response.data.counts);
+            take(response.data);
             setDraft('');
         } finally {
             setBusy(false);
@@ -60,21 +80,19 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
             { body: replyBody, parent_id: thread.id },
         );
 
-        setData(response.data);
+        take(response.data);
         setReplyTo(null);
         setReplyBody('');
     };
 
     const setStatus = async (thread, status) => {
         const response = await window.axios.patch(`/comments/${thread.id}`, { status });
-        setData(response.data);
-        onChanged?.(response.data.counts);
+        take(response.data);
     };
 
     const remove = async (comment) => {
         const response = await window.axios.delete(`/comments/${comment.id}`);
-        setData(response.data);
-        onChanged?.(response.data.counts);
+        take(response.data);
     };
 
     if (!data) {
@@ -87,6 +105,10 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
 
     return (
         <div className="p-3.5">
+            {changes.length > 0 && onDecide && (
+                <ChangesList changes={changes} onDecide={onDecide} onShow={onShowChange} />
+            )}
+
             <div className="mb-3 flex gap-1.5">
                 {[
                     { key: 'open', label: 'Open', count: data.counts.open },
@@ -257,5 +279,109 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                 </ul>
             )}
         </div>
+    );
+}
+
+/** "2 min ago" from an ISO time, or nothing for a change without one. */
+export function ago(iso) {
+    if (!iso) return '';
+
+    const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
+
+    return new Date(iso).toLocaleDateString();
+}
+
+/** What a change does, in a line: the struck words, then the new ones. */
+export function ChangeText({ change }) {
+    const clip = (text) => (text.length > 90 ? `${text.slice(0, 90)}…` : text);
+
+    return (
+        <span className="font-manuscript text-[12.5px] leading-snug">
+            {change.deleted && (
+                <del className="text-status-danger">{clip(change.deleted)}</del>
+            )}
+            {change.deleted && change.inserted && ' '}
+            {change.inserted && (
+                <ins className="text-status-success underline decoration-2 underline-offset-2">{clip(change.inserted)}</ins>
+            )}
+        </span>
+    );
+}
+
+/**
+ * The open chapter's suggested changes, each with Accept and Reject, and
+ * both for all of them. Deciding is the editor's job (a document transform,
+ * then the ordinary save); this list only asks for it.
+ */
+function ChangesList({ changes, onDecide, onShow }) {
+    return (
+        <section data-a="changes:list" aria-label="Suggested changes" className="mb-4 rounded-tile border border-border-default bg-bg-surface">
+            <div className="flex flex-wrap items-center gap-2 border-b border-border-divider px-2.5 py-2">
+                <h3 className="mr-auto text-[12.5px] font-semibold text-text-primary">
+                    Suggested changes <span className="font-normal text-text-secondary">({changes.length})</span>
+                </h3>
+                <button
+                    type="button"
+                    data-a="changes:accept-all"
+                    onClick={() => onDecide(null, true)}
+                    className="tap rounded-control bg-brand-fill px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-brand-primary-hover"
+                >
+                    Accept all
+                </button>
+                <button
+                    type="button"
+                    data-a="changes:reject-all"
+                    onClick={() => onDecide(null, false)}
+                    className="tap rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-semibold text-text-primary hover:bg-bg-subtle"
+                >
+                    Reject all
+                </button>
+            </div>
+            <ul className="divide-y divide-border-divider">
+                {changes.map((change) => (
+                    <li key={change.id} data-a={`changes:item:${change.id}`} className="flex items-start gap-1.5 px-2.5 py-2">
+                        <button
+                            type="button"
+                            data-a={`changes:show:${change.id}`}
+                            onClick={() => onShow?.(change)}
+                            className="min-w-0 flex-1 text-left"
+                            title="Show in the text"
+                        >
+                            <span className="block text-[11px] text-text-secondary">
+                                <span className="font-semibold text-text-primary">{change.author}</span>
+                                {' · '}
+                                {change.kind === 'replace' ? 'replaced' : change.kind === 'insert' ? 'inserted' : 'deleted'}
+                                {change.at ? ` · ${ago(change.at)}` : ''}
+                            </span>
+                            <ChangeText change={change} />
+                        </button>
+                        <button
+                            type="button"
+                            data-a={`changes:accept:${change.id}`}
+                            onClick={() => onDecide([change.id], true)}
+                            aria-label={`Accept change by ${change.author}`}
+                            title="Accept"
+                            className="tap grid h-8 w-8 shrink-0 place-items-center rounded-control text-status-success hover:bg-status-success-bg"
+                        >
+                            <Icon name="check" size={15} strokeWidth={2.2} />
+                        </button>
+                        <button
+                            type="button"
+                            data-a={`changes:reject:${change.id}`}
+                            onClick={() => onDecide([change.id], false)}
+                            aria-label={`Reject change by ${change.author}`}
+                            title="Reject"
+                            className="tap grid h-8 w-8 shrink-0 place-items-center rounded-control text-status-danger hover:bg-status-danger-bg"
+                        >
+                            <Icon name="x" size={14} strokeWidth={2.2} />
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </section>
     );
 }

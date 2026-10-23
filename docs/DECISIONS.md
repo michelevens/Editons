@@ -996,3 +996,105 @@ new controls.
 (Ulysses), touch reordering with swipe actions (Scrivener iOS), suggest mode
 and long-press comments (Google Docs, Word), a full-screen device preview
 with page turns (Vellum, Kindle Previewer), a collaboration inbox (Linear).
+
+## ADR-00XX — Suggest mode (tracked changes) and comments from a selection
+
+**Status:** accepted (2026-10-23)
+
+**Context.** The brief asks for Word-style tracked changes and comments with
+human-controlled acceptance. The studio had comments (anchored by a copied
+excerpt, written in the Comments panel) and AI fixes the author applies, but
+no way for a person — an editor, a co-author, the author on a second pass —
+to propose an edit that someone else then accepts or rejects. On a phone,
+commenting meant selecting text and then finding a panel two taps away.
+
+**Decisions.**
+
+- *Suggestions are marks in the canonical JSON.* `insertion` and `deletion`
+  (Tiptap marks, `Components/Editor/Suggest.js`), each with `id`, `author`,
+  `authorId` and `at`. They save, version, reload and travel with the
+  chapter like bold does; no table, no positions to keep in step. A
+  replacement shares one id between the struck words and the new ones, and
+  a run of typing or deleting by one person extends the change next to it,
+  so a word typed letter by letter is one suggestion.
+- *Tracking is a transaction rewrite.* Tiptap's `dispatchTransaction` hook
+  takes each editing transaction while Suggest is on and rebuilds it: a
+  replace step's deleted text is marked rather than removed (or removed for
+  real when it is itself a pending insertion), its inserted text goes in
+  after, marked. Undo/redo, `setContent` (`preventUpdate`) and the
+  accept/reject transaction itself pass through. Typing, paste, Backspace and
+  Delete (the caret steps over struck text), selection replacement and cut
+  are tracked. *Not tracked:* formatting, paragraph breaks made or joined
+  (Enter splits, Backspace at a paragraph start joins — both apply
+  directly), and pictures, tables, charts, display equations and code
+  blocks. Inserting one of those applies directly; deleting one while
+  suggesting is refused with a notice, never done silently. Pasted content
+  always arrives without suggestion marks.
+- *The toggle is per browser, per book* (`localStorage`
+  `ecrivain:suggest:{book}`), like typewriter scrolling. It describes how
+  this person is working on this book on this device; a server setting
+  would switch it on for every collaborator. A green strip under the
+  chapter header says "Suggesting" in words, because on a phone the
+  toggle is an icon and text that will not delete is alarming otherwise.
+- *Deciding is a client-side transform saved the normal way.* Accept keeps
+  inserted text (unmarked) and removes struck text; reject the reverse; a
+  paragraph that was all suggestion goes with it. The editor dispatches it
+  untracked, then flushes through the ordered save queue with reason
+  `review` and a label ("Accepted 2 suggestions by Ana"). `review` is a new
+  `manuscript_versions.reason`; a review save always snapshots the chapter
+  before the decision, so version history is the audit trail of who
+  accepted what (the app has no separate content audit log), and Ctrl+Z
+  undoes a decision before it is saved.
+- *Where it is decided.* Hovering (mouse) or tapping (touch) a change
+  shows a card with author, time, Accept and Reject. The chapter's pending
+  changes are listed at the top of the Comments tab of the AI panel (the
+  least disruptive place: it is already the review margin, and on a phone
+  it is already the AI drawer), with Accept all / Reject all; a "3 changes"
+  chip in the chapter header opens it. Checks lists "Suggestions decided".
+- *Renderers print the book as if every pending suggestion were rejected*
+  (`App\Publishing\Suggestions::published`): inserted text left out,
+  deleted text printed as ordinary text, a paragraph typed whole as a
+  suggestion dropped, neighbouring runs re-joined. It is the only reading
+  that never prints words nobody agreed to. Applied in
+  `DocumentRenderer::numbered()` (HTML, EPUB, DOCX, Markdown, the print
+  PDF and the layout preview all pass through it), in `Exporter`'s section
+  lists (`ManuscriptSection::asPublished()`, so numbering, the empty-chapter
+  filter and the opening-heading check see the same text) and in the
+  chapter Markdown export. DOCX gets the rejected view too, not `w:ins` /
+  `w:del`: a file sent to a publisher should not arrive with revisions the
+  author never saw in Word.
+- *Counts read the same view.* `countWords` and `plainText()` (which the AI
+  reviewers, consistency index and research read) use it; a comment's
+  detached check reads every word (`plainText(withSuggestions: true)`),
+  since an excerpt may have been copied from suggested text.
+- *Preflight warns, does not block.* `SubmissionCheck::warnings()` reports
+  "N pending suggestions" on the Publishing screen and in the submit
+  response; submission still goes ahead.
+- *Comments from a selection.* Selecting text (mouse, keyboard or a long
+  press) shows a bubble with Comment, Bold and Italic — above the selection
+  with a mouse, below it on touch where the system copy menu sits above.
+  Comment opens `Dialog` (a bottom sheet on a phone) and posts to the
+  existing endpoint with the selection as the excerpt. Open threads are
+  highlighted in the text by decorations (`CommentAnchors.js`: found by
+  excerpt, never saved); a tap on one opens the thread in a sheet with
+  Reply and Resolve on a phone, a card with "Reply or resolve" with a
+  mouse. The Comments panel and the highlights share every update through
+  a small window event (`Studio/commentsBus.js`), since every comment
+  endpoint already answers with the whole thread list.
+
+**Known limits.** Android keyboards compose text through the IME; marking
+composed text redraws it inside `<ins>` and has not been tested on a
+device. Two people suggesting in the same chapter at once still race as any
+two editors do (no real-time collaboration yet). Editions copy a chapter's
+content as it is, suggestions included.
+
+**Tests.** `tests/Feature/SuggestModeTest.php` (the published/accepted
+views, counts, word count and plainText, every export format and the print
+HTML and PDF leaving pending insertions out, the chapter Markdown export,
+the preflight warning, the `review` version and its label, comment
+anchoring); `tests/Browser/suggest.spec.js` (desktop: typing and deleting
+tracked, persisted across a reload, absent from the export until accepted,
+accept/reject from the card, accept all/reject all from the list, the
+review version; phone: suggesting and accepting by tap, the list in the
+drawer, a comment from a selection, its thread opened from the text, reply
+and resolve).

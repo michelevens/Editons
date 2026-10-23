@@ -156,6 +156,18 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // return, the copy from before it.
     const manuscript = useRef(null);
 
+    // Suggest mode: the open chapter's pending changes, as the editor reads
+    // them, for the list in the Comments tab; and a request for that tab.
+    const [changes, setChanges] = useState([]);
+    const [panelTab, setPanelTab] = useState(null);
+    const wide = () => window.matchMedia('(min-width: 1280px)').matches;
+
+    const showChanges = useCallback(() => {
+        setPanelTab({ tab: 'Comments', at: Date.now() });
+        // Below 1280 the panel is a drawer.
+        if (!wide()) setPanelOpen(true);
+    }, []);
+
     const openSection = useCallback(
         async (id) => {
             setNav('writing');
@@ -481,6 +493,14 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         onOpenSection: openSection,
         onRestore: restore,
         onOpenLibrary: openLibrary,
+        changes,
+        onDecide: (ids, accept) => manuscript.current?.decide(ids, accept),
+        onShowChange: (change) => {
+            // On a phone the list is in a drawer over the text.
+            if (!wide()) setPanelOpen(false);
+            window.setTimeout(() => manuscript.current?.reveal(change.id), 50);
+        },
+        tabRequest: panelTab,
     };
 
     return (
@@ -678,6 +698,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         onSaved={onSaved}
                                         autosave={book.autosave ?? true}
                                         onChapters={() => setBinderOpen(true)}
+                                        onChanges={setChanges}
+                                        onShowChanges={showChanges}
                                         headerActions={
                                             <button
                                                 type="button"
@@ -755,7 +777,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     aiCount={openFindings.length}
                     onSelect={navigate}
                     onChapters={() => setBinderOpen(true)}
-                    onAi={() => setPanelOpen(true)}
+                    onAi={() => {
+                        setPanelTab(null);
+                        setPanelOpen(true);
+                    }}
                 />
             )}
 
@@ -798,7 +823,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     variant="drawer"
                     side="right"
                     label="AI Editor"
-                    onClose={() => setPanelOpen(false)}
+                    onClose={() => {
+                        setPanelOpen(false);
+                        setPanelTab(null);
+                    }}
                     data-a="drawer:ai"
                     className="flex h-full max-w-[92vw] flex-col bg-bg-surface shadow-popover xl:hidden"
                 >
