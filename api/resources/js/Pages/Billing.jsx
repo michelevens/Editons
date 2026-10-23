@@ -37,7 +37,7 @@ export default function Billing({
                 account={auth?.account}
             />
 
-            <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
+            <main id="main" tabIndex={0} aria-label="Plans and billing" className="min-h-0 flex-1 overflow-y-auto outline-none">
                 <div className="mx-auto max-w-[1040px] px-8 py-9">
                     <header className="flex flex-wrap items-start justify-between gap-5">
                         <div className="min-w-0">
@@ -102,7 +102,7 @@ export default function Billing({
                     </div>
 
                     <Box title="Plans" className="mt-4">
-                        <div className="overflow-x-auto">
+                        <div tabIndex={0} role="region" aria-label="Plans" className="overflow-x-auto">
                             <table className="w-full min-w-[520px] text-left text-[12.5px]">
                                 <thead>
                                     <tr>
