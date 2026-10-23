@@ -10,6 +10,10 @@ pattern = "ecrivain.ai"
 custom_domain = true
 
 [[routes]]
+pattern = "www.ecrivain.ai"
+custom_domain = true
+
+[[routes]]
 pattern = "app.ecrivain.ai"
 custom_domain = true
 

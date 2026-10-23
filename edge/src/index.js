@@ -31,6 +31,16 @@ export default {
             });
         }
 
+        // One address for the site: www is a permanent redirect to the apex,
+        // over HTTPS, keeping the path, so links and search engines settle on
+        // ecrivain.ai rather than splitting between two copies of the page.
+        if (url.hostname === 'www.ecrivain.ai') {
+            url.hostname = 'ecrivain.ai';
+            url.protocol = 'https:';
+
+            return Response.redirect(url.toString(), 301);
+        }
+
         // Plain HTTP never reaches the app. http://app.ecrivain.ai/login used
         // to answer 200 with the sign-in form, whose relative POST then sent
         // the password in clear text. Everything below forwards
