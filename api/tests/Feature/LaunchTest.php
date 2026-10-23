@@ -264,8 +264,10 @@ it('reports what each store would pay per copy', function () {
         $this->actingAs($user)->getJson("/books/{$book->id}/sales")->json('channels')
     )->firstWhere('channel', 'amazon_kdp');
 
-    expect($channel['rate'])->toBe(0.7)
-        ->and((float) $channel['per_copy'])->toBe(14.0)
+    // $20 is above Kindle's 70% band ($2.99-$12.99 since July 2026,
+    // config/publishing.php), so the 35% option applies: $7.00, not $14.
+    expect($channel['rate'])->toBe(0.35)
+        ->and((float) $channel['per_copy'])->toBe(7.0)
         ->and($channel['note'])->toContain('70%');
 });
 

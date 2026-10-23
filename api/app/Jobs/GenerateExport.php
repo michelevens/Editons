@@ -25,8 +25,12 @@ class GenerateExport implements ShouldQueue
 {
     use Queueable;
 
-    /** Formats rendered by this job rather than in the request. */
-    public const FORMATS = ['pdf', 'epub'];
+    /**
+     * Formats rendered by this job rather than in the request. The print
+     * interior and the cover wrap typeset the whole book (the wrap to
+     * count its pages for the spine), so they take as long as the PDF.
+     */
+    public const FORMATS = ['pdf', 'epub', 'pdf_interior', 'cover_wrap'];
 
     /** One attempt: a render that failed once will fail the same way again. */
     public int $tries = 1;

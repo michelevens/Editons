@@ -52,6 +52,9 @@ class PublishingController extends Controller
             // Nullable so an author can clear a price they set by mistake,
             // rather than being stuck with a number they cannot remove.
             'list_price' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999.99'],
+            // The paperback's own price: print and ebook are priced apart,
+            // and a store compares them (KDP's 70% needs the ebook 20% under).
+            'print_price' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999.99'],
             'isbn' => ['sometimes', 'nullable', 'string', 'max:20'],
         ]);
 
@@ -64,7 +67,7 @@ class PublishingController extends Controller
 
         $meta = $book->meta ?? [];
 
-        foreach (['description', 'category', 'keywords'] as $field) {
+        foreach (['description', 'category', 'keywords', 'print_price'] as $field) {
             if (array_key_exists($field, $data)) {
                 $meta[$field] = $data[$field];
             }
@@ -216,6 +219,12 @@ class PublishingController extends Controller
 
         $data = $request->validate([
             'format' => ['required', 'string', 'in:'.implode(',', array_keys(BookExport::FORMATS))],
+            // A cover wrap's service, paper and (where the service gives it
+            // only through its template generator) spine width.
+            'options' => ['sometimes', 'array'],
+            'options.service' => ['sometimes', 'string', 'max:20'],
+            'options.paper' => ['sometimes', 'string', 'max:20'],
+            'options.spine' => ['sometimes', 'nullable', 'numeric'],
         ]);
 
         // The plan decides which formats are available. The method existed
@@ -228,7 +237,7 @@ class PublishingController extends Controller
 
         try {
             $export = $queued
-                ? $this->exporter->start($book, $data['format'], $request->user()->id)
+                ? $this->exporter->start($book, $data['format'], $request->user()->id, $data['options'] ?? [])
                 : $this->exporter->generate($book, $data['format'], $request->user()->id);
         } catch (Throwable $e) {
             // 422 rather than 500: an empty manuscript is the author's to
@@ -299,7 +308,7 @@ class PublishingController extends Controller
             // waits: queue it (or join the render already running), and the
             // history shows it when it is ready.
             if (in_array($export->format, GenerateExport::FORMATS, true)) {
-                $rebuild = $this->exporter->start($book, $export->format, $user->id);
+                $rebuild = $this->exporter->start($book, $export->format, $user->id, $export->options ?? []);
 
                 if ($rebuild->wasRecentlyCreated) {
                     GenerateExport::dispatch($rebuild->id);
@@ -343,6 +352,7 @@ class PublishingController extends Controller
                 'category' => $meta['category'] ?? '',
                 'keywords' => $meta['keywords'] ?? '',
                 'list_price' => $book->list_price,
+                'print_price' => $meta['print_price'] ?? null,
                 'isbn' => $book->isbn,
                 'word_count' => $book->word_count,
                 'status' => $book->status,
@@ -423,6 +433,7 @@ class PublishingController extends Controller
                 : null,
             'word_count' => $export->word_count,
             'size' => $export->byte_size ? $this->humanSize($export->byte_size) : null,
+            'pages' => $export->pages,
             'created_at' => $export->created_at->diffForHumans(),
         ];
     }
@@ -449,6 +460,8 @@ class PublishingController extends Controller
              * fix.
              */
             'pdf_print' => 'pdf',
+            // The print kit's files are PDFs, on the plans that have PDF.
+            'pdf_interior', 'cover_wrap' => 'pdf',
             default => $format,
         };
     }

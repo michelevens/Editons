@@ -129,12 +129,14 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                                             {royalties ? (
                                                 <>
                                                     <td className="py-2 pr-3 text-right tabular-nums text-text-body">
-                                                        {Math.round(channel.rate * 100)}%
+                                                        {channel.rate === null ? '—' : `${Math.round(channel.rate * 100)}%`}
                                                     </td>
                                                     <td className="py-2 pr-3 text-right tabular-nums text-text-body">
                                                         {channel.per_copy === null ? (
-                                                            <span className="text-text-secondary">
-                                                                set a price
+                                                            <span className="text-text-secondary" title={channel.note}>
+                                                                {channel.channel === 'ingram_print'
+                                                                    ? 'see note'
+                                                                    : 'set a price'}
                                                             </span>
                                                         ) : (
                                                             `$${Number(channel.per_copy).toFixed(2)}`

@@ -6,6 +6,8 @@ use App\Commerce\Commerce;
 use App\Commerce\SalesReport;
 use App\Models\Book;
 use App\Models\BookChannel;
+use App\Publishing\PrintPages;
+use App\Publishing\Royalties;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,7 +24,7 @@ use Inertia\Response;
  * So these report what is actually known — which stores have the book, and
  * what each would pay per copy at the configured price — and say plainly that
  * figures appear once a store starts reporting. The store share is the
- * published rate for each one, not a guess.
+ * published rate for each one (config/publishing.php), not a guess.
  *
  * Direct sales are different: the author's own storefront takes real orders
  * (App\Commerce), so those figures are real — gross, estimated payment fees,
@@ -31,26 +33,6 @@ use Inertia\Response;
  */
 class SalesController extends Controller
 {
-    /**
-     * What each store keeps, and what the author earns per copy.
-     *
-     * Published rates. eBook royalty rates depend on price banding at the
-     * major stores, so the band is named rather than a single rate implied.
-     */
-    private const TERMS = [
-        'amazon_kdp' => [
-            'rate' => 0.70,
-            'note' => '70% between $2.99 and $9.99, 35% outside that band, less delivery costs.',
-        ],
-        'apple_books' => ['rate' => 0.70, 'note' => '70% at any price.'],
-        'kobo' => ['rate' => 0.70, 'note' => '70% at $2.99 and above, 45% below.'],
-        'google_play' => ['rate' => 0.70, 'note' => '70% at any price.'],
-        'ingram_print' => [
-            'rate' => 0.45,
-            'note' => '45% of list, less the print cost of each copy.',
-        ],
-    ];
-
     public function show(Request $request, Book $book): JsonResponse
     {
         $this->authorize('view', $book);
@@ -64,7 +46,8 @@ class SalesController extends Controller
             : null;
 
         $channels = $book->channels()->get();
-        $price = (float) ($book->list_price ?? 0);
+        $prices = Royalties::prices($book);
+        $price = $prices['ebook'];
 
         $live = $channels->where('status', 'live');
         $reviewing = $channels->where('status', 'in_review');
@@ -78,8 +61,8 @@ class SalesController extends Controller
                 'selected' => $channels->count(),
             ],
             'channels' => $channels
-                ->map(function (BookChannel $channel) use ($price) {
-                    $terms = self::TERMS[$channel->channel] ?? ['rate' => 0.70, 'note' => ''];
+                ->map(function (BookChannel $channel) use ($book, $price, $prices) {
+                    $terms = $this->terms($book, $channel->channel, $price, $prices['print']);
 
                     return [
                         'channel' => $channel->channel,
@@ -89,11 +72,11 @@ class SalesController extends Controller
                         'went_live_at' => $channel->went_live_at?->toFormattedDateString(),
                         'rate' => $terms['rate'],
                         'note' => $terms['note'],
-                        // Per copy at the current list price. Arithmetic on
-                        // a published rate, not a projection of sales.
-                        'per_copy' => $price > 0
-                            ? round($price * $terms['rate'], 2)
-                            : null,
+                        // Per copy at the current list price: arithmetic on
+                        // a published rate (App\Publishing\Royalties), not a
+                        // projection of sales. Null where a store does not
+                        // publish what the arithmetic needs.
+                        'per_copy' => $terms['royalty'],
                         // Always zero until a store reports. Present so the
                         // table has a column rather than appearing broken.
                         'units' => 0,
@@ -116,6 +99,31 @@ class SalesController extends Controller
                         .'Each store reports on its own schedule, usually monthly.'),
             ],
         ]);
+    }
+
+    /**
+     * A store's published terms at a price (config/publishing.php). eBook
+     * rates depend on price bands at the major stores, so the note names
+     * the band rather than implying one rate; print royalties subtract the
+     * print cost, from the paperback's own price.
+     *
+     * @return array{rate: ?float, royalty: ?float, note: string}
+     */
+    private function terms(Book $book, string $channel, ?float $price, ?float $printPrice): array
+    {
+        $result = match ($channel) {
+            'amazon_kdp' => Royalties::kindle($price, null, $printPrice),
+            'apple_books', 'kobo', 'google_play' => Royalties::ebookStore($channel, $price, $printPrice),
+            'kdp_paperback' => Royalties::kdpPaperback($printPrice, PrintPages::for($book)['pages'], $book->printSettings()['ink'], $book->layout()['trim']),
+            'ingram_print' => Royalties::ingramPrint($printPrice),
+            default => ['rate' => null, 'royalty' => null, 'note' => ''],
+        };
+
+        return [
+            'rate' => $result['rate'] ?? null,
+            'royalty' => $price === null && in_array($channel, ['amazon_kdp', 'apple_books', 'kobo', 'google_play'], true) ? null : ($result['royalty'] ?? null),
+            'note' => $result['note'],
+        ];
     }
 
     /**

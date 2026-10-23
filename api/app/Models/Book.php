@@ -82,6 +82,23 @@ class Book extends Model
         'headers' => true,
     ];
 
+    /**
+     * How the printed book is made: paper, interior ink and cover finish.
+     * The spine width and the print cost both depend on the first two
+     * (config/publishing.php). Set through the print kit, never in bulk.
+     */
+    public const DEFAULT_PRINT = [
+        'paper' => 'white',
+        'ink' => 'bw',
+        'finish' => 'matte',
+    ];
+
+    public const PRINT_OPTIONS = [
+        'paper' => ['white', 'cream'],
+        'ink' => ['bw', 'standard_color', 'premium_color'],
+        'finish' => ['matte', 'glossy'],
+    ];
+
     /** Print trim sizes offered on the Design screen. */
     public const TRIMS = ['5 x 8 in', '5.5 x 8.5 in', '6 x 9 in', '7 x 10 in', '8.5 x 11 in'];
 
@@ -163,6 +180,20 @@ class Book extends Model
         return array_merge(self::DEFAULT_LAYOUT, $this->layout ?? []);
     }
 
+    /** Print settings with defaults applied. */
+    public function printSettings(): array
+    {
+        $print = array_merge(self::DEFAULT_PRINT, array_intersect_key($this->print ?? [], self::DEFAULT_PRINT));
+
+        // Colour interiors print on white: the services' spine and page
+        // tables have no cream colour paper.
+        if ($print['ink'] !== 'bw') {
+            $print['paper'] = 'white';
+        }
+
+        return $print;
+    }
+
     /** Publishing metadata with defaults applied. */
     public function publication(): array
     {
@@ -183,6 +214,7 @@ class Book extends Model
         return [
             'settings' => 'array',
             'layout' => 'array',
+            'print' => 'array',
             'cover' => 'array',
             'meta' => 'array',
             'rights' => 'array',
