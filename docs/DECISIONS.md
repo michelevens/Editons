@@ -598,6 +598,45 @@ need a queued job.
   run of characters missing from the face (read from its own cmap) in a
   span set in DejaVu Sans, which ships with dompdf.
 
+**The lifecycle, tightened (October audit).**
+
+- *One render per book and format.* `Exporter::start()` returns a PDF or
+  EPUB already `generating` for that book instead of a second row, and the
+  controller dispatches only for a new row (`already: true` in the reply).
+  A partial unique index (`book_exports_one_render_per_format`) holds it
+  when two requests race. The Generate button stays off while its format
+  renders.
+- *Rows nothing will finish.* `Exporter::expireStale()` fails `generating`
+  rows with no news for `BookExport::STALE_AFTER` (job timeout + 5 min)
+  and no job still waiting in the database queue; a job that starts
+  touches its row, so time in the queue does not count. It runs from
+  `exports:expire` (scheduled every five minutes in routes/console.php)
+  and whenever the Publish screen loads its book, so it does not depend
+  on a scheduler running. Each row carries `wait_seconds`; the screen
+  stops polling when that runs out and offers "try again".
+- *Settling.* `run()` writes ready or failed only while the row still says
+  `generating`, and removes its file if somebody else settled it. A job
+  for a soft-deleted book settles its row as failed and returns.
+- *retry_after.* `DB_QUEUE_RETRY_AFTER` defaults to 2000 s, above the
+  worker's 1900 s timeout: at 90 s a second worker could take a job still
+  rendering.
+- *Missing files.* A ready row whose file is gone becomes `expired`
+  (download answers 410, the screen offers to generate again);
+  `exports:expire --missing` checks every ready row daily. Rebuilding from
+  a download needs `update` and a plan with the format, like Generate.
+- *Zips* are built in `storage/app/tmp`, not the system temp directory,
+  and removed however the build ends.
+- *Emails.* Export ready and export failed go to the author of a PDF or
+  EPUB when its row actually changes (docs/EMAILS.md).
+- *Stores.* There is no store integration, so "Prepare for stores" marks
+  each store `ready_to_submit` and lists what to upload where; the author
+  marks a store submitted after uploading it, which is when it becomes
+  `in_review`.
+
+Production needs the scheduler running somewhere (`php artisan
+schedule:work` on the worker service, or a Railway cron calling
+`schedule:run`) and `DB_QUEUE_RETRY_AFTER` unset or at least 2000.
+
 ## ADR-0019 — Transport and browser security
 
 **Context.** The October audit found production answering plain HTTP with

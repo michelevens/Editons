@@ -384,10 +384,23 @@ test.describe('every screen renders', () => {
         await page.goto(`/books/${id}/edit`);
         await page.click('[data-a="side:export"]');
 
-        await page.click('[data-a="publish:generate:epub"]');
+        // Markdown renders in the request, so the row is ready when the POST
+        // answers and the test does not wait on a worker. The download
+        // clicked is the one this click made, by id: `.first()` used to
+        // pass on any older file in the history, or time out when the
+        // queued EPUB had not finished.
+        const [response] = await Promise.all([
+            page.waitForResponse(
+                (r) => r.url().endsWith(`/books/${id}/exports`) && r.request().method() === 'POST',
+            ),
+            page.click('[data-a="publish:generate:md"]'),
+        ]);
+        expect(response.status()).toBe(200);
+        const { export: made } = await response.json();
+        expect(made.status).toBe('ready');
 
-        const row = page.locator('[data-a^="publish:download:"]').first();
-        await expect(row).toBeVisible({ timeout: 20_000 });
+        const row = page.locator(`[data-a="publish:download:${made.id}"]`);
+        await expect(row).toBeVisible();
 
         const download = await Promise.all([
             page.waitForEvent('download'),
@@ -396,6 +409,47 @@ test.describe('every screen renders', () => {
 
         const path = await download.path();
         expect(path).toBeTruthy();
+
+        expect(errors).toEqual([]);
+    });
+
+    test('a queued EPUB keeps its Generate button off until it settles', async ({ page }) => {
+        // A second click used to queue the same book again: the button came
+        // back as soon as the 202 did.
+        const errors = watchForErrors(page);
+
+        await signIn(page);
+        const id = await firstBookId(page);
+        await page.goto(`/books/${id}/edit`);
+        await page.click('[data-a="side:export"]');
+
+        const button = page.locator('[data-a="publish:generate:epub"]');
+        await expect(button).toBeVisible();
+
+        // An earlier run may have left one rendering; then it is already off.
+        if (await button.isEnabled()) {
+            const [response] = await Promise.all([
+                page.waitForResponse(
+                    (r) => r.url().endsWith(`/books/${id}/exports`) && r.request().method() === 'POST',
+                ),
+                button.click(),
+            ]);
+            expect(response.status()).toBe(202);
+
+            const { export: queued } = await response.json();
+            await expect(
+                page.locator(
+                    `[data-a="publish:generating:${queued.id}"], [data-a="publish:download:${queued.id}"]`,
+                ),
+            ).toBeVisible();
+
+            if (await page.locator(`[data-a="publish:generating:${queued.id}"]`).isVisible()) {
+                await expect(button).toBeDisabled();
+                await expect(button).toHaveText('Generating…');
+            }
+        } else {
+            await expect(button).toHaveText('Generating…');
+        }
 
         expect(errors).toEqual([]);
     });

@@ -77,11 +77,11 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Editorial review complete | `Writing\EditorialReviewCompleteMail` | writing | queued | Helper `Notify::editorialReviewComplete($review)` |
 | Book Director report | `Writing\BookDirectorReportMail` | writing | queued | Helper `Notify::bookDirectorReport($book, $findings)` |
 | Weekly digest | `Writing\WeeklyDigestMail` | digest | queued | **Command**: `emails:weekly-digest` (not scheduled) |
-| Export ready | `Publishing\ExportReadyMail` | publishing | queued | Helper `Notify::exportReady($export)` |
-| Export failed | `Publishing\ExportFailedMail` | publishing | queued | Helper `Notify::exportFailed($export, $reason)` |
-| Submitted to stores | `Publishing\SubmittedToStoresMail` | publishing | queued | Helper `Notify::submittedToStores($book, $channelKeys)` |
+| Export ready | `Publishing\ExportReadyMail` | publishing | queued | **Wired**: `Exporter::run()`, PDF and EPUB only, when it settles the row as ready |
+| Export failed | `Publishing\ExportFailedMail` | publishing | queued | **Wired**: `Exporter::run()` (render threw), `GenerateExport::failed()` (worker timeout) and `Exporter::expireStale()` (dead worker, rows under a day old); PDF and EPUB only, only when the row changed |
+| Ready for the stores | `Publishing\SubmittedToStoresMail` | publishing | queued | **Wired**: `PublishingController::submit`, with each store's upload page. Nothing is sent to a store (no integration exists) and the email says so |
 | Book live | `Publishing\BookLiveMail` | publishing | queued | Helper `Notify::bookLive($channel, $storeUrl)` |
-| Book unpublished | `Publishing\BookUnpublishedMail` | publishing | queued | Helper `Notify::bookUnpublished($channel)` |
+| Book unpublished | `Publishing\BookUnpublishedMail` | publishing | queued | **Wired**: `PublishingController::unpublish` (a store that had the book only) |
 | Subscription started / receipt | `Billing\SubscriptionReceiptMail` | billing | queued | Helper `Notify::subscriptionReceipt(...)` |
 | Payment failed | `Billing\PaymentFailedMail` | billing | queued | Helper `Notify::paymentFailed(...)` |
 | Plan changed | `Billing\PlanChangedMail` | billing | queued | Helper `Notify::planChanged(...)` |
@@ -97,36 +97,17 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 
 These files are being rewritten in other branches, so this branch does not touch them. Each line below is the whole change. Re-read the merged file first: the line numbers are this branch's.
 
-### Exports — `app/Publishing/Exporter.php`, `app/Jobs/GenerateExport.php`
+### Exports and publishing — wired
 
-1. `Exporter::run()` — after the row is updated to `'status' => 'ready'` (≈ line 95), for exports that ran on the queue:
-   ```php
-   \App\Mail\Notify::exportReady($export->fresh());
-   ```
-2. `Exporter::run()` — in the `catch`, after `$export->update(['status' => 'failed'])` (≈ line 103):
-   ```php
-   \App\Mail\Notify::exportFailed($export->fresh(), $e->getMessage());
-   ```
-   Pass a reader-facing reason rather than a raw exception message if the new exporter has one.
-3. `GenerateExport::failed()` — after the update to `'failed'` (≈ line 52), only when it changed a row (a worker timeout never reaches the catch above):
-   ```php
-   if ($updated && $export = BookExport::find($this->exportId)) {
-       \App\Mail\Notify::exportFailed($export, __('The export took too long and was stopped.'));
-   }
-   ```
-   Do **not** send for the small synchronous formats (`Exporter::generate`): the author is watching the result arrive.
+Items 1–5 of the original list (export ready and failed, submitted to stores, unpublished) are wired; see the table above. Two changes from the plan:
 
-### Publishing — `app/Http/Controllers/PublishingController.php`
+- `submit()` no longer claims a submission. With no store integration it marks each store `ready_to_submit`, and `SubmittedToStoresMail` now says the book is ready to upload, with each store's page, rather than "on its way to the stores". The author marks a store submitted (`POST /books/{book}/channels/{channel}/submitted`), which is when it becomes `in_review`.
+- The failure reason is the exporter's own message when it is one of its `RuntimeException`s, and a generic sentence otherwise: a stack-level message means nothing to an author.
 
-4. `submit()` — after the `foreach ($pending …)` loop (≈ line 150):
-   ```php
-   \App\Mail\Notify::submittedToStores($book, $pending->pluck('channel')->all(), $request->user());
-   ```
-   (`submit()` will need `Request $request`, or pass `auth()->user()`.)
-5. `unpublish()` — after the channel is saved (≈ line 172):
-   ```php
-   \App\Mail\Notify::bookUnpublished($channel->fresh('book'), byAuthor: true);
-   ```
+The publishing emails' buttons open the studio on the Publish screen (`books.edit?pane=export`); they pointed at the JSON endpoint behind it.
+
+### Still to wire
+
 6. Wherever a channel becomes `live` (today nothing does: a store webhook or an admin action will):
    ```php
    \App\Mail\Notify::bookLive($channel, $storeUrl);
