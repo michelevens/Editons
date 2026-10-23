@@ -736,7 +736,7 @@ also needed a series page, anonymous books and Haitian legal deposit.
   `DocumentRenderer`) were being rewritten in parallel and are untouched;
   `docs/INTEGRATION-book-parts.md` says how they adopt the plan.
 
-## ADR-00XX — Direct sales: storefront, Stripe Checkout, fulfilment, royalties
+## ADR-0021 — Direct sales: storefront, Stripe Checkout, fulfilment, royalties
 
 *Number to be assigned at merge.*
 
