@@ -44,6 +44,28 @@ export function focusables(root) {
 }
 
 /**
+ * Focus the element that opened a dialog. A control that was re-rendered
+ * while the dialog was open (the editor toolbar redraws its buttons) is a new
+ * node by then, so it is found again by its data-a or id.
+ */
+function restore(opener) {
+    if (!opener || opener === document.body) return;
+
+    let target = opener;
+
+    if (!target.isConnected) {
+        const key = opener.getAttribute?.('data-a');
+        const id = opener.id;
+
+        target = (key && document.querySelector(`[data-a="${CSS.escape(key)}"]`))
+            || (id && document.getElementById(id))
+            || null;
+    }
+
+    target?.focus?.({ preventScroll: true });
+}
+
+/**
  * The behaviour on its own, for a container that is laid out by its caller.
  * Returns the ref to put on the dialog element.
  */
@@ -121,9 +143,7 @@ export function useModalFocus(onClose, { active = true } = {}) {
             const now = document.activeElement;
             const lost = !now || now === document.body || node?.contains(now);
 
-            if (lost && opener && opener.isConnected && typeof opener.focus === 'function') {
-                opener.focus({ preventScroll: true });
-            }
+            if (lost) restore(opener);
         };
     }, [active]);
 

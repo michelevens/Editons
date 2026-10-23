@@ -696,3 +696,65 @@ also needed a series page, anonymous books and Haitian legal deposit.
 - *Not in this change.* The renderers (`PrintBook`, `Exporter`,
   `DocumentRenderer`) were being rewritten in parallel and are untouched;
   `docs/INTEGRATION-book-parts.md` says how they adopt the plan.
+
+## ADR-00XX — Themes, responsive studio shell and keyboard access
+
+*Number to be assigned at merge.*
+
+**Context.** The October UI audit (Playwright and axe-core at 1536, 1024 and
+390 px, light and dark) found Overview and Book Settings squeezed to about
+130px on a phone because the book sidebar was not a drawer there; editor
+dialogs and phone drawers that did not take focus, trap Tab or close on
+Escape; the top nav drawn over Search between 1024 and about 1115px; text
+contrast failing WCAG AA on every screen (warning amber 1.99:1); unnamed
+cover links and an unnamed manuscript box; no skip link; Analytics
+unreachable below 1024px; 12–15 MB of full-size covers per visit to the
+shelf; and neither the dark mode nor the distraction-free mode CLAUDE.md
+asks for.
+
+**Decisions.**
+
+- *Tokens carry the fixes.* `scripts/build-tokens.py` now applies, after the
+  brand, `ACCESSIBILITY_OVERRIDES` (the nearest same-hue colour that clears
+  4.5:1 on white, the app background and its own tint), adds tokens the
+  handoff lacks, and writes a `DARK` palette as `html.dark { --color-*: … }`.
+  Utilities read the variables, so a component on tokens flips without a
+  `dark:` variant; `@custom-variant dark` exists for the few that need one.
+  Hard-coded slate/indigo/amber classes in studio panels were moved onto
+  tokens. Paper previews (layout page, chart canvas) stay white on purpose.
+- *Text and fill are different colours.* A colour cannot be light enough to
+  read on a dark surface and dark enough to carry white text, so fills under
+  white text use `*-fill` tokens (`bg-brand-fill`, `bg-status-danger-fill`…)
+  and `bg-bg-inverse` / `text-text-inverse` replace `bg-text-primary
+  text-white`. `text-brand-primary` is now the AA text blue; the brand blue
+  is `brand-fill`.
+- *Theme choice.* `users.theme` is `system` (default), `light` or `dark`,
+  saved by `PATCH /profile/theme` from the account menu or Account settings.
+  `app.blade.php` prints it on `<html data-theme>` and sets `dark` before the
+  first paint (a nonced inline script resolves `system` from
+  `prefers-color-scheme`); `resources/js/theme.js` follows the device while
+  the choice is `system`.
+- *One dialog.* `Components/Dialog.jsx` is the only modal: focus in on open
+  (autoFocus / `data-autofocus` / first control), Tab trapped, Escape handled
+  at the document (topmost dialog only), focus returned to the opener unless
+  the dialog's action moved it on purpose. The editor dialogs, import, the
+  search palette, Breeze's `Modal` and the phone drawers (`variant="drawer"`,
+  with a visible close button) all use it.
+- *One sidebar shell.* `Studio/StudioSidebar` renders the book sidebar
+  statically at ≥1024px and as a drawer below, opened from a menu button in
+  the header on every book page. The drawer also lists the header's areas,
+  so Analytics is reachable on a phone. Below 1280px the search button is
+  icon-only, which is what stopped the nav overlapping it.
+- *Keyboard.* A skip link is the first Tab stop (to the manuscript in the
+  studio, else `#main`); the manuscript box is named for its chapter;
+  scroll-only panes are focusable; a global `:focus-visible` outline.
+- *Distraction-free.* Editor-only state, not persisted: hides header,
+  sidebar, credit strip, outline, AI panel, bottom cards and phone bar by
+  class, never by unmounting, so the editor and its save state are untouched.
+  Ctrl/Cmd+Shift+F toggles, Escape leaves, a button sits in the chapter
+  header.
+- *Shelf thumbnails.* `CoverRenderer::ensureThumb()` stores a 320px JPEG
+  beside the full cover, named by the same design hash and pruned like it;
+  `/books/{id}/cover/image?size=thumb` serves it, `coverFor()['thumb']`
+  links it, and the shelf and sidebar use it (`loading="lazy"` on the
+  shelf).
