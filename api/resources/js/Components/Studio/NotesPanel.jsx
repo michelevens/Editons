@@ -74,7 +74,7 @@ export default function NotesPanel({ bookId, onNotify }) {
                     data-a="notes:body"
                     placeholder={'Who is this book for?\nWhat should the tone be?\nAnything you keep forgetting.'}
                     onChange={(event) => change(event.target.value)}
-                    className="h-full w-full resize-none rounded-tile border border-border-input p-3 font-manuscript text-[13.5px] leading-relaxed placeholder:text-text-secondary/70 focus:border-brand-primary focus:ring-0"
+                    className="h-full w-full resize-none rounded-tile border border-border-input p-3 font-manuscript text-[13.5px] leading-relaxed placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
                 />
             </div>
         </div>

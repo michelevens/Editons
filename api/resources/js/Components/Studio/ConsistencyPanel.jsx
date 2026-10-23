@@ -40,17 +40,17 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
         <div className="mx-auto max-w-4xl p-8">
             <header className="mb-6 flex items-baseline justify-between">
                 <div>
-                    <h2 className="font-serif text-2xl font-bold text-slate-900">
+                    <h2 className="font-serif text-2xl font-bold text-text-primary">
                         Characters &amp; Terms
                     </h2>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-text-secondary">
                         The spellings that are correct for this book, and
                         anywhere the manuscript disagrees with them.
                     </p>
                 </div>
                 <button
                     onClick={() => setAdding((v) => !v)}
-                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
+                    className="rounded-md bg-brand-fill px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-primary-hover"
                 >
                     {adding ? 'Cancel' : 'Add term'}
                 </button>
@@ -68,21 +68,21 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
             )}
 
             <section className="mb-8">
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Inconsistencies across the book
                 </h3>
 
                 {loading ? (
-                    <p className="text-sm text-slate-500">Scanning…</p>
+                    <p className="text-sm text-text-secondary">Scanning…</p>
                 ) : terms.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm leading-relaxed text-slate-500">
+                    <p className="rounded-lg border border-dashed border-border-input p-6 text-center text-sm leading-relaxed text-text-secondary">
                         Nothing to check yet. This scan compares the manuscript
                         against terms you declare — it does not guess which
                         spelling is canonical, because guessing would
                         eventually "correct" a deliberate one.
                     </p>
                 ) : issues.length === 0 ? (
-                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                    <p className="rounded-lg border border-status-success/30 bg-status-success-bg p-4 text-sm text-status-success">
                         No disagreements found for the {terms.length} term
                         {terms.length === 1 ? '' : 's'} declared below.
                     </p>
@@ -91,9 +91,9 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
                         {issues.map((issue, i) => (
                             <li
                                 key={`${issue.term_id}-${issue.variant}-${i}`}
-                                className="rounded-lg border border-amber-200 bg-amber-50 p-4"
+                                className="rounded-lg border border-status-warning/30 bg-status-warning-bg p-4"
                             >
-                                <p className="text-sm text-amber-900">
+                                <p className="text-sm text-status-warning">
                                     <span className="font-bold">
                                         “{issue.variant}”
                                     </span>{' '}
@@ -113,7 +113,7 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
                                                 onClick={() =>
                                                     onOpenSection?.(s.section_id)
                                                 }
-                                                className="rounded bg-white px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100"
+                                                className="rounded bg-bg-surface px-2 py-1 text-xs font-semibold text-status-warning ring-1 ring-status-warning/30 hover:bg-status-warning-tile"
                                             >
                                                 {s.section_title} ×
                                                 {s.occurrences}
@@ -123,7 +123,7 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
                                 </ul>
 
                                 {issue.note && (
-                                    <p className="mt-2 text-xs italic text-amber-700">
+                                    <p className="mt-2 text-xs italic text-status-warning">
                                         {issue.note}
                                     </p>
                                 )}
@@ -134,33 +134,33 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
             </section>
 
             <section>
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Declared vocabulary
                 </h3>
 
                 {terms.length === 0 ? (
-                    <p className="text-sm text-slate-500">Nothing declared yet.</p>
+                    <p className="text-sm text-text-secondary">Nothing declared yet.</p>
                 ) : (
-                    <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+                    <ul className="divide-y divide-border-divider rounded-lg border border-border-default bg-bg-surface">
                         {terms.map((t) => (
                             <li
                                 key={t.id}
                                 className="flex items-center gap-3 px-4 py-2.5"
                             >
-                                <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wide text-text-secondary">
                                     {t.kind}
                                 </span>
-                                <span className="font-semibold text-slate-800">
+                                <span className="font-semibold text-text-primary">
                                     {t.canonical}
                                 </span>
                                 {t.variants?.length > 0 && (
-                                    <span className="text-sm text-slate-500">
+                                    <span className="text-sm text-text-secondary">
                                         not: {t.variants.join(', ')}
                                     </span>
                                 )}
                                 <button
                                     onClick={() => remove(t)}
-                                    className="ml-auto text-xs font-semibold text-slate-400 hover:text-rose-600"
+                                    className="ml-auto text-xs font-semibold text-text-secondary hover:text-status-danger"
                                 >
                                     Remove
                                 </button>
@@ -203,14 +203,14 @@ function AddTerm({ bookId, onAdded }) {
     return (
         <form
             onSubmit={submit}
-            className="mb-6 grid grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+            className="mb-6 grid grid-cols-3 gap-3 rounded-lg border border-border-default bg-bg-subtle p-4"
         >
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 Kind
                 <select
                     value={kind}
                     onChange={(e) => setKind(e.target.value)}
-                    className="w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    className="w-full rounded-md border-border-input text-sm focus:border-brand-primary focus:ring-brand-primary"
                 >
                     <option value="character">Character</option>
                     <option value="place">Place</option>
@@ -220,39 +220,39 @@ function AddTerm({ bookId, onAdded }) {
                 </select>
             </label>
 
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 Correct spelling
                 <input
                     value={canonical}
                     onChange={(e) => setCanonical(e.target.value)}
                     required
-                    className="w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    className="w-full rounded-md border-border-input text-sm focus:border-brand-primary focus:ring-brand-primary"
                 />
             </label>
 
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 Flag these instead
                 <input
                     value={variants}
                     onChange={(e) => setVariants(e.target.value)}
                     placeholder="Jon, Johnny"
-                    className="w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    className="w-full rounded-md border-border-input text-sm focus:border-brand-primary focus:ring-brand-primary"
                 />
             </label>
 
-            <label className="col-span-3 text-xs font-semibold text-slate-600">
+            <label className="col-span-3 text-xs font-semibold text-text-secondary">
                 Note
                 <input
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    className="w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    className="w-full rounded-md border-border-input text-sm focus:border-brand-primary focus:ring-brand-primary"
                 />
             </label>
 
             <div className="col-span-3">
                 <button
                     disabled={saving}
-                    className="rounded-md bg-slate-800 px-4 py-1.5 text-sm font-bold text-white hover:bg-slate-900 disabled:opacity-60"
+                    className="rounded-md bg-bg-inverse px-4 py-1.5 text-sm font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
                 >
                     {saving ? 'Saving…' : 'Add term'}
                 </button>

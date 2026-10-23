@@ -65,7 +65,7 @@ export default function Invitation({ state, token, invitation, email_matches: em
                         <Link
                             href={route('login')}
                             data-a="invitation:signin"
-                            className="flex h-[42px] flex-1 items-center justify-center rounded-xl bg-brand-primary text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                            className="flex h-[42px] flex-1 items-center justify-center rounded-xl bg-brand-fill text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
                         >
                             Sign in
                         </Link>
@@ -82,7 +82,7 @@ export default function Invitation({ state, token, invitation, email_matches: em
                 <button
                     data-a="invitation:accept"
                     onClick={() => router.post(route('invitations.accept', token))}
-                    className="mt-6 h-[46px] w-full rounded-xl bg-brand-primary text-[14.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover"
+                    className="mt-6 h-[46px] w-full rounded-xl bg-brand-fill text-[14.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover"
                 >
                     Accept and open the book
                 </button>
@@ -134,7 +134,7 @@ function Closed({ state }) {
             <Link
                 href={route('login')}
                 data-a="invitation:closed:signin"
-                className="flex h-[46px] w-full items-center justify-center rounded-xl bg-brand-primary text-[14.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                className="flex h-[46px] w-full items-center justify-center rounded-xl bg-brand-fill text-[14.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
             >
                 Go to sign in
             </Link>

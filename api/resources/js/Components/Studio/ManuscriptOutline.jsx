@@ -99,7 +99,7 @@ export default function ManuscriptOutline({
                                     ? 'bg-bg-surface font-semibold text-brand-primary'
                                     : t.ready
                                       ? 'text-text-secondary hover:text-text-primary'
-                                      : 'text-text-secondary/60'
+                                      : 'text-text-secondary'
                             }`}
                         >
                             {t.key}
@@ -107,7 +107,7 @@ export default function ManuscriptOutline({
                                 <span className="ml-0.5 align-super text-[8px]">•</span>
                             )}
                             {isActive && (
-                                <span className="absolute inset-x-0 bottom-0 h-[2px] bg-brand-primary" />
+                                <span className="absolute inset-x-0 bottom-0 h-[2px] bg-brand-fill" />
                             )}
                         </button>
                     );
@@ -136,7 +136,7 @@ export default function ManuscriptOutline({
                             onClick={onAddChapter}
                             disabled={adding}
                             aria-label="Add chapter"
-                            className="grid h-[27px] w-[27px] shrink-0 place-items-center rounded-control bg-brand-primary text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
+                            className="grid h-[27px] w-[27px] shrink-0 place-items-center rounded-control bg-brand-fill text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
                         >
                             <Icon name="plus" size={15} strokeWidth={2} />
                         </button>

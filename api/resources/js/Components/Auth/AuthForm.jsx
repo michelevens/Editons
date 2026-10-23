@@ -66,7 +66,7 @@ export function AuthField({
                 // distinguish it.
                 aria-invalid={error ? 'true' : undefined}
                 aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
-                className={`h-[46px] w-full rounded-xl border bg-bg-surface px-3.5 text-[14px] text-text-primary transition placeholder:text-text-secondary/70 focus:outline-none focus:ring-4 ${
+                className={`h-[46px] w-full rounded-xl border bg-bg-surface px-3.5 text-[14px] text-text-primary transition placeholder:text-text-secondary focus:outline-none focus:ring-4 ${
                     error
                         ? 'border-status-danger focus:border-status-danger focus:ring-status-danger/10'
                         : 'border-border-input focus:border-brand-primary focus:ring-brand-primary/10'
@@ -98,7 +98,7 @@ export function AuthSubmit({ processing, children }) {
         <button
             type="submit"
             disabled={processing}
-            className="flex h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-[14.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-brand-fill text-[14.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
         >
             {processing ? (
                 <>

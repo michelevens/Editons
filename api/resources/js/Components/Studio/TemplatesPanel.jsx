@@ -130,7 +130,7 @@ export default function TemplatesPanel({ section, onInsert }) {
                         key={template.id}
                         className="flex items-start gap-3.5 rounded-panel border border-border-default bg-bg-surface p-4"
                     >
-                        <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-tile bg-brand-primary-subtle text-brand-primary-hover">
+                        <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-tile bg-brand-primary-subtle text-outline-active-text">
                             <Icon name={template.icon} size={17} />
                         </span>
 
@@ -148,7 +148,7 @@ export default function TemplatesPanel({ section, onInsert }) {
                             disabled={!section}
                             onClick={() => insert(template)}
                             title={section ? undefined : 'Open a chapter first.'}
-                            className="h-[32px] shrink-0 rounded-control bg-brand-primary px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+                            className="h-[32px] shrink-0 rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             {inserted === template.id ? 'Inserted' : 'Insert'}
                         </button>

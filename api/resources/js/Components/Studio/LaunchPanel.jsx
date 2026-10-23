@@ -136,7 +136,7 @@ export default function LaunchPanel({ bookId, onNotify }) {
                                     onClick={() => patch({ task: task.key, done: !task.done })}
                                     className={`mt-0.5 flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-full transition ${
                                         task.done
-                                            ? 'bg-status-success text-white'
+                                            ? 'bg-status-success-fill text-white'
                                             : task.overdue
                                               ? 'border-2 border-status-warning'
                                               : 'border border-border-input'
@@ -266,7 +266,7 @@ export default function LaunchPanel({ bookId, onNotify }) {
                             type="submit"
                             data-a="launch:reader-add"
                             disabled={busy === 'add' || !name.trim() || !email.trim()}
-                            className="rounded-control bg-brand-primary px-2.5 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                            className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                         >
                             {busy === 'add' ? 'Adding…' : 'Add reader'}
                         </button>

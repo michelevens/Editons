@@ -168,7 +168,7 @@ export default function PublishPanel({ bookId, onNotify }) {
                     data-a="publish:submit"
                     onClick={submit}
                     disabled={busy === 'submit'}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-control bg-brand-primary px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
                     <Icon name="exp" size={13} strokeWidth={2} />
                     {busy === 'submit' ? 'Submitting…' : 'Submit for publishing'}
@@ -336,7 +336,7 @@ export default function PublishPanel({ bookId, onNotify }) {
                                             }
                                             className={`h-[20px] w-[34px] shrink-0 rounded-full p-[2px] transition disabled:opacity-50 ${
                                                 channel.enabled
-                                                    ? 'bg-brand-primary'
+                                                    ? 'bg-brand-fill'
                                                     : 'bg-border-input'
                                             }`}
                                         >

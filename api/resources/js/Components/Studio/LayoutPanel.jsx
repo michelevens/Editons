@@ -336,7 +336,7 @@ function Toggle({ label, hint, checked, name, onChange }) {
                 data-a={`layout:${name}`}
                 onClick={() => onChange(!checked)}
                 className={`mt-0.5 h-[20px] w-[34px] shrink-0 rounded-full p-[2px] transition ${
-                    checked ? 'bg-brand-primary' : 'bg-border-input'
+                    checked ? 'bg-brand-fill' : 'bg-border-input'
                 }`}
             >
                 <span

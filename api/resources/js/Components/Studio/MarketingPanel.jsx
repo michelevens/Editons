@@ -76,7 +76,7 @@ export default function MarketingPanel({ bookId, onNotify }) {
                     data-a="kit:generate"
                     disabled={busy || !hasChapters}
                     onClick={generate}
-                    className="ml-auto rounded-control bg-brand-primary px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    className="ml-auto rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
                     {busy ? 'Building…' : `${kit ? 'Rebuild' : 'Build kit'} · ${cost} credits`}
                 </button>
@@ -170,7 +170,7 @@ export default function MarketingPanel({ bookId, onNotify }) {
                 ) : (
                     hasChapters && (
                         <div className="rounded-tile border border-border-default bg-bg-surface p-8 text-center">
-                            <span className="inline-flex text-text-secondary/60">
+                            <span className="inline-flex text-text-secondary">
                                 <Icon name="mega" size={30} strokeWidth={1.5} />
                             </span>
                             <p className="mt-2 text-[13px] font-medium text-text-primary">

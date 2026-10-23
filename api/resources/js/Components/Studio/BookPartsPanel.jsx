@@ -296,7 +296,7 @@ function PartRow({ row, adding, disabled, onAdd }) {
                         onClick={onAdd}
                         disabled={disabled}
                         aria-label={`Add ${row.english}`}
-                        className="h-[30px] rounded-control bg-brand-primary px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
+                        className="h-[30px] rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
                     >
                         {adding ? "Adding…" : "Add"}
                     </button>
@@ -364,7 +364,7 @@ function OrderPreview({ preview, busy, onApply, onCancel }) {
                         data-a="parts:order:apply"
                         onClick={onApply}
                         disabled={busy}
-                        className="h-[32px] rounded-control bg-brand-primary px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
+                        className="h-[32px] rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
                     >
                         {busy ? "Reordering…" : "Reorder the binder"}
                     </button>

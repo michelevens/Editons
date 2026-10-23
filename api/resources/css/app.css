@@ -7,6 +7,13 @@
    scripts/build-tokens.py. */
 @import './tokens.css';
 
+/* Dark mode is a class on <html>, not the media query alone: the author can
+   pick light or dark against their system (Profile, account menu), and the
+   choice is saved on their account. app.blade.php sets the class before the
+   first paint. Most components need no dark: variant at all, because the
+   tokens they use are re-pointed under html.dark (tokens.css). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Scan Blade and JS for class names. v4 infers most sources, but Laravel's
    layout lives outside the default heuristics. */
 @source '../views';
@@ -37,6 +44,23 @@
    UI face it would replace. */
 @import '@fontsource/bricolage-grotesque/latin-700.css';
 @import '@fontsource/bricolage-grotesque/latin-800.css';
+
+/* The page itself takes the app background and body colour, so nothing
+   between the root and a panel shows the browser's default white. */
+@layer base {
+    html,
+    body {
+        background-color: var(--color-bg-app);
+        color: var(--color-text-body);
+    }
+}
+
+/* Visible keyboard focus everywhere. Tailwind's preflight leaves the
+   browser default, which some controls here remove with focus:ring-0. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-brand-primary);
+    outline-offset: 2px;
+}
 
 /* The manuscript canvas.
    Type scale from tokens.json: H1 31/38, H2 21.5/28, body 17/24. These are

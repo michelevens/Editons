@@ -25,9 +25,9 @@ const AGENT_STYLE = {
 };
 
 const SEVERITY_BADGE = {
-    critical: 'bg-status-danger text-white',
+    critical: 'bg-status-danger-fill text-white',
     warning: 'bg-status-warning-badge text-white',
-    suggestion: 'bg-status-info text-white',
+    suggestion: 'bg-status-info-fill text-white',
 };
 
 export default function AIEditorPanel({
@@ -101,7 +101,7 @@ export default function AIEditorPanel({
                                     ? 'font-semibold text-brand-primary'
                                     : t.ready
                                       ? 'text-text-secondary hover:text-text-primary'
-                                      : 'text-text-secondary/60'
+                                      : 'text-text-secondary'
                             }`}
                         >
                             {t.key}
@@ -110,7 +110,7 @@ export default function AIEditorPanel({
                                 <span className="ml-0.5 align-super text-[8px]">•</span>
                             )}
                             {isActive && (
-                                <span className="absolute inset-x-0 -bottom-px h-[2px] bg-brand-primary" />
+                                <span className="absolute inset-x-0 -bottom-px h-[2px] bg-brand-fill" />
                             )}
                         </button>
                     );

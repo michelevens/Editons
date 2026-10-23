@@ -62,7 +62,7 @@ export default function QuickStart({ recent }) {
                             autoFocus
                             placeholder="The title, or something close to it"
                             onChange={(event) => setData('title', event.target.value)}
-                            className="h-[52px] w-full rounded-control border border-border-input px-4 text-[16px] placeholder:text-text-secondary/70 focus:border-brand-primary focus:ring-0"
+                            className="h-[52px] w-full rounded-control border border-border-input px-4 text-[16px] placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
                         />
                     </label>
 
@@ -75,7 +75,7 @@ export default function QuickStart({ recent }) {
                     <button
                         data-a="quick:start"
                         disabled={processing || !data.title.trim()}
-                        className="mt-3 h-[48px] w-full rounded-control bg-brand-primary text-[15px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                        className="mt-3 h-[48px] w-full rounded-control bg-brand-fill text-[15px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
                         {processing ? 'Opening…' : 'Start writing'}
                     </button>

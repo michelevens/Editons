@@ -181,7 +181,7 @@ export default function EditionsPanel({ bookId, onNotify }) {
                                                     onClick={() =>
                                                         router.get(`/books/${edition.id}/edit`)
                                                     }
-                                                    className="rounded-control bg-brand-primary px-2 py-1 text-[11.5px] font-semibold text-white"
+                                                    className="rounded-control bg-brand-fill px-2 py-1 text-[11.5px] font-semibold text-white"
                                                 >
                                                     Open
                                                 </button>
@@ -210,7 +210,7 @@ function Card({ title, body, action, busy, disabled, dataA, onAction, children }
                 data-a={dataA}
                 onClick={onAction}
                 disabled={disabled}
-                className="mt-auto rounded-control bg-brand-primary px-2.5 py-2 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                className="mt-auto rounded-control bg-brand-fill px-2.5 py-2 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
             >
                 {busy ? 'Creating…' : action}
             </button>

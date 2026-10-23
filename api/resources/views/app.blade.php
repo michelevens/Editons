@@ -1,6 +1,21 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+{{-- The account's theme is set on the root before anything paints, so a dark
+     page never flashes white while it loads. 'system' is resolved by the
+     script below, because only the browser knows prefers-color-scheme.
+     Guests follow the system. resources/js/theme.js takes over once the app
+     has booted. --}}
+@php($theme = in_array(auth()->user()?->theme, \App\Models\User::THEMES, true) ? auth()->user()->theme : 'system')
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="{{ $theme }}" @class(['dark' => $theme === 'dark'])>
     <head>
+        <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
+            (function () {
+                var root = document.documentElement;
+                if (root.dataset.theme !== 'system') return;
+                try {
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) root.classList.add('dark');
+                } catch (e) {}
+            })();
+        </script>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         {{-- Read by the editor's unload save: navigator.sendBeacon cannot set

@@ -149,7 +149,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                 <button
                     data-a="rights:pool:open"
                     onClick={() => setShowPoolForm((open) => !open)}
-                    className="ml-auto rounded-control bg-brand-primary px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                    className="ml-auto rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
                 >
                     Add ISBNs
                 </button>
@@ -186,7 +186,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                 type="submit"
                                 data-a="rights:pool:save"
                                 disabled={busy === 'pool' || !poolDraft.trim()}
-                                className="rounded-control bg-brand-primary px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                                className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
                             >
                                 {busy === 'pool' ? 'Adding…' : 'Add to pool'}
                             </button>
@@ -257,7 +257,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                                                     isbn_id: pool[0].id,
                                                                 })
                                                             }
-                                                            className="rounded-control bg-brand-primary px-2 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
+                                                            className="rounded-control bg-brand-fill px-2 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
                                                         >
                                                             Assign from pool
                                                         </button>
@@ -309,7 +309,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                 type="submit"
                                 data-a="rights:own:save"
                                 disabled={busy !== null}
-                                className="rounded-control bg-brand-primary px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                                className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
                             >
                                 Save ISBN
                             </button>
@@ -347,7 +347,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                 <span
                                     className={`flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-full ${
                                         item.done
-                                            ? 'bg-status-success text-white'
+                                            ? 'bg-status-success-fill text-white'
                                             : 'border border-border-input text-text-secondary'
                                     }`}
                                 >

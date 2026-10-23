@@ -373,7 +373,7 @@ function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPain
                         data-a="cover:ai:concepts"
                         onClick={onPropose}
                         disabled={thinking !== null}
-                        className="rounded-control bg-brand-primary px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                        className="rounded-control bg-brand-fill px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
                         {thinking === 'concepts'
                             ? 'Designing…'
