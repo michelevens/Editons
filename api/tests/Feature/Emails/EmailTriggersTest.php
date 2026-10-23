@@ -253,7 +253,10 @@ it('does not email somebody assigned to a book they cannot open', function () {
     [$owner, , , $section] = emailBook();
     $stranger = User::factory()->create();
 
-    $this->actingAs($owner)->patchJson("/sections/{$section->id}/reviewer", ['reviewer_id' => $stranger->id])->assertOk();
+    // Only members can be assigned at all (ADR-0019), so the request is
+    // refused before an email could be sent.
+    $this->actingAs($owner)->patchJson("/sections/{$section->id}/reviewer", ['reviewer_id' => $stranger->id])
+        ->assertStatus(422);
 
     Mail::assertNotQueued(ReviewerAssignedMail::class);
 });

@@ -116,11 +116,11 @@ it('splits chapters at the top heading level and keeps the text before the first
     expect(array_map(fn ($s) => $s->title, $sections))->toBe(['Mon manuscrit', 'Chapitre premier', 'Chapitre deux'])
         ->and($report->sections)->toBe(3)
         ->and($report->titles)->toBe(['Mon manuscrit', 'Chapitre premier', 'Chapitre deux'])
-        ->and($sections[1]->content['content'][1])->toEqual([
-            'type' => 'heading',
-            'attrs' => ['level' => 2],
-            'content' => [['type' => 'text', 'text' => 'Une section']],
-        ])
+        // Headings are labelled on save, so cross-references can point at them.
+        ->and($sections[1]->content['content'][1]['type'])->toBe('heading')
+        ->and($sections[1]->content['content'][1]['attrs']['level'])->toBe(2)
+        ->and($sections[1]->content['content'][1]['attrs']['label'])->toStartWith('sec-')
+        ->and($sections[1]->content['content'][1]['content'])->toEqual([['type' => 'text', 'text' => 'Une section']])
         ->and($book->word_count)->toBeGreaterThan(5);
 });
 

@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -150,7 +150,7 @@ it('gives the same answer for a known and an unknown address', function () {
     $known->assertSessionHasNoErrors()->assertSessionHas('status', PasswordResetLinkController::SENT);
     $unknown->assertSessionHasNoErrors()->assertSessionHas('status', PasswordResetLinkController::SENT);
 
-    Notification::assertSentTo($user, ResetPassword::class);
+    Notification::assertSentTo($user, ResetPasswordNotification::class);
 });
 
 it('gives the same answer when a link was sent a moment ago', function () {
