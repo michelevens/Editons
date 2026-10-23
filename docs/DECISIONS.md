@@ -996,3 +996,109 @@ new controls.
 (Ulysses), touch reordering with swipe actions (Scrivener iOS), suggest mode
 and long-press comments (Google Docs, Word), a full-screen device preview
 with page turns (Vellum, Kindle Previewer), a collaboration inbox (Linear).
+
+## ADR-00XX — Full-screen book preview and the account inbox
+
+**Status:** accepted (2026-10-23)
+
+**Context.** ADR-0024 ranked two phone features it left for later: a
+full-screen device preview with page turns (the pattern of Vellum's device
+preview and Kindle Previewer) and a collaboration inbox (the pattern of
+Linear's mobile inbox). Design & Layout previewed the first 4,000
+characters of one chapter in a box; nothing showed the whole book as a
+reader holds it. Comments, review-board moves, people joining, exports and
+AI reviews reached people only by email, which a phone-first author reads
+somewhere else and cannot act on.
+
+**Preview — decisions.**
+- *One formatting path.* `PreviewController` formats nothing.
+  Phone and E-reader get the EPUB's own documents (`Exporter::readerContents`
+  / `readerPage`, the same `Anatomy::plan` walk as `epub()`; the generated
+  pages and section bodies are now `epubGeneratedPage()` /
+  `epubSectionBody()`, shared by both) and `epubCss`. Print gets
+  PrintBook's own plan and stylesheet (`PrintBook::previewContents` /
+  `previewBlock`); pictures are linked by the app's URL instead of inlined
+  as base64 there. Cross-references link to `preview-{key}#anchor`, which
+  the preview follows itself.
+- *A chapter at a time.* `GET /books/{book}/preview` sends the contents and
+  both stylesheets; `GET /books/{book}/preview/page?mode=&key=` sends one
+  document or block. Only the chapter on screen is in the page. The rest
+  are laid out one per idle callback in a hidden shadow root, only to count
+  their pages, so "12 / ≈240" becomes "12 / 240" without a freeze; until a
+  chapter is measured its pages are estimated from its words at the rate of
+  those measured.
+- *Pages are CSS columns.* A chapter is laid out in a box one text-block
+  high, in columns one text-block wide; turning a page slides the window
+  one column. Each page lives in a shadow root, so the book's stylesheet
+  (`body` rewritten to the flow, `@page` dropped) cannot touch the studio.
+  Print draws the page at its trim size in CSS inches (96 px) with the
+  layout's margins, scaled to fit, in the faces the PDF embeds (served from
+  `resources/fonts` by `/preview/fonts/{name}`, OFL), with PrintBook's
+  running heads and folios drawn over it.
+- *Print is the browser's pagination, not dompdf's.* Rendering the PDF
+  (minutes for a long book, ADR-0018) and rasterising its pages would need
+  Ghostscript or Imagick on every service and send megabytes of images to
+  a phone. The paged HTML uses the same blocks, CSS and fonts, so openers,
+  labels, type, measure and leading match; line and page breaks can differ
+  slightly from the PDF, blank versos before rectos are not inserted, and
+  the contents page shows no page numbers. The PDF stays the proof of
+  record.
+- *Layout warnings.* `PreviewCheck` tags in the server's markup what is
+  certain from it: a stored picture whose file is gone, a picture the
+  renderer refused, a cross-reference to nothing, and (reflowable only) a
+  table of five columns or more. The browser adds what only a laid-out page
+  shows: an element wider or taller than the page, a picture that failed to
+  load. "Check" steps a page every quarter second and stops on a page with
+  either; Continue goes on, and reaching the end says so.
+- *Controls.* Tap the outer thirds, swipe (pointer events, `touch-action:
+  pan-y`), arrow keys / Page Up / Page Down / Home / End, or the buttons;
+  a Contents sheet jumps to any document; type size steps 80–175 % in the
+  reflowable modes. Device and type size are remembered per browser
+  (localStorage, wrapped). It is the editor pane `preview` (`destination`
+  → publishing), a full-screen dialog over the studio, opened from Design,
+  Export & Publish and a More tile; closing returns to the screen that
+  opened it. It is not in the desktop sidebar, which matches the prototype
+  item for item (crawl.spec.js).
+
+**Inbox — decisions.**
+- *A table written where things happen.* `inbox_items` (recipient, book,
+  actor, kind, title, body, target, group key, occurred/read/done/snoozed
+  times). The things it lists are scattered over comments, sections,
+  members, exports and reviews, and read, done and snoozed are the
+  recipient's own state, which none of those rows can hold for each person.
+  Laravel's database notifications were considered; they have no snooze or
+  done and key on a morph, so they would have needed the same columns
+  added.
+- `App\Inbox\Inbox` is called beside `Notify` at each site: comments (the
+  owner, @mentions, everyone in a thread for a reply; one item each,
+  the most specific winning), review-board moves (owner and the chapter's
+  reviewer, one row per chapter kept current), reviewer assignment,
+  invitations accepted (owner), queued PDF/EPUB ready or failed (whoever
+  asked; also from the stale sweep and the job's `failed()`), and AI
+  reviews (one row per chapter kept current: news for the owner when
+  somebody else ran it, recorded already read for whoever ran it, who
+  watched it finish). It is not gated by email preferences. Nobody is told
+  about their own action, nobody about a book they cannot open, and a
+  failure to record never fails the action.
+- *Tenancy.* Every read goes through `InboxItem::scopeFor`: the person's own
+  rows, about books they can still open (`accessibleBooks`), so a member
+  removed from a team stops seeing that book's items; updating or opening
+  anybody else's row answers 404.
+- *An account page, not a pane.* `/inbox` (Inertia `Inbox`) spans books;
+  an editor pane needs one book open. Views Inbox / Snoozed / Done.
+  `GET /inbox/{item}/open` marks read and redirects to the pane and chapter
+  in `target`. Swipe left = done, right = snooze until 08:00 tomorrow
+  (app time zone), each with a six-second Undo through the same endpoint;
+  E, H, U and the arrow keys do the same from a keyboard, and every action
+  is also a button on the row.
+- *Badge.* `inbox_unread` is a lazy shared prop. The library tab set is now
+  Books / Write / Sales / Inbox (Billing was already in More's account
+  list); the avatar carries an unread dot and the account menu an Inbox
+  entry with the count.
+
+**Tests.** `tests/Feature/BookPreviewTest.php` (EPUB parity of a reader
+page, print blocks with linked pictures, warnings, tenancy, fonts) and
+`tests/Feature/InboxTest.php` (each source, coalescing, tenancy, done /
+undo / snooze / wake, open, read-all);
+`tests/Browser/preview.spec.js` and `tests/Browser/inbox.spec.js` at
+390 px; `mobile.spec.js` follows the new library set and More tile.
