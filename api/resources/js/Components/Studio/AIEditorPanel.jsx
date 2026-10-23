@@ -3,6 +3,7 @@ import { useState } from 'react';
 import CitationsTab from './CitationsTab';
 import CommentsPanel from './CommentsPanel';
 import Icon from './Icon';
+import ReviewDeck from './ReviewDeck';
 
 /**
  * The right rail: AI Editor, Comments, Research, Checks.
@@ -42,12 +43,15 @@ export default function AIEditorPanel({
     onRunAgent,
     onRunFullReview,
     onResolve,
+    onReopen,
     onShowInText,
     onOpenSection,
     onRestore,
     onOpenLibrary,
 }) {
     const [tab, setTab] = useState('AI Editor');
+    // One finding at a time (ReviewDeck), across every agent.
+    const [reviewing, setReviewing] = useState(false);
     const [openAgent, setOpenAgent] = useState(null);
     const [commentCount, setCommentCount] = useState(0);
 
@@ -95,6 +99,7 @@ export default function AIEditorPanel({
                             onClick={() => {
                                 setTab(t.key);
                                 setOpenAgent(null);
+                                setReviewing(false);
                             }}
                             title={t.ready ? undefined : 'Not built yet'}
                             className={`relative flex-1 py-[13px] text-[12.5px] transition ${
@@ -120,7 +125,16 @@ export default function AIEditorPanel({
 
             <div className="min-h-0 flex-1 overflow-y-auto">
                 {tab === 'AI Editor' &&
-                    (openAgent ? (
+                    (reviewing ? (
+                        <ReviewDeck
+                            findings={findings}
+                            agents={agents}
+                            onResolve={onResolve}
+                            onReopen={onReopen}
+                            onShowInText={onShowInText}
+                            onClose={() => setReviewing(false)}
+                        />
+                    ) : openAgent ? (
                         <AgentFindings
                             agent={agents.find((a) => a.value === openAgent)}
                             findings={findings.filter((f) => f.agent === openAgent)}
@@ -129,18 +143,32 @@ export default function AIEditorPanel({
                             onShowInText={onShowInText}
                         />
                     ) : (
-                        <AgentList
-                            agents={agents}
-                            open={open}
-                            running={running}
-                            reviewProgress={reviewProgress}
-                            onRunAgent={onRunAgent}
-                            onRunFullReview={onRunFullReview}
-                            onOpenAgent={setOpenAgent}
-                            onDirect={direct}
-                            directing={directing}
-                            direction={direction}
-                        />
+                        <>
+                            {open.length > 0 && onReopen && (
+                                <div className="px-3.5 pt-3.5">
+                                    <button
+                                        data-a="ai:review-one-by-one"
+                                        onClick={() => setReviewing(true)}
+                                        className="flex h-[42px] w-full items-center justify-center gap-2 rounded-control border border-brand-primary/40 bg-brand-primary-subtle text-[13px] font-semibold text-brand-primary transition hover:border-brand-primary"
+                                    >
+                                        Review one by one ({open.length})
+                                        <Icon name="right" size={14} />
+                                    </button>
+                                </div>
+                            )}
+                            <AgentList
+                                agents={agents}
+                                open={open}
+                                running={running}
+                                reviewProgress={reviewProgress}
+                                onRunAgent={onRunAgent}
+                                onRunFullReview={onRunFullReview}
+                                onOpenAgent={setOpenAgent}
+                                onDirect={direct}
+                                directing={directing}
+                                direction={direction}
+                            />
+                        </>
                     ))}
 
                 {tab === 'Research' && (

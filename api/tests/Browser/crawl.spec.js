@@ -780,9 +780,21 @@ test.describe('billing', () => {
         };
 
         const before = await read();
+        const reviewed = page.waitForResponse(
+            (r) => /\/sections\/\d+\/review$/.test(r.url()) && r.request().method() === 'POST',
+        );
         await page.click('[data-a="ai:run:copy"]');
+        const { review } = await (await reviewed).json();
 
-        await expect.poll(read, { timeout: 20_000 }).toBeLessThan(before);
+        // Sample output (the heuristic driver, which local and CI servers
+        // run) is never charged: ReviewBillingTest. Only a provider's review
+        // moves the number.
+        if (review.simulated) {
+            await page.waitForTimeout(1500);
+            expect(await read()).toBe(before);
+        } else {
+            await expect.poll(read, { timeout: 20_000 }).toBeLessThan(before);
+        }
 
         expect(errors).toEqual([]);
     });

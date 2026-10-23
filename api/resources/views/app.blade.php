@@ -17,7 +17,7 @@
             })();
         </script>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
         {{-- Read by the editor's unload save: navigator.sendBeacon cannot set
              headers, so the token has to be available to put in the body. --}}
         <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -32,6 +32,13 @@
         <link rel="icon" href="/favicon.ico" sizes="32x32">
         <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
         <meta name="theme-color" content="#2166F5">
+        {{-- Installable: added to a home screen it opens full screen, like an
+             app, with its own icon. public/sw.js caches no manuscript. --}}
+        <link rel="manifest" href="/manifest.webmanifest">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="Ecrivain">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
         {{-- What a link to the app looks like when somebody shares it. --}}
         <meta property="og:title" content="{{ config('app.name', 'Ecrivain') }}">

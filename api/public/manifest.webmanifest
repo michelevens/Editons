@@ -1,0 +1,21 @@
+{
+    "name": "Ecrivain",
+    "short_name": "Ecrivain",
+    "description": "Write, edit, publish and grow your book in one place.",
+    "id": "/books",
+    "start_url": "/books?source=pwa",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#F6F7FB",
+    "theme_color": "#2166F5",
+    "icons": [
+        { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/brand/symbol.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    ],
+    "shortcuts": [
+        { "name": "My books", "url": "/books?source=pwa-shortcut", "icons": [{ "src": "/brand/icon-192.png", "sizes": "192x192" }] },
+        { "name": "Start a book", "url": "/start?source=pwa-shortcut", "icons": [{ "src": "/brand/icon-192.png", "sizes": "192x192" }] }
+    ]
+}
