@@ -4,6 +4,9 @@ namespace App\Mail\Support;
 
 use App\Models\Book;
 use App\Publishing\AccessibilityAudit;
+use App\Publishing\CoverRenderer;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * What one email says, slot by slot.
@@ -224,9 +227,32 @@ final class Letter
             'caption' => $caption,
             'from' => $palette['from'],
             'ink' => $palette['ink'],
+            'cover_path' => self::coverThumb($book),
         ];
 
         return $this;
+    }
+
+    /**
+     * The book's real cover, as the 320px thumbnail on the files disk, for
+     * the card to embed in the message itself (cid:, not a link: the cover
+     * is served behind sign-in, and a linked image is a broken box in most
+     * inboxes). Null when it cannot be drawn, and the card falls back to the
+     * typographic cover: an email is never held up by its picture.
+     */
+    private static function coverThumb(Book $book): ?string
+    {
+        if (! $book->exists) {
+            return null;
+        }
+
+        try {
+            return app(CoverRenderer::class)->ensureThumb($book);
+        } catch (Throwable $e) {
+            Log::notice('Email cover thumbnail unavailable', ['book' => $book->id, 'error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     /** A rule between groups of blocks. */
