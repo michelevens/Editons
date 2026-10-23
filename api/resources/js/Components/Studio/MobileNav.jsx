@@ -1,6 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import Dialog, { CloseButton } from '../Dialog';
+import { useTyping } from '../Editor/useKeyboard';
 import Icon from './Icon';
 import { goTo } from './navigation';
 
@@ -82,6 +83,9 @@ export default function MobileNav({
     const set = tabSet(current, Boolean(bookId));
     const tabs = SETS[set].filter((key) => key !== 'continue' || book);
     const [sheet, setSheet] = useState(false);
+    // Out of the way while the keyboard is up: the keys, the formatting
+    // bar and the text are what a phone has room for then.
+    const typing = useTyping();
 
     // A screen of the book: the editor switches panes in place, any other
     // page opens the editor on it.
@@ -111,7 +115,7 @@ export default function MobileNav({
             <nav
                 aria-label="Sections"
                 data-a="mobile:tabs"
-                className="safe-bottom shrink-0 border-t border-border-default bg-bg-surface lg:hidden"
+                className={`safe-bottom shrink-0 border-t border-border-default bg-bg-surface lg:hidden ${typing ? 'hidden' : ''}`}
             >
                 <ul className="mx-auto grid h-[58px] max-w-[640px] grid-cols-5">
                     {[...tabs, 'more'].map((key) => {

@@ -12,6 +12,7 @@ import { CrossRef, localTargets, refreshNumbering, Xref, XrefDialog } from './Cr
 import { Chart } from './ChartNode';
 import { Footnote, FootnoteDialog } from './FootnoteNode';
 import ImageDialog from './ImageDialog';
+import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
 
 /**
@@ -402,6 +403,133 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
         return () => window.removeEventListener('keydown', onKey);
     }, [editor, flush]);
 
+    // --- Phone writing: the keyboard, the connection, the caret ----------
+
+    const keyboard = useKeyboardInset();
+    const keyboardRef = useRef(0);
+    keyboardRef.current = keyboard;
+    const online = useOnline();
+    const scroller = useRef(null);
+    const [phone, setPhone] = useState(false);
+    // The editor has focus: on a phone the formatting bar moves down to sit
+    // on the keyboard, where the thumb is, instead of scrolling away above.
+    const [editing, setEditing] = useState(false);
+    // Typewriter scrolling: the line being written stays mid-screen.
+    const [typewriter, setTypewriter] = useState(() => {
+        try {
+            return window.localStorage.getItem('ecrivain:typewriter') === '1';
+        } catch {
+            return false;
+        }
+    });
+    const typewriterRef = useRef(typewriter);
+    typewriterRef.current = typewriter;
+
+    const toggleTypewriter = () => {
+        setTypewriter((on) => {
+            try {
+                window.localStorage.setItem('ecrivain:typewriter', on ? '0' : '1');
+            } catch {
+                // Private mode: the choice lasts for this page only.
+            }
+
+            return !on;
+        });
+    };
+
+    useEffect(() => {
+        const narrow = window.matchMedia('(max-width: 767px)');
+        const update = () => setPhone(narrow.matches);
+
+        update();
+        narrow.addEventListener('change', update);
+
+        return () => narrow.removeEventListener('change', update);
+    }, []);
+
+    // Back online: send what was refused while the connection was down,
+    // rather than waiting for the next keystroke to try again.
+    useEffect(() => {
+        if (online && (unsent.current.size || pending.current)) flush();
+    }, [online, flush]);
+
+    /**
+     * Keep the caret where it can be seen: mid-screen for typewriter
+     * scrolling, or above the keyboard and the formatting bar on a phone
+     * (iOS slides the keyboard over the page, so ProseMirror's own scrolling
+     * can leave the caret under the keys).
+     */
+    const keepCaret = useCallback(() => {
+        const box = scroller.current;
+
+        if (!editor || editor.isDestroyed || !box) return;
+
+        const center = typewriterRef.current && editor.state.selection.empty;
+
+        if (!center && !keyboardRef.current) return;
+
+        let caret;
+
+        try {
+            caret = editor.view.coordsAtPos(editor.state.selection.head);
+        } catch {
+            return;
+        }
+
+        const rect = box.getBoundingClientRect();
+        const view = window.visualViewport;
+        const viewTop = view ? view.offsetTop : 0;
+        const viewBottom = view
+            ? view.offsetTop + view.height - (keyboardRef.current ? 60 : 0)
+            : window.innerHeight;
+        const top = Math.max(rect.top, viewTop);
+        const bottom = Math.min(rect.bottom, viewBottom);
+
+        if (center) {
+            box.scrollTop += caret.top - (top + (bottom - top) * 0.45);
+        } else if (caret.bottom > bottom - 16) {
+            box.scrollTop += caret.bottom - bottom + 32;
+        }
+    }, [editor]);
+
+    useEffect(() => {
+        if (!editor) return undefined;
+
+        let frame = null;
+        let blurTimer = null;
+        const onMove = () => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(keepCaret);
+        };
+        const onFocus = () => {
+            clearTimeout(blurTimer);
+            setEditing(true);
+        };
+        // Late, so a tap on the formatting bar (which keeps focus, but not
+        // on every touch browser) does not bounce the bar up and down.
+        const onBlur = () => {
+            blurTimer = setTimeout(() => setEditing(false), 200);
+        };
+
+        editor.on('selectionUpdate', onMove);
+        editor.on('update', onMove);
+        editor.on('focus', onFocus);
+        editor.on('blur', onBlur);
+
+        return () => {
+            cancelAnimationFrame(frame);
+            clearTimeout(blurTimer);
+            editor.off('selectionUpdate', onMove);
+            editor.off('update', onMove);
+            editor.off('focus', onFocus);
+            editor.off('blur', onBlur);
+        };
+    }, [editor, keepCaret]);
+
+    useEffect(() => {
+        if (keyboard) keepCaret();
+    }, [keyboard, keepCaret]);
+
     if (!section) {
         return (
             <div className="grid h-full place-items-center p-12 text-center">
@@ -415,6 +543,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     // Never trust the count to be a number: a footer that throws takes the
     // whole writing canvas down with it.
     const words = Number(wordCount) || 0;
+    const docked = editing && phone;
     const readingMinutes = Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 
     return (
@@ -446,12 +575,36 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
                     {words.toLocaleString()} words
                 </span>
-                <SaveStatus status={status} />
+                <SaveStatus status={status} online={online} />
+                <button
+                    type="button"
+                    data-a="editor:typewriter"
+                    onClick={toggleTypewriter}
+                    aria-pressed={typewriter}
+                    title={typewriter ? 'Typewriter scrolling is on' : 'Typewriter scrolling: keep the line you are writing mid-screen'}
+                    className={`grid h-7 w-7 shrink-0 place-items-center rounded-control transition max-md:h-9 max-md:w-9 ${
+                        typewriter ? 'bg-brand-primary-subtle text-brand-primary' : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary'
+                    }`}
+                >
+                    <Icon name="type" size={15} />
+                    <span className="sr-only">Typewriter scrolling</span>
+                </button>
                 {headerActions}
             </header>
 
+            {/* Writing on a phone, the bar leaves the top and sits on the
+                keyboard: fixed above it where iOS lays the keyboard over the
+                page, last in the column where Android has already shrunk the
+                page to fit. */}
+            <div
+                data-a="editor:toolbar-dock"
+                data-docked={docked ? 'true' : undefined}
+                className={docked ? 'order-last z-40 border-t border-border-divider bg-bg-surface shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)]' : ''}
+                style={docked && keyboard ? { position: 'fixed', left: 0, right: 0, bottom: keyboard } : undefined}
+            >
             <Toolbar
                 editor={editor}
+                onDone={docked ? () => editor?.commands.blur() : null}
                 onMath={(kind) => setMathEdit({ kind, latex: '', pos: null })}
                 onImage={bookId ? () => setInserting(true) : null}
                 onChart={() => setChartEdit({ attrs: {}, pos: null })}
@@ -461,6 +614,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                     setXrefPick({ local: localTargets(editor.state.doc), remote: place?.targets ?? [] });
                 } : null}
             />
+            </div>
 
             {xrefPick && (
                 <XrefDialog
@@ -596,7 +750,10 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 />
             )}
 
-            <div className="flex-1 overflow-y-auto px-4 pb-10 pt-5 sm:px-[21px] sm:pt-[30px]">
+            <div
+                ref={scroller}
+                className={`flex-1 overflow-y-auto px-4 pt-5 sm:px-[21px] sm:pt-[30px] ${typewriter ? 'pb-[45vh]' : 'pb-10'}`}
+            >
                 {/^\s*list\s+of\s+(tables|figures|illustrations)\s*$/i.test(section.title) && (
                     <p
                         data-a="editor:generated-list"
@@ -610,7 +767,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 <EditorContent editor={editor} />
             </div>
 
-            <footer className="flex h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-4 text-[11px] text-text-secondary sm:px-[21px]">
+            <footer className={`${docked ? 'hidden' : 'flex'} h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-4 text-[11px] text-text-secondary sm:px-[21px]`}>
                 <span>Reading time ~{readingMinutes} min</span>
                 <span className="tabular-nums">
                     {words.toLocaleString()} words
@@ -620,7 +777,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     );
 }
 
-function SaveStatus({ status }) {
+function SaveStatus({ status, online = true }) {
     const map = {
         idle: ['text-text-secondary', 'Ready', false],
         dirty: ['text-status-warning', 'Unsaved changes', false],
@@ -628,7 +785,13 @@ function SaveStatus({ status }) {
         saved: ['text-status-success', 'Saved', true],
         error: ['text-status-danger', 'Not saved — check your connection', false],
     };
-    const [cls, label, showCheck] = map[status] ?? map.idle;
+    // Offline with work not yet saved: said plainly, with what to do. The
+    // edit is held by this page and sent when the connection returns, so
+    // the page has to stay open.
+    const offline = !online && ['dirty', 'saving', 'error'].includes(status);
+    const [cls, label, showCheck] = offline
+        ? ['text-status-warning', 'Offline — keep this page open; it saves when you reconnect', false]
+        : (map[status] ?? map.idle);
 
     return (
         <span
@@ -648,7 +811,7 @@ function SaveStatus({ status }) {
  * and image buttons; those need extensions that are not installed, and a
  * button that does nothing is worse than an absent one.
  */
-function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref }) {
+function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone = null }) {
     if (!editor) return null;
 
     const block = editor.isActive('heading', { level: 1 })
@@ -870,6 +1033,20 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref }) {
             >
                 <Icon name="right" size={15} />
             </Btn>
+
+            {onDone && (
+                <button
+                    type="button"
+                    data-a="toolbar:done"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={onDone}
+                    aria-label="Hide keyboard"
+                    className="sticky right-0 ml-auto flex h-[40px] shrink-0 items-center gap-1.5 bg-bg-surface pr-1 pl-2 text-[13px] font-semibold text-brand-primary"
+                >
+                    <Icon name="kbd" size={17} />
+                    Done
+                </button>
+            )}
         </div>
     );
 }

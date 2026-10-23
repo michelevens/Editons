@@ -10,6 +10,14 @@ import { watchSystemTheme } from './theme';
 // with the device while the choice is 'system'.
 watchSystemTheme();
 
+// Installable app (public/sw.js). Browsers only allow it on HTTPS or
+// localhost, so the LAN address used for tablet testing simply skips it.
+if ('serviceWorker' in navigator && window.isSecureContext && import.meta.env.PROD) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+}
+
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({

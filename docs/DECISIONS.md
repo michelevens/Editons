@@ -966,6 +966,33 @@ navigation, chapters and AI from the bar, one-row toolbar, no sideways
 scroll); the phone tests in `a11y.spec.js` and `crawl.spec.js` follow the
 new controls.
 
-**Next (from research of mobile writing apps).** Toolbar above the
-keyboard (`visualViewport`), save-status chip, typewriter scrolling,
-one-at-a-time AI review with undo, installable PWA.
+**Writing on a phone (from research of mobile writing apps).**
+- *Toolbar on the keyboard* (iA Writer, Notion). While the manuscript has
+  focus on a phone the formatting row moves below the text with a Done
+  button that hides the keyboard: fixed above the keyboard where iOS lays it
+  over the page (`useKeyboardInset`: layout height minus visual viewport),
+  last in the column where Android resizes the page
+  (`interactive-widget=resizes-content`). The tab bar hides while any
+  field takes typing (`useTyping`), and the caret is scrolled clear of the
+  keyboard.
+- *Offline* (Google Docs). The save status says "Offline — keep this page
+  open; it saves when you reconnect" while an edit is unsaved and the
+  browser is offline, and the editor flushes on `online`. Edits are held
+  by the open page only; nothing is written to device storage.
+- *Typewriter scrolling* (iA Writer). A header toggle, remembered per
+  browser, that keeps the caret 45% down the writing area.
+- *One finding at a time* (Grammarly, Word mobile). "Review one by one" in
+  the AI panel: one card with the passage struck through and the suggested
+  wording, Apply fix / Dismiss / previous / next, "3 of 17", swipe right to
+  apply and left to dismiss as shortcuts only, and Undo for six seconds
+  through the existing server undo (`PATCH /findings/{id}/reopen`), which
+  takes an applied fix back out of the chapter.
+- *Installable.* `manifest.webmanifest` (standalone, icons, shortcuts) and
+  `sw.js`, registered on HTTPS only. The worker caches no page and no API
+  response — pages carry manuscripts and a session that must not outlive a
+  sign-out on a shared tablet — only an offline page.
+
+**Later (ranked in the research).** Word goals with progress rings
+(Ulysses), touch reordering with swipe actions (Scrivener iOS), suggest mode
+and long-press comments (Google Docs, Word), a full-screen device preview
+with page turns (Vellum, Kindle Previewer), a collaboration inbox (Linear).

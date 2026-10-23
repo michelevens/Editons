@@ -89,6 +89,8 @@ export const ICON_PATHS = {
     chart: "M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3",
     sun: "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
     expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
+    type: "M5 7V5h14v2M12 5v14M9 19h6",
+    kbd: "M3 6h18v10H3zM7 10h.01M11 10h.01M15 10h.01M8 13h8M9 19l3 2 3-2",
     reset: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
 };
 

@@ -298,6 +298,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         : 'Finding marked as handled.'
                     : 'Finding dismissed.',
             );
+
+            return true;
         } catch (failure) {
             // 409 means the passage moved or is ambiguous and nothing was
             // changed. Saying so beats letting the finding vanish.
@@ -309,6 +311,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             if (failure.response?.data?.findings) {
                 setFindings(failure.response.data.findings);
             }
+
+            // So the one-at-a-time review does not offer to undo a decision
+            // that never happened.
+            return false;
         }
     };
 
@@ -437,6 +443,28 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const focused = focusMode && isStudio;
     const openFindings = findings.filter((f) => f.status === 'open');
 
+    // Undo for a decided finding: an applied fix comes back out of the
+    // chapter through the server's own undo, then the finding is open again.
+    const reopen = async (finding) => {
+        try {
+            const res = await window.axios.patch(`/findings/${finding.id}/reopen`);
+
+            if (res.data.undone && res.data.content) {
+                setSection((value) => ({
+                    ...value,
+                    content: res.data.content,
+                    word_count: res.data.word_count,
+                    revision: (value.revision ?? 0) + 1,
+                }));
+            }
+
+            await load();
+            notify(res.data.undone ? 'Fix undone.' : 'Finding reopened.');
+        } catch (failure) {
+            notify(failure.response?.data?.message ?? 'Could not undo that.');
+        }
+    };
+
     const panelProps = {
         agents,
         findings,
@@ -448,6 +476,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         onRunAgent: runAgent,
         onRunFullReview: runFullReview,
         onResolve: resolve,
+        onReopen: reopen,
         onShowInText: showInText,
         onOpenSection: openSection,
         onRestore: restore,
