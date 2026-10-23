@@ -69,7 +69,7 @@ class BillingController extends Controller
                 // allowance-minus-balance: carried-over or purchased credits
                 // would make that subtraction a lie.
                 'used_this_month' => $this->usedThisMonth($user->id),
-                'books' => $user->books()->count(),
+                'books' => $user->activeBookCount(),
                 'book_limit' => $limits['books'],
                 'seat_limit' => $limits['seats'],
                 'renews_at' => $user->credits_granted_at

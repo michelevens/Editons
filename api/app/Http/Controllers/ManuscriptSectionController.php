@@ -33,12 +33,15 @@ class ManuscriptSectionController extends Controller
             $parentId = $parent->id;
         }
 
-        $section = $book->sections()->create([
+        // parent_id is not mass-assignable (see Scaffolder::chapter), so it
+        // is set explicitly: passed to create() it was silently dropped and
+        // a chapter added inside a part landed at the top level.
+        $section = $book->sections()->make([
             'type' => $data['type'],
             'title' => $data['title'],
-            'parent_id' => $parentId,
             'position' => ManuscriptSection::nextPosition($book->id, $parentId),
         ]);
+        $section->forceFill(['parent_id' => $parentId])->save();
 
         return redirect()->route('books.edit', ['book' => $book, 'section' => $section->id]);
     }

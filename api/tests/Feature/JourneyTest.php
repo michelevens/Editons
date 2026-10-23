@@ -89,6 +89,15 @@ function scaffolded(string $key, ?int $chapters = null): Book
     return app(Scaffolder::class)->build($book, BookType::findOrFail($key), $chapters);
 }
 
+it('totals the scaffold words on the book', function () {
+    // The chapters carry their prompts; the shelf reads the book's total,
+    // which was left at 0.
+    $book = scaffolded('nonfiction', 4);
+
+    expect($book->word_count)->toBeGreaterThan(0)
+        ->and($book->word_count)->toBe((int) $book->sections()->sum('word_count'));
+});
+
 it('builds the number of chapters asked for', function () {
     expect(scaffolded('nonfiction', 12)->sections()->where('type', 'chapter')->count())
         ->toBe(12);

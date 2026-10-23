@@ -4,6 +4,7 @@ namespace App\Editorial;
 
 use App\Billing\CreditLedger;
 use App\Editorial\Contracts\EditorialDriver;
+use App\Editorial\Contracts\SimulatesReview;
 use App\Models\CreditTransaction;
 use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
@@ -64,7 +65,10 @@ class ReviewRunner
             // Charged before the provider is called, so two reviews started
             // at once cannot both spend the last of a balance — the ledger
             // takes a row lock to make that true.
-            $charge = $this->charge($userId, $agent, $review);
+            //
+            // Never for sample output: heuristics are not the AI review the
+            // credits pay for, and production ran on them for weeks.
+            $charge = $this->simulated() ? null : $this->charge($userId, $agent, $review);
 
             $result = $this->driver->review($agent, $text);
 
@@ -120,6 +124,12 @@ class ReviewRunner
         }
 
         return $review->refresh();
+    }
+
+    /** Is this driver's output sample output rather than a model's review? */
+    public function simulated(): bool
+    {
+        return $this->driver instanceof SimulatesReview;
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Billing\Entitlements;
 use App\Editorial\BookDirector;
+use App\Editorial\DriverFactory;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ManuscriptMemory;
 use App\Editorial\ReviewRunner;
@@ -14,6 +15,7 @@ use App\Models\EditorialFinding;
 use App\Models\ManuscriptSection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class EditorialController extends Controller
 {
@@ -45,18 +47,28 @@ class EditorialController extends Controller
     {
         $this->authorize('view', $book);
 
-        $findings = $this->director->review($book);
+        // Cached by the book's content: the review is deterministic, and
+        // recomputing it parsed every chapter on each panel open (3.9 s on
+        // a 150k-word book). Any edit changes the fingerprint, so a stale
+        // review is never served; old entries simply expire.
+        $key = 'director:'.$book->id.':'.ManuscriptMemory::fingerprint($book);
 
-        return response()->json([
-            'findings' => array_map(fn ($f) => [
-                'severity' => $f->severity,
-                'title' => $f->title,
-                'detail' => $f->detail,
-            ], $findings),
-            // Said plainly, because an empty list has two very different
-            // meanings and the panel must not show the wrong one.
-            'enough_to_review' => ManuscriptMemory::of($book)->isSubstantial(),
-        ]);
+        $payload = Cache::remember($key, now()->addDay(), function () use ($book) {
+            $memory = ManuscriptMemory::of($book);
+
+            return [
+                'findings' => array_map(fn ($f) => [
+                    'severity' => $f->severity,
+                    'title' => $f->title,
+                    'detail' => $f->detail,
+                ], $this->director->review($book)),
+                // Said plainly, because an empty list has two very different
+                // meanings and the panel must not show the wrong one.
+                'enough_to_review' => $memory->isSubstantial(),
+            ];
+        });
+
+        return response()->json($payload);
     }
 
     /** Run one agent over a section. */
@@ -75,7 +87,11 @@ class EditorialController extends Controller
         // rather than watching a review begin and then fail. The spend itself
         // re-checks the balance under a lock.
         $this->entitlements->assertCanRunAgent($request->user(), $agent);
-        $this->entitlements->assertCanAfford($request->user(), $agent->costLabel());
+
+        // Sample output is free, so an empty balance does not stop it.
+        if (! $this->runner->simulated()) {
+            $this->entitlements->assertCanAfford($request->user(), $agent->costLabel());
+        }
 
         $review = $this->runner->run($section, $agent, $request->user()->id);
 
@@ -85,6 +101,9 @@ class EditorialController extends Controller
                 'agent' => $review->agent->value,
                 'status' => $review->status,
                 'error' => $review->error,
+                // Heuristics, not a model: the panel labels the result as
+                // sample output, and nothing was charged.
+                'simulated' => $this->runner->simulated(),
             ],
             'findings' => $this->findingsFor($section),
             // Returned so the credit strip updates with the result rather
@@ -138,15 +157,34 @@ class EditorialController extends Controller
             'status' => ['required', 'in:accepted,dismissed'],
         ]);
 
+        // Only an open finding is decided here. Re-marking an applied fix
+        // "dismissed" left the AI's wording in the book while the record
+        // said the author had turned it down. Taking a fix back out is the
+        // reopen endpoint's undo, which restores the text.
+        if ($finding->status !== 'open') {
+            return response()->json([
+                'message' => $finding->status === 'accepted'
+                    ? 'This fix is already applied. Undo it to take it back out.'
+                    : 'This finding was already dismissed. Reopen it first.',
+                'findings' => $this->findingsFor($finding->section),
+            ], 409);
+        }
+
         // Accepting a suggestion must actually change the manuscript.
         // Recording the decision and leaving the prose alone would make the
         // panel agree with the author while the document disagreed.
         $applied = null;
+        $appliedVersion = null;
 
         if ($data['status'] === 'accepted' && $finding->suggestion) {
             try {
-                app(SuggestionApplier::class)->apply($finding, $request->user()->id);
+                $section = app(SuggestionApplier::class)->apply($finding, $request->user()->id);
                 $applied = true;
+
+                // The snapshot the fix replaced, for a later undo.
+                $appliedVersion = $section->versions()
+                    ->where('reason', 'ai_suggestion')
+                    ->value('id');
             } catch (\RuntimeException $e) {
                 // The passage moved or is ambiguous. Say so and leave the
                 // finding open, rather than closing it over an edit that did
@@ -162,6 +200,7 @@ class EditorialController extends Controller
             'status' => $data['status'],
             'resolved_by' => $request->user()->id,
             'resolved_at' => now(),
+            'applied_version_id' => $appliedVersion,
         ]);
 
         $section = $finding->section->fresh();
@@ -182,6 +221,7 @@ class EditorialController extends Controller
         $text = $section->plainText();
 
         return EditorialFinding::where('manuscript_section_id', $section->id)
+            ->with('review:id,driver')
             ->orderByRaw("CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END")
             ->orderBy('from_offset')
             ->get()
@@ -199,6 +239,8 @@ class EditorialController extends Controller
                 // runs, and an author should see which findings no longer
                 // match their text rather than chasing deleted sentences.
                 'stale' => $f->isStale($text),
+                // Produced by a driver that runs heuristics, not a model.
+                'simulated' => DriverFactory::simulated($f->review?->driver),
             ])
             ->all();
     }

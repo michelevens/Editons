@@ -42,12 +42,24 @@ class User extends Authenticatable
      *
      * Enforced on the server. The prototype gates limits client-side, which
      * tells an honest user what to expect but stops nobody.
+     *
+     * The limit is on active books: every book the account owns that is not
+     * archived, editions included (a translation or workbook is a book on
+     * the shelf like any other). Archived books do not count, which is what
+     * the shelf's "Archive one, or move to a larger plan" has always told
+     * the author; restoring one is held to the same limit (BookController).
      */
     public function canCreateBook(): bool
     {
         $limit = $this->planLimits()['books'];
 
-        return $limit === null || $this->books()->count() < $limit;
+        return $limit === null || $this->activeBookCount() < $limit;
+    }
+
+    /** Owned books that count toward the plan's limit. */
+    public function activeBookCount(): int
+    {
+        return $this->books()->where('status', '!=', 'archived')->count();
     }
 
     public function canExportFormat(string $format): bool

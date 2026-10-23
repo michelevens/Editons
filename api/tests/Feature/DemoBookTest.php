@@ -3,6 +3,9 @@
 use App\Editorial\ConsistencyIndex;
 use App\Journey\Coach;
 use App\Models\Book;
+use App\Models\User;
+use App\Samples\SampleThesis;
+use Database\Seeders\DemoSeeder;
 use Illuminate\Support\Facades\Artisan;
 
 /**
@@ -194,4 +197,19 @@ it('gives the Coach nothing to complain about that is not true', function () {
 
         expect($keys)->not->toContain('stubs', "[{$book->title}] reports stub chapters.");
     }
+});
+
+it('leaves the demo account room to start a book', function () {
+    // The account seeded on Author (10 books) held 12 once the sample
+    // theses loaded, so "New book" was disabled for every visitor. The
+    // samples are skipped under the test runner, so the full count is
+    // computed rather than read from the shelf.
+    $user = User::where('email', DemoSeeder::LOCAL_EMAIL)->firstOrFail();
+    $seeded = DemoSeeder::DEMO_BOOKS + count(SampleThesis::SLUGS);
+    $limit = $user->planLimits()['books'];
+
+    expect($user->plan)->toBe(DemoSeeder::PLAN)
+        ->and($user->books()->count())->toBe(DemoSeeder::DEMO_BOOKS)
+        ->and($limit === null || $seeded < $limit)->toBeTrue()
+        ->and($user->canCreateBook())->toBeTrue();
 });

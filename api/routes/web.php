@@ -9,9 +9,9 @@ use App\Http\Controllers\BookImageController;
 use App\Http\Controllers\BookPartsController;
 use App\Http\Controllers\ChartController;
 use App\Http\Controllers\CommentController;
-use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\CoverAiController;
+use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\EditorialController;
@@ -138,6 +138,9 @@ Route::middleware('auth')->group(function () {
         ->name('books.parts.reorder');
     Route::patch('/sections/{section}/part', [BookPartsController::class, 'assign'])
         ->name('sections.part');
+    // The author's own order: drag-and-drop and move up/down in the binder.
+    Route::patch('/books/{book}/sections/order', [BookPartsController::class, 'arrange'])
+        ->name('books.sections.order');
 });
 
 /*

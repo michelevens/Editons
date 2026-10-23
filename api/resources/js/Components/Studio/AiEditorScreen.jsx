@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
 import Icon from './Icon';
 
@@ -16,6 +17,9 @@ const SEVERITY = {
 };
 
 export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent = null }) {
+    // Heuristics rather than a model: said so above the findings.
+    const simulated = usePage().props.editorial?.simulated;
+
     const [data, setData] = useState(null);
     const [filters, setFilters] = useState({ agent, status: 'open' });
     const [busy, setBusy] = useState(null);
@@ -92,6 +96,15 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                   : ''
                           }.`}
                 </p>
+                {simulated && (
+                    <p
+                        data-a="ai-screen:sample-notice"
+                        className="mt-3 rounded-tile border border-dashed border-border-default px-3 py-2 text-[12px] leading-relaxed text-text-secondary"
+                    >
+                        <b className="text-text-primary">Sample output.</b> Reviews here
+                        run automated checks, not an AI model, and use no credits.
+                    </p>
+                )}
             </header>
 
             <div className="mb-4 flex flex-wrap gap-1.5">
@@ -228,7 +241,11 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                     onClick={() => reopen(finding)}
                                                     className="text-[12.5px] font-semibold text-brand-primary hover:underline disabled:opacity-50"
                                                 >
-                                                    Reopen
+                                                    {/* An applied fix is taken back out of
+                                                        the text before it reopens. */}
+                                                    {finding.status === 'accepted' && finding.suggestion
+                                                        ? 'Undo fix'
+                                                        : 'Reopen'}
                                                 </button>
                                             </>
                                         )}

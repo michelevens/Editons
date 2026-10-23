@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import CitationsTab from './CitationsTab';
 import CommentsPanel from './CommentsPanel';
@@ -398,12 +399,31 @@ function AgentList({
                 })}
             </ul>
 
-            <p className="mt-3.5 rounded-tile border border-dashed border-border-default p-2.5 text-[10.5px] leading-relaxed text-text-secondary">
-                Reviews run local heuristics — long sentences, passive voice,
-                filler, unsourced figures, mixed spelling. They cannot assess an
-                argument or verify a fact.
-            </p>
+            <SampleNotice />
         </div>
+    );
+}
+
+/**
+ * Said whenever reviews here run on heuristics rather than a model: the
+ * agents are named like editors, and without this an author would take
+ * template findings for an AI's reading. Free, so the credits are named too.
+ */
+function SampleNotice() {
+    const simulated = usePage().props.editorial?.simulated;
+
+    if (!simulated) return null;
+
+    return (
+        <p
+            data-a="ai:sample-notice"
+            className="mt-3.5 rounded-tile border border-dashed border-border-default p-2.5 text-[10.5px] leading-relaxed text-text-secondary"
+        >
+            <b className="text-text-primary">Sample output.</b> Reviews here run
+            automated checks, not an AI model: long sentences, passive voice,
+            filler, unsourced figures, mixed spelling. They cannot assess an
+            argument or verify a fact, and they use no credits.
+        </p>
     );
 }
 
@@ -427,6 +447,8 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
             <p className="mt-0.5 text-[11.5px] text-text-secondary">
                 {open.length} open · {resolved} resolved
             </p>
+
+            <SampleNotice />
 
             {open.length === 0 ? (
                 <p className="mt-4 rounded-tile bg-status-success-bg px-3 py-2.5 text-[11.5px] text-status-success">
@@ -453,6 +475,14 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                 <p className="text-[12px] font-semibold leading-snug text-text-primary">
                                     {finding.title}
                                 </p>
+                                {finding.simulated && (
+                                    <span
+                                        title="From automated checks, not an AI model"
+                                        className="ml-auto shrink-0 rounded-badge bg-bg-subtle px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-text-secondary"
+                                    >
+                                        Sample
+                                    </span>
+                                )}
                             </div>
 
                             {finding.detail && (

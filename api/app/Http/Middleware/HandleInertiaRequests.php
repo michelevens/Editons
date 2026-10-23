@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Billing\Entitlements;
+use App\Editorial\DriverFactory;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -85,6 +86,11 @@ class HandleInertiaRequests extends Middleware
             // The account it names must be treated as public. Keep it on its
             // own books, and never promote it or let it hold anything real.
             'demo' => $this->demoCredentials(),
+
+            // Whether editorial reviews here are sample output (heuristics,
+            // no model). The studio labels findings and the credit strip
+            // accordingly; nothing is charged for them.
+            'editorial' => ['simulated' => DriverFactory::simulated()],
         ];
     }
 

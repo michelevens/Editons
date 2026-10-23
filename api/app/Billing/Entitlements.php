@@ -2,6 +2,7 @@
 
 namespace App\Billing;
 
+use App\Editorial\DriverFactory;
 use App\Editorial\EditorialAgent;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
@@ -137,6 +138,9 @@ class Entitlements
                 : 0,
             'low' => $monthly > 0 && $balance < $monthly * 0.15,
             'costs' => config('billing.costs'),
+            // Reviews run on heuristics here and cost nothing; the credit
+            // strip says so instead of listing prices nobody is charged.
+            'reviews_simulated' => DriverFactory::simulated(),
         ];
     }
 

@@ -91,17 +91,31 @@ test.describe('every screen renders', () => {
         const id = await firstBookId(page);
         await page.goto(`/books/${id}/settings`);
 
-        const autosave = page.getByRole('switch', { name: /autosave/i });
-        const before = await autosave.getAttribute('aria-checked');
+        const autosave = () => page.getByRole('switch', { name: /autosave/i });
+        const before = await autosave().getAttribute('aria-checked');
 
-        await autosave.click();
-        await page.waitForTimeout(900);
-        await page.reload();
+        // Flipped back afterwards, pass or fail: left off, it made every
+        // later editor test on this book wait for a save that never came.
+        try {
+            await autosave().click();
+            await page.waitForTimeout(900);
+            await page.reload();
 
-        await expect(page.getByRole('switch', { name: /autosave/i })).toHaveAttribute(
-            'aria-checked',
-            before === 'true' ? 'false' : 'true',
-        );
+            await expect(autosave()).toHaveAttribute(
+                'aria-checked',
+                before === 'true' ? 'false' : 'true',
+            );
+        } finally {
+            await page.goto(`/books/${id}/settings`);
+
+            if ((await autosave().getAttribute('aria-checked')) !== before) {
+                await autosave().click();
+                await page.waitForTimeout(900);
+                await page.reload();
+            }
+
+            await expect(autosave()).toHaveAttribute('aria-checked', before);
+        }
 
         expect(errors).toEqual([]);
     });
@@ -278,21 +292,28 @@ test.describe('every screen renders', () => {
 
         // Let the autosave land before reviewing what was saved.
         await page.waitForTimeout(2000);
+
+        const reviewed = page.waitForResponse(
+            (response) => /\/sections\/\d+\/review$/.test(response.url()) && response.request().method() === 'POST',
+        );
         await page.click('[data-a="ai:run:copy"]');
+        const { findings } = await (await reviewed).json();
+
+        // Find THIS run's finding by id, from the review's own reply. The
+        // card used to be matched on the marker text, but the excerpt is the
+        // repeated pair alone whenever that pair is unique in the chapter
+        // ("The the"), so no card carried the marker and the test failed on
+        // a fresh book while the feature worked.
+        const finding = findings.find(
+            (f) => f.title === 'Repeated word' && f.status === 'open' && f.excerpt?.startsWith('The the'),
+        );
+        expect(finding, 'the copy editor flagged the doubled word').toBeTruthy();
 
         // Apply buttons live inside an agent's findings view, not on the
         // agent list, so the agent has to be opened first.
         await page.click('[data-a="ai:agent:copy"]');
 
-        // Find THIS run's finding by its excerpt, not the first apply button
-        // on screen. Taking the first one applied an earlier run's suggestion
-        // instead and then failed on a marker nothing had touched — a true
-        // negative about the test, not the feature.
-        const card = page
-            .locator('li')
-            .filter({ hasText: `The the ${marker}` })
-            .first();
-        const applyButton = card.locator('[data-a^="ai:accept:"]');
+        const applyButton = page.locator(`[data-a="ai:accept:${finding.id}"]`);
         await expect(applyButton).toBeVisible({ timeout: 15_000 });
 
         const prose = page.locator('.manuscript .ProseMirror');
@@ -324,15 +345,22 @@ test.describe('every screen renders', () => {
 
         // Changing the trim size must survive a reload, or the screen is a
         // set of controls that do nothing.
-        await page.selectOption('[data-a="layout:trim"]', '5 x 8 in');
-        await page.waitForTimeout(900);
-        await page.reload();
-        await page.click('[data-a="side:layout"]');
-        await expect(page.locator('[data-a="layout:trim"]')).toHaveValue('5 x 8 in');
+        const original = await page.locator('[data-a="layout:trim"]').inputValue();
+        const other = original === '5 x 8 in' ? '6 x 9 in' : '5 x 8 in';
 
-        // Put it back, so a later run starts where this one did.
-        await page.selectOption('[data-a="layout:trim"]', '6 x 9 in');
-        await page.waitForTimeout(900);
+        try {
+            await page.selectOption('[data-a="layout:trim"]', other);
+            await page.waitForTimeout(900);
+            await page.reload();
+            await page.click('[data-a="side:layout"]');
+            await expect(page.locator('[data-a="layout:trim"]')).toHaveValue(other);
+        } finally {
+            // Put back what was there, not a guess at it, pass or fail.
+            await page.goto(`/books/${id}/edit`);
+            await page.click('[data-a="side:layout"]');
+            await page.selectOption('[data-a="layout:trim"]', original);
+            await page.waitForTimeout(900);
+        }
 
         expect(errors).toEqual([]);
     });

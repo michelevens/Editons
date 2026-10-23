@@ -15,7 +15,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
     testDir: './tests/Browser',
-    // One worker: these tests share one database and one demo account, so
+    // A throwaway account, rebuilt before every run: see global-setup.js.
+    globalSetup: './tests/Browser/global-setup.js',
+    // One worker: these tests share one database and one e2e account, so
     // parallel runs would fight over the same rows.
     workers: 1,
     fullyParallel: false,

@@ -52,6 +52,42 @@ class BookPartsController extends Controller
         return response()->json(Anatomy::checklist($book));
     }
 
+    /**
+     * The author's own order, from the binder's drag-and-drop or its move
+     * up/down controls: one level at a time (the top level, or the chapters
+     * inside one part).
+     */
+    public function arrange(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'parent_id' => ['nullable', 'integer'],
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'distinct'],
+        ]);
+
+        // The parent must be a section of THIS book, like sections.store.
+        $parentId = null;
+        if (! empty($data['parent_id'])) {
+            $parentId = $book->sections()->whereKey($data['parent_id'])->firstOrFail()->id;
+        }
+
+        if (! Anatomy::arrange($book, $parentId, $data['ids'])) {
+            return response()->json([
+                'message' => 'The binder changed since it was loaded. Reload it and move the chapter again.',
+            ], 409);
+        }
+
+        return response()->json([
+            'order' => $book->sections()
+                ->where('parent_id', $parentId)
+                ->orderBy('position')
+                ->orderBy('id')
+                ->pluck('id'),
+        ]);
+    }
+
     public function store(Request $request, Book $book): JsonResponse
     {
         $this->authorize('update', $book);

@@ -346,6 +346,17 @@ class BookController extends Controller
             'publication.credits.*.name' => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Archived books do not count toward the plan's limit, so bringing
+        // one back is creating a book as far as the limit is concerned:
+        // otherwise archive, create, restore would walk past it.
+        if (($data['status'] ?? null) && $data['status'] !== 'archived' && $book->status === 'archived') {
+            abort_unless(
+                $book->user->canCreateBook(),
+                403,
+                'This plan does not allow another active book. Archive another one first, or upgrade.',
+            );
+        }
+
         if (isset($data['publication'])) {
             $data['publication'] = $this->mergePublication($book, $data['publication']);
         }

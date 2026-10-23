@@ -3,6 +3,7 @@
 namespace App\Editorial;
 
 use App\Editorial\Contracts\EditorialDriver;
+use App\Editorial\Contracts\SimulatesReview;
 use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
 
@@ -46,7 +47,7 @@ class DriverFactory
             if (blank(data_get($config, $key))) {
                 throw new InvalidArgumentException(
                     "EDITORIAL_DRIVER={$name} but [{$key}] is not configured. "
-                    ."Set it, or use EDITORIAL_DRIVER=fake.",
+                    .'Set it, or use EDITORIAL_DRIVER=fake.',
                 );
             }
         }
@@ -56,5 +57,17 @@ class DriverFactory
         $options = array_diff_key($config, array_flip(['class', 'requires']));
 
         return $this->container->make($class, $options);
+    }
+
+    /**
+     * Does the configured driver (or the named one) produce sample output
+     * rather than a model's review? Read from config, so asking never
+     * builds a provider client.
+     */
+    public static function simulated(?string $name = null): bool
+    {
+        $class = config('editorial.drivers.'.($name ?? config('editorial.driver')).'.class');
+
+        return is_string($class) && is_subclass_of($class, SimulatesReview::class);
     }
 }

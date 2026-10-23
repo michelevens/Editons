@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectRendered, expectSurvives, signIn, watchForErrors } from './helpers.js';
+import { expectRendered, expectSurvives, registerFreshAuthor, watchForErrors } from './helpers.js';
 
 /**
  * Per-genre interview questions.
@@ -7,11 +7,14 @@ import { expectRendered, expectSurvives, signIn, watchForErrors } from './helper
  * The claim: choosing a genre changes what the product asks. A generic
  * "What is it about?" gets a generic answer, so the test is that two
  * different genres produce two different questions.
+ *
+ * Each test registers its own new author: what the form offers must not
+ * depend on how full some shared shelf is.
  */
 test('the new-book form asks in the genre\'s own words', async ({ page }) => {
     const errors = watchForErrors(page);
 
-    await signIn(page);
+    await registerFreshAuthor(page);
     await page.goto('/books');
     await expectRendered(page);
 
@@ -32,6 +35,9 @@ test('the new-book form asks in the genre\'s own words', async ({ page }) => {
 });
 
 test('every genre can actually be created', async ({ page }) => {
+    // Fifteen genres, each opened and checked: longer than one page visit.
+    test.setTimeout(240_000);
+
     /*
      * The bug this guards, which was shipped and invisible.
      *
@@ -46,7 +52,7 @@ test('every genre can actually be created', async ({ page }) => {
      */
     const errors = watchForErrors(page);
 
-    await signIn(page);
+    await registerFreshAuthor(page);
     await page.goto('/books');
     await expectRendered(page);
     await page.click('[data-a="books:new"]');
@@ -80,7 +86,7 @@ test('every genre can actually be created', async ({ page }) => {
 test('the guided view asks the same way', async ({ page }) => {
     const errors = watchForErrors(page);
 
-    await signIn(page);
+    await registerFreshAuthor(page);
     await page.goto('/books');
     await expectRendered(page);
 

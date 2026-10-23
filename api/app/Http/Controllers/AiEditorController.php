@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Editorial\EditorialAgent;
+use App\Editorial\SuggestionApplier;
 use App\Models\Book;
 use App\Models\EditorialFinding;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use RuntimeException;
 
 /**
  * Every finding in the book, in one table.
@@ -88,16 +90,36 @@ class AiEditorController extends Controller
      * act from resolving, so the resolution record is cleared rather than
      * left pointing at a decision that no longer stands.
      */
-    public function reopen(EditorialFinding $finding): JsonResponse
+    public function reopen(Request $request, EditorialFinding $finding): JsonResponse
     {
         $this->authorize('update', $finding->section);
+
+        // An applied fix is not reopened by relabelling it: the AI's wording
+        // would stay in the book while the finding said "open". It comes
+        // back out first, through a real undo, or the finding stays applied.
+        $section = null;
+
+        if ($finding->status === 'accepted' && $finding->suggestion) {
+            try {
+                $section = app(SuggestionApplier::class)->undo($finding, $request->user()->id);
+            } catch (RuntimeException $e) {
+                return response()->json(['message' => $e->getMessage()], 409);
+            }
+        }
 
         $finding->update([
             'status' => 'open',
             'resolved_by' => null,
             'resolved_at' => null,
+            'applied_version_id' => null,
         ]);
 
-        return response()->json(['finding' => ['id' => $finding->id, 'status' => 'open']]);
+        return response()->json([
+            'finding' => ['id' => $finding->id, 'status' => 'open'],
+            // The restored chapter, so an open editor can show it.
+            'undone' => $section !== null,
+            'content' => $section?->content,
+            'word_count' => $section?->word_count,
+        ]);
     }
 }

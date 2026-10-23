@@ -6,6 +6,7 @@ use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Services\ManuscriptWriter;
 
 /**
  * Applying a suggestion rewrites somebody's manuscript, so these tests are
@@ -224,7 +225,7 @@ it('keeps a typed edit marked as the author\'s own', function () {
     // as useless as marking nothing.
     $section = sectionWithText('Something the author wrote.');
 
-    app(App\Services\ManuscriptWriter::class)->save(
+    app(ManuscriptWriter::class)->save(
         section: $section,
         content: ['type' => 'doc', 'content' => [[
             'type' => 'paragraph',
@@ -234,4 +235,98 @@ it('keeps a typed edit marked as the author\'s own', function () {
     );
 
     expect($section->versions()->latest('version_number')->first()->reason)->toBe('manual');
+});
+
+// --- Status transitions: an applied fix leaves only through a real undo ---
+
+function ownedFinding(string $text, string $excerpt, string $suggestion): array
+{
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    $section = ManuscriptSection::factory()->for($book)->create([
+        'content' => ['type' => 'doc', 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => $text]],
+        ]]],
+    ]);
+
+    return [$user, $section, findingOn($section, $excerpt, $suggestion)];
+}
+
+it('refuses to dismiss a fix that is already in the manuscript', function () {
+    [$user, $section, $finding] = ownedFinding('The the decision.', 'The the', 'The');
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}", ['status' => 'accepted'])->assertOk();
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}", ['status' => 'dismissed'])
+        ->assertStatus(409);
+
+    expect($finding->refresh()->status)->toBe('accepted')
+        ->and($section->fresh()->plainText())->toBe('The decision.');
+});
+
+it('refuses to accept a dismissed finding without reopening it', function () {
+    [$user, $section, $finding] = ownedFinding('The the decision.', 'The the', 'The');
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}", ['status' => 'dismissed'])->assertOk();
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}", ['status' => 'accepted'])->assertStatus(409);
+
+    expect($section->fresh()->plainText())->toBe('The the decision.');
+});
+
+it('undoes an applied fix exactly when nothing was written since', function () {
+    [$user, $section, $finding] = ownedFinding('The the decision.', 'The the', 'The');
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}", ['status' => 'accepted'])->assertOk();
+    expect($finding->refresh()->applied_version_id)->not->toBeNull();
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}/reopen")
+        ->assertOk()
+        ->assertJsonPath('undone', true);
+
+    expect($section->fresh()->plainText())->toBe('The the decision.')
+        ->and($finding->refresh()->status)->toBe('open')
+        ->and($finding->applied_version_id)->toBeNull()
+        ->and($section->versions()->first()->label)->toBe('Undid: Repeated word');
+});
+
+it('undoes only the replacement when the chapter changed since', function () {
+    [$user, $section, $finding] = ownedFinding('Earlier the the decision.', 'the the', 'the');
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}", ['status' => 'accepted'])->assertOk();
+
+    $this->travel(5)->seconds();
+    app(ManuscriptWriter::class)->save(
+        section: $section->fresh(),
+        content: ['type' => 'doc', 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Earlier the decision, and more.']],
+        ]]],
+        reason: 'manual',
+    );
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}/reopen")->assertOk();
+
+    expect($section->fresh()->plainText())->toBe('Earlier the the decision, and more.');
+});
+
+it('keeps a fix applied when it can no longer be undone safely', function () {
+    [$user, $section, $finding] = ownedFinding('The the decision.', 'The the', 'The');
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}", ['status' => 'accepted'])->assertOk();
+
+    $this->travel(5)->seconds();
+    app(ManuscriptWriter::class)->save(
+        section: $section->fresh(),
+        content: ['type' => 'doc', 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Rewritten from scratch.']],
+        ]]],
+        reason: 'manual',
+    );
+
+    $this->actingAs($user)->patchJson("/findings/{$finding->id}/reopen")->assertStatus(409);
+
+    expect($finding->refresh()->status)->toBe('accepted')
+        ->and($section->fresh()->plainText())->toBe('Rewritten from scratch.');
 });

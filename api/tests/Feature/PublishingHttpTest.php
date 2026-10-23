@@ -598,9 +598,11 @@ it('records a rights attestation', function () {
 });
 
 // --- Editions -----------------------------------------------------------
+// An edition is a new book, so these run on a plan with room for one; the
+// Free plan's limit is tested below.
 
 it('builds a workbook with an exercise per heading', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed('author')->create();
     $book = chapteredBook($user);
 
     $response = $this->actingAs($user)
@@ -616,7 +618,7 @@ it('builds a workbook with an exercise per heading', function () {
 });
 
 it('builds a large-print edition with 14pt type and wide margins', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed('author')->create();
     $book = chapteredBook($user);
 
     $response = $this->actingAs($user)
@@ -630,7 +632,7 @@ it('builds a large-print edition with 14pt type and wide margins', function () {
 });
 
 it('starts a translation in the chosen language with the text copied in', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed('author')->create();
     $book = chapteredBook($user);
 
     $response = $this->actingAs($user)
@@ -648,7 +650,7 @@ it('starts a translation in the chosen language with the text copied in', functi
 });
 
 it('requires a language for a translation', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed('author')->create();
     $book = chapteredBook($user);
 
     $this->actingAs($user)
@@ -657,7 +659,7 @@ it('requires a language for a translation', function () {
 });
 
 it('refuses to make an edition of an empty book', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed('author')->create();
     $book = $user->books()->create(['title' => 'Nothing Yet']);
 
     $this->actingAs($user)
@@ -667,7 +669,7 @@ it('refuses to make an edition of an empty book', function () {
 
 it('stops an editor from creating a new book on the owner\'s shelf', function () {
     // An edition is a whole new book. That is an owner's decision.
-    $owner = User::factory()->create();
+    $owner = User::factory()->subscribed('author')->create();
     $editor = User::factory()->create();
     $book = chapteredBook($owner);
 
@@ -684,7 +686,7 @@ it('stops an editor from creating a new book on the owner\'s shelf', function ()
 });
 
 it('lists editions of a book and what a book was derived from', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->subscribed('author')->create();
     $book = chapteredBook($user);
 
     $editionId = $this->actingAs($user)
@@ -696,6 +698,71 @@ it('lists editions of a book and what a book was derived from', function () {
 
     expect($this->actingAs($user)->getJson("/books/{$editionId}/editions")->json('derived_from.id'))
         ->toBe($book->id);
+});
+
+it('holds an edition to the plan\'s book limit', function () {
+    // The Free plan allows one book. Editions used to walk straight past
+    // that: every workbook, translation and large-print copy was a new book.
+    $user = User::factory()->create(['plan' => 'free']);
+    $book = chapteredBook($user);
+
+    foreach (['workbook', 'large_print'] as $type) {
+        $this->actingAs($user)
+            ->postJson("/books/{$book->id}/editions", ['type' => $type])
+            ->assertForbidden();
+    }
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'translation', 'language' => 'French'])
+        ->assertForbidden();
+
+    expect($user->books()->count())->toBe(1);
+});
+
+it('counts an edition toward the limit and frees a slot when one is archived', function () {
+    $user = User::factory()->subscribed('author')->create();
+    config(['billing.plans.author.books' => 2]);
+    $book = chapteredBook($user);
+
+    $editionId = $this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])
+        ->assertCreated()
+        ->json('edition.id');
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])->assertForbidden();
+
+    // Archived books do not count, as the shelf has always said.
+    $this->actingAs($user)->patch("/books/{$editionId}", ['status' => 'archived'])->assertRedirect();
+    $second = $this->actingAs($user)->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])->assertCreated();
+
+    // Bringing the archived one back would be a third active book.
+    $this->actingAs($user)->patch("/books/{$editionId}", ['status' => 'draft'])->assertForbidden();
+    expect(Book::find($editionId)->status)->toBe('archived');
+
+    expect($second->json('edition.id'))->not->toBe($editionId);
+});
+
+it('gives an edition the word count of the text it copied', function () {
+    $user = User::factory()->subscribed('author')->create();
+    $book = chapteredBook($user);
+
+    foreach (['translation', 'large_print'] as $type) {
+        $edition = Book::find($this->actingAs($user)
+            ->postJson("/books/{$book->id}/editions", ['type' => $type, 'language' => 'French'])
+            ->assertCreated()
+            ->assertJsonPath('edition.word_count', 6)
+            ->json('edition.id'));
+
+        expect($edition->word_count)->toBe(6)
+            ->and($edition->sections()->first()->word_count)->toBe(6);
+    }
+
+    $workbook = Book::find($this->actingAs($user)
+        ->postJson("/books/{$book->id}/editions", ['type' => 'workbook'])
+        ->json('edition.id'));
+
+    expect($workbook->word_count)->toBeGreaterThan(0)
+        ->and($workbook->word_count)->toBe((int) $workbook->sections()->sum('word_count'));
 });
 
 it('rebuilds an export whose file has gone', function () {
