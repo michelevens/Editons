@@ -92,6 +92,9 @@ export const ICON_PATHS = {
     type: "M5 7V5h14v2M12 5v14M9 19h6",
     kbd: "M3 6h18v10H3zM7 10h.01M11 10h.01M15 10h.01M8 13h8M9 19l3 2 3-2",
     reset: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+    grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
+    more: "M6 12h.01M12 12h.01M18 12h.01",
+    sort: "M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4",
 };
 
 /**

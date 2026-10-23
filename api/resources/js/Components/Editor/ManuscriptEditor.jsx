@@ -7,6 +7,7 @@ import StarterKit from '@tiptap/starter-kit';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import ProgressRing, { ringLabel } from '@/Components/Studio/ProgressRing';
 import ChartDialog from './ChartDialog';
 import { CrossRef, localTargets, refreshNumbering, Xref, XrefDialog } from './CrossRef';
 import { Chart } from './ChartNode';
@@ -94,7 +95,7 @@ async function putContent(id, json, reason, keepalive) {
     return data;
 }
 
-export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, headerActions = null, onChapters = null, ref }) {
+export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, headerActions = null, onChapters = null, wordGoal = null, onGoals = null, ref }) {
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
     // The equation being written or edited: {kind, latex, pos} or null.
@@ -575,6 +576,22 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
                     {words.toLocaleString()} words
                 </span>
+                {/* The chapter's word goal: the ring fills as the
+                    chapter grows, and opens the goals sheet. Without a goal
+                    it is an empty ring that offers to set one. */}
+                {onGoals && (
+                    <button
+                        type="button"
+                        data-a="editor:goals"
+                        onClick={() => onGoals(words)}
+                        aria-haspopup="dialog"
+                        aria-label={`Goals — ${ringLabel(words, wordGoal)}`}
+                        title={wordGoal ? ringLabel(words, wordGoal) : 'Set a word goal'}
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-control transition hover:bg-bg-subtle max-md:h-9 max-md:w-9 max-sm:ml-auto"
+                    >
+                        <ProgressRing value={words} goal={wordGoal} size={20} stroke={2.5} />
+                    </button>
+                )}
                 <SaveStatus status={status} online={online} />
                 <button
                     type="button"

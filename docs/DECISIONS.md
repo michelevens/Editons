@@ -996,3 +996,71 @@ new controls.
 (Ulysses), touch reordering with swipe actions (Scrivener iOS), suggest mode
 and long-press comments (Google Docs, Word), a full-screen device preview
 with page turns (Vellum, Kindle Previewer), a collaboration inbox (Linear).
+
+## ADR-00XX — Writing goals with progress rings, and touch reordering
+
+**Status:** accepted (2026-10-23)
+
+**Context.** ADR-0024 ranked two phone features next: word goals shown as
+rings (the pattern Ulysses made familiar) and reordering chapters by touch
+(Scrivener iOS's outliner). Books already had `target_words` and accounts
+`daily_word_goal` (profile form, weekly digest); chapters had no goal. The
+binder reordered with HTML5 drag-and-drop, which a touch screen never
+fires, so on a phone the only way to move a chapter was the hover-only
+↑/↓ buttons.
+
+**Decisions.**
+- *One source of truth for words per day.* `App\Services\WritingProgress`
+  holds the daily arithmetic that lived in `AnalyticsController` (net change
+  between version snapshots, closed by the live counts today; cuts are
+  negative). Analytics, today's words and the streak all call it, so the
+  chart and the goals can never disagree. Nothing is counted on the client.
+- *Whose day.* Today's words and the streak count the person's own books,
+  not archived — the books the weekly digest reports. Shared books are left
+  out: versions record a chapter's size, not who typed it, so an editor's
+  day would be credited with the owner's writing. The sheet says so in a
+  shared book. Days are the app's calendar days, as in Analytics.
+- *Streak.* Consecutive days meeting the daily goal, or with any net words
+  when there is no goal. A streak not yet extended today runs to yesterday
+  until the day ends ("write today to keep it going"). Looked for over 365
+  days; longer reads "at least". With no version at all the sheet says
+  there is no history rather than showing zeros as a record.
+- *Storage and endpoints.* `manuscript_sections.word_goal` (nullable, not
+  on parts). `PATCH /sections/{section}/goal` (update policy: owner or
+  editor), `PATCH /profile/daily-goal` (the profile form's 50–20,000), and
+  `GET /books/{book}/goals?section=` (view policy; the section must be the
+  book's). `goal` is required-but-nullable, so a misspelt field cannot
+  clear a goal. Renaming and deleting reuse `sections.update` and
+  `sections.destroy`, which now answer JSON when asked, so the binder
+  reloads alone and never the chapter under the author.
+- *Rings.* `Studio/ProgressRing` (SVG). In the chapter header it is the
+  button to the goals sheet (a dialog, so a bottom sheet on a phone),
+  using the editor's live count; in the binder a 13px ring sits on each
+  chapter with a goal. At 100% it turns the success colour with a check and
+  the sheet says "Goal reached" — no animation beyond the fill.
+- *Reorder mode.* A Reorder/Done toggle in the binder header: rows grow to
+  44px, show a grip handle driven by pointer events (window listeners,
+  `touch-action: none`, the rows measured once; a line shows where the row
+  lands) plus ↑/↓ buttons, and do not open. Same endpoint and level rules
+  (`books.sections.order`: top level or within one part). Mouse HTML5
+  drag-and-drop and Alt+↑/↓ remain outside the mode; the handle also takes
+  ↑/↓ keys. Focus after a move is restored inside the binder that moved
+  (the desktop binder stays mounted behind the phone drawer).
+- *Row actions.* A long press (500ms, 10px slop, touch only), right-click,
+  the ContextMenu key or Shift+F10, or a ⋯ button on hover/focus opens
+  Rename, Set goal, Move up, Move down and Delete. Delete is offered for a
+  chapter without sub-sections, asks first, and is the existing soft
+  delete; deleting the open chapter reopens the book on another. Where
+  the primary pointer is coarse the rows are not HTML5-draggable (Chrome
+  turns a long press on a draggable row into a native drag and cancels
+  the press), and the touchend after a long press is prevented, so the
+  lifted finger's emulated mousedown does not land on the sheet's backdrop
+  and close it.
+
+**Tests.** `tests/Feature/WritingGoalsTest.php` (migration, set/clear,
+validation, policy for owner/editor/reviewer/stranger, today's words equal
+to Analytics, streak with and without a goal, a gap, cuts, no history,
+archived and other people's books, the sheet's payload, props, JSON
+rename/delete); `tests/Browser/goals.spec.js` at 390px with touch (ring
+and sheet, reorder by ↑/↓ and a real touch drag through the DevTools
+protocol, long-press actions, keyboard access, desktop mouse drag kept).
