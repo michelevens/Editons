@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { currentTheme, setTheme } from '../../theme';
@@ -28,6 +28,7 @@ import { goTo } from './navigation';
  */
 const ITEMS = [
     [
+        { key: 'inbox', label: 'Inbox', icon: 'bell', route: 'inbox.index' },
         { key: 'billing', label: 'Plans & billing', icon: 'card', route: 'billing.show' },
         { key: 'sales', label: 'Storefront sales', icon: 'sales', route: 'sales.overview' },
         { key: 'purchases', label: 'Your purchases', icon: 'doc', route: 'purchases.index' },
@@ -44,6 +45,7 @@ const ITEMS = [
 export default function UserMenu({ user, account, bookId = null }) {
     const [open, setOpen] = useState(false);
     const wrap = useRef(null);
+    const unread = usePage().props.inbox_unread ?? 0;
 
     // Close on an outside click or Escape. Without both, a menu that opens
     // over the manuscript has to be dismissed by navigating away.
@@ -71,10 +73,17 @@ export default function UserMenu({ user, account, bookId = null }) {
                 onClick={() => setOpen((value) => !value)}
                 aria-haspopup="menu"
                 aria-expanded={open}
-                aria-label="Account"
-                className="grid h-[37px] w-[37px] shrink-0 place-items-center overflow-hidden rounded-full bg-brand-primary-subtle text-[12.5px] font-semibold text-brand-primary transition hover:ring-2 hover:ring-brand-primary/25"
+                aria-label={unread > 0 ? `Account, ${unread} unread in the inbox` : 'Account'}
+                className="relative grid h-[37px] w-[37px] shrink-0 place-items-center rounded-full bg-brand-primary-subtle text-[12.5px] font-semibold text-brand-primary transition hover:ring-2 hover:ring-brand-primary/25"
             >
                 {initials(user?.name)}
+                {unread > 0 && (
+                    <span
+                        data-a="user:unread-dot"
+                        aria-hidden="true"
+                        className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-bg-surface bg-brand-fill"
+                    />
+                )}
             </button>
 
             {open && (
@@ -134,6 +143,7 @@ export default function UserMenu({ user, account, bookId = null }) {
                                     key={item.key}
                                     item={item}
                                     bookId={bookId}
+                                    count={item.key === 'inbox' ? unread : 0}
                                     onDone={() => setOpen(false)}
                                 />
                             ))}
@@ -210,7 +220,7 @@ export function ThemeSwitch({ className = 'border-t border-border-divider px-4 p
     );
 }
 
-function MenuItem({ item, bookId, onDone }) {
+function MenuItem({ item, bookId, count = 0, onDone }) {
     return (
         <button
             data-a={`user:${item.key}`}
@@ -224,6 +234,12 @@ function MenuItem({ item, bookId, onDone }) {
         >
             <Icon name={item.icon} size={17} className="shrink-0 opacity-70" />
             <span className="flex-1 truncate">{item.label}</span>
+            {count > 0 && (
+                <span className="rounded-badge bg-brand-fill px-1.5 text-[11px] font-semibold leading-[18px] text-white">
+                    {count > 99 ? '99+' : count}
+                    <span className="sr-only"> unread</span>
+                </span>
+            )}
         </button>
     );
 }

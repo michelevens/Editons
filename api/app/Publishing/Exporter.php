@@ -3,6 +3,7 @@
 namespace App\Publishing;
 
 use App\Jobs\GenerateExport;
+use App\Inbox\Inbox;
 use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookExport;
@@ -150,6 +151,7 @@ class Exporter
                 && $export->created_at->gt(now()->subDay())
                 && $export->book) {
                 Notify::exportFailed($export->fresh(), __('The export stopped before it finished. Generating it again usually works.'));
+                Inbox::exportSettled($export->fresh(), false, __('The export stopped before it finished. Generating it again usually works.'));
             }
         }
 
@@ -235,6 +237,7 @@ class Exporter
                 }
             } elseif ($queued) {
                 Notify::exportReady($export->fresh());
+                Inbox::exportSettled($export->fresh(), true);
             }
         } catch (\Throwable $e) {
             // Recorded, not swallowed: the history should show that a
@@ -244,6 +247,7 @@ class Exporter
 
             if ($failed && $queued && $export->book) {
                 Notify::exportFailed($export->fresh(), $this->reason($e));
+                Inbox::exportSettled($export->fresh(), false, $this->reason($e));
             }
 
             throw $e;

@@ -352,3 +352,9 @@
 .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* A full-screen layer (the book preview) keeps its top row clear of the
+   notch and the status bar. */
+.safe-top {
+    padding-top: env(safe-area-inset-top);
+}

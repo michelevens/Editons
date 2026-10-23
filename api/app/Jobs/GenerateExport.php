@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Inbox\Inbox;
 use App\Mail\Notify;
 use App\Models\BookExport;
 use App\Publishing\Exporter;
@@ -74,6 +75,7 @@ class GenerateExport implements ShouldQueue
 
         if ($updated && ($export = BookExport::find($this->exportId)) && $export->book) {
             Notify::exportFailed($export, __('The export took too long and was stopped.'));
+            Inbox::exportSettled($export, false, __('The export took too long and was stopped.'));
         }
     }
 }

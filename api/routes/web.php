@@ -17,6 +17,7 @@ use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\GrowthController;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
@@ -438,6 +439,23 @@ Route::middleware('auth')->group(function () {
         ->name('billing.show');
     Route::get('/billing/summary', [BillingController::class, 'summary'])
         ->name('billing.summary');
+});
+
+/*
+ | The inbox. Account-level: every row is the signed-in person's own
+ | (InboxItem::scopeFor), about books they can still open.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/inbox', [InboxController::class, 'index'])
+        ->name('inbox.index');
+    Route::post('/inbox/read-all', [InboxController::class, 'readAll'])
+        ->name('inbox.read-all');
+    Route::patch('/inbox/{item}', [InboxController::class, 'update'])
+        ->whereNumber('item')
+        ->name('inbox.update');
+    Route::get('/inbox/{item}/open', [InboxController::class, 'open'])
+        ->whereNumber('item')
+        ->name('inbox.open');
 });
 
 /*

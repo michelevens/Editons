@@ -5,6 +5,7 @@ namespace App\Editorial;
 use App\Billing\CreditLedger;
 use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\Contracts\SimulatesReview;
+use App\Inbox\Inbox;
 use App\Models\CreditTransaction;
 use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
@@ -123,7 +124,13 @@ class ReviewRunner
             }
         }
 
-        return $review->refresh();
+        $review->refresh();
+
+        // News for the book's owner when somebody else ran it; a record for
+        // whoever did (see Inbox::reviewFinished).
+        Inbox::reviewFinished($review);
+
+        return $review;
     }
 
     /** Is this driver's output sample output rather than a model's review? */
