@@ -1024,7 +1024,9 @@ commenting meant selecting text and then finding a panel two taps away.
   after, marked. Undo/redo, `setContent` (`preventUpdate`) and the
   accept/reject transaction itself pass through. Typing, paste, Backspace and
   Delete (the caret steps over struck text), selection replacement and cut
-  are tracked. *Not tracked:* formatting, paragraph breaks made or joined
+  are tracked; while suggesting, Backspace and Delete inside a
+  paragraph are turned into transactions by the extension itself rather
+  than left to the browser and read back from the page. *Not tracked:* formatting, paragraph breaks made or joined
   (Enter splits, Backspace at a paragraph start joins — both apply
   directly), and pictures, tables, charts, display equations and code
   blocks. Inserting one of those applies directly; deleting one while
