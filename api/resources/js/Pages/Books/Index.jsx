@@ -1,4 +1,5 @@
 import AppHeader from '@/Components/Studio/AppHeader';
+import MobileNav from '@/Components/Studio/MobileNav';
 import Icon from '@/Components/Studio/Icon';
 import ImportDialog from '@/Components/Studio/ImportDialog';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
@@ -35,7 +36,7 @@ export default function Index({
     ];
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title="My Books" />
 
             <AppHeader
@@ -154,7 +155,7 @@ export default function Index({
                     {books.length === 0 ? (
                         <EmptyShelf filter={filter} />
                     ) : (
-                        <ul className="mt-5 grid gap-[14px] sm:grid-cols-2">
+                        <ul className="mt-5 grid grid-cols-1 gap-[14px] sm:grid-cols-2">
                             {books.map((book) => (
                                 <BookCard key={book.id} book={book} />
                             ))}
@@ -162,6 +163,8 @@ export default function Index({
                     )}
                 </div>
             </main>
+
+            <MobileNav current="books" />
         </div>
     );
 }
@@ -458,7 +461,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                         You can change it at any point.
                     </p>
 
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {bookTypes.map((type) => (
                             <button
                                 key={type.key}
@@ -521,7 +524,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                         </button>
                     </div>
 
-                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <label>
                             <span className="mb-1.5 block text-[12px] font-medium text-text-secondary">
                                 How many chapters?
@@ -609,7 +612,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                         How much help do you want?
                     </p>
 
-                    <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                         {ASSISTANCE.map((level) => (
                             <button
                                 key={level.key}

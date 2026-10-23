@@ -22,6 +22,7 @@ import RightsPanel from '@/Components/Studio/RightsPanel';
 import SalesPanel from '@/Components/Studio/SalesPanel';
 import Icon from '@/Components/Studio/Icon';
 import ManuscriptOutline from '@/Components/Studio/ManuscriptOutline';
+import MobileNav from '@/Components/Studio/MobileNav';
 import NotesPanel from '@/Components/Studio/NotesPanel';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
@@ -454,7 +455,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     };
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title={book.title} />
 
             {!focused && (
@@ -469,7 +470,6 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 onOpenChapter={openSection}
                 user={auth?.user}
                 account={auth?.account}
-                onMenu={() => setSidebarOpen(true)}
                 skipTo={isStudio ? '#manuscript' : '#main'}
                 skipLabel={isStudio ? 'Skip to manuscript' : 'Skip to content'}
             />
@@ -490,10 +490,16 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     />
                 )}
 
-                <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden p-[11px] outline-none">
+                <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none sm:p-[11px]">
                     {/* Above the panes: this is where credits are spent, so
                         this is where the balance belongs. */}
-                    {!focused && <CreditStrip balance={credits} />}
+                    {/* Not on a phone: forty pixels of a 390px screen, on
+                        every pane, for a figure the avatar menu also has. */}
+                    {!focused && (
+                        <div className="max-sm:hidden">
+                            <CreditStrip balance={credits} />
+                        </div>
+                    )}
 
                     {nav === 'analytics' ? (
                         <Panel>
@@ -607,7 +613,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             milestone="a later milestone"
                         />
                     ) : (
-                        <div className={`grid min-h-0 flex-1 gap-[11px] ${focused ? '' : 'md:grid-rows-[minmax(0,1fr)_auto]'}`}>
+                        <div className={`grid min-h-0 flex-1 gap-[11px] ${focused ? '' : 'lg:grid-rows-[minmax(0,1fr)_auto]'}`}>
                             {/*
                               * On a phone the manuscript is the whole screen.
                               * The binder and the AI panel become drawers,
@@ -632,8 +638,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 <section
                                     id="manuscript"
                                     aria-label="Manuscript"
-                                    className={`manuscript flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface ${
-                                        focused ? 'mx-auto w-full max-w-[860px]' : 'max-xl:pb-12'
+                                    className={`manuscript flex min-h-0 min-w-0 flex-col overflow-hidden border-border-default bg-bg-surface sm:rounded-panel sm:border ${
+                                        focused ? 'mx-auto w-full max-w-[860px]' : 'lg:max-xl:pb-12'
                                     }`}
                                 >
                                     <ManuscriptEditor
@@ -642,6 +648,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         bookId={book.id}
                                         onSaved={onSaved}
                                         autosave={book.autosave ?? true}
+                                        onChapters={() => setBinderOpen(true)}
                                         headerActions={
                                             <button
                                                 type="button"
@@ -679,7 +686,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 phone that is four screens of scrolling before
                                 the manuscript, so it waits for the tablet
                                 breakpoint. */}
-                            <div className={`h-[236px] min-h-0 max-md:hidden ${focused ? 'hidden' : ''}`}>
+                            <div className={`h-[236px] min-h-0 max-lg:hidden ${focused ? 'hidden' : ''}`}>
                                 <BottomRow
                                     sources={library}
                                     onOpenLibrary={openLibrary}
@@ -694,33 +701,13 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 </main>
             </div>
 
-            {/* Affordances for the two panels that leave the grid on smaller
-                screens. Without these they would be unreachable, not merely
-                hidden. */}
+            {/* Between 1024 and 1280 the tab bar is gone and the AI panel
+                has not yet joined the grid; this is its way in there. Below
+                1024 it is the tab bar's AI tab. */}
             {isStudio && !focused && (
-                <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center gap-2 xl:hidden">
+                <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 hidden justify-center lg:flex xl:hidden">
                     <button
-                        data-a="mobile:menu"
-                        aria-haspopup="dialog"
-                        onClick={() => setSidebarOpen(true)}
-                        className="pointer-events-auto rounded-badge bg-bg-sidebar px-4 py-2 text-[12px] font-semibold text-white shadow-popover lg:hidden"
-                    >
-                        Menu
-                    </button>
-
-                    {/* The binder leaves the grid below md, so it needs a way
-                        back. Without this the only chapter reachable on a
-                        phone is whichever one happened to open. */}
-                    <button
-                        data-a="mobile:chapters"
-                        aria-haspopup="dialog"
-                        onClick={() => setBinderOpen(true)}
-                        className="pointer-events-auto rounded-badge bg-bg-sidebar px-4 py-2 text-[12px] font-semibold text-white shadow-popover md:hidden"
-                    >
-                        Chapters
-                    </button>
-                    <button
-                        data-a="mobile:ai"
+                        data-a="mobile:ai-pill"
                         aria-haspopup="dialog"
                         onClick={() => setPanelOpen(true)}
                         className="pointer-events-auto rounded-badge bg-brand-fill px-4 py-2 text-[12px] font-semibold text-white shadow-popover"
@@ -729,6 +716,18 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         {openFindings.length > 0 && ` (${openFindings.length})`}
                     </button>
                 </div>
+            )}
+
+            {!focused && (
+                <MobileNav
+                    bookId={book.id}
+                    bookTitle={book.title}
+                    current={nav === 'ai' || nav === 'analytics' ? nav : effectivePane}
+                    aiCount={openFindings.length}
+                    onSelect={navigate}
+                    onChapters={() => setBinderOpen(true)}
+                    onAi={() => setPanelOpen(true)}
+                />
             )}
 
             {/* Phone drawers: dialogs, so focus moves in, Escape and a
@@ -814,7 +813,7 @@ function Panel({ children }) {
     // credit strip sits above the panes, and h-full in a flex child measures
     // against the wrong box. Focusable so a keyboard can scroll it.
     return (
-        <div tabIndex={0} className="min-h-0 flex-1 overflow-y-auto rounded-panel border border-border-default bg-bg-surface">
+        <div tabIndex={0} className="min-h-0 flex-1 overflow-y-auto border-border-default bg-bg-surface sm:rounded-panel sm:border">
             {children}
         </div>
     );

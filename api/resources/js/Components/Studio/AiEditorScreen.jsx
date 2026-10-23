@@ -82,7 +82,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
     ];
 
     return (
-        <div className="mx-auto max-w-[1040px] p-8">
+        <div className="mx-auto max-w-[1040px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
                     AI Editor
@@ -107,13 +107,13 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                 )}
             </header>
 
-            <div className="mb-4 flex flex-wrap gap-1.5">
+            <div className="mb-4 no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
                 {statusTabs.map((tab) => (
                     <button
                         key={tab.key}
                         data-a={`ai-screen:status:${tab.key}`}
                         onClick={() => setFilters((f) => ({ ...f, status: tab.key }))}
-                        className={`rounded-badge px-3 py-1.5 text-[12.5px] font-medium transition ${
+                        className={`shrink-0 whitespace-nowrap rounded-badge px-3 py-1.5 text-[12.5px] font-medium transition max-sm:py-2.5 ${
                             filters.status === tab.key
                                 ? 'bg-brand-fill text-white'
                                 : 'bg-bg-surface text-text-secondary hover:text-text-primary'
@@ -125,11 +125,11 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                 ))}
             </div>
 
-            <div className="mb-5 flex flex-wrap gap-1.5">
+            <div className="mb-5 no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
                 <button
                     data-a="ai-screen:agent:all"
                     onClick={() => setFilters((f) => ({ ...f, agent: null }))}
-                    className={`rounded-badge border px-2.5 py-1 text-[11.5px] transition ${
+                    className={`shrink-0 whitespace-nowrap rounded-badge border px-2.5 py-1 text-[11.5px] transition max-sm:px-3 max-sm:py-2.5 max-sm:text-[12.5px] ${
                         filters.agent === null
                             ? 'border-brand-primary bg-brand-primary-subtle text-outline-active-text'
                             : 'border-border-default text-text-secondary hover:text-text-primary'
@@ -143,7 +143,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                         key={agent.value}
                         data-a={`ai-screen:agent:${agent.value}`}
                         onClick={() => setFilters((f) => ({ ...f, agent: agent.value }))}
-                        className={`rounded-badge border px-2.5 py-1 text-[11.5px] transition ${
+                        className={`shrink-0 whitespace-nowrap rounded-badge border px-2.5 py-1 text-[11.5px] transition max-sm:px-3 max-sm:py-2.5 max-sm:text-[12.5px] ${
                             filters.agent === agent.value
                                 ? 'border-brand-primary bg-brand-primary-subtle text-outline-active-text'
                                 : 'border-border-default text-text-secondary hover:text-text-primary'

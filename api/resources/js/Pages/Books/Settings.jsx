@@ -1,4 +1,5 @@
 import AppHeader from '@/Components/Studio/AppHeader';
+import MobileNav from '@/Components/Studio/MobileNav';
 import BookPartsPanel from '@/Components/Studio/BookPartsPanel';
 import Icon from '@/Components/Studio/Icon';
 import { goTo } from '@/Components/Studio/navigation';
@@ -29,7 +30,7 @@ export default function Settings({
     const closeMenu = useCallback(() => setMenu(false), []);
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title={`${book.title} — Settings`} />
 
             <AppHeader
@@ -37,7 +38,6 @@ export default function Settings({
                 user={auth?.user}
                 account={auth?.account}
                 bookId={book.id}
-                onMenu={() => setMenu(true)}
             />
 
             <div className="flex min-h-0 flex-1">
@@ -79,6 +79,8 @@ export default function Settings({
                     </div>
                 </main>
             </div>
+
+            <MobileNav current="settings" bookId={book.id} bookTitle={book.title} />
         </div>
     );
 }
@@ -115,7 +117,7 @@ function DetailsForm({ book, genres, languages }) {
         >
             <h2 className="text-[15px] font-semibold text-text-primary">Details</h2>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field
                     id="title"
                     label="Title"
@@ -255,7 +257,7 @@ function PublicationForm({ book, copyrightPreview }) {
                 nothing is printed for it.
             </p>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field
                     id="publisher"
                     label="Publisher"
@@ -605,7 +607,7 @@ function WritingPreferences({ book, citationStyles }) {
                     </li>
                 ))}
 
-                <li className="flex items-center justify-between gap-6 py-3.5">
+                <li className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
                     <div className="min-w-0">
                         <p className="text-[13.5px] font-medium text-text-primary">
                             Citation style
@@ -622,7 +624,7 @@ function WritingPreferences({ book, citationStyles }) {
                         data-a="settings:citation-style"
                         disabled={busy === 'citation_style'}
                         onChange={(event) => chooseStyle(event.target.value)}
-                        className="h-[36px] shrink-0 rounded-control border border-border-input px-2.5 text-[13px] focus:border-brand-primary focus:ring-0"
+                        className="h-[36px] max-w-full shrink-0 rounded-control border border-border-input px-2.5 text-[13px] focus:border-brand-primary focus:ring-0"
                     >
                         {citationStyles.map((option) => (
                             <option key={option.value} value={option.value}>

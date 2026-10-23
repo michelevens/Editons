@@ -93,8 +93,9 @@ test.describe('phone', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
     for (const [trigger, name, close] of [
-        ['mobile:menu', 'Menu', 'Close menu'],
-        ['mobile:chapters', 'Chapters', 'Close chapters'],
+        // The tab bar's More, and the chapter title above the text.
+        ['mobile:more', 'Menu', 'Close menu'],
+        ['editor:chapters', 'Chapters', 'Close chapters'],
         ['mobile:ai', 'AI Editor', 'Close AI Editor'],
     ]) {
         test(`the ${name} drawer takes focus, has a close button and closes on Escape`, async ({ page }) => {
@@ -140,13 +141,13 @@ test.describe('phone', () => {
             expect(overflow).toBe(0);
             await expect(page.locator('[data-a="side:overview"]')).toBeHidden();
 
-            // The header's menu opens the sidebar, with the header's areas
+            // The tab bar's More opens the menu sheet, with every screen
             // in it: Analytics had no way in below 1024px.
-            await page.click('[data-a="header:menu"]');
+            await page.click('[data-a="mobile:more"]');
             const drawer = page.getByRole('dialog', { name: 'Menu' });
             await expect(drawer).toBeVisible();
-            await expect(drawer.locator('[data-a="side:overview"]')).toBeVisible();
-            await drawer.locator('[data-a="drawer:nav:analytics"]').click();
+            await expect(drawer.locator('[data-a="sheet:overview"]')).toBeVisible();
+            await drawer.locator('[data-a="sheet:analytics"]').click();
             await page.waitForURL(/pane=analytics/);
 
             expect(errors).toEqual([]);

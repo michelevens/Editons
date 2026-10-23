@@ -33,7 +33,7 @@ export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }
         : null;
 
     return (
-        <div className="mx-auto max-w-[1040px] p-8">
+        <div className="mx-auto max-w-[1040px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
                     Analytics
@@ -43,7 +43,7 @@ export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }
                 </p>
             </header>
 
-            <div className="grid gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
                 <Stat label="Words" value={totals.words.toLocaleString()} sub={`${totals.chapters} chapters`} />
                 <Stat
                     label="Progress"
@@ -86,7 +86,7 @@ export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }
                 )}
             </section>
 
-            <div className="mt-5 grid gap-[18px] lg:grid-cols-2">
+            <div className="mt-5 grid grid-cols-1 gap-[18px] lg:grid-cols-2">
                 <Bars
                     title="Words by chapter"
                     rows={data.by_section.map((section) => ({

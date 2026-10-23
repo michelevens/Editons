@@ -168,8 +168,17 @@ export default function Dialog({
         variant === 'drawer'
             ? `fixed inset-0 z-40 flex ${side === 'right' ? 'justify-end' : ''}`
             : `fixed inset-0 z-50 flex justify-center bg-black/30 p-4 ${
-                  align === 'top' ? 'items-start pt-[12vh]' : 'items-center'
+                  align === 'top' ? 'items-start pt-[12vh]' : 'items-center max-sm:items-end max-sm:p-0 max-sm:pt-8'
               }`;
+
+    // On a phone a centred modal is a bottom sheet: full width, against the
+    // edge the thumb is on, and scrollable when the keyboard takes half the
+    // screen. Callers size their dialogs for a desktop (w-[480px] and the
+    // like), so the sheet's width has to win over theirs.
+    const sheet =
+        variant !== 'drawer' && align !== 'top'
+            ? 'max-sm:!w-full max-sm:!max-w-none max-sm:max-h-[92dvh] max-sm:overflow-y-auto max-sm:!rounded-b-none'
+            : '';
 
     return (
         <div className={`${overlay} ${overlayClassName}`}>
@@ -195,7 +204,7 @@ export default function Dialog({
                 aria-label={labelledBy ? undefined : label}
                 aria-labelledby={labelledBy}
                 tabIndex={-1}
-                className={`relative outline-none ${className}`}
+                className={`relative outline-none ${className} ${sheet}`}
                 {...rest}
             >
                 {children}

@@ -1,4 +1,5 @@
 import AppHeader from '@/Components/Studio/AppHeader';
+import MobileNav from '@/Components/Studio/MobileNav';
 import Icon from '@/Components/Studio/Icon';
 import { Head, usePage } from '@inertiajs/react';
 
@@ -28,7 +29,7 @@ export default function Billing({
     const low = current.monthly_credits > 0 && current.credits < current.monthly_credits * 0.15;
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title="Plans & Billing" />
 
             <AppHeader
@@ -52,7 +53,7 @@ export default function Billing({
                         </div>
                     </header>
 
-                    <div className="mt-7 grid gap-4 lg:grid-cols-2">
+                    <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2">
                         <Box title="AI credits">
                             <p className="flex items-baseline gap-2">
                                 <b className="font-display text-[30px] font-extrabold tracking-[-0.02em] text-text-primary">
@@ -195,7 +196,7 @@ export default function Billing({
                         )}
                     </Box>
 
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                         <Box title="Credit packs">
                             {packs.map((pack) => (
                                 <div
@@ -288,6 +289,8 @@ export default function Billing({
                     </Box>
                 </div>
             </main>
+
+            <MobileNav current="billing" />
         </div>
     );
 }

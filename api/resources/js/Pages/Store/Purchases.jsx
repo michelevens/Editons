@@ -1,4 +1,5 @@
 import AppHeader from '@/Components/Studio/AppHeader';
+import MobileNav from '@/Components/Studio/MobileNav';
 import OrderSummary from '@/Components/Store/OrderSummary';
 import { Head, usePage } from '@inertiajs/react';
 
@@ -10,7 +11,7 @@ export default function Purchases({ orders }) {
     const { auth } = usePage().props;
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title="Your purchases" />
             <AppHeader active="books" user={auth?.user} account={auth?.account} />
 
@@ -34,6 +35,8 @@ export default function Purchases({ orders }) {
                     )}
                 </div>
             </main>
+
+            <MobileNav current="purchases" />
         </div>
     );
 }

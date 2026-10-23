@@ -1282,7 +1282,7 @@ test.describe('mobile', () => {
         await page.goto(`/books/${id}/edit`);
         await expect(page.locator('.manuscript')).toBeVisible({ timeout: 25_000 });
 
-        await page.click('[data-a="mobile:chapters"]');
+        await page.click('[data-a="editor:chapters"]');
 
         // By its text rather than by selector: the desktop outline is still
         // in the DOM, hidden rather than unmounted, so a data-a match finds
@@ -1311,8 +1311,8 @@ test.describe('mobile', () => {
         await page.goto(`/books/${id}/edit`);
         await expect(page.locator('.manuscript')).toBeVisible({ timeout: 25_000 });
 
-        await page.click('[data-a="mobile:menu"]');
-        await expect(page.locator('[data-a="side:manuscript"]')).toBeVisible({
+        await page.click('[data-a="mobile:more"]');
+        await expect(page.locator('[data-a="sheet:manuscript"]')).toBeVisible({
             timeout: 10_000,
         });
 

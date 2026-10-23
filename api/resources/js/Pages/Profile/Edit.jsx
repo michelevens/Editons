@@ -1,4 +1,5 @@
 import AppHeader from '@/Components/Studio/AppHeader';
+import MobileNav from '@/Components/Studio/MobileNav';
 import { ThemeSwitch } from '@/Components/Studio/UserMenu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import DeleteUserForm from './Partials/DeleteUserForm';
@@ -26,7 +27,7 @@ export default function Edit({
     const { auth } = usePage().props;
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title="Your profile" />
 
             <AppHeader
@@ -92,6 +93,8 @@ export default function Edit({
                     </div>
                 </div>
             </main>
+
+            <MobileNav current="account" />
         </div>
     );
 }
@@ -120,7 +123,7 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
                 title="How your books are credited"
                 detail="The author name goes on the cover, into the eBook's metadata and onto store listings. It is often not the name on your account — a pen name, or a name with your credentials after it."
             >
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Your name" error={errors.name}>
                         <input
                             value={data.name}
@@ -174,7 +177,7 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
                 title="How you like to work"
                 detail="Defaults for the next book you start. Nothing here changes a book you have already written."
             >
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Usual kind of book" error={errors.default_book_type}>
                         <select
                             value={data.default_book_type}
@@ -274,7 +277,7 @@ function PlanCard({ plan }) {
             title="Your plan"
             detail={`${plan.name}${plan.price > 0 ? ` · $${plan.price} a month` : ' · free'}`}
         >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                     <p className="text-[11.5px] text-text-secondary">AI credits</p>
                     <p className="mt-0.5 flex items-baseline gap-1.5">

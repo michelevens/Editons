@@ -141,7 +141,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                 </p>
             </header>
 
-            <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-4 lg:grid-cols-[300px_1fr]">
+            <div className="grid grid-cols-1 min-h-0 flex-1 gap-4 overflow-auto p-4 lg:grid-cols-[300px_1fr]">
                 <section className="flex flex-col items-center gap-3 rounded-tile border border-border-default bg-bg-subtle p-4">
                     <img
                         key={cover.image}

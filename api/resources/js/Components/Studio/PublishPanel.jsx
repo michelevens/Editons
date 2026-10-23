@@ -259,7 +259,7 @@ export default function PublishPanel({ bookId, onNotify }) {
                     </div>
                 )}
 
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                         <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">
                             Store listing
@@ -323,7 +323,7 @@ export default function PublishPanel({ bookId, onNotify }) {
                             />
                         </Field>
 
-                        <div className="grid gap-2.5 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                             <Field label="List price (USD)" error={problem('list_price')}>
                                 <input
                                     value={book.list_price ?? ''}

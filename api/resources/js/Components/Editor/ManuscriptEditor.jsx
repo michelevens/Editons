@@ -93,7 +93,7 @@ async function putContent(id, json, reason, keepalive) {
     return data;
 }
 
-export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, headerActions = null, ref }) {
+export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, headerActions = null, onChapters = null, ref }) {
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
     // The equation being written or edited: {kind, latex, pos} or null.
@@ -421,11 +421,29 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
         <div className="flex h-full flex-col">
             {/* Chapter header, h48 per the handoff: title, live word count,
                 save state. */}
-            <header className="flex h-[48px] shrink-0 items-center gap-3 border-b border-border-divider px-[21px]">
-                <h2 className="truncate text-[14px] font-semibold text-text-primary">
+            <header className="flex h-[48px] shrink-0 items-center gap-3 border-b border-border-divider px-3 sm:px-[21px]">
+                {/* On a phone the binder is a drawer, and the chapter's own
+                    title is where a thumb looks for "which chapter, and how
+                    do I get to another one". */}
+                {onChapters ? (
+                    <button
+                        type="button"
+                        data-a="editor:chapters"
+                        onClick={onChapters}
+                        aria-haspopup="dialog"
+                        aria-label={`${section.title} — switch chapter`}
+                        className="-ml-1.5 flex min-h-[40px] min-w-0 items-center gap-1 rounded-control px-1.5 text-left text-[14px] font-semibold text-text-primary transition hover:bg-bg-subtle md:hidden"
+                    >
+                        <span className="truncate">{section.title}</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className="shrink-0 text-text-secondary">
+                            <path d="M6 9l6 6 6-6" />
+                        </svg>
+                    </button>
+                ) : null}
+                <h2 className={`truncate text-[14px] font-semibold text-text-primary ${onChapters ? 'max-md:hidden' : ''}`}>
                     {section.title}
                 </h2>
-                <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary">
+                <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
                     {words.toLocaleString()} words
                 </span>
                 <SaveStatus status={status} />
@@ -578,7 +596,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 />
             )}
 
-            <div className="flex-1 overflow-y-auto px-[21px] pb-10 pt-[30px]">
+            <div className="flex-1 overflow-y-auto px-4 pb-10 pt-5 sm:px-[21px] sm:pt-[30px]">
                 {/^\s*list\s+of\s+(tables|figures|illustrations)\s*$/i.test(section.title) && (
                     <p
                         data-a="editor:generated-list"
@@ -592,7 +610,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                 <EditorContent editor={editor} />
             </div>
 
-            <footer className="flex h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-[21px] text-[11px] text-text-secondary">
+            <footer className="flex h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-4 text-[11px] text-text-secondary sm:px-[21px]">
                 <span>Reading time ~{readingMinutes} min</span>
                 <span className="tabular-nums">
                     {words.toLocaleString()} words
@@ -665,7 +683,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref }) {
             // toolbar mid-click and the click never landed.
             onMouseDown={(event) => event.preventDefault()}
             onClick={onClick}
-            className={`grid h-[28px] min-w-[28px] place-items-center rounded-button px-1.5 text-[13px] transition ${
+            className={`grid h-[28px] min-w-[28px] shrink-0 place-items-center rounded-button px-1.5 text-[13px] transition max-md:h-[40px] max-md:min-w-[40px] pointer-coarse:h-[38px] pointer-coarse:min-w-[38px] ${
                 active
                     ? 'bg-brand-primary-subtle text-brand-primary'
                     : 'text-text-body hover:bg-bg-subtle'
@@ -679,14 +697,20 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref }) {
         <span className="mx-1 h-[18px] w-px shrink-0 bg-border-default" />
     );
 
+    // One row that scrolls sideways on a phone: wrapped, the toolbar took
+    // three rows of a 390px screen before the first line of text.
     return (
-        <div className="flex h-[47px] shrink-0 flex-wrap items-center gap-0.5 border-b border-border-divider px-[21px]">
+        <div
+            role="toolbar"
+            aria-label="Formatting"
+            className="no-scrollbar flex min-h-[47px] shrink-0 items-center gap-0.5 border-b border-border-divider px-[21px] md:flex-wrap md:py-1 max-md:h-[52px] max-md:overflow-x-auto max-md:px-2"
+        >
             <select
                 value={block}
                 onChange={(event) => setBlock(event.target.value)}
                 data-a="toolbar:block"
                 aria-label="Block type"
-                className="mr-1 h-[28px] rounded-control border border-border-input bg-bg-surface py-0 pl-2 pr-7 text-[12px] text-text-body focus:border-brand-primary focus:ring-0"
+                className="mr-1 h-[28px] shrink-0 rounded-control border max-md:h-[40px] border-border-input bg-bg-surface py-0 pl-2 pr-7 text-[12px] text-text-body focus:border-brand-primary focus:ring-0"
             >
                 <option value="p">Paragraph</option>
                 <option value="h1">Heading 1</option>

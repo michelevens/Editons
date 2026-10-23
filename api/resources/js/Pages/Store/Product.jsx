@@ -22,7 +22,7 @@ export default function Product({ product, series }) {
         <StoreLayout>
             <Head title={product.title} />
 
-            <div className="grid gap-8 md:grid-cols-[minmax(0,300px)_1fr]">
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,300px)_1fr]">
                 <img
                     src={product.cover_url}
                     alt={`Cover of ${product.title}`}

@@ -112,7 +112,7 @@ export default function TemplatesPanel({ section, onInsert }) {
     };
 
     return (
-        <div className="mx-auto max-w-[760px] p-8">
+        <div className="mx-auto max-w-[760px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
                     Templates
