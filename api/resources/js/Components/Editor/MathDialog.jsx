@@ -1,5 +1,6 @@
 import katex from 'katex';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Dialog from '../Dialog';
 
 /**
  * Write or edit an equation, with the typeset result beside the source.
@@ -78,135 +79,128 @@ export default function MathDialog({ initial, onSave, onDelete, onClose }) {
     };
 
     return (
-        <div
-            className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4"
-            onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+        <Dialog
+            onClose={onClose}
+            aria-label={editing ? 'Edit equation' : 'Insert equation'}
+            className="w-full max-w-[640px] rounded-panel border border-border-default bg-bg-surface p-5 shadow-xl"
+            onKeyDown={(event) => {
+                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) save();
+            }}
         >
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={editing ? 'Edit equation' : 'Insert equation'}
-                className="w-full max-w-[640px] rounded-panel border border-border-default bg-bg-surface p-5 shadow-xl"
-                onKeyDown={(event) => {
-                    if (event.key === 'Escape') onClose();
-                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) save();
-                }}
-            >
-                <div className="flex items-center justify-between">
-                    <h3 className="text-[15px] font-semibold text-text-primary">
-                        {editing ? 'Edit equation' : 'Insert equation'}
-                    </h3>
-                    <div className="flex rounded-control border border-border-input p-0.5 text-[12px]">
-                        {[
-                            [false, 'In the line'],
-                            [true, 'On its own line'],
-                        ].map(([value, label]) => (
-                            <button
-                                key={label}
-                                type="button"
-                                data-a={`math:${value ? 'block' : 'inline'}`}
-                                onClick={() => setDisplay(value)}
-                                className={`rounded-[5px] px-2.5 py-1 ${
-                                    display === value
-                                        ? 'bg-brand-primary-subtle font-semibold text-brand-primary'
-                                        : 'text-text-secondary'
-                                }`}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                    {SNIPPETS.map(([label, snippet]) => (
+            <div className="flex items-center justify-between">
+                <h3 className="text-[15px] font-semibold text-text-primary">
+                    {editing ? 'Edit equation' : 'Insert equation'}
+                </h3>
+                <div className="flex rounded-control border border-border-input p-0.5 text-[12px]">
+                    {[
+                        [false, 'In the line'],
+                        [true, 'On its own line'],
+                    ].map(([value, label]) => (
                         <button
                             key={label}
                             type="button"
-                            onClick={() => insert(snippet)}
-                            className="rounded-full border border-border-input px-2.5 py-0.5 text-[11.5px] text-text-body hover:bg-bg-subtle"
+                            data-a={`math:${value ? 'block' : 'inline'}`}
+                            onClick={() => setDisplay(value)}
+                            className={`rounded-[5px] px-2.5 py-1 ${
+                                display === value
+                                    ? 'bg-brand-primary-subtle font-semibold text-brand-primary'
+                                    : 'text-text-secondary'
+                            }`}
                         >
                             {label}
                         </button>
                     ))}
                 </div>
-
-                <label className="mt-3 block text-[12px] font-medium text-text-secondary">
-                    LaTeX
-                    <textarea
-                        ref={field}
-                        data-a="math:latex"
-                        value={latex}
-                        onChange={(event) => setLatex(event.target.value)}
-                        rows={3}
-                        spellCheck={false}
-                        placeholder="e.g. \bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i"
-                        className="mt-1 w-full rounded-control border-border-input font-mono text-[13px] focus:border-brand-primary focus:ring-0"
-                    />
-                </label>
-
-                {display && (
-                    // Numbers are assigned from position, so the choice is
-                    // whether to number, not which number. A non-numeric
-                    // tag ("*", "A1a") is the author's own and is kept.
-                    <label className="mt-2 flex items-center gap-2 text-[12px] text-text-secondary">
-                        <input
-                            type="checkbox"
-                            data-a="math:numbered"
-                            checked={number !== ''}
-                            onChange={(event) => setNumber(event.target.checked ? '?' : '')}
-                            className="rounded border-border-input text-brand-primary focus:ring-0"
-                        />
-                        Number this equation
-                        <span className="text-text-secondary">
-                            {number === '' || number === '?' || /^(?:[A-Z]\.?)?\d+(?:\.\d+)?$/.test(number)
-                                ? '(numbered automatically, by chapter)'
-                                : `(keeps its own tag: ${number})`}
-                        </span>
-                    </label>
-                )}
-
-                <div
-                    className="mt-3 min-h-[64px] overflow-x-auto rounded-control border border-border-divider bg-bg-subtle px-4 py-3 text-center"
-                    aria-live="polite"
-                >
-                    {preview.error ? (
-                        <p className="text-left text-[12.5px] text-status-danger">{preview.error}</p>
-                    ) : (
-                        <span dangerouslySetInnerHTML={{ __html: preview.html }} />
-                    )}
-                </div>
-
-                <div className="mt-4 flex items-center gap-2">
-                    {editing && (
-                        <button
-                            type="button"
-                            data-a="math:delete"
-                            onClick={onDelete}
-                            className="h-[34px] rounded-control px-3 text-[13px] text-status-danger hover:bg-status-danger-bg"
-                        >
-                            Delete
-                        </button>
-                    )}
-                    <span className="ml-auto text-[11.5px] text-text-secondary">Ctrl/⌘+Enter</span>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="h-[34px] rounded-control border border-border-input px-3.5 text-[13px] text-text-primary hover:bg-bg-subtle"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        data-a="math:save"
-                        onClick={save}
-                        disabled={!source.trim() || !!preview.error}
-                        className="h-[34px] rounded-control bg-brand-primary px-4 text-[13px] font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-50"
-                    >
-                        {editing ? 'Update' : 'Insert'}
-                    </button>
-                </div>
             </div>
-        </div>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+                {SNIPPETS.map(([label, snippet]) => (
+                    <button
+                        key={label}
+                        type="button"
+                        onClick={() => insert(snippet)}
+                        className="rounded-full border border-border-input px-2.5 py-0.5 text-[11.5px] text-text-body hover:bg-bg-subtle"
+                    >
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            <label className="mt-3 block text-[12px] font-medium text-text-secondary">
+                LaTeX
+                <textarea
+                    ref={field}
+                    data-a="math:latex"
+                    value={latex}
+                    onChange={(event) => setLatex(event.target.value)}
+                    rows={3}
+                    spellCheck={false}
+                    placeholder="e.g. \bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i"
+                    className="mt-1 w-full rounded-control border-border-input font-mono text-[13px] focus:border-brand-primary focus:ring-0"
+                />
+            </label>
+
+            {display && (
+                // Numbers are assigned from position, so the choice is
+                // whether to number, not which number. A non-numeric
+                // tag ("*", "A1a") is the author's own and is kept.
+                <label className="mt-2 flex items-center gap-2 text-[12px] text-text-secondary">
+                    <input
+                        type="checkbox"
+                        data-a="math:numbered"
+                        checked={number !== ''}
+                        onChange={(event) => setNumber(event.target.checked ? '?' : '')}
+                        className="rounded border-border-input text-brand-primary focus:ring-0"
+                    />
+                    Number this equation
+                    <span className="text-text-secondary">
+                        {number === '' || number === '?' || /^(?:[A-Z]\.?)?\d+(?:\.\d+)?$/.test(number)
+                            ? '(numbered automatically, by chapter)'
+                            : `(keeps its own tag: ${number})`}
+                    </span>
+                </label>
+            )}
+
+            <div
+                className="mt-3 min-h-[64px] overflow-x-auto rounded-control border border-border-divider bg-bg-subtle px-4 py-3 text-center"
+                aria-live="polite"
+            >
+                {preview.error ? (
+                    <p className="text-left text-[12.5px] text-status-danger">{preview.error}</p>
+                ) : (
+                    <span dangerouslySetInnerHTML={{ __html: preview.html }} />
+                )}
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+                {editing && (
+                    <button
+                        type="button"
+                        data-a="math:delete"
+                        onClick={onDelete}
+                        className="h-[34px] rounded-control px-3 text-[13px] text-status-danger hover:bg-status-danger-bg"
+                    >
+                        Delete
+                    </button>
+                )}
+                <span className="ml-auto text-[11.5px] text-text-secondary">Ctrl/⌘+Enter</span>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="h-[34px] rounded-control border border-border-input px-3.5 text-[13px] text-text-primary hover:bg-bg-subtle"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    data-a="math:save"
+                    onClick={save}
+                    disabled={!source.trim() || !!preview.error}
+                    className="h-[34px] rounded-control bg-brand-fill px-4 text-[13px] font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-50"
+                >
+                    {editing ? 'Update' : 'Insert'}
+                </button>
+            </div>
+        </Dialog>
     );
 }
