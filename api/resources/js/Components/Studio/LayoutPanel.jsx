@@ -205,6 +205,7 @@ export default function LayoutPanel({ bookId, onNotify }) {
                             <select
                                 value={sectionId ?? ''}
                                 data-a="layout:preview-section"
+                                aria-label="Chapter to preview"
                                 onChange={(event) => load(Number(event.target.value))}
                                 className="ml-auto rounded-control border border-border-input px-2 py-1 text-[11.5px] focus:border-brand-primary focus:ring-0"
                             >
@@ -273,7 +274,7 @@ function PagePreview({ layout, html, title }) {
         >
             {layout.headers && (
                 <p
-                    className="mb-2 truncate text-center uppercase tracking-wide opacity-55"
+                    className="mb-2 truncate text-center uppercase tracking-wide opacity-75"
                     style={{ fontSize: fontPx * 0.72 }}
                 >
                     {title}
@@ -336,7 +337,7 @@ function Toggle({ label, hint, checked, name, onChange }) {
                 data-a={`layout:${name}`}
                 onClick={() => onChange(!checked)}
                 className={`mt-0.5 h-[20px] w-[34px] shrink-0 rounded-full p-[2px] transition ${
-                    checked ? 'bg-brand-primary' : 'bg-border-input'
+                    checked ? 'bg-brand-fill' : 'bg-border-input'
                 }`}
             >
                 <span

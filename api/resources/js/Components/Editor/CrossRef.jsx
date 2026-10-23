@@ -1,6 +1,7 @@
 import { Extension, Node } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { useMemo, useState } from 'react';
+import Dialog from '../Dialog';
 
 /**
  * Numbering and cross-references in the editor.
@@ -325,57 +326,50 @@ export function XrefDialog({ local, remote, onInsert, onClose }) {
     }, [local, remote, query]);
 
     return (
-        <div
-            className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4"
-            onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+        <Dialog
+            onClose={onClose}
+            aria-label="Insert cross-reference"
+            className="flex max-h-[80vh] w-full max-w-[560px] flex-col rounded-panel border border-border-default bg-bg-surface p-5 shadow-xl"
         >
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Insert cross-reference"
-                className="flex max-h-[80vh] w-full max-w-[560px] flex-col rounded-panel border border-border-default bg-bg-surface p-5 shadow-xl"
-                onKeyDown={(event) => event.key === 'Escape' && onClose()}
-            >
-                <h3 className="text-[15px] font-semibold text-text-primary">Insert cross-reference</h3>
-                <p className="mt-1 text-[12px] text-text-secondary">
-                    The reference follows its target: move or add a table and the number updates.
-                </p>
-                <input
-                    autoFocus
-                    value={query}
-                    data-a="xref:search"
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search tables, figures, equations, sections…"
-                    className="mt-3 h-[34px] rounded-control border-border-input text-[13px] focus:border-brand-primary focus:ring-0"
-                />
-                <div className="mt-3 flex-1 overflow-y-auto">
-                    {groups.length === 0 && (
-                        <p className="py-6 text-center text-[12.5px] text-text-secondary">
-                            Nothing to refer to yet. Captions written as a bold “Table 1.1” or
-                            “Figure 1.1”, numbered equations and headings appear here.
+            <h3 className="text-[15px] font-semibold text-text-primary">Insert cross-reference</h3>
+            <p className="mt-1 text-[12px] text-text-secondary">
+                The reference follows its target: move or add a table and the number updates.
+            </p>
+            <input
+                autoFocus
+                value={query}
+                data-a="xref:search"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search tables, figures, equations, sections…"
+                className="mt-3 h-[34px] rounded-control border-border-input text-[13px] focus:border-brand-primary focus:ring-0"
+            />
+            <div className="mt-3 flex-1 overflow-y-auto">
+                {groups.length === 0 && (
+                    <p className="py-6 text-center text-[12.5px] text-text-secondary">
+                        Nothing to refer to yet. Captions written as a bold “Table 1.1” or
+                        “Figure 1.1”, numbered equations and headings appear here.
+                    </p>
+                )}
+                {groups.map(([kind, items]) => (
+                    <div key={kind} className="mb-3">
+                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
+                            {KIND_NAMES[kind]}
                         </p>
-                    )}
-                    {groups.map(([kind, items]) => (
-                        <div key={kind} className="mb-3">
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
-                                {KIND_NAMES[kind]}
-                            </p>
-                            {items.map((target) => (
-                                <button
-                                    key={target.label}
-                                    type="button"
-                                    data-a={`xref:pick:${target.label}`}
-                                    onClick={() => onInsert(target)}
-                                    className="flex w-full items-baseline justify-between gap-3 rounded-control px-2.5 py-1.5 text-left text-[13px] hover:bg-bg-subtle"
-                                >
-                                    <span className="font-medium text-text-primary">{target.text}</span>
-                                    <span className="truncate text-[11.5px] text-text-secondary">{target.where}</span>
-                                </button>
-                            ))}
-                        </div>
-                    ))}
-                </div>
+                        {items.map((target) => (
+                            <button
+                                key={target.label}
+                                type="button"
+                                data-a={`xref:pick:${target.label}`}
+                                onClick={() => onInsert(target)}
+                                className="flex w-full items-baseline justify-between gap-3 rounded-control px-2.5 py-1.5 text-left text-[13px] hover:bg-bg-subtle"
+                            >
+                                <span className="font-medium text-text-primary">{target.text}</span>
+                                <span className="truncate text-[11.5px] text-text-secondary">{target.where}</span>
+                            </button>
+                        ))}
+                    </div>
+                ))}
             </div>
-        </div>
+        </Dialog>
     );
 }

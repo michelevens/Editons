@@ -146,7 +146,7 @@ export default function TeamPanel({ bookId }) {
                         disabled={busy || full}
                         data-a="team:invite"
                         title={full ? 'Every seat on this plan is taken.' : undefined}
-                        className="h-[38px] rounded-control bg-brand-primary px-4 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-[38px] rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {busy ? 'Inviting…' : 'Send invite'}
                     </button>
@@ -184,7 +184,7 @@ export default function TeamPanel({ bookId }) {
                                 {data.owner.email}
                             </p>
                         </div>
-                        <span className="rounded-badge bg-text-primary px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide text-white">
+                        <span className="rounded-badge bg-bg-inverse px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide text-text-inverse">
                             Owner
                         </span>
                     </li>
@@ -232,7 +232,7 @@ export default function TeamPanel({ bookId }) {
                                         <button
                                             data-a={`team:remove:confirm:${member.id}`}
                                             onClick={() => remove(member)}
-                                            className="rounded-control bg-status-danger px-2.5 py-1 text-[12px] font-semibold text-white"
+                                            className="rounded-control bg-status-danger-fill px-2.5 py-1 text-[12px] font-semibold text-white"
                                         >
                                             Remove
                                         </button>
@@ -255,7 +255,7 @@ export default function TeamPanel({ bookId }) {
                                             <button
                                                 data-a={`team:copy:${member.id}`}
                                                 onClick={() => copyLink(member)}
-                                                className="rounded-control bg-brand-primary-subtle px-2.5 py-1 text-[11.5px] font-semibold text-brand-primary-hover"
+                                                className="rounded-control bg-brand-primary-subtle px-2.5 py-1 text-[11.5px] font-semibold text-outline-active-text"
                                             >
                                                 {copied === member.id ? 'Copied' : 'Copy invite link'}
                                             </button>
@@ -310,8 +310,8 @@ function Avatar({ name, owner = false }) {
 
     return (
         <span
-            className={`grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full text-[12px] font-semibold text-white ${
-                owner ? 'bg-text-primary' : 'bg-brand-primary'
+            className={`grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full text-[12px] font-semibold ${
+                owner ? 'bg-bg-inverse text-text-inverse' : 'bg-brand-fill text-white'
             }`}
         >
             {initials}

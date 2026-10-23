@@ -44,25 +44,25 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
     const needsSource = citations.filter((c) => c.status === 'needs_source').length;
 
     if (loading) {
-        return <p className="p-3 text-[11px] text-slate-500">Loading…</p>;
+        return <p className="p-3 text-[11px] text-text-secondary">Loading…</p>;
     }
 
     return (
         <div className="p-3">
             <div className="mb-3 flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">
                     Citations
                 </p>
                 <button
                     onClick={() => setAdding((v) => !v)}
-                    className="rounded bg-indigo-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-indigo-700"
+                    className="rounded bg-brand-fill px-2 py-1 text-[11px] font-bold text-white hover:bg-brand-primary-hover"
                 >
                     {adding ? 'Cancel' : 'Add'}
                 </button>
             </div>
 
             {needsSource > 0 && (
-                <p className="mb-3 rounded bg-amber-50 px-2 py-1.5 text-[11px] font-semibold text-amber-800">
+                <p className="mb-3 rounded bg-status-warning-bg px-2 py-1.5 text-[11px] font-semibold text-status-warning">
                     {needsSource} claim{needsSource === 1 ? '' : 's'} in this
                     chapter still {needsSource === 1 ? 'needs' : 'need'} a
                     source.
@@ -82,7 +82,7 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
             )}
 
             {citations.length === 0 ? (
-                <p className="px-1 text-[11px] leading-relaxed text-slate-500">
+                <p className="px-1 text-[11px] leading-relaxed text-text-secondary">
                     No citations in this chapter yet. Add one to record what a
                     claim rests on.
                 </p>
@@ -91,35 +91,35 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
                     {citations.map((c) => (
                         <li
                             key={c.id}
-                            className="rounded-lg border border-slate-200 bg-white p-2.5"
+                            className="rounded-lg border border-border-default bg-bg-surface p-2.5"
                         >
                             <div className="flex items-start justify-between gap-2">
-                                <p className="text-[12px] font-semibold leading-snug text-slate-800">
+                                <p className="text-[12px] font-semibold leading-snug text-text-primary">
                                     {c.claim}
                                 </p>
                                 <Status value={c.status} />
                             </div>
 
                             {c.source ? (
-                                <p className="mt-1 text-[11px] text-slate-600">
+                                <p className="mt-1 text-[11px] text-text-secondary">
                                     {c.source.reference}
                                     {c.locator ? `, ${c.locator}` : ''}
                                 </p>
                             ) : (
-                                <p className="mt-1 text-[11px] italic text-slate-400">
+                                <p className="mt-1 text-[11px] italic text-text-secondary">
                                     No source attached.
                                 </p>
                             )}
 
                             {c.rests_on_unverified_source && (
-                                <p className="mt-1.5 rounded bg-amber-50 px-1.5 py-1 text-[10px] font-semibold text-amber-700">
+                                <p className="mt-1.5 rounded bg-status-warning-bg px-1.5 py-1 text-[10px] font-semibold text-status-warning">
                                     Marked supported, but its source is{' '}
                                     {c.source?.verification}.
                                 </p>
                             )}
 
                             {c.stale && (
-                                <p className="mt-1.5 rounded bg-slate-100 px-1.5 py-1 text-[10px] font-semibold text-slate-600">
+                                <p className="mt-1.5 rounded bg-bg-subtle px-1.5 py-1 text-[10px] font-semibold text-text-secondary">
                                     The cited text has changed since this was
                                     recorded.
                                 </p>
@@ -127,7 +127,7 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
 
                             <button
                                 onClick={() => remove(c)}
-                                className="mt-1.5 text-[11px] font-semibold text-slate-400 hover:text-rose-600"
+                                className="mt-1.5 text-[11px] font-semibold text-text-secondary hover:text-status-danger"
                             >
                                 Remove
                             </button>
@@ -138,7 +138,7 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
 
             <button
                 onClick={onManageLibrary}
-                className="mt-4 w-full rounded-lg border border-dashed border-slate-300 py-2 text-[11px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                className="mt-4 w-full rounded-lg border border-dashed border-border-input py-2 text-[11px] font-semibold text-text-secondary hover:border-border-input hover:text-text-primary"
             >
                 Open the research library
             </button>
@@ -154,9 +154,9 @@ function Status({ value }) {
     }[value];
 
     const style = {
-        needs_source: 'bg-amber-50 text-amber-700',
-        supported: 'bg-emerald-50 text-emerald-700',
-        contradicted: 'bg-rose-50 text-rose-700',
+        needs_source: 'bg-status-warning-bg text-status-warning',
+        supported: 'bg-status-success-bg text-status-success',
+        contradicted: 'bg-status-danger-bg text-status-danger',
     }[value];
 
     return (
@@ -198,24 +198,24 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
     };
 
     return (
-        <form onSubmit={submit} className="mb-3 rounded-lg bg-slate-100 p-2.5">
+        <form onSubmit={submit} className="mb-3 rounded-lg bg-bg-subtle p-2.5">
             <textarea
                 value={claim}
                 onChange={(e) => setClaim(e.target.value)}
                 required
                 rows={2}
                 placeholder="The claim being made…"
-                className="w-full rounded border-slate-300 text-[12px] focus:border-indigo-500 focus:ring-indigo-500"
+                className="w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
             />
 
             {sources.length === 0 ? (
-                <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
+                <p className="mt-2 text-[11px] leading-relaxed text-text-secondary">
                     The library is empty, so this will be recorded as needing a
                     source.{' '}
                     <button
                         type="button"
                         onClick={onManageLibrary}
-                        className="font-semibold text-indigo-600 hover:underline"
+                        className="font-semibold text-brand-primary hover:underline"
                     >
                         Add sources
                     </button>
@@ -224,7 +224,7 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
                 <select
                     value={sourceId}
                     onChange={(e) => setSourceId(e.target.value)}
-                    className="mt-2 w-full rounded border-slate-300 text-[12px] focus:border-indigo-500 focus:ring-indigo-500"
+                    className="mt-2 w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
                 >
                     <option value="">No source yet</option>
                     {sources.map((s) => (
@@ -242,16 +242,16 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
                 value={locator}
                 onChange={(e) => setLocator(e.target.value)}
                 placeholder="p. 214"
-                className="mt-2 w-full rounded border-slate-300 text-[12px] focus:border-indigo-500 focus:ring-indigo-500"
+                className="mt-2 w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
             />
 
             {error && (
-                <p className="mt-2 text-[11px] font-semibold text-rose-700">{error}</p>
+                <p className="mt-2 text-[11px] font-semibold text-status-danger">{error}</p>
             )}
 
             <button
                 disabled={saving}
-                className="mt-2 w-full rounded bg-slate-800 py-1.5 text-[11px] font-bold text-white hover:bg-slate-900 disabled:opacity-60"
+                className="mt-2 w-full rounded bg-bg-inverse py-1.5 text-[11px] font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
             >
                 {saving ? 'Saving…' : 'Record citation'}
             </button>

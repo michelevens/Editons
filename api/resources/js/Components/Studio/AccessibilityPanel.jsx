@@ -79,8 +79,8 @@ export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) 
                                 <span
                                     className={`mt-0.5 flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                                         check.passed
-                                            ? 'bg-status-success text-white'
-                                            : 'bg-status-warning text-white'
+                                            ? 'bg-status-success-fill text-white'
+                                            : 'bg-status-warning-fill text-white'
                                     }`}
                                 >
                                     {check.passed ? (

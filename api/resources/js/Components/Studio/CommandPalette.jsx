@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Dialog from '../Dialog';
 import Icon from './Icon';
 
 /**
@@ -44,9 +45,7 @@ export default function CommandPalette({ open, onClose, commands }) {
     };
 
     const onKeyDown = (event) => {
-        if (event.key === 'Escape') {
-            onClose();
-        } else if (event.key === 'ArrowDown') {
+        if (event.key === 'ArrowDown') {
             event.preventDefault();
             setIndex((i) => Math.min(i + 1, matches.length - 1));
         } else if (event.key === 'ArrowUp') {
@@ -59,56 +58,56 @@ export default function CommandPalette({ open, onClose, commands }) {
     };
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]"
-            onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+        <Dialog
+            label="Search"
+            onClose={onClose}
+            align="top"
+            className="w-full max-w-[560px] overflow-hidden rounded-panel border border-border-default bg-bg-surface shadow-xl"
         >
-            <div
-                role="dialog"
-                aria-label="Search"
-                className="w-full max-w-[560px] overflow-hidden rounded-card border border-border-default bg-bg-surface shadow-xl"
-            >
-                <div className="flex items-center gap-2.5 border-b border-border-default px-4">
-                    <Icon name="search" size={17} className="text-text-secondary" />
-                    <input
-                        ref={input}
-                        data-a="palette:input"
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        onKeyDown={onKeyDown}
-                        placeholder="Go to a screen or a chapter…"
-                        className="h-[48px] flex-1 border-0 bg-transparent px-0 text-[14.5px] text-text-primary placeholder:text-text-secondary focus:ring-0"
-                    />
-                    <kbd className="font-sans text-[11px] text-text-secondary">Esc</kbd>
-                </div>
-
-                <ul className="max-h-[52vh] overflow-y-auto py-1.5" role="listbox">
-                    {matches.length === 0 && (
-                        <li className="px-4 py-6 text-center text-[13px] text-text-secondary">
-                            Nothing matches “{query}”.
-                        </li>
-                    )}
-
-                    {matches.map((command, i) => (
-                        <li key={command.key} role="option" aria-selected={i === index}>
-                            <button
-                                data-a={`palette:${command.key}`}
-                                onMouseEnter={() => setIndex(i)}
-                                onClick={() => choose(command)}
-                                className={`flex h-[38px] w-full items-center gap-3 px-4 text-left text-[13.5px] ${
-                                    i === index ? 'bg-bg-subtle text-text-primary' : 'text-text-body'
-                                }`}
-                            >
-                                <Icon name={command.icon ?? 'doc'} size={16} className="shrink-0 opacity-70" />
-                                <span className="flex-1 truncate">{command.label}</span>
-                                <span className="shrink-0 text-[11.5px] text-text-secondary">
-                                    {command.group}
-                                </span>
-                            </button>
-                        </li>
-                    ))}
-                </ul>
+            <div className="flex items-center gap-2.5 border-b border-border-default px-4">
+                <Icon name="search" size={17} className="text-text-secondary" />
+                <input
+                    ref={input}
+                    data-autofocus
+                    aria-label="Go to a screen or a chapter"
+                    aria-controls="palette-results"
+                    data-a="palette:input"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={onKeyDown}
+                    placeholder="Go to a screen or a chapter…"
+                    className="h-[48px] flex-1 border-0 bg-transparent px-0 text-[14.5px] text-text-primary placeholder:text-text-secondary focus:ring-0"
+                />
+                <kbd className="font-sans text-[11px] text-text-secondary">Esc</kbd>
             </div>
-        </div>
+
+            <ul className="max-h-[52vh] overflow-y-auto py-1.5" id="palette-results" aria-label="Results">
+                {matches.length === 0 && (
+                    <li className="px-4 py-6 text-center text-[13px] text-text-secondary">
+                        Nothing matches “{query}”.
+                    </li>
+                )}
+
+                {matches.map((command, i) => (
+                    <li key={command.key}>
+                        <button
+                            data-a={`palette:${command.key}`}
+                            aria-current={i === index ? 'true' : undefined}
+                            onMouseEnter={() => setIndex(i)}
+                            onClick={() => choose(command)}
+                            className={`flex h-[38px] w-full items-center gap-3 px-4 text-left text-[13.5px] ${
+                                i === index ? 'bg-bg-subtle text-text-primary' : 'text-text-body'
+                            }`}
+                        >
+                            <Icon name={command.icon ?? 'doc'} size={16} className="shrink-0 opacity-70" />
+                            <span className="flex-1 truncate">{command.label}</span>
+                            <span className="shrink-0 text-[11.5px] text-text-secondary">
+                                {command.group}
+                            </span>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </Dialog>
     );
 }

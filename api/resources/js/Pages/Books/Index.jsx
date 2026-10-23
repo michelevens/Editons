@@ -44,8 +44,8 @@ export default function Index({
                 account={auth?.account}
             />
 
-            <main className="min-w-0 flex-1 overflow-y-auto">
-                <div className="mx-auto max-w-[1040px] px-8 py-9">
+            <main id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
+                <div className="mx-auto max-w-[1040px] px-4 py-6 sm:px-8 sm:py-9">
                     <header className="flex flex-wrap items-start justify-between gap-5">
                         <div>
                             <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
@@ -67,7 +67,7 @@ export default function Index({
                                     ? undefined
                                     : `The ${plan.name} plan allows ${plan.books} book${plan.books === 1 ? '' : 's'}.`
                             }
-                            className="flex h-[40px] items-center gap-2 rounded-control bg-brand-primary px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex h-[40px] items-center gap-2 rounded-control bg-brand-fill px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {creating ? 'Cancel' : 'New book'}
                             {!creating && <Icon name="plus" size={15} strokeWidth={2.4} />}
@@ -141,12 +141,12 @@ export default function Index({
                                 }
                                 className={`rounded-badge px-3 py-1.5 text-[12.5px] font-medium transition ${
                                     filter === item.key
-                                        ? 'bg-brand-primary text-white'
+                                        ? 'bg-brand-fill text-white'
                                         : 'bg-bg-surface text-text-secondary hover:text-text-primary'
                                 }`}
                             >
                                 {item.label}
-                                <span className="ml-1.5 opacity-70">{item.count}</span>
+                                <span className="ml-1.5">{item.count}</span>
                             </button>
                         ))}
                     </nav>
@@ -174,8 +174,10 @@ function BookCard({ book }) {
 
     return (
         <li
-            className={`flex gap-4 rounded-panel border border-border-default bg-bg-surface p-4 transition hover:border-brand-primary-border ${
-                archived ? 'opacity-70' : ''
+            // Archived reads as set aside by its background and a greyed
+            // cover, not by fading the text below a readable contrast.
+            className={`flex gap-4 rounded-panel border border-border-default p-4 transition hover:border-brand-primary-border ${
+                archived ? 'bg-bg-subtle [&_img]:grayscale' : 'bg-bg-surface'
             }`}
         >
             {/* The cover carries the card, as it does on a shelf. A list of
@@ -183,6 +185,7 @@ function BookCard({ book }) {
             <Link
                 href={route('books.overview', book.id)}
                 data-a={`books:open:${book.id}`}
+                aria-label={`Open ${book.title}`}
                 className="shrink-0"
             >
                 <ShelfCover cover={book.cover} title={book.title} />
@@ -211,7 +214,7 @@ function BookCard({ book }) {
                     <div className="mt-2.5">
                         <div className="h-[6px] overflow-hidden rounded-full bg-bg-subtle">
                             <div
-                                className="h-full rounded-full bg-brand-primary transition-[width]"
+                                className="h-full rounded-full bg-brand-fill transition-[width]"
                                 style={{ width: `${pct}%` }}
                             />
                         </div>
@@ -232,7 +235,7 @@ function BookCard({ book }) {
                                     { preserveScroll: true },
                                 )
                             }
-                            className="rounded-control bg-brand-primary px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                            className="rounded-control bg-brand-fill px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
                         >
                             Restore
                         </button>
@@ -241,7 +244,7 @@ function BookCard({ book }) {
                             <Link
                                 href={route('books.edit', book.id)}
                                 data-a={`books:write:${book.id}`}
-                                className="rounded-control bg-brand-primary px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                                className="rounded-control bg-brand-fill px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
                             >
                                 Open
                             </Link>
@@ -291,8 +294,12 @@ function ShelfCover({ cover, title }) {
     if (cover?.url) {
         return (
             <img
-                src={cover.url}
+                src={cover.thumb ?? cover.url}
                 alt=""
+                width={width}
+                height={height}
+                loading="lazy"
+                decoding="async"
                 style={{ width, height }}
                 className="rounded-[3px] object-cover shadow-[0_2px_10px_rgba(15,34,61,.18)]"
             />
@@ -637,7 +644,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             type="submit"
                             data-a="books:new:create"
                             disabled={processing || !data.title.trim()}
-                            className="h-[38px] rounded-control bg-brand-primary px-4 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                            className="h-[38px] rounded-control bg-brand-fill px-4 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                         >
                             {processing ? 'Setting it up…' : 'Create the book'}
                         </button>

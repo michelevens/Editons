@@ -32,7 +32,7 @@ export default function LockedPanel({ bookId, screen, icon = 'lock' }) {
                 data-a={`locked:${screen}`}
                 className="max-w-[460px] text-center"
             >
-                <span className="inline-flex text-text-secondary/60">
+                <span className="inline-flex text-text-secondary">
                     <Icon name={icon} size={34} strokeWidth={1.5} />
                 </span>
 

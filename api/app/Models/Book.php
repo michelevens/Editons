@@ -145,6 +145,10 @@ class Book extends Model
             'url' => $this->exists
                 ? route('design.cover.image', ['book' => $this->id, 'v' => app(CoverRenderer::class)->version($this)])
                 : null,
+            // The same cover at shelf size, for the library and the sidebar.
+            'thumb' => $this->exists
+                ? route('design.cover.image', ['book' => $this->id, 'v' => app(CoverRenderer::class)->version($this), 'size' => 'thumb'])
+                : null,
             'title' => $cover['title'] ?? $this->title,
             'author' => $cover['author'] ?? $this->author_name,
             'from' => $palette['from'],

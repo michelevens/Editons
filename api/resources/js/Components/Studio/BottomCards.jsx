@@ -134,7 +134,11 @@ function Card({ title, action, children }) {
                 </h3>
                 {action}
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            {/* Focusable so a keyboard can scroll a card whose content
+                has no control of its own. */}
+            <div tabIndex={0} aria-label={title} role="region" className="min-h-0 flex-1 overflow-y-auto">
+                {children}
+            </div>
         </section>
     );
 }
@@ -190,7 +194,7 @@ function ResearchCard({ sources = [], onOpen, onAdd }) {
                         onClick={() => setFilter(key)}
                         className={`rounded-badge px-2 py-[3px] text-[10.5px] transition ${
                             filter === key
-                                ? 'bg-brand-primary text-white'
+                                ? 'bg-brand-fill text-white'
                                 : 'text-text-secondary hover:bg-bg-subtle'
                         }`}
                     >

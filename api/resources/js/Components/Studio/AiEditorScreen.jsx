@@ -115,12 +115,12 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                         onClick={() => setFilters((f) => ({ ...f, status: tab.key }))}
                         className={`rounded-badge px-3 py-1.5 text-[12.5px] font-medium transition ${
                             filters.status === tab.key
-                                ? 'bg-brand-primary text-white'
+                                ? 'bg-brand-fill text-white'
                                 : 'bg-bg-surface text-text-secondary hover:text-text-primary'
                         }`}
                     >
                         {tab.label}
-                        <span className="ml-1.5 opacity-70">{tab.count}</span>
+                        <span className="ml-1.5">{tab.count}</span>
                     </button>
                 ))}
             </div>
@@ -131,7 +131,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                     onClick={() => setFilters((f) => ({ ...f, agent: null }))}
                     className={`rounded-badge border px-2.5 py-1 text-[11.5px] transition ${
                         filters.agent === null
-                            ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary-hover'
+                            ? 'border-brand-primary bg-brand-primary-subtle text-outline-active-text'
                             : 'border-border-default text-text-secondary hover:text-text-primary'
                     }`}
                 >
@@ -145,7 +145,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                         onClick={() => setFilters((f) => ({ ...f, agent: agent.value }))}
                         className={`rounded-badge border px-2.5 py-1 text-[11.5px] transition ${
                             filters.agent === agent.value
-                                ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary-hover'
+                                ? 'border-brand-primary bg-brand-primary-subtle text-outline-active-text'
                                 : 'border-border-default text-text-secondary hover:text-text-primary'
                         }`}
                     >

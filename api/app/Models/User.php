@@ -30,6 +30,9 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use Billable, HasFactory, Notifiable;
 
+    /** The appearance choices; 'system' follows prefers-color-scheme. */
+    public const THEMES = ['system', 'light', 'dark'];
+
     /** The plan's configured limits, falling back to free if it is unknown. */
     public function planLimits(): array
     {

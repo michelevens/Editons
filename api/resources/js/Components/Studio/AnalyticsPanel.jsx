@@ -166,7 +166,7 @@ function DailyChart({ days }) {
                                 {day.words >= 0 && (
                                     <div
                                         className={`w-full rounded-t-[2px] ${
-                                            day.today ? 'bg-brand-primary' : 'bg-brand-primary/35'
+                                            day.today ? 'bg-brand-fill' : 'bg-brand-primary/35'
                                         }`}
                                         style={{ height: `${height}%` }}
                                     />
@@ -223,7 +223,7 @@ function Bars({ title, rows, onPick, empty, format, tone }) {
                                         className={`block h-full rounded-full ${
                                             tone === 'warning'
                                                 ? 'bg-status-warning'
-                                                : 'bg-brand-primary'
+                                                : 'bg-brand-fill'
                                         }`}
                                         style={{ width: `${(row.value / peak) * 100}%` }}
                                     />

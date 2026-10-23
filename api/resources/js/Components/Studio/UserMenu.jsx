@@ -1,6 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import { currentTheme, setTheme } from '../../theme';
 import { goTo } from './navigation';
 
 /**
@@ -113,7 +114,7 @@ export default function UserMenu({ user, account, bookId = null }) {
                                             className={`h-full rounded-full ${
                                                 account.low
                                                     ? 'bg-status-warning'
-                                                    : 'bg-brand-primary'
+                                                    : 'bg-brand-fill'
                                             }`}
                                             style={{ width: `${account.credits_pct}%` }}
                                         />
@@ -139,6 +140,8 @@ export default function UserMenu({ user, account, bookId = null }) {
                         </div>
                     ))}
 
+                    <ThemeSwitch />
+
                     <div className="border-t border-border-divider py-1">
                         <Link
                             as="button"
@@ -154,6 +157,55 @@ export default function UserMenu({ user, account, bookId = null }) {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/**
+ * Light, dark, or the device's setting, saved to the account. Here because
+ * the account menu is on every screen; Account settings has the same switch.
+ */
+const THEME_CHOICES = [
+    { key: 'system', label: 'Auto', icon: 'tablet' },
+    { key: 'light', label: 'Light', icon: 'sun' },
+    { key: 'dark', label: 'Dark', icon: 'moon' },
+];
+
+export function ThemeSwitch({ className = 'border-t border-border-divider px-4 py-2.5', menu = true }) {
+    const [theme, setLocal] = useState(() => currentTheme());
+
+    return (
+        <div className={className}>
+            <p id="theme-label" className="mb-1.5 text-[11.5px] font-medium text-text-secondary">
+                Appearance
+            </p>
+            <div
+                role={menu ? 'group' : 'radiogroup'}
+                aria-labelledby="theme-label"
+                className="grid grid-cols-3 gap-1 rounded-control bg-bg-subtle p-0.5"
+            >
+                {THEME_CHOICES.map((choice) => (
+                    <button
+                        key={choice.key}
+                        type="button"
+                        role={menu ? 'menuitemradio' : 'radio'}
+                        aria-checked={theme === choice.key}
+                        data-a={`theme:${choice.key}`}
+                        onClick={() => {
+                            setLocal(choice.key);
+                            setTheme(choice.key);
+                        }}
+                        className={`flex h-[28px] items-center justify-center gap-1.5 rounded-[5px] text-[12px] transition ${
+                            theme === choice.key
+                                ? 'bg-bg-surface font-semibold text-text-primary shadow-floatingButton'
+                                : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                    >
+                        <Icon name={choice.icon} size={13} />
+                        {choice.label}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 }

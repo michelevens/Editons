@@ -117,7 +117,7 @@ export default function Guided({ book, journey: initial }) {
                 </div>
             </header>
 
-            <main className="mx-auto max-w-[880px] px-6 py-9">
+            <main id="main" tabIndex={-1} className="mx-auto max-w-[880px] px-6 py-9 outline-none">
                 {/*
                  * One thing to do next.
                  *
@@ -154,7 +154,7 @@ export default function Guided({ book, journey: initial }) {
                                             say(`Named ${data.renamed} chapters. Change any of them.`);
                                         }
                                     }}
-                                    className="h-[42px] rounded-control bg-brand-primary px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                                    className="h-[42px] rounded-control bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                                 >
                                     {busy === 'outline' ? 'Naming…' : 'Name the chapters'}
                                 </button>
@@ -162,7 +162,7 @@ export default function Guided({ book, journey: initial }) {
                                 <button
                                     data-a="guided:next"
                                     onClick={() => router.get(route('books.edit', book.id))}
-                                    className="h-[42px] rounded-control bg-brand-primary px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                                    className="h-[42px] rounded-control bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
                                 >
                                     Open the manuscript
                                 </button>
@@ -170,7 +170,7 @@ export default function Guided({ book, journey: initial }) {
                                 <button
                                     data-a="guided:next"
                                     onClick={() => openStage(next.stage)}
-                                    className="h-[42px] rounded-control bg-brand-primary px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
+                                    className="h-[42px] rounded-control bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
                                 >
                                     Go there
                                 </button>
@@ -267,7 +267,7 @@ export default function Guided({ book, journey: initial }) {
                                     <span
                                         className={`mt-px grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full text-[11px] font-bold ${
                                             stage.done
-                                                ? 'bg-status-success text-white'
+                                                ? 'bg-status-success-fill text-white'
                                                 : 'bg-bg-app text-text-secondary'
                                         }`}
                                     >
@@ -329,7 +329,7 @@ export default function Guided({ book, journey: initial }) {
             {note && (
                 <div
                     role="status"
-                    className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-control bg-text-primary px-4 py-2.5 text-[13px] text-white shadow-lg"
+                    className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-control bg-bg-inverse px-4 py-2.5 text-[13px] text-text-inverse shadow-lg"
                 >
                     {note}
                 </div>
@@ -422,7 +422,7 @@ function Idea({ book, journey, send, busy, say }) {
                         say('Saved.');
                     }
                 }}
-                className="mt-4 h-[40px] rounded-control bg-brand-primary px-5 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                className="mt-4 h-[40px] rounded-control bg-brand-fill px-5 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
             >
                 {busy === 'idea' ? 'Saving…' : 'Save'}
             </button>
@@ -441,7 +441,7 @@ function Field({ name, label, hint, value, onChange }) {
                 rows={2}
                 value={value}
                 onChange={onChange}
-                className="mt-1.5 w-full resize-y rounded-control border border-border-input px-3.5 py-2.5 text-[14px] leading-relaxed placeholder:text-text-secondary/70 focus:border-brand-primary focus:ring-0"
+                className="mt-1.5 w-full resize-y rounded-control border border-border-input px-3.5 py-2.5 text-[14px] leading-relaxed placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
             />
         </label>
     );
@@ -547,7 +547,7 @@ function ImportOutline({ book, send, busy, say }) {
                 autoFocus
                 placeholder={'Why it matters\nThe groundwork\nWhat goes wrong'}
                 onChange={(event) => setText(event.target.value)}
-                className="mt-3 w-full resize-y rounded-control border border-border-input px-3.5 py-2.5 font-mono text-[13px] leading-relaxed placeholder:text-text-secondary/70 focus:border-brand-primary focus:ring-0"
+                className="mt-3 w-full resize-y rounded-control border border-border-input px-3.5 py-2.5 font-mono text-[13px] leading-relaxed placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
             />
 
             <div className="mt-3 flex gap-2.5">
@@ -568,7 +568,7 @@ function ImportOutline({ book, send, busy, say }) {
                             say(`${data.created} sections created.`);
                         }
                     }}
-                    className="h-[40px] rounded-control bg-brand-primary px-5 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    className="h-[40px] rounded-control bg-brand-fill px-5 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
                     {busy === 'import' ? 'Importing…' : 'Import'}
                 </button>

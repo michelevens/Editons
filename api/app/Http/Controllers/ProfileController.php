@@ -8,10 +8,13 @@ use App\Journey\BookType;
 use App\Mail\EmailPreferences;
 use App\Mail\Notify;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -98,6 +101,24 @@ class ProfileController extends Controller
         EmailPreferences::update($request->user(), $data['preferences']);
 
         return Redirect::route('profile.edit')->with('status', 'email-preferences-updated');
+    }
+
+    /**
+     * Light, dark, or whatever the device prefers.
+     *
+     * JSON rather than a redirect: the switch is in the account menu on every
+     * screen, and the page has already re-themed itself by the time this
+     * answers, so there is nothing to reload.
+     */
+    public function updateTheme(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'theme' => ['required', Rule::in(User::THEMES)],
+        ]);
+
+        $request->user()->forceFill(['theme' => $data['theme']])->save();
+
+        return response()->json(['theme' => $data['theme']]);
     }
 
     /**

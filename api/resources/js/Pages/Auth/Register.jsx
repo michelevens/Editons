@@ -56,11 +56,11 @@ export default function Register({ offer = null }) {
                     strokeWidth="1.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="mt-0.5 shrink-0 text-brand-primary-hover"
+                    className="mt-0.5 shrink-0 text-outline-active-text"
                 >
                     <path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
                 </svg>
-                <p className="text-[12.5px] leading-relaxed text-brand-primary-hover">
+                <p className="text-[12.5px] leading-relaxed text-outline-active-text">
                     The free plan includes {offer?.credits ?? 100} AI credits a
                     month and needs no card. Nothing is charged unless you choose
                     a paid plan.
@@ -129,7 +129,7 @@ export default function Register({ offer = null }) {
                 Already have an account?{' '}
                 <Link
                     href={route('login')}
-                    className="font-semibold text-brand-primary hover:text-brand-primary-hover"
+                    className="font-semibold text-brand-primary hover:text-outline-active-text"
                 >
                     Sign in
                 </Link>

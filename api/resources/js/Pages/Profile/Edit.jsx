@@ -1,4 +1,5 @@
 import AppHeader from '@/Components/Studio/AppHeader';
+import { ThemeSwitch } from '@/Components/Studio/UserMenu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import DeleteUserForm from './Partials/DeleteUserForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
@@ -34,8 +35,8 @@ export default function Edit({
                 account={auth?.account}
             />
 
-            <main className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto max-w-[820px] px-8 py-9">
+            <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
+                <div className="mx-auto max-w-[820px] px-4 py-6 sm:px-8 sm:py-9">
                     <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
                         Your profile
                     </h1>
@@ -61,6 +62,13 @@ export default function Edit({
 
                     <div className="mt-4 space-y-4">
                         <PlanCard plan={plan} />
+
+                        <Box
+                            title="Appearance"
+                            detail="Light, dark, or whatever this device is set to. Saved to your account, so it follows you to other devices."
+                        >
+                            <ThemeSwitch className="max-w-[360px]" menu={false} />
+                        </Box>
 
                         <EmailPreferences
                             categories={emailPreferences}
@@ -237,7 +245,7 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
                 <button
                     data-a="profile:save"
                     disabled={processing}
-                    className="h-[38px] rounded-control bg-brand-primary px-4 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    className="h-[38px] rounded-control bg-brand-fill px-4 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
                     {processing ? 'Saving…' : 'Save changes'}
                 </button>
@@ -283,7 +291,7 @@ function PlanCard({ plan }) {
                     {plan.monthly_credits > 0 && (
                         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-subtle">
                             <div
-                                className="h-full rounded-full bg-brand-primary"
+                                className="h-full rounded-full bg-brand-fill"
                                 style={{ width: `${pct}%` }}
                             />
                         </div>
@@ -391,7 +399,7 @@ function EmailPreferences({ categories, saved }) {
                                             })
                                         }
                                         className={`relative mt-0.5 h-[22px] w-[38px] shrink-0 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 ${
-                                            on ? 'bg-brand-primary' : 'bg-border-input'
+                                            on ? 'bg-brand-fill' : 'bg-border-input'
                                         }`}
                                     >
                                         <span className="sr-only">
@@ -414,7 +422,7 @@ function EmailPreferences({ categories, saved }) {
                     <button
                         data-a="profile:email:save"
                         disabled={processing || !isDirty}
-                        className="h-[34px] rounded-control bg-brand-primary px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                        className="h-[34px] rounded-control bg-brand-fill px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
                         {processing ? 'Saving…' : 'Save email preferences'}
                     </button>

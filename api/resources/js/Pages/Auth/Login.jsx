@@ -39,13 +39,13 @@ export default function Login({ status, canResetPassword, demo }) {
                     <p className="text-[12.5px] font-semibold text-status-warning">
                         Demo account
                     </p>
-                    <p className="mt-1 font-mono text-[11.5px] text-status-warning/90">
+                    <p className="mt-1 font-mono text-[11.5px] text-status-warning">
                         {demo.email} / {demo.password}
                     </p>
                     <button
                         type="button"
                         onClick={fillDemo}
-                        className="mt-2.5 rounded-lg bg-status-warning px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:opacity-90"
+                        className="mt-2.5 rounded-lg bg-status-warning-fill px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:opacity-90"
                     >
                         Fill demo credentials
                     </button>
@@ -84,7 +84,7 @@ export default function Login({ status, canResetPassword, demo }) {
                         canResetPassword && (
                             <Link
                                 href={route('password.request')}
-                                className="text-[12.5px] font-medium text-brand-primary hover:text-brand-primary-hover"
+                                className="text-[12.5px] font-medium text-brand-primary hover:text-outline-active-text"
                             >
                                 Forgot password?
                             </Link>
@@ -108,7 +108,7 @@ export default function Login({ status, canResetPassword, demo }) {
                 No account?{' '}
                 <Link
                     href={route('register')}
-                    className="font-semibold text-brand-primary hover:text-brand-primary-hover"
+                    className="font-semibold text-brand-primary hover:text-outline-active-text"
                 >
                     Create one free
                 </Link>

@@ -46,7 +46,7 @@ export default function ForgotPassword({ status }) {
                 Remembered it?{' '}
                 <Link
                     href={route('login')}
-                    className="font-semibold text-brand-primary hover:text-brand-primary-hover"
+                    className="font-semibold text-brand-primary hover:text-outline-active-text"
                 >
                     Sign in
                 </Link>

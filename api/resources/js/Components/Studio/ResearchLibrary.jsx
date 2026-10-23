@@ -51,17 +51,17 @@ export default function ResearchLibrary({ bookId, onChanged }) {
         <div className="mx-auto max-w-4xl p-8">
             <header className="mb-6 flex items-baseline justify-between">
                 <div>
-                    <h2 className="font-serif text-2xl font-bold text-slate-900">
+                    <h2 className="font-serif text-2xl font-bold text-text-primary">
                         Research Library
                     </h2>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-text-secondary">
                         Sources for this book. A source must be verified before
                         it can back a claim.
                     </p>
                 </div>
                 <button
                     onClick={() => setAdding((v) => !v)}
-                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
+                    className="rounded-md bg-brand-fill px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-primary-hover"
                 >
                     {adding ? 'Cancel' : 'Add source'}
                 </button>
@@ -81,15 +81,15 @@ export default function ResearchLibrary({ bookId, onChanged }) {
             )}
 
             {error && (
-                <p className="mb-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                <p className="mb-4 rounded-md bg-status-danger-bg px-3 py-2 text-sm text-status-danger">
                     {error}
                 </p>
             )}
 
             {loading ? (
-                <p className="text-sm text-slate-500">Loading…</p>
+                <p className="text-sm text-text-secondary">Loading…</p>
             ) : sources.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                <p className="rounded-lg border border-dashed border-border-input p-6 text-center text-sm text-text-secondary">
                     No sources yet. Add the first one to start building this
                     book's bibliography.
                 </p>
@@ -98,14 +98,14 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                     {sources.map((s) => (
                         <li
                             key={s.id}
-                            className="rounded-lg border border-slate-200 bg-white p-4"
+                            className="rounded-lg border border-border-default bg-bg-surface p-4"
                         >
                             <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
-                                    <p className="font-semibold text-slate-900">
+                                    <p className="font-semibold text-text-primary">
                                         {s.title}
                                     </p>
-                                    <p className="text-sm text-slate-600">
+                                    <p className="text-sm text-text-secondary">
                                         {s.reference}
                                         {/* reference() already falls back to
                                             the publisher when there is no
@@ -120,13 +120,13 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                                             href={s.url}
                                             target="_blank"
                                             rel="noreferrer noopener"
-                                            className="mt-0.5 block truncate text-xs text-indigo-600 hover:underline"
+                                            className="mt-0.5 block truncate text-xs text-brand-primary hover:underline"
                                         >
                                             {s.url}
                                         </a>
                                     )}
                                     {s.notes && (
-                                        <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                                        <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
                                             {s.notes}
                                         </p>
                                     )}
@@ -135,8 +135,8 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                                 <Standing value={s.verification} />
                             </div>
 
-                            <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2.5 text-xs">
-                                <span className="text-slate-400">
+                            <div className="mt-3 flex items-center gap-3 border-t border-border-default pt-2.5 text-xs">
+                                <span className="text-text-secondary">
                                     {s.citations_count} citation
                                     {s.citations_count === 1 ? '' : 's'}
                                 </span>
@@ -145,7 +145,7 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                                     {s.verification !== 'verified' && (
                                         <button
                                             onClick={() => verify(s, 'verified')}
-                                            className="font-semibold text-emerald-700 hover:text-emerald-900"
+                                            className="font-semibold text-status-success hover:text-status-success"
                                         >
                                             Mark verified
                                         </button>
@@ -153,14 +153,14 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                                     {s.verification !== 'disputed' && (
                                         <button
                                             onClick={() => verify(s, 'disputed')}
-                                            className="font-semibold text-amber-700 hover:text-amber-900"
+                                            className="font-semibold text-status-warning hover:text-status-warning"
                                         >
                                             Dispute
                                         </button>
                                     )}
                                     <button
                                         onClick={() => remove(s)}
-                                        className="font-semibold text-slate-400 hover:text-rose-600"
+                                        className="font-semibold text-text-secondary hover:text-status-danger"
                                     >
                                         Remove
                                     </button>
@@ -176,9 +176,9 @@ export default function ResearchLibrary({ bookId, onChanged }) {
 
 function Standing({ value }) {
     const style = {
-        verified: 'bg-emerald-50 text-emerald-700',
-        disputed: 'bg-rose-50 text-rose-700',
-        unverified: 'bg-slate-100 text-slate-600',
+        verified: 'bg-status-success-bg text-status-success',
+        disputed: 'bg-status-danger-bg text-status-danger',
+        unverified: 'bg-bg-subtle text-text-secondary',
     }[value];
 
     return (
@@ -212,7 +212,7 @@ function AddSource({ bookId, onAdded, onError }) {
         value: form[key],
         onChange: (e) => setForm({ ...form, [key]: e.target.value }),
         className:
-            'w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500',
+            'w-full rounded-md border-border-input text-sm focus:border-brand-primary focus:ring-brand-primary',
     });
 
     const submit = async (e) => {
@@ -241,14 +241,14 @@ function AddSource({ bookId, onAdded, onError }) {
     return (
         <form
             onSubmit={submit}
-            className="mb-6 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+            className="mb-6 grid grid-cols-2 gap-3 rounded-lg border border-border-default bg-bg-subtle p-4"
         >
-            <label className="col-span-2 text-xs font-semibold text-slate-600">
+            <label className="col-span-2 text-xs font-semibold text-text-secondary">
                 Title
                 <input {...field('title')} required />
             </label>
 
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 Kind
                 <select {...field('kind')}>
                     <option value="book">Book</option>
@@ -260,42 +260,42 @@ function AddSource({ bookId, onAdded, onError }) {
                 </select>
             </label>
 
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 Authors
                 <input {...field('authors')} placeholder="Smith, J.; Lee, K." />
             </label>
 
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 Publisher
                 <input {...field('publisher')} />
             </label>
 
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 Published
                 <input {...field('published')} placeholder="2019" />
             </label>
 
             {form.kind === 'book' ? (
-                <label className="text-xs font-semibold text-slate-600">
+                <label className="text-xs font-semibold text-text-secondary">
                     Edition
                     <input {...field('edition')} placeholder="2" />
                 </label>
             ) : (
                 <>
-                    <label className="col-span-2 text-xs font-semibold text-slate-600">
+                    <label className="col-span-2 text-xs font-semibold text-text-secondary">
                         {form.kind === 'journal_article' ? 'Journal' : 'Website or series'}
                         <input {...field('container')} />
                     </label>
                     <div className="col-span-2 grid grid-cols-3 gap-3">
-                        <label className="text-xs font-semibold text-slate-600">
+                        <label className="text-xs font-semibold text-text-secondary">
                             Volume
                             <input {...field('volume')} />
                         </label>
-                        <label className="text-xs font-semibold text-slate-600">
+                        <label className="text-xs font-semibold text-text-secondary">
                             Issue
                             <input {...field('issue')} />
                         </label>
-                        <label className="text-xs font-semibold text-slate-600">
+                        <label className="text-xs font-semibold text-text-secondary">
                             Pages
                             <input {...field('pages')} placeholder="12–34" />
                         </label>
@@ -303,17 +303,17 @@ function AddSource({ bookId, onAdded, onError }) {
                 </>
             )}
 
-            <label className="text-xs font-semibold text-slate-600">
+            <label className="text-xs font-semibold text-text-secondary">
                 DOI
                 <input {...field('doi')} placeholder="10.1000/xyz" />
             </label>
 
-            <label className="col-span-2 text-xs font-semibold text-slate-600">
+            <label className="col-span-2 text-xs font-semibold text-text-secondary">
                 URL
                 <input {...field('url')} type="url" placeholder="https://…" />
             </label>
 
-            <label className="col-span-2 text-xs font-semibold text-slate-600">
+            <label className="col-span-2 text-xs font-semibold text-text-secondary">
                 Notes
                 <textarea {...field('notes')} rows={2} />
             </label>
@@ -321,11 +321,11 @@ function AddSource({ bookId, onAdded, onError }) {
             <div className="col-span-2 flex items-center gap-3">
                 <button
                     disabled={saving}
-                    className="rounded-md bg-slate-800 px-4 py-1.5 text-sm font-bold text-white hover:bg-slate-900 disabled:opacity-60"
+                    className="rounded-md bg-bg-inverse px-4 py-1.5 text-sm font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
                 >
                     {saving ? 'Saving…' : 'Add to library'}
                 </button>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-text-secondary">
                     New sources start unverified.
                 </p>
             </div>

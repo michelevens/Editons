@@ -99,11 +99,11 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                         onClick={() => setFilter(tab.key)}
                         className={`rounded-badge px-2.5 py-1 text-[11.5px] font-medium transition ${
                             filter === tab.key
-                                ? 'bg-brand-primary text-white'
+                                ? 'bg-brand-fill text-white'
                                 : 'text-text-secondary hover:text-text-primary'
                         }`}
                     >
-                        {tab.label} <span className="opacity-70">{tab.count}</span>
+                        {tab.label} <span>{tab.count}</span>
                     </button>
                 ))}
             </div>
@@ -120,12 +120,12 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                             : 'Open a chapter to comment.'
                     }
                     onChange={(event) => setDraft(event.target.value)}
-                    className="w-full rounded-control border border-border-input p-2.5 text-[12.5px] placeholder:text-text-secondary/70 focus:border-brand-primary focus:ring-0 disabled:bg-bg-subtle"
+                    className="w-full rounded-control border border-border-input p-2.5 text-[12.5px] placeholder:text-text-secondary focus:border-brand-primary focus:ring-0 disabled:bg-bg-subtle"
                 />
                 <button
                     disabled={busy || !draft.trim() || !sectionId}
                     data-a="comments:post"
-                    className="mt-2 h-[32px] w-full rounded-control bg-brand-primary text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    className="mt-2 h-[32px] w-full rounded-control bg-brand-fill text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
                     {busy ? 'Posting…' : 'Comment'}
                 </button>
@@ -205,7 +205,7 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                                         <button
                                             data-a={`comments:reply-send:${thread.id}`}
                                             onClick={() => reply(thread)}
-                                            className="rounded-control bg-brand-primary px-2.5 py-1 text-[11.5px] font-semibold text-white"
+                                            className="rounded-control bg-brand-fill px-2.5 py-1 text-[11.5px] font-semibold text-white"
                                         >
                                             Reply
                                         </button>

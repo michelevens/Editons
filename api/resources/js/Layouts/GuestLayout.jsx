@@ -65,7 +65,7 @@ export default function GuestLayout({ children }) {
 
 function LogoMark() {
     return (
-        <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-brand-primary to-[#7C6BF0] text-[16px] font-bold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)]">
+        <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-brand-fill to-[#7C6BF0] text-[16px] font-bold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)]">
             É
         </span>
     );
@@ -94,7 +94,7 @@ function Pitch() {
                 </span>
             </a>
 
-            <span className="inline-flex items-center gap-2 rounded-full border border-border-default bg-bg-surface px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary-hover">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border-default bg-bg-surface px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-outline-active-text">
                 <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
                 Writing studio + editorial review
             </span>
@@ -130,7 +130,7 @@ function Pitch() {
             <ul className="mt-8 space-y-3.5">
                 {points.map((point) => (
                     <li key={point} className="flex gap-3">
-                        <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-brand-primary-subtle text-brand-primary-hover">
+                        <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-brand-primary-subtle text-outline-active-text">
                             <Icon name="check" size={13} strokeWidth={2.6} />
                         </span>
                         <span className="text-[14.5px] leading-relaxed text-text-body">
@@ -185,7 +185,7 @@ function ReviewPreview() {
 
     return (
         <div className="mt-10 max-w-[460px] overflow-hidden rounded-[16px] border border-border-default bg-bg-surface shadow-[0_24px_50px_-32px_rgba(15,23,42,0.35)]">
-            <div className="flex items-center gap-2 border-b border-border-divider bg-[#FCFDFE] px-4 py-2.5">
+            <div className="flex items-center gap-2 border-b border-border-divider bg-bg-subtle px-4 py-2.5">
                 <span className="h-2 w-2 rounded-full bg-border-default" />
                 <span className="h-2 w-2 rounded-full bg-border-default" />
                 <span className="h-2 w-2 rounded-full bg-border-default" />
@@ -210,7 +210,7 @@ function ReviewPreview() {
                             <p className="mt-0.5 text-[11.5px] leading-relaxed text-text-secondary">
                                 {finding.detail}
                             </p>
-                            <p className="mt-1 text-[10px] uppercase tracking-wide text-text-secondary/75">
+                            <p className="mt-1 text-[10px] uppercase tracking-wide text-text-secondary">
                                 {finding.agent}
                             </p>
                         </div>
@@ -218,9 +218,9 @@ function ReviewPreview() {
                 ))}
             </div>
 
-            <div className="flex items-center justify-between border-t border-border-divider bg-[#FCFDFE] px-4 py-2.5 text-[11px] text-text-secondary">
+            <div className="flex items-center justify-between border-t border-border-divider bg-bg-subtle px-4 py-2.5 text-[11px] text-text-secondary">
                 <span>Example review</span>
-                <span className="rounded-full bg-brand-primary-subtle px-2.5 py-1 font-semibold text-brand-primary-hover">
+                <span className="rounded-full bg-brand-primary-subtle px-2.5 py-1 font-semibold text-outline-active-text">
                     Accept or dismiss — your call
                 </span>
             </div>

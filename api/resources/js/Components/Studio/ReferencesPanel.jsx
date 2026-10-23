@@ -113,7 +113,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                         data-a="references:copy"
                         onClick={copy}
                         disabled={data.entries.length === 0}
-                        className="h-[34px] rounded-control bg-brand-primary px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                        className="h-[34px] rounded-control bg-brand-fill px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
                         {copied ? 'Copied' : 'Copy bibliography'}
                     </button>
@@ -210,7 +210,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                                                     data-a={`references:open:${use.section_id}`}
                                                     onClick={() => onOpenSection?.(use.section_id)}
                                                     title={use.claim}
-                                                    className="rounded-badge bg-brand-primary-subtle px-2.5 py-1 text-[11.5px] font-medium text-brand-primary-hover transition hover:opacity-80"
+                                                    className="rounded-badge bg-brand-primary-subtle px-2.5 py-1 text-[11.5px] font-medium text-outline-active-text transition hover:opacity-80"
                                                 >
                                                     {use.section_title}
                                                 </button>

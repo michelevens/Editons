@@ -26,6 +26,9 @@ class CoverRenderer
 
     public const HEIGHT = 2560;
 
+    /** The shelf and sidebar thumbnail; see ensureThumb(). */
+    public const THUMB_WIDTH = 320;
+
     /** Cover layouts, in the order Cover Studio offers them. */
     public const LAYOUTS = [
         'classic' => 'Classic',
@@ -99,6 +102,62 @@ class CoverRenderer
         }
 
         return $path;
+    }
+
+    public function thumbPath(Book $book): string
+    {
+        return "covers/book-{$book->id}/thumb-{$this->version($book)}.jpg";
+    }
+
+    /**
+     * The shelf-sized cover: the same image, scaled down once and stored.
+     *
+     * The library draws covers 104px wide and the sidebar 46px, but every
+     * one of them was the full 1600 × 2560 file: 12–15 MB of JPEG for one
+     * visit to the shelf. 320px wide covers both at twice their CSS size.
+     * Named by the same design hash as the full cover, so it changes when
+     * the cover does; older thumbnails are removed like older covers.
+     */
+    public function ensureThumb(Book $book): string
+    {
+        $disk = Storage::disk('files');
+        $path = $this->thumbPath($book);
+
+        if ($disk->exists($path)) {
+            return $path;
+        }
+
+        $disk->put($path, $this->scale($disk->get($this->ensure($book)), self::THUMB_WIDTH));
+
+        foreach ($disk->files("covers/book-{$book->id}") as $file) {
+            if ($file !== $path && str_starts_with(basename($file), 'thumb-')) {
+                $disk->delete($file);
+            }
+        }
+
+        return $path;
+    }
+
+    /** JPEG bytes scaled to a width, keeping the proportions. */
+    public function scale(string $jpeg, int $width): string
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            throw new RuntimeException('Cover rendering needs the GD extension.');
+        }
+
+        $source = imagecreatefromstring($jpeg);
+
+        if (! $source) {
+            throw new RuntimeException('The cover could not be read to scale it.');
+        }
+
+        $height = (int) round(imagesy($source) * $width / imagesx($source));
+        $small = imagescale($source, $width, $height, IMG_BICUBIC);
+
+        ob_start();
+        imagejpeg($small, null, 82);
+
+        return (string) ob_get_clean();
     }
 
     /** Draw a cover and return it as JPEG bytes. */

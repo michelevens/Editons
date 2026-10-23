@@ -37,7 +37,7 @@ export default function Billing({
                 account={auth?.account}
             />
 
-            <main className="min-h-0 flex-1 overflow-y-auto">
+            <main id="main" tabIndex={0} aria-label="Plans and billing" className="min-h-0 flex-1 overflow-y-auto outline-none">
                 <div className="mx-auto max-w-[1040px] px-8 py-9">
                     <header className="flex flex-wrap items-start justify-between gap-5">
                         <div className="min-w-0">
@@ -69,7 +69,7 @@ export default function Billing({
                                 <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-bg-subtle">
                                     <div
                                         className={`h-full rounded-full transition-[width] ${
-                                            low ? 'bg-status-danger' : 'bg-brand-primary'
+                                            low ? 'bg-status-danger' : 'bg-brand-fill'
                                         }`}
                                         style={{ width: `${pct}%` }}
                                     />
@@ -102,7 +102,7 @@ export default function Billing({
                     </div>
 
                     <Box title="Plans" className="mt-4">
-                        <div className="overflow-x-auto">
+                        <div tabIndex={0} role="region" aria-label="Plans" className="overflow-x-auto">
                             <table className="w-full min-w-[520px] text-left text-[12.5px]">
                                 <thead>
                                     <tr>
@@ -168,7 +168,7 @@ export default function Billing({
                                                         onClick={() => {}}
                                                         className={`rounded-control px-2.5 py-1 text-[11.5px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                                             plan.tier > current.tier
-                                                                ? 'bg-brand-primary text-white hover:bg-brand-primary-hover'
+                                                                ? 'bg-brand-fill text-white hover:bg-brand-primary-hover'
                                                                 : 'border border-border-input text-text-body'
                                                         }`}
                                                     >
@@ -318,7 +318,7 @@ function DailyChart({ days }) {
                         <div
                             title={`${day.label}: ${day.credits}`}
                             className={`w-full rounded-t transition-[height] ${
-                                day.today ? 'bg-brand-primary' : 'bg-brand-primary/35'
+                                day.today ? 'bg-brand-fill' : 'bg-brand-primary/35'
                             }`}
                             style={{
                                 // A floor of 2px so a zero day still reads as a
