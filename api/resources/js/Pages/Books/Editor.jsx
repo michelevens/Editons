@@ -12,6 +12,7 @@ import CreditStrip from '@/Components/Studio/CreditStrip';
 import CoachStrip from '@/Components/Studio/CoachStrip';
 import CoverPanel from '@/Components/Studio/CoverPanel';
 import EditionsPanel from '@/Components/Studio/EditionsPanel';
+import GoalsSheet from '@/Components/Studio/GoalsSheet';
 import ImportDialog from '@/Components/Studio/ImportDialog';
 import LaunchPanel from '@/Components/Studio/LaunchPanel';
 import LockedPanel from '@/Components/Studio/LockedPanel';
@@ -71,6 +72,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const [adding, setAdding] = useState(false);
     const [importing, setImporting] = useState(false);
     const [toast, setToast] = useState(null);
+
+    // The goals sheet: which chapter it is about, and the editor's live word
+    // count when it was opened from the chapter header.
+    const [goals, setGoals] = useState(null);
 
     // ?pane= may name a top-nav area (ai, analytics...) as well as a
     // sidebar screen; destination() knows which is which.
@@ -403,6 +408,32 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         notify('That text is no longer in this chapter.');
     };
 
+    // A chapter's goal changed in the goals sheet: the header ring reads the
+    // open chapter, the binder's rings read the binder, which reloads alone.
+    const chapterGoalSaved = useCallback((id, goal) => {
+        setSection((value) => (value?.id === id ? { ...value, word_goal: goal } : value));
+        router.reload({ only: ['binder'] });
+    }, []);
+
+    // The binder's row actions (long press, right-click, Shift+F10).
+    const binderActions = {
+        onSetGoal: (id) => setGoals({ sectionId: id, liveWords: null }),
+        onRenamed: (id, title) => setSection((value) => (value?.id === id ? { ...value, title } : value)),
+        // Deleting the open chapter leaves nothing to show: open the book
+        // afresh, which lands on another chapter. Any other only redraws
+        // the binder and the book's count.
+        onDeleted: (id) => {
+            if (id === section?.id) {
+                setBinderOpen(false);
+                router.get(route('books.edit', book.id));
+            } else {
+                router.reload({ only: ['binder'] });
+            }
+
+            notify('Chapter deleted.');
+        },
+    };
+
     const addChapter = () => {
         setAdding(true);
 
@@ -702,6 +733,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         onAddChapter={addChapter}
                                         onImport={() => setImporting(true)}
                                         adding={adding}
+                                        {...binderActions}
                                     />
                                 </div>
 
@@ -721,6 +753,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         onChapters={() => setBinderOpen(true)}
                                         onChanges={setChanges}
                                         onShowChanges={showChanges}
+                                        wordGoal={section?.word_goal ?? null}
+                                        onGoals={(words) => setGoals({ sectionId: section.id, liveWords: words })}
                                         headerActions={
                                             <button
                                                 type="button"
@@ -835,6 +869,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             setImporting(true);
                         }}
                         adding={adding}
+                        {...binderActions}
                     />
                 </Dialog>
             )}
@@ -858,6 +893,16 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         <AIEditorPanel {...panelProps} />
                     </div>
                 </Dialog>
+            )}
+
+            {goals && (
+                <GoalsSheet
+                    bookId={book.id}
+                    sectionId={goals.sectionId}
+                    liveWords={goals.liveWords}
+                    onClose={() => setGoals(null)}
+                    onChapterGoal={chapterGoalSaved}
+                />
             )}
 
             {importing && (

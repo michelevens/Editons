@@ -10,6 +10,7 @@ import StarterKit from '@tiptap/starter-kit';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import ProgressRing, { ringLabel } from '@/Components/Studio/ProgressRing';
 import ChartDialog from './ChartDialog';
 import { CommentAnchors, setCommentThreads } from './CommentAnchors';
 import { ChangePopover, CommentDialog, CommentPopover, SelectionBubble, ThreadSheet } from './ReviewLayer';
@@ -113,6 +114,9 @@ export default function ManuscriptEditor({
     // and asked to show the list of them.
     onChanges = null,
     onShowChanges = null,
+    // The chapter's word goal, and what tapping its ring opens.
+    wordGoal = null,
+    onGoals = null,
     ref,
 }) {
     const user = usePage().props.auth?.user ?? null;
@@ -954,6 +958,22 @@ export default function ManuscriptEditor({
                 <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
                     {words.toLocaleString()} words
                 </span>
+                {/* The chapter's word goal: the ring fills as the
+                    chapter grows, and opens the goals sheet. Without a goal
+                    it is an empty ring that offers to set one. */}
+                {onGoals && (
+                    <button
+                        type="button"
+                        data-a="editor:goals"
+                        onClick={() => onGoals(words)}
+                        aria-haspopup="dialog"
+                        aria-label={`Goals — ${ringLabel(words, wordGoal)}`}
+                        title={wordGoal ? ringLabel(words, wordGoal) : 'Set a word goal'}
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-control transition hover:bg-bg-subtle max-md:h-9 max-md:w-9 max-sm:ml-auto"
+                    >
+                        <ProgressRing value={words} goal={wordGoal} size={20} stroke={2.5} />
+                    </button>
+                )}
                 <SaveStatus status={status} online={online} />
                 <button
                     type="button"
