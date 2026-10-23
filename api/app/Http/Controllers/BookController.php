@@ -262,6 +262,7 @@ class BookController extends Controller
                 'type' => $active->type,
                 'content' => $active->content,
                 'word_count' => $active->word_count,
+                'word_goal' => $active->word_goal,
                 'versions_count' => $active->versions()->count(),
                 'updated_at' => $active->updated_at->toIso8601String(),
             ] : null,
@@ -514,6 +515,8 @@ class BookController extends Controller
             'part' => $s->part,
             'title' => $s->title,
             'word_count' => $s->word_count,
+            // The binder's progress ring; null for most chapters.
+            'word_goal' => $s->word_goal,
             'children' => $s->children->map(fn ($c) => $this->binderNode($c))->all(),
         ];
     }

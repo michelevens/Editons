@@ -15,6 +15,7 @@ use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\EditorialController;
+use App\Http\Controllers\GoalsController;
 use App\Http\Controllers\GrowthController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InvitationController;
@@ -74,6 +75,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/theme', [ProfileController::class, 'updateTheme'])->name('profile.theme');
+    // The daily writing goal, from the studio's goals sheet (JSON).
+    Route::patch('/profile/daily-goal', [GoalsController::class, 'daily'])->name('profile.daily-goal');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
@@ -123,6 +126,13 @@ Route::middleware('auth')->group(function () {
         ->name('sections.versions');
     Route::post('/sections/{section}/versions/{version}/restore', [ManuscriptSectionController::class, 'restore'])
         ->name('sections.restore');
+
+    /*
+     | Writing goals: the chapter's word goal, and the goals sheet's figures
+     | (chapter, book target, today's words, streak) from version history.
+     */
+    Route::get('/books/{book}/goals', [GoalsController::class, 'show'])->name('books.goals');
+    Route::patch('/sections/{section}/goal', [GoalsController::class, 'chapter'])->name('sections.goal');
 
     /*
      | Book anatomy: the conventional parts (Chicago ch. 1). The checklist,

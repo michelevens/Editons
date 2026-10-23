@@ -71,6 +71,7 @@ class ManuscriptSection extends Model
         return [
             'content' => 'array',
             'word_count' => 'integer',
+            'word_goal' => 'integer',
             'position' => 'integer',
         ];
     }

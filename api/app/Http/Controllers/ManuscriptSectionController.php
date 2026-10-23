@@ -121,7 +121,13 @@ class ManuscriptSectionController extends Controller
         ]);
     }
 
-    public function update(Request $request, ManuscriptSection $section): RedirectResponse
+    /**
+     * Rename a section.
+     *
+     * JSON when asked for it: the binder renames a chapter in place and
+     * reloads only itself, never the chapter open in the editor.
+     */
+    public function update(Request $request, ManuscriptSection $section): RedirectResponse|JsonResponse
     {
         $this->authorize('update', $section);
 
@@ -130,16 +136,29 @@ class ManuscriptSectionController extends Controller
             'subtitle' => ['nullable', 'string', 'max:255'],
         ]));
 
+        if ($request->wantsJson()) {
+            return response()->json(['id' => $section->id, 'title' => $section->title, 'subtitle' => $section->subtitle]);
+        }
+
         return back();
     }
 
-    public function destroy(ManuscriptSection $section): RedirectResponse
+    /**
+     * Delete a section (soft: it stays restorable in the database).
+     *
+     * JSON when asked for it, for the binder's action sheet.
+     */
+    public function destroy(Request $request, ManuscriptSection $section): RedirectResponse|JsonResponse
     {
         $this->authorize('delete', $section);
 
         $book = $section->book;
         $section->delete();
         $book->recalculateWordCount();
+
+        if ($request->wantsJson()) {
+            return response()->json(['deleted' => $section->id, 'book_word_count' => $book->word_count]);
+        }
 
         return redirect()->route('books.edit', $book);
     }
