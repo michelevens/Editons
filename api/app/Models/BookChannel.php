@@ -16,7 +16,13 @@ class BookChannel extends Model
 {
     use HasFactory;
 
-    public const STATUSES = ['not_submitted', 'in_review', 'live', 'unpublished'];
+    /**
+     * ready_to_submit: the author asked to publish and the book passed the
+     * checks, but nothing has been sent, because no store integration
+     * exists. The author uploads the file at the store and then marks it
+     * submitted, which is when submitted_at becomes a fact.
+     */
+    public const STATUSES = ['not_submitted', 'ready_to_submit', 'in_review', 'live', 'unpublished'];
 
     /** channel => [label, format]. */
     public const CHANNELS = [
@@ -25,6 +31,19 @@ class BookChannel extends Model
         'kobo' => ['Kobo', 'ebook'],
         'google_play' => ['Google Play Books', 'ebook'],
         'ingram_print' => ['IngramSpark (print)', 'print'],
+    ];
+
+    /**
+     * What the author does at each store, until it is integrated.
+     *
+     * channel => [where to upload, which file, the steps].
+     */
+    public const UPLOAD = [
+        'amazon_kdp' => ['https://kdp.amazon.com', 'epub', 'Sign in to Kindle Direct Publishing, create a Kindle eBook, paste the listing details from this screen and upload the EPUB.'],
+        'apple_books' => ['https://authors.apple.com', 'epub', 'Sign in to Apple Books for Authors, add a new book, enter the listing details and upload the EPUB with its cover.'],
+        'kobo' => ['https://www.kobo.com/writinglife', 'epub', 'Sign in to Kobo Writing Life, create a new eBook, enter the listing details and upload the EPUB.'],
+        'google_play' => ['https://play.google.com/books/publish', 'epub', 'Sign in to the Google Play Books Partner Center, add a book, enter the listing details and upload the EPUB.'],
+        'ingram_print' => ['https://www.ingramspark.com', 'pdf', 'Sign in to IngramSpark, add a print title at your trim size and upload the PDF interior with a cover file built to their template.'],
     ];
 
     protected $fillable = ['channel', 'format', 'status'];

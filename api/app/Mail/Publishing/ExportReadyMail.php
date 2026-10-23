@@ -47,7 +47,7 @@ class ExportReadyMail extends EcrivainMail implements ShouldQueue
                 __('Built') => ($this->export->updated_at ?? now())->translatedFormat('F j, Y \a\t g:i A'),
             ])
             ->cta(__('Download :format', ['format' => $format]), route('publishing.download', ['book' => $book, 'export' => $this->export]))
-            ->secondary(__('See every export of this book'), route('publishing.show', $book))
+            ->secondary(__('See every export of this book'), route('books.edit', ['book' => $book, 'pane' => 'export']))
             ->callout('info', __('Downloads need you to be signed in, so this link is safe to keep: it will not open for anybody who is not on the book.'))
             ->reason(__('You received this because you started this export. You can switch export emails off in your preferences.'));
     }

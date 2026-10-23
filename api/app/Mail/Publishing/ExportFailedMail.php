@@ -45,7 +45,7 @@ class ExportFailedMail extends EcrivainMail implements ShouldQueue
                 __('Started') => ($this->export->created_at ?? now())->translatedFormat('F j, Y \a\t g:i A'),
                 __('What went wrong') => $this->reason,
             ])
-            ->cta(__('Try again'), route('publishing.show', $book))
+            ->cta(__('Try again'), route('books.edit', ['book' => $book, 'pane' => 'export']))
             ->callout('warning', __('Write to :support with the book\'s title and the format, and we will look at the file with you.', [
                 'support' => config('mail.ecrivain.support_address'),
             ]), __('If it fails a second time'))

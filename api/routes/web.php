@@ -374,6 +374,8 @@ Route::middleware('auth')->group(function () {
         ->name('publishing.submit');
     Route::post('/books/{book}/channels/{channel}/unpublish', [PublishingController::class, 'unpublish'])
         ->name('publishing.unpublish');
+    Route::post('/books/{book}/channels/{channel}/submitted', [PublishingController::class, 'markSubmitted'])
+        ->name('publishing.submitted');
     Route::post('/books/{book}/exports', [PublishingController::class, 'generate'])
         ->name('publishing.generate');
     Route::get('/books/{book}/exports/{export}/download', [PublishingController::class, 'download'])

@@ -160,6 +160,7 @@ function Status({ status }) {
     const look = {
         live: ['bg-status-success-bg', 'text-status-success', 'Live'],
         in_review: ['bg-status-warning-bg', 'text-status-warning', 'In review'],
+        ready_to_submit: ['bg-status-warning-bg', 'text-status-warning', 'To upload'],
         unpublished: ['bg-bg-subtle', 'text-text-secondary', 'Off sale'],
         not_submitted: ['bg-bg-subtle', 'text-text-secondary', 'Not submitted'],
     }[status] ?? ['bg-bg-subtle', 'text-text-secondary', status];

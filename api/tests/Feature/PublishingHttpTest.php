@@ -100,22 +100,49 @@ it('will not submit a book that is not ready, and says why per field', function 
     expect($response->json('errors'))->toHaveKeys(['description', 'category', 'list_price']);
 });
 
-it('submits to the selected stores and marks them in review, not live', function () {
-    // A store decides when a book goes on sale. Claiming live would put a
-    // date on the screen that never happened.
+it('marks the selected stores ready to upload, not in review and not live', function () {
+    // No store integration exists, so nothing is sent: claiming "in review"
+    // or "live" would put a date on the screen that never happened. The
+    // response says what the author uploads where.
     $user = User::factory()->create();
     $book = chapteredBook($user);
     $book->channels()->create(['channel' => 'amazon_kdp', 'format' => 'ebook']);
 
-    $this->actingAs($user)
+    $response = $this->actingAs($user)
         ->postJson("/books/{$book->id}/submit")
         ->assertOk();
 
     $channel = $book->channels()->first();
 
-    expect($channel->status)->toBe('in_review')
-        ->and($channel->submitted_at)->not->toBeNull()
+    expect($channel->status)->toBe('ready_to_submit')
+        ->and($channel->submitted_at)->toBeNull()
         ->and($channel->went_live_at)->toBeNull()
+        ->and($book->fresh()->status)->toBe('draft')
+        ->and($response->json('message'))->toContain('does not send books to stores')
+        ->and($response->json('next_steps.0.channel'))->toBe('amazon_kdp')
+        ->and($response->json('next_steps.0.url'))->toBe('https://kdp.amazon.com')
+        ->and($response->json('next_steps.0.file'))->toBe('epub');
+});
+
+it('records the author\'s own upload as the start of the store review', function () {
+    $user = User::factory()->create();
+    $book = chapteredBook($user);
+    $channel = $book->channels()->create(['channel' => 'kobo', 'format' => 'ebook']);
+
+    // Not before the book is ready for that store.
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/channels/{$channel->id}/submitted")
+        ->assertStatus(422);
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/submit")->assertOk();
+
+    $this->actingAs($user)
+        ->postJson("/books/{$book->id}/channels/{$channel->id}/submitted")
+        ->assertOk()
+        ->assertJsonPath('channels.2.status', 'in_review');
+
+    expect($channel->fresh()->status)->toBe('in_review')
+        ->and($channel->fresh()->submitted_at)->not->toBeNull()
         ->and($book->fresh()->status)->toBe('in_review');
 });
 

@@ -2,10 +2,14 @@
 
 namespace App\Publishing;
 
+use App\Jobs\GenerateExport;
+use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\ManuscriptSection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -45,6 +49,11 @@ class Exporter
      * leaves a visible failure rather than a silent absence. The checks that
      * the author can act on (no such format, nothing written yet) happen
      * here, so they are refused at once even when run() is left to a job.
+     *
+     * A PDF or EPUB already rendering for this book is returned rather than
+     * a second row: each holds a worker for up to half an hour, and a second
+     * click used to queue the same book again ahead of everybody else's.
+     * The returned row's wasRecentlyCreated says whether to dispatch a job.
      */
     public function start(Book $book, string $format, ?int $userId = null): BookExport
     {
@@ -56,23 +65,143 @@ class Exporter
             throw new RuntimeException('There is nothing to export yet. Write a chapter first.');
         }
 
-        return $book->exports()->create([
-            'format' => $format,
-            'status' => 'generating',
-            'word_count' => $book->word_count,
-            'user_id' => $userId,
-        ]);
-    }
+        $queued = in_array($format, GenerateExport::FORMATS, true);
 
-    /** Render a `generating` row's file from the book as it is now. */
-    public function run(BookExport $export): BookExport
-    {
-        $book = $export->book;
-        $format = $export->format;
-        $sections = $this->chapters($book);
-        $base = $this->renderer;
+        if ($queued) {
+            // A dead render must not block the next one for good.
+            $this->expireStale($book->id);
+
+            if ($running = $this->rendering($book, $format)) {
+                return $running;
+            }
+        }
 
         try {
+            // Its own transaction (a savepoint inside another), so a refused
+            // insert does not abort a transaction the caller is in.
+            return DB::transaction(fn () => $book->exports()->create([
+                'format' => $format,
+                'status' => 'generating',
+                'word_count' => $book->word_count,
+                'user_id' => $userId,
+            ]));
+        } catch (UniqueConstraintViolationException $e) {
+            // Two clicks raced past the check above; the index let one in.
+            return $this->rendering($book, $format) ?? throw $e;
+        }
+    }
+
+    /** The PDF or EPUB of this book now rendering, if there is one. */
+    private function rendering(Book $book, string $format): ?BookExport
+    {
+        return BookExport::where('book_id', $book->id)
+            ->where('format', $format)
+            ->where('status', 'generating')
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * Fail `generating` rows nothing will ever finish.
+     *
+     * A job that dies by timeout reaches GenerateExport::failed(), but a
+     * worker killed outright (a deploy, the container running out of
+     * memory) or a request that died before dispatching leaves its row
+     * saying "generating" for ever, and the Publish screen polled it every
+     * five seconds for as long as it stayed open.
+     *
+     * A row is dead when it has had no news for BookExport::STALE_AFTER and
+     * no job is waiting for it. A job still in the queue behind other books
+     * keeps its row alive: it will run, and failing it now would only make
+     * the author ask again.
+     *
+     * @return int rows failed
+     */
+    public function expireStale(?int $bookId = null): int
+    {
+        $stale = BookExport::where('status', 'generating')
+            ->where('updated_at', '<', now()->subSeconds(BookExport::STALE_AFTER))
+            ->when($bookId, fn ($query) => $query->where('book_id', $bookId))
+            ->get();
+
+        if ($stale->isEmpty()) {
+            return 0;
+        }
+
+        $waiting = $this->waitingExports();
+        $failed = 0;
+
+        foreach ($stale as $export) {
+            if (in_array($export->id, $waiting, true)) {
+                $export->touch();
+
+                continue;
+            }
+
+            if (! BookExport::whereKey($export->id)->where('status', 'generating')->update(['status' => 'failed', 'updated_at' => now()])) {
+                continue;
+            }
+
+            $failed++;
+
+            // News only while it is news: a row from last week is history,
+            // and its author has long since tried again or moved on.
+            if (in_array($export->format, GenerateExport::FORMATS, true)
+                && $export->created_at->gt(now()->subDay())
+                && $export->book) {
+                Notify::exportFailed($export->fresh(), __('The export stopped before it finished. Generating it again usually works.'));
+            }
+        }
+
+        return $failed;
+    }
+
+    /**
+     * Export ids with a GenerateExport job still waiting in the database queue.
+     *
+     * Only the database driver can be asked; with any other the answer is
+     * "none", and a long queue costs an author a retry rather than a file
+     * stuck for ever.
+     *
+     * @return list<int>
+     */
+    private function waitingExports(): array
+    {
+        $connection = config('queue.default');
+
+        if (config("queue.connections.{$connection}.driver") !== 'database') {
+            return [];
+        }
+
+        return DB::connection(config("queue.connections.{$connection}.connection"))
+            ->table(config("queue.connections.{$connection}.table", 'jobs'))
+            ->whereNull('reserved_at')
+            ->where('payload', 'like', '%GenerateExport%')
+            ->pluck('payload')
+            ->map(fn (string $payload) => preg_match('/exportId\\\\?";i:(\d+);/', $payload, $m) ? (int) $m[1] : null)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Render a `generating` row's file from the book as it is now.
+     *
+     * The row is settled only if it still says `generating`: the sweep or a
+     * second worker may have called it failed meanwhile, and the history
+     * must not flip back and forth. A PDF or EPUB's author is emailed on the
+     * change; the small formats are made while the author watches.
+     */
+    public function run(BookExport $export): BookExport
+    {
+        $base = $this->renderer;
+        $queued = in_array($export->format, GenerateExport::FORMATS, true);
+
+        try {
+            $book = $export->book ?? throw new RuntimeException('This book has been deleted.');
+            $format = $export->format;
+            $sections = $this->chapters($book);
+
             // Numbering for the whole book: captions and equations renumber
             // from position, and cross-references resolve, in every format.
             // EPUB splits the book into files, so its links name the file.
@@ -91,16 +220,31 @@ class Exporter
                 'html' => $this->singleHtml($book, $sections, $export),
             };
 
-            $export->update([
+            $settled = BookExport::whereKey($export->id)->where('status', 'generating')->update([
                 'status' => 'ready',
                 'path' => $path,
                 'byte_size' => Storage::disk('files')->size($path),
+                'updated_at' => now(),
             ]);
+
+            if (! $settled) {
+                // Somebody else settled it. The file is ours to remove
+                // unless the row now points at it.
+                if (BookExport::whereKey($export->id)->value('path') !== $path) {
+                    Storage::disk('files')->delete($path);
+                }
+            } elseif ($queued) {
+                Notify::exportReady($export->fresh());
+            }
         } catch (\Throwable $e) {
             // Recorded, not swallowed: the history should show that a
             // generation was attempted and failed, and the exception still
             // reaches the caller so the author sees why.
-            $export->update(['status' => 'failed']);
+            $failed = BookExport::whereKey($export->id)->where('status', 'generating')->update(['status' => 'failed', 'updated_at' => now()]);
+
+            if ($failed && $queued && $export->book) {
+                Notify::exportFailed($export->fresh(), $this->reason($e));
+            }
 
             throw $e;
         } finally {
@@ -109,6 +253,19 @@ class Exporter
         }
 
         return $export->fresh();
+    }
+
+    /**
+     * A reason an author can read.
+     *
+     * The exporter's own RuntimeExceptions are written for authors; anything
+     * else is an internal error whose message means nothing outside the code.
+     */
+    private function reason(\Throwable $e): string
+    {
+        return $e instanceof RuntimeException
+            ? $e->getMessage()
+            : __('Something went wrong while laying out the book. Generating it again usually works; if it fails twice, tell us.');
     }
 
     /**
@@ -800,25 +957,40 @@ class Exporter
 
         // Built in a temporary file, because ZipArchive needs a real path
         // and the files disk may be a bucket, then stored like any export.
-        $absolute = tempnam(sys_get_temp_dir(), 'export');
-        $archive = new ZipArchive;
+        //
+        // In the app's own storage rather than the system temp directory:
+        // tempnam() there raised a notice on a worker whose TEMP it would
+        // not use, which Laravel turns into an exception, and the EPUB
+        // failed. A random name in a folder we own needs no permission
+        // from the host, and the finally removes it however this ends.
+        $directory = storage_path('app/tmp');
 
-        if ($archive->open($absolute, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        if (! is_dir($directory) && ! @mkdir($directory, 0700, true) && ! is_dir($directory)) {
             throw new RuntimeException('Could not create the export file.');
         }
 
-        if ($mimetypeFirst) {
-            $archive->addFromString('mimetype', 'application/epub+zip');
-            $archive->setCompressionName('mimetype', ZipArchive::CM_STORE);
-        }
-
-        foreach ($entries as $name => $contents) {
-            $archive->addFromString($name, $contents);
-        }
-
-        $archive->close();
+        $absolute = $directory.'/export-'.Str::random(24).'.zip';
 
         try {
+            $archive = new ZipArchive;
+
+            if ($archive->open($absolute, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+                throw new RuntimeException('Could not create the export file.');
+            }
+
+            if ($mimetypeFirst) {
+                $archive->addFromString('mimetype', 'application/epub+zip');
+                $archive->setCompressionName('mimetype', ZipArchive::CM_STORE);
+            }
+
+            foreach ($entries as $name => $contents) {
+                $archive->addFromString($name, $contents);
+            }
+
+            if (! $archive->close()) {
+                throw new RuntimeException('Could not write the export file.');
+            }
+
             $stream = fopen($absolute, 'rb');
             Storage::disk('files')->put($relative, $stream);
         } finally {
@@ -826,7 +998,9 @@ class Exporter
                 fclose($stream);
             }
 
-            @unlink($absolute);
+            if (is_file($absolute)) {
+                @unlink($absolute);
+            }
         }
 
         return $relative;

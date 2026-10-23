@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Billing\Entitlements;
 use App\Jobs\GenerateExport;
+use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
@@ -113,13 +114,19 @@ class PublishingController extends Controller
     }
 
     /**
-     * Submit to every selected store.
+     * Get the book ready for every selected store.
      *
      * Returns 422 with the problems keyed by field when the book is not
      * ready. The screen shows each message against its own input; a flat
      * list would leave the author hunting for the field.
+     *
+     * Nothing is sent to any store: there is no store integration yet. This
+     * used to mark each store "in review" and say "Submitted", and the
+     * author waited on a review nobody had been asked for. Each store is
+     * now `ready_to_submit`, the response says what to upload where, and
+     * the author marks a store submitted once they have done it.
      */
-    public function submit(Book $book): JsonResponse
+    public function submit(Request $request, Book $book): JsonResponse
     {
         $this->authorize('update', $book);
 
@@ -134,20 +141,42 @@ class PublishingController extends Controller
 
         if ($pending->isEmpty()) {
             return response()->json([
-                'message' => 'Every selected store already has this book.',
+                'message' => 'Every selected store is already ready to upload or submitted.',
                 'errors' => ['channels' => 'Nothing new to submit.'],
             ], 422);
         }
 
         foreach ($pending as $channel) {
-            // in_review, not live. A store decides when a book goes on sale,
-            // and claiming otherwise would put a date on the screen that
-            // never happened.
-            $channel->forceFill([
-                'status' => 'in_review',
-                'submitted_at' => now(),
-            ])->save();
+            $channel->forceFill(['status' => 'ready_to_submit'])->save();
         }
+
+        Notify::submittedToStores($book, $pending->pluck('channel')->all(), $request->user());
+
+        return response()->json([
+            ...$this->payload($book->fresh()),
+            'message' => 'Ready to upload. Écrivain does not send books to stores itself yet: upload the file at each store, then mark it submitted.',
+            'next_steps' => $pending->map(fn (BookChannel $channel) => $this->uploadSteps($channel->channel))->values()->all(),
+        ]);
+    }
+
+    /**
+     * Record that the author uploaded the book to a store.
+     *
+     * The author is the one who knows: they did it, at the store, outside
+     * Écrivain. From here the store reviews it, so in_review is now true
+     * and submitted_at is the date the author gave it to them.
+     */
+    public function markSubmitted(Book $book, BookChannel $channel): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        abort_unless($channel->book_id === $book->id, 404);
+        abort_unless($channel->status === 'ready_to_submit', 422, 'Get the book ready for this store first.');
+
+        $channel->forceFill([
+            'status' => 'in_review',
+            'submitted_at' => now(),
+        ])->save();
 
         if ($book->status === 'draft') {
             $book->update(['status' => 'in_review']);
@@ -163,12 +192,19 @@ class PublishingController extends Controller
 
         abort_unless($channel->book_id === $book->id, 404);
 
+        // Only a book a store has can be pulled from it; anything else is
+        // unticking the store, and the CHECK constraint would refuse a row
+        // with no submission date anyway.
+        abort_unless(in_array($channel->status, ['in_review', 'live'], true), 422, 'This store does not have the book.');
+
         // submitted_at is kept: it is a record of what happened, and the
         // CHECK constraint requires it for any status but not_submitted.
         $channel->forceFill([
             'status' => 'unpublished',
             'went_live_at' => null,
         ])->save();
+
+        Notify::bookUnpublished($channel->fresh('book'), byAuthor: true);
 
         return response()->json($this->payload($book->fresh()));
     }
@@ -200,12 +236,22 @@ class PublishingController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        if ($queued) {
-            GenerateExport::dispatch($export->id);
+        // start() hands back a PDF or EPUB already rendering rather than
+        // queueing the same book twice; only a new row needs a worker.
+        if ($queued && $export->wasRecentlyCreated) {
+            try {
+                GenerateExport::dispatch($export->id);
+            } catch (Throwable $e) {
+                // A row nothing will render must not say "generating".
+                BookExport::whereKey($export->id)->where('status', 'generating')->update(['status' => 'failed']);
+
+                throw $e;
+            }
         }
 
         return response()->json([
             'export' => $this->exportRow($export->fresh()),
+            'already' => $queued && ! $export->wasRecentlyCreated,
             'book' => $this->payload($book->fresh()),
         ], $queued ? 202 : 200);
     }
@@ -221,36 +267,48 @@ class PublishingController extends Controller
         $this->authorize('view', $book);
 
         abort_unless($export->book_id === $book->id, 404);
+        // An expired row says why there is nothing to download.
+        abort_if($export->status === 'expired', 410, 'That file is no longer stored. Generate it again.');
         abort_unless($export->status === 'ready', 404);
 
         /*
-         * Rebuild if the file has gone.
+         * The file has gone.
          *
-         * Exports are written to the container's local disk, which is
-         * ephemeral: every deploy replaces the container and takes every
-         * previously generated file with it. An author who exported on
-         * Tuesday and clicked download on Wednesday got a bare 404, with
-         * the export still listed as ready.
+         * Exports written before the files disk moved to the bucket lived on
+         * the container's disk, and a deploy took them while the row still
+         * said ready. The row becomes `expired`, so the history stops
+         * offering a download that cannot work.
          *
-         * No object storage is configured, so the honest fix is to notice
-         * the file is missing and regenerate it rather than reporting the
-         * book as unavailable. Generation takes well under a second for a
-         * manuscript of any realistic size, and the alternative — telling
-         * somebody their finished export no longer exists — is worse.
-         *
-         * With the files disk on the bucket this branch stops firing for
-         * new exports; it still rescues ones written before the bucket.
+         * Making it again is generating a file under the author's name, so
+         * it takes what Generate takes: update on the book and a plan with
+         * the format. A reader invited to view used to be able to queue a
+         * PDF render with every click on a stale link.
          */
         if (! $export->path || ! Storage::disk('files')->exists($export->path)) {
+            BookExport::whereKey($export->id)->where('status', 'ready')->update(['status' => 'expired']);
+
+            $user = $request->user();
+
+            abort_unless(
+                $user->can('update', $book) && $user->canExportFormat($this->planFormat($export->format)),
+                410,
+                'That file is no longer stored. Ask the book\'s author to generate it again.',
+            );
+
             // A PDF or EPUB takes too long to rebuild while the browser
-            // waits: queue it, and the history shows it when it is ready.
+            // waits: queue it (or join the render already running), and the
+            // history shows it when it is ready.
             if (in_array($export->format, GenerateExport::FORMATS, true)) {
-                GenerateExport::dispatch($this->exporter->start($book, $export->format, $request->user()->id)->id);
+                $rebuild = $this->exporter->start($book, $export->format, $user->id);
+
+                if ($rebuild->wasRecentlyCreated) {
+                    GenerateExport::dispatch($rebuild->id);
+                }
 
                 abort(503, 'That file is being rebuilt. It will appear in your export history in a few minutes.');
             }
 
-            $export = $this->exporter->generate($book, $export->format, $request->user()->id);
+            $export = $this->exporter->generate($book, $export->format, $user->id);
 
             abort_unless(
                 $export->status === 'ready' && $export->path && Storage::disk('files')->exists($export->path),
@@ -268,6 +326,11 @@ class PublishingController extends Controller
     /** @return array<string, mixed> */
     private function payload(Book $book): array
     {
+        // Settle this book's dead renders before listing them, so the
+        // screen never waits on a row nothing will finish, whether or not
+        // the scheduler is running.
+        $this->exporter->expireStale($book->id);
+
         $meta = $book->meta ?? [];
         $channels = $book->channels()->get()->keyBy('channel');
 
@@ -300,6 +363,7 @@ class PublishingController extends Controller
                         'status' => $row?->status ?? 'not_submitted',
                         'submitted_at' => $row?->submitted_at?->diffForHumans(),
                         'went_live_at' => $row?->went_live_at?->diffForHumans(),
+                        'upload' => $this->uploadSteps($key),
                     ];
                 })
                 ->values()
@@ -324,6 +388,24 @@ class PublishingController extends Controller
         ];
     }
 
+    /**
+     * What the author does at one store.
+     *
+     * @return array{channel: string, label: string, url: ?string, file: ?string, steps: ?string}
+     */
+    private function uploadSteps(string $channel): array
+    {
+        [$url, $file, $steps] = BookChannel::UPLOAD[$channel] ?? [null, null, null];
+
+        return [
+            'channel' => $channel,
+            'label' => BookChannel::CHANNELS[$channel][0] ?? $channel,
+            'url' => $url,
+            'file' => $file,
+            'steps' => $steps,
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function exportRow(BookExport $export): array
     {
@@ -332,6 +414,11 @@ class PublishingController extends Controller
             'format' => $export->format,
             'label' => $export->label(),
             'status' => $export->status,
+            // Seconds the screen should keep waiting for a generating row:
+            // past this the sweep fails it, so polling stops there too.
+            'wait_seconds' => $export->status === 'generating'
+                ? max(0, BookExport::STALE_AFTER - (int) $export->updated_at->diffInSeconds(now(), true))
+                : null,
             'word_count' => $export->word_count,
             'size' => $export->byte_size ? $this->humanSize($export->byte_size) : null,
             'created_at' => $export->created_at->diffForHumans(),

@@ -18,7 +18,21 @@ class BookExport extends Model
 {
     use HasFactory;
 
-    public const STATUSES = ['generating', 'ready', 'failed'];
+    /**
+     * 'expired' is a row that was ready once and whose file is no longer in
+     * storage: still history, no longer a download.
+     */
+    public const STATUSES = ['generating', 'ready', 'failed', 'expired'];
+
+    /**
+     * Seconds a 'generating' row may go without news before it is failed.
+     *
+     * The job's own timeout plus a margin for the worker to notice: a row
+     * older than this belongs to a process that died without saying so.
+     * It is longer than the worker's --timeout (1900 s), so a render still
+     * running has been stopped by the worker before its row is called dead.
+     */
+    public const STALE_AFTER = 1800 + 300;
 
     /** format => [label, extension, description]. */
     public const FORMATS = [
