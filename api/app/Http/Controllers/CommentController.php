@@ -152,7 +152,7 @@ class CommentController extends Controller
                         // Computed, never stored: the manuscript moves after a
                         // comment is made, and a thread pointing at deleted
                         // text should say so.
-                        'detached' => $thread->isDetached($section->plainText()),
+                        'detached' => $thread->isDetached($section->plainText(withSuggestions: true)),
                         'replies' => $thread->replies->map(fn (Comment $reply) => [
                             'id' => $reply->id,
                             'author_name' => $reply->author_name,

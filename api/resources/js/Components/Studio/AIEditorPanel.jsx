@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CitationsTab from './CitationsTab';
 import CommentsPanel from './CommentsPanel';
 import Icon from './Icon';
@@ -48,8 +48,19 @@ export default function AIEditorPanel({
     onOpenSection,
     onRestore,
     onOpenLibrary,
+    // Suggest mode: the open chapter's pending changes, listed at the top
+    // of Comments, and how to decide or show one.
+    changes = [],
+    onDecide = null,
+    onShowChange = null,
+    // {tab, at}: switch to a tab when asked (the editor's "3 changes").
+    tabRequest = null,
 }) {
-    const [tab, setTab] = useState('AI Editor');
+    const [tab, setTab] = useState(tabRequest?.tab ?? 'AI Editor');
+
+    useEffect(() => {
+        if (tabRequest?.tab) setTab(tabRequest.tab);
+    }, [tabRequest?.at]);
     // One finding at a time (ReviewDeck), across every agent.
     const [reviewing, setReviewing] = useState(false);
     const [openAgent, setOpenAgent] = useState(null);
@@ -79,7 +90,7 @@ export default function AIEditorPanel({
 
     const tabs = [
         { key: 'AI Editor', ready: true },
-        { key: 'Comments', ready: true, count: commentCount },
+        { key: 'Comments', ready: true, count: commentCount + changes.length },
         { key: 'Research', ready: true },
         { key: 'Checks', ready: true },
     ];
@@ -180,7 +191,7 @@ export default function AIEditorPanel({
                 )}
 
                 {tab === 'Checks' && (
-                    <ChecksTab findings={open} versions={versions} onRestore={onRestore} />
+                    <ChecksTab findings={open} versions={versions} changes={changes} onRestore={onRestore} />
                 )}
 
                 {tab === 'Comments' && (
@@ -189,6 +200,9 @@ export default function AIEditorPanel({
                         sectionId={sectionId}
                         onOpenSection={onOpenSection}
                         onChanged={(counts) => setCommentCount(counts.open)}
+                        changes={changes}
+                        onDecide={onDecide}
+                        onShowChange={onShowChange}
                     />
                 )}
             </div>
@@ -568,8 +582,15 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
 }
 
 /** Preflight list plus version history — both computed, nothing invented. */
-function ChecksTab({ findings, versions, onRestore }) {
+function ChecksTab({ findings, versions, changes = [], onRestore }) {
     const checks = [
+        {
+            // Exports leave pending suggestions out (as if rejected), so a
+            // chapter with some is not the chapter the author thinks it is.
+            label: 'Suggestions decided',
+            ok: changes.length === 0,
+            detail: `${changes.length} pending`,
+        },
         {
             label: 'AI findings resolved',
             ok: findings.length === 0,
@@ -636,6 +657,9 @@ function ChecksTab({ findings, versions, onRestore }) {
                                     {version.reason}
                                 </span>
                             </div>
+                            {version.label && (
+                                <p className="mt-0.5 text-[11px] text-text-body">{version.label}</p>
+                            )}
                             <p className="mt-0.5 text-[11px] text-text-secondary">
                                 {version.created_human} ·{' '}
                                 {version.word_count.toLocaleString()} words

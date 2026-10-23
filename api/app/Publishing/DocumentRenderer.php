@@ -97,7 +97,9 @@ class DocumentRenderer
      */
     private function numbered(ManuscriptSection $section): array
     {
-        $nodes = $section->content['content'] ?? [];
+        // Pending suggestions print as if rejected (Suggestions), whichever
+        // caller handed this section over.
+        $nodes = Suggestions::published($section->content)['content'] ?? [];
         $place = $this->numbering['sections'][$section->id] ?? null;
 
         if ($place === null) {

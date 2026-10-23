@@ -1,4 +1,7 @@
 import Icon from '@/Components/Studio/Icon';
+import { onComments, publishComments } from '@/Components/Studio/commentsBus';
+import { usePage } from '@inertiajs/react';
+import { TextSelection } from '@tiptap/pm/state';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { BlockMath, InlineMath } from '@tiptap/extension-mathematics';
 import Image from '@tiptap/extension-image';
@@ -6,8 +9,11 @@ import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
-import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import ChartDialog from './ChartDialog';
+import { CommentAnchors, setCommentThreads } from './CommentAnchors';
+import { ChangePopover, CommentDialog, CommentPopover, SelectionBubble, ThreadSheet } from './ReviewLayer';
+import { decide, pendingChanges, Suggest } from './Suggest';
 import { CrossRef, localTargets, refreshNumbering, Xref, XrefDialog } from './CrossRef';
 import { Chart } from './ChartNode';
 import { Footnote, FootnoteDialog } from './FootnoteNode';
@@ -59,9 +65,11 @@ const RETRY_MS = 15_000;
  * page. Taking it as success put `undefined` in the word count, the footer
  * threw on it, and the editor went blank.
  */
-async function putContent(id, json, reason, keepalive) {
+async function putContent(id, json, reason, keepalive, label = null) {
     const path = `/sections/${id}/content`;
-    const body = JSON.stringify({ content: json, reason });
+    // A label names what a `review` save decided, for version history.
+    const payload = label ? { content: json, reason, label } : { content: json, reason };
+    const body = JSON.stringify(payload);
     let data;
 
     if (keepalive && body.length < KEEPALIVE_LIMIT) {
@@ -84,7 +92,7 @@ async function putContent(id, json, reason, keepalive) {
         if (!response.ok) throw new Error(`Save refused (${response.status}).`);
         data = await response.json();
     } else {
-        data = (await window.axios.put(path, { content: json, reason })).data;
+        data = (await window.axios.put(path, payload)).data;
     }
 
     if (!data || typeof data !== 'object' || typeof data.word_count !== 'number') {
@@ -94,7 +102,20 @@ async function putContent(id, json, reason, keepalive) {
     return data;
 }
 
-export default function ManuscriptEditor({ section, bookId, onSaved, autosave = true, headerActions = null, onChapters = null, ref }) {
+export default function ManuscriptEditor({
+    section,
+    bookId,
+    onSaved,
+    autosave = true,
+    headerActions = null,
+    onChapters = null,
+    // Suggest mode: told the chapter's pending changes when they change,
+    // and asked to show the list of them.
+    onChanges = null,
+    onShowChanges = null,
+    ref,
+}) {
+    const user = usePage().props.auth?.user ?? null;
     const [status, setStatus] = useState('idle'); // idle | dirty | saving | saved | error
     const [wordCount, setWordCount] = useState(section?.word_count ?? 0);
     // The equation being written or edited: {kind, latex, pos} or null.
@@ -134,13 +155,13 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     const queue = useRef(Promise.resolve());
     const inFlight = useRef(0);
 
-    const send = useCallback((id, json, reason = 'autosave', keepalive = false) => {
+    const send = useCallback((id, json, reason = 'autosave', keepalive = false, label = null) => {
         const run = async () => {
             if (id === sectionId.current) setStatus('saving');
             inFlight.current += 1;
 
             try {
-                const data = await putContent(id, json, reason, keepalive);
+                const data = await putContent(id, json, reason, keepalive, label);
                 // Saves run in order, so any refused copy of this chapter
                 // is older than this one and must not be sent again.
                 unsent.current.delete(id);
@@ -173,7 +194,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
      * Send whatever is waiting: the pending edit and any earlier refusals.
      * Resolves when every save queued so far has been answered.
      */
-    const flush = useCallback(({ reason = 'autosave', keepalive = false } = {}) => {
+    const flush = useCallback(({ reason = 'autosave', keepalive = false, label = null } = {}) => {
         clearTimeout(timer.current);
         timer.current = null;
 
@@ -187,7 +208,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
         if (edit) {
             const json = edit.json ?? (edit.editor.isDestroyed ? null : edit.editor.getJSON());
 
-            if (json) send(edit.id, json, reason, keepalive);
+            if (json) send(edit.id, json, reason, keepalive, label);
         }
 
         return queue.current;
@@ -197,9 +218,21 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
     // before asking for the next chapter, or switching straight back could
     // load the copy from before it. Bounded, so a hung save cannot freeze
     // the binder; the edit stays queued either way.
+    // Suggest mode, for the changes list beside the manuscript: decide some
+    // or all of the chapter's changes, or show one in the text. Through
+    // refs, because both need the editor, which is made below.
+    const decideRef = useRef(null);
+    const revealRef = useRef(null);
+
     useImperativeHandle(ref, () => ({
         flush: () => Promise.race([flush(), new Promise((resolve) => setTimeout(resolve, FLUSH_WAIT_MS))]),
+        decide: (ids, accept) => decideRef.current?.(ids, accept),
+        reveal: (id) => revealRef.current?.(id),
     }), [flush]);
+
+    // A deletion Suggest mode would not track (a picture, a table) is
+    // refused, and the author told why nothing happened.
+    const [notice, setNotice] = useState(null);
 
     const editor = useEditor(
         {
@@ -233,6 +266,11 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                     katexOptions: { throwOnError: false, displayMode: true },
                     onClick: (node, pos) => setMathEdit({ kind: 'block', latex: node.attrs.latex, pos }),
                 }),
+                // Tracked changes; switched on through its storage below.
+                Suggest.configure({
+                    onRefused: () => setNotice('Pictures, tables, charts and display equations cannot be removed while suggesting. Turn Suggest off to remove one.'),
+                }),
+                CommentAnchors,
             ],
             content: section?.content ?? '',
             onUpdate: ({ editor }) => {
@@ -530,6 +568,347 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
         if (keyboard) keepCaret();
     }, [keyboard, keepCaret]);
 
+    // --- Review: suggest mode, its changes, comments on a selection -------
+
+    // Remembered per browser and per book, like typewriter scrolling: it is
+    // how this person is working on this book on this device (an editor
+    // suggesting on a client's manuscript, the author writing on their
+    // own), not a fact about the book every collaborator should inherit.
+    const suggestKey = `ecrivain:suggest:${bookId ?? 'book'}`;
+    const [suggesting, setSuggesting] = useState(() => {
+        try {
+            return window.localStorage.getItem(suggestKey) === '1';
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleSuggest = () => {
+        setSuggesting((on) => {
+            try {
+                window.localStorage.setItem(suggestKey, on ? '0' : '1');
+            } catch {
+                // Private mode: the choice lasts for this page only.
+            }
+
+            return !on;
+        });
+    };
+
+    useEffect(() => {
+        if (!editor || editor.isDestroyed) return;
+
+        editor.storage.suggest.enabled = suggesting;
+        editor.storage.suggest.user = user ? { id: user.id, name: user.name } : null;
+    }, [editor, suggesting, user?.id, user?.name]);
+
+    useEffect(() => {
+        if (!notice) return undefined;
+
+        const timer = setTimeout(() => setNotice(null), 5000);
+
+        return () => clearTimeout(timer);
+    }, [notice]);
+
+    // The chapter's pending changes, re-read a moment after the text
+    // changes, and handed up only when the list itself changed, so typing
+    // outside a suggestion never re-renders the studio.
+    const [changes, setChanges] = useState([]);
+    const changesSig = useRef('');
+    const onChangesRef = useRef(onChanges);
+    onChangesRef.current = onChanges;
+
+    const readChanges = useCallback(() => {
+        if (!editor || editor.isDestroyed) return;
+
+        const list = pendingChanges(editor.state.doc);
+        const sig = list.map((c) => `${c.id}:${c.inserted}:${c.deleted}`).join('|');
+
+        if (sig === changesSig.current) return;
+
+        changesSig.current = sig;
+        setChanges(list);
+        onChangesRef.current?.(list);
+    }, [editor]);
+
+    // What floats over the text: {kind: 'change'|'comment', id, top, left}.
+    const [popover, setPopover] = useState(null);
+    const hideTimer = useRef(null);
+
+    useEffect(() => {
+        if (!editor) return undefined;
+
+        let timer = null;
+        const onTransaction = ({ transaction }) => {
+            if (!transaction.docChanged) return;
+
+            clearTimeout(timer);
+            timer = setTimeout(readChanges, 200);
+            setPopover(null);
+        };
+
+        readChanges();
+        editor.on('transaction', onTransaction);
+
+        return () => {
+            clearTimeout(timer);
+            editor.off('transaction', onTransaction);
+        };
+    }, [editor, readChanges]);
+
+    const decideChanges = useCallback((ids, accept) => {
+        if (!editor || editor.isDestroyed) return;
+
+        const all = pendingChanges(editor.state.doc);
+        const list = ids ? all.filter((change) => ids.includes(change.id)) : all;
+        const tr = decide(editor.state, ids, accept);
+
+        if (!tr || !list.length) return;
+
+        editor.view.dispatch(tr);
+        setPopover(null);
+
+        // Saved at once, as `review`, with what was decided: version
+        // history is the record of who accepted what.
+        const authors = [...new Set(list.map((change) => change.author))].join(', ');
+        const n = list.length;
+        const label = `${accept ? 'Accepted' : 'Rejected'} ${n} suggestion${n === 1 ? '' : 's'} by ${authors}`;
+
+        pending.current = { id: sectionId.current, editor };
+        flush({ reason: 'review', label: label.length > 120 ? `${label.slice(0, 119)}…` : label });
+        readChanges();
+    }, [editor, flush, readChanges]);
+
+    decideRef.current = decideChanges;
+
+    /** Position, inside the scrolling text, just under an element. */
+    const below = useCallback((rect, width = 268) => {
+        const box = scroller.current;
+
+        if (!box) return null;
+
+        const frame = box.getBoundingClientRect();
+
+        return {
+            top: rect.bottom - frame.top + box.scrollTop + 6,
+            left: Math.min(Math.max(rect.left - frame.left, 8), Math.max(8, box.clientWidth - width)),
+        };
+    }, []);
+
+    const showFor = useCallback((element) => {
+        const change = element.closest('[data-change]');
+        const anchor = change ? null : element.closest('.comment-anchor');
+        const target = change ?? anchor;
+
+        if (!target) return;
+
+        const place = below(target.getBoundingClientRect());
+
+        if (!place) return;
+
+        setPopover(change
+            ? { kind: 'change', id: change.getAttribute('data-change'), ...place }
+            : { kind: 'comment', id: Number(anchor.getAttribute('data-thread')), ...place });
+    }, [below]);
+
+    revealRef.current = (id) => {
+        if (!editor || editor.isDestroyed) return;
+
+        const element = editor.view.dom.querySelector(`[data-change="${CSS.escape(id)}"]`);
+
+        if (!element) return;
+
+        element.scrollIntoView({ block: 'center' });
+        showFor(element);
+    };
+
+    const hideSoon = () => {
+        clearTimeout(hideTimer.current);
+        hideTimer.current = setTimeout(() => setPopover(null), 350);
+    };
+
+    // Comment threads: the book's, from the same endpoint the Comments
+    // panel reads, kept in step with it through the comments bus.
+    const [threads, setThreads] = useState([]);
+    const [commenting, setCommenting] = useState(null);
+    const [threadOpen, setThreadOpen] = useState(null);
+
+    useEffect(() => {
+        if (!bookId) return undefined;
+
+        let live = true;
+
+        window.axios.get(`/books/${bookId}/comments`)
+            .then(({ data }) => live && setThreads(data.threads ?? []))
+            .catch(() => {});
+
+        const off = onComments((data) => setThreads(data.threads ?? []));
+
+        return () => {
+            live = false;
+            off();
+        };
+    }, [bookId]);
+
+    const openThreads = useMemo(
+        () => threads.filter((thread) => thread.section_id === section?.id && thread.status === 'open'),
+        [threads, section?.id],
+    );
+
+    useEffect(() => {
+        if (editor && !editor.isDestroyed) setCommentThreads(editor, openThreads);
+    }, [editor, openThreads]);
+
+    // Hover (a mouse) or tap on a change or a commented passage.
+    useEffect(() => {
+        if (!editor) return undefined;
+
+        const dom = editor.view.dom;
+        const coarse = () => window.matchMedia('(pointer: coarse)').matches;
+        const target = (event) => event.target?.closest?.('[data-change], .comment-anchor');
+
+        const over = (event) => {
+            if (coarse() || !target(event)) return;
+
+            clearTimeout(hideTimer.current);
+            showFor(event.target);
+        };
+        const out = (event) => {
+            if (!coarse() && target(event)) hideSoon();
+        };
+        const click = (event) => {
+            const hit = target(event);
+
+            if (!hit) {
+                setPopover(null);
+
+                return;
+            }
+
+            // On a phone a commented passage opens its thread outright: a
+            // card in between is one more tap on a small screen.
+            const anchor = hit.closest('[data-change]') ? null : hit.closest('.comment-anchor');
+
+            if (anchor && coarse()) {
+                setPopover(null);
+                setThreadOpen(Number(anchor.getAttribute('data-thread')));
+
+                return;
+            }
+
+            clearTimeout(hideTimer.current);
+            showFor(event.target);
+        };
+
+        const escape = (event) => {
+            if (event.key === 'Escape') setPopover(null);
+        };
+
+        dom.addEventListener('mouseover', over);
+        dom.addEventListener('mouseout', out);
+        dom.addEventListener('click', click);
+        document.addEventListener('keydown', escape);
+
+        return () => {
+            dom.removeEventListener('mouseover', over);
+            dom.removeEventListener('mouseout', out);
+            dom.removeEventListener('click', click);
+            document.removeEventListener('keydown', escape);
+        };
+    }, [editor, showFor]);
+
+    // The bubble over a selection: Comment, Bold, Italic.
+    const [bubble, setBubble] = useState(null);
+
+    useEffect(() => {
+        if (!editor) return undefined;
+
+        let blurTimer = null;
+
+        const update = () => {
+            if (editor.isDestroyed) return;
+
+            const { state, view } = editor;
+            const selection = state.selection;
+            const box = scroller.current;
+
+            if (!box || selection.empty || !(selection instanceof TextSelection) || !view.hasFocus()) {
+                setBubble(null);
+
+                return;
+            }
+
+            let start;
+            let end;
+
+            try {
+                start = view.coordsAtPos(selection.from);
+                end = view.coordsAtPos(selection.to);
+            } catch {
+                return;
+            }
+
+            const frame = box.getBoundingClientRect();
+            // On touch the system's copy menu sits above a selection, so
+            // the bubble goes under it.
+            const touch = window.matchMedia('(pointer: coarse)').matches;
+            const top = touch
+                ? end.bottom - frame.top + box.scrollTop + 12
+                : Math.max(box.scrollTop + 4, start.top - frame.top + box.scrollTop - 50);
+            const middle = start.top === end.top ? (start.left + end.left) / 2 : start.left;
+
+            setBubble({
+                top,
+                left: Math.min(Math.max(middle - frame.left - 120, 8), Math.max(8, box.clientWidth - 250)),
+            });
+        };
+        const blur = () => {
+            clearTimeout(blurTimer);
+            blurTimer = setTimeout(() => !editor.isDestroyed && !editor.view.hasFocus() && setBubble(null), 200);
+        };
+
+        editor.on('selectionUpdate', update);
+        editor.on('focus', update);
+        editor.on('blur', blur);
+
+        return () => {
+            clearTimeout(blurTimer);
+            editor.off('selectionUpdate', update);
+            editor.off('focus', update);
+            editor.off('blur', blur);
+        };
+    }, [editor]);
+
+    const startComment = () => {
+        const { from, to } = editor.state.selection;
+        const excerpt = editor.state.doc.textBetween(from, to, '\n\n', ' ').trim().slice(0, 2000);
+
+        if (!excerpt) return;
+
+        setBubble(null);
+        setCommenting({ excerpt });
+    };
+
+    const postComment = async (body) => {
+        const { data } = await window.axios.post(`/sections/${section.id}/comments`, {
+            body,
+            excerpt: commenting.excerpt,
+        });
+
+        publishComments(data);
+        setCommenting(null);
+    };
+
+    const replyTo = async (thread, body) => {
+        const { data } = await window.axios.post(`/sections/${thread.section_id}/comments`, { body, parent_id: thread.id });
+        publishComments(data);
+    };
+
+    const resolve = async (thread, status) => {
+        const { data } = await window.axios.patch(`/comments/${thread.id}`, { status });
+        publishComments(data);
+    };
+
     if (!section) {
         return (
             <div className="grid h-full place-items-center p-12 text-center">
@@ -589,8 +968,54 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                     <Icon name="type" size={15} />
                     <span className="sr-only">Typewriter scrolling</span>
                 </button>
+                {changes.length > 0 && onShowChanges && (
+                    <button
+                        type="button"
+                        data-a="editor:changes"
+                        onClick={onShowChanges}
+                        title="Suggested changes in this chapter"
+                        className="flex h-7 shrink-0 items-center gap-1 rounded-badge bg-status-success-bg px-2 text-[11.5px] font-semibold text-status-success max-md:h-9"
+                    >
+                        {changes.length}
+                        <span className="max-sm:sr-only">{changes.length === 1 ? 'change' : 'changes'}</span>
+                    </button>
+                )}
+                <button
+                    type="button"
+                    data-a="editor:suggest"
+                    onClick={toggleSuggest}
+                    aria-pressed={suggesting}
+                    title={suggesting
+                        ? 'Suggesting: what you type and delete is tracked for review. Click to edit directly.'
+                        : 'Suggest: track what you type and delete, for the author to accept or reject'}
+                    className={`flex h-7 shrink-0 items-center gap-1 rounded-control px-1.5 text-[12px] font-semibold transition max-md:h-9 max-md:min-w-9 max-md:justify-center ${
+                        suggesting ? 'bg-status-success-bg text-status-success' : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary'
+                    }`}
+                >
+                    <Icon name="aLine" size={15} />
+                    <span className="max-lg:sr-only">{suggesting ? 'Suggesting' : 'Suggest'}</span>
+                </button>
                 {headerActions}
             </header>
+
+            {/* Said in words as well as by the pressed button: on a phone
+                the button is an icon, and typing that does not delete is
+                alarming until you know why. */}
+            {(suggesting || notice) && (
+                <p
+                    // Not role=status: that is the save state's, and the
+                    // only one in the chapter.
+                    role={notice ? 'alert' : undefined}
+                    data-a={notice ? 'editor:suggest-notice' : 'editor:suggesting'}
+                    className={`shrink-0 border-b px-3 py-1 text-[11.5px] sm:px-[21px] ${
+                        notice
+                            ? 'border-status-warning/30 bg-status-warning-bg text-status-warning'
+                            : 'border-status-success/20 bg-status-success-bg text-status-success'
+                    }`}
+                >
+                    {notice ?? 'Suggesting — what you type and delete is kept as a suggestion to accept or reject.'}
+                </p>
+            )}
 
             {/* Writing on a phone, the bar leaves the top and sits on the
                 keyboard: fixed above it where iOS lays the keyboard over the
@@ -752,7 +1177,7 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
 
             <div
                 ref={scroller}
-                className={`flex-1 overflow-y-auto px-4 pt-5 sm:px-[21px] sm:pt-[30px] ${typewriter ? 'pb-[45vh]' : 'pb-10'}`}
+                className={`relative flex-1 overflow-y-auto px-4 pt-5 sm:px-[21px] sm:pt-[30px] ${typewriter ? 'pb-[45vh]' : 'pb-10'}`}
             >
                 {/^\s*list\s+of\s+(tables|figures|illustrations)\s*$/i.test(section.title) && (
                     <p
@@ -765,7 +1190,72 @@ export default function ManuscriptEditor({ section, bookId, onSaved, autosave = 
                     </p>
                 )}
                 <EditorContent editor={editor} />
+
+                {popover?.kind === 'change' && (() => {
+                    const change = changes.find((item) => item.id === popover.id)
+                        ?? (editor ? pendingChanges(editor.state.doc).find((item) => item.id === popover.id) : null);
+
+                    return change ? (
+                        <ChangePopover
+                            change={change}
+                            position={{ top: popover.top, left: popover.left }}
+                            onAccept={() => decideChanges([change.id], true)}
+                            onReject={() => decideChanges([change.id], false)}
+                            onEnter={() => clearTimeout(hideTimer.current)}
+                            onLeave={hideSoon}
+                        />
+                    ) : null;
+                })()}
+
+                {popover?.kind === 'comment' && (() => {
+                    const thread = openThreads.find((item) => item.id === popover.id);
+
+                    return thread ? (
+                        <CommentPopover
+                            thread={thread}
+                            position={{ top: popover.top, left: popover.left }}
+                            onOpen={() => {
+                                setPopover(null);
+                                setThreadOpen(thread.id);
+                            }}
+                            onEnter={() => clearTimeout(hideTimer.current)}
+                            onLeave={hideSoon}
+                        />
+                    ) : null;
+                })()}
+
+                {bubble && !commenting && (
+                    <SelectionBubble
+                        position={bubble}
+                        onComment={bookId ? startComment : null}
+                        bold={editor?.isActive('bold')}
+                        italic={editor?.isActive('italic')}
+                        onBold={() => editor.chain().focus().toggleBold().run()}
+                        onItalic={() => editor.chain().focus().toggleItalic().run()}
+                    />
+                )}
             </div>
+
+            {commenting && (
+                <CommentDialog
+                    excerpt={commenting.excerpt}
+                    onClose={() => setCommenting(null)}
+                    onPost={postComment}
+                />
+            )}
+
+            {threadOpen && threads.find((thread) => thread.id === threadOpen) && (() => {
+                const thread = threads.find((item) => item.id === threadOpen);
+
+                return (
+                    <ThreadSheet
+                        thread={thread}
+                        onClose={() => setThreadOpen(null)}
+                        onReply={(body) => replyTo(thread, body)}
+                        onResolve={(status) => resolve(thread, status)}
+                    />
+                );
+            })()}
 
             <footer className={`${docked ? 'hidden' : 'flex'} h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-4 text-[11px] text-text-secondary sm:px-[21px]`}>
                 <span>Reading time ~{readingMinutes} min</span>

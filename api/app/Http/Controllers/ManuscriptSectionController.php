@@ -59,15 +59,22 @@ class ManuscriptSectionController extends Controller
         $data = $request->validate([
             'content' => ['nullable', 'array'],
             'title' => ['nullable', 'string', 'max:255'],
-            'reason' => ['nullable', 'in:autosave,manual'],
+            // `review`: suggestions accepted or rejected in the editor. A
+            // deliberate act, so it always keeps a version, labelled with
+            // what was decided — the audit trail of tracked changes.
+            'reason' => ['nullable', 'in:autosave,manual,review'],
+            'label' => ['nullable', 'string', 'max:120'],
         ]);
+
+        $reason = $data['reason'] ?? 'autosave';
 
         $section = $this->writer->save(
             section: $section,
             content: $data['content'] ?? null,
             title: $data['title'] ?? null,
-            reason: $data['reason'] ?? 'autosave',
+            reason: $reason,
             userId: $request->user()->id,
+            label: $reason === 'review' ? ($data['label'] ?? 'Suggestions reviewed') : null,
         );
 
         return response()->json([

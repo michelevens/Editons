@@ -385,6 +385,8 @@ class PublishingController extends Controller
             // Shown as guidance before submitting, not only after a failed
             // attempt: an author should be able to see what is left to do.
             'blockers' => $this->check->errors($book),
+            // Not blocking, but worth knowing before the files go anywhere.
+            'warnings' => $this->check->warnings($book),
         ];
     }
 

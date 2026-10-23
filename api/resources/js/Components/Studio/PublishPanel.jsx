@@ -197,7 +197,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
         return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
     }
 
-    const { book, channels, formats, exports, blockers, categories } = data;
+    const { book, channels, formats, exports, blockers, categories, warnings = {} } = data;
     // Shown from the start rather than only after a failed attempt: an
     // author should be able to see what is left before trying.
     const problem = (key) => blockers[key];
@@ -264,6 +264,25 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
                             {Object.entries(blockers).map(([key, message]) => (
                                 <li key={key} className="text-[11.5px] text-status-warning">
+                                    {message}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Not blocking: pending suggestions are left out of every
+                    file, which an author who meant to accept them needs to
+                    hear before uploading one. */}
+                {Object.keys(warnings).length > 0 && (
+                    <div
+                        role="status"
+                        data-a="publish:warnings"
+                        className="rounded-tile border border-status-warning/30 bg-status-warning-bg p-3"
+                    >
+                        <ul className="space-y-0.5">
+                            {Object.entries(warnings).map(([key, message]) => (
+                                <li key={key} data-a={`publish:warning:${key}`} className="text-[11.5px] text-status-warning">
                                     {message}
                                 </li>
                             ))}

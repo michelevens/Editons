@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Publishing\BookPart;
+use App\Publishing\Suggestions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -123,9 +124,14 @@ class ManuscriptSection extends Model
      * Deliberately simple — whitespace-separated tokens. A "word" in a
      * manuscript is a human-facing estimate shown next to reading time, not
      * a figure anything depends on.
+     *
+     * Counts the book as it stands: pending suggestions as if rejected
+     * (Suggestions::published), the same text every export prints.
      */
     public static function countWords(?array $doc): int
     {
+        $doc = Suggestions::published($doc);
+
         if (! $doc) {
             return 0;
         }
@@ -156,10 +162,16 @@ class ManuscriptSection extends Model
      * than the ProseMirror tree — a provider should not need to understand
      * the document format, and offsets into this string are what findings
      * anchor to.
+     *
+     * The book as it stands, pending suggestions read as rejected, unless
+     * $withSuggestions asks for every word on the page, inserted and
+     * deleted alike (what a comment's excerpt may have been copied from).
      */
-    public function plainText(): string
+    public function plainText(bool $withSuggestions = false): string
     {
-        if (! $this->content) {
+        $content = $withSuggestions ? $this->content : Suggestions::published($this->content);
+
+        if (! $content) {
             return '';
         }
 
@@ -175,7 +187,7 @@ class ManuscriptSection extends Model
             return $text;
         };
 
-        foreach ($this->content['content'] ?? [] as $block) {
+        foreach ($content['content'] ?? [] as $block) {
             if (is_array($block)) {
                 $t = trim($walk($block));
                 if ($t !== '') {
@@ -185,6 +197,23 @@ class ManuscriptSection extends Model
         }
 
         return implode("\n\n", $blocks);
+    }
+
+    /**
+     * This section as the book prints it: a copy whose content has every
+     * pending suggestion rejected (Suggestions::published). For renderers
+     * only, never saved: the canonical content keeps the suggestions.
+     */
+    public function asPublished(): static
+    {
+        if (Suggestions::count($this->content) === 0) {
+            return $this;
+        }
+
+        $copy = clone $this;
+        $copy->content = Suggestions::published($this->content);
+
+        return $copy;
     }
 
     /** A part is a container; it holds chapters rather than prose. */

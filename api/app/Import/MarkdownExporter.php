@@ -4,6 +4,7 @@ namespace App\Import;
 
 use App\Models\Book;
 use App\Models\ManuscriptSection;
+use App\Publishing\Suggestions;
 
 /**
  * Render a book back to Markdown.
@@ -34,7 +35,8 @@ class MarkdownExporter
         $parts = ['# '.$section->title];
 
         $this->notes = [];
-        $body = $this->doc($section->content ?? []);
+        // Pending suggestions as if rejected, like every other export.
+        $body = $this->doc(Suggestions::published($section->content) ?? []);
 
         if ($body !== '') {
             $parts[] = $body;

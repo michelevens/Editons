@@ -197,6 +197,34 @@
     cursor: pointer;
 }
 
+/* Suggest mode: a proposed insertion underlined, a proposed deletion struck
+   through, in the colours the changes list uses. Hover or tap one for
+   Accept and Reject. */
+.manuscript .ProseMirror ins.suggest-ins {
+    color: var(--color-status-success);
+    background: var(--color-status-success-bg);
+    text-decoration: underline;
+    text-decoration-color: var(--color-status-success);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.manuscript .ProseMirror del.suggest-del {
+    color: var(--color-status-danger);
+    text-decoration: line-through;
+    text-decoration-color: var(--color-status-danger);
+    text-decoration-thickness: 1.5px;
+    cursor: pointer;
+}
+
+/* A passage with an open comment thread. A decoration, never saved. */
+.manuscript .ProseMirror .comment-anchor {
+    background: var(--color-status-warning-bg);
+    border-bottom: 2px solid var(--color-status-warning-badge);
+    cursor: pointer;
+}
+
 /* Key Takeaway callout. */
 .manuscript .ProseMirror .callout {
     background: var(--color-callout-bg);

@@ -76,6 +76,42 @@ class SubmissionCheck
         return $errors;
     }
 
+    /**
+     * Things the author should know before submitting, which do not stop it.
+     *
+     * Pending suggestions are the one so far: the files print the book as if
+     * each were rejected (Suggestions), so an author who meant to accept
+     * them would upload a book without the changes they thought were in it.
+     *
+     * @return array<string, string>
+     */
+    public function warnings(Book $book): array
+    {
+        $warnings = [];
+
+        if (($pending = $this->pendingSuggestions($book)) > 0) {
+            $warnings['suggestions'] = $pending === 1
+                ? '1 pending suggestion. Files leave it out until it is accepted; accept or reject it in the manuscript.'
+                : "{$pending} pending suggestions. Files leave them out until they are accepted; accept or reject them in the manuscript.";
+        }
+
+        return $warnings;
+    }
+
+    /** Suggested changes not yet accepted or rejected, across the book. */
+    public function pendingSuggestions(Book $book): int
+    {
+        // A text search first, so a long book without a suggestion does not
+        // send every chapter over the wire to be walked here. It can only
+        // over-match (a chapter about insertions); the walk decides.
+        return $book->sections()
+            ->where(fn ($query) => $query
+                ->whereRaw('content::text like ?', ['%"insertion"%'])
+                ->orWhereRaw('content::text like ?', ['%"deletion"%']))
+            ->get(['id', 'content'])
+            ->sum(fn ($section) => Suggestions::count($section->content));
+    }
+
     public function passes(Book $book): bool
     {
         return $this->errors($book) === [];
