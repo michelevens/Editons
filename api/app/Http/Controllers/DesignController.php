@@ -137,11 +137,16 @@ class DesignController extends Controller
      * a hash of the design, so it is cached for a long time and still
      * changes the moment anything on the cover does.
      */
-    public function coverImage(Book $book): StreamedResponse
+    public function coverImage(Request $request, Book $book): StreamedResponse
     {
         $this->authorize('view', $book);
 
-        return Storage::disk('files')->response($this->covers->ensure($book), null, [
+        // ?size=thumb is the 320px rendition the shelf and the sidebar show.
+        $path = $request->query('size') === 'thumb'
+            ? $this->covers->ensureThumb($book)
+            : $this->covers->ensure($book);
+
+        return Storage::disk('files')->response($path, null, [
             'Content-Type' => 'image/jpeg',
             'Cache-Control' => 'private, max-age=31536000, immutable',
         ]);
