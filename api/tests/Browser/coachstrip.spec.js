@@ -21,14 +21,17 @@ test.describe('coach strip', () => {
     // so the order these run in, and the tests after them, do not matter.
     let original;
 
-    test.beforeAll(async ({ browser }) => {
+    test.beforeAll(async ({ browser }, testInfo) => {
+        // A sign-in and two page loads on a slow local server.
+        testInfo.setTimeout(180_000);
         const page = await browser.newPage();
         await signIn(page);
         original = await currentAssistance(page, await flagshipBookId(page));
         await page.close();
     });
 
-    test.afterAll(async ({ browser }) => {
+    test.afterAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(180_000);
         const page = await browser.newPage();
         await signIn(page);
         await chooseAssistance(page, await flagshipBookId(page), original);

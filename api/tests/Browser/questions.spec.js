@@ -35,6 +35,9 @@ test('the new-book form asks in the genre\'s own words', async ({ page }) => {
 });
 
 test('every genre can actually be created', async ({ page }) => {
+    // Fifteen genres, each opened and checked: longer than one page visit.
+    test.setTimeout(240_000);
+
     /*
      * The bug this guards, which was shipped and invisible.
      *
