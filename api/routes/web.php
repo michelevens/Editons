@@ -17,11 +17,13 @@ use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\GrowthController;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\OverviewController;
+use App\Http\Controllers\PreviewController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublishingController;
@@ -362,6 +364,17 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover.paint');
     Route::delete('/books/{book}/cover/artwork', [DesignController::class, 'removeArtwork'])
         ->name('design.cover.artwork.destroy');
+
+    // The full-screen preview (PreviewController): contents first, then a
+    // page at a time.
+    Route::get('/books/{book}/preview', [PreviewController::class, 'show'])
+        ->name('preview.show');
+    Route::get('/books/{book}/preview/page', [PreviewController::class, 'page'])
+        ->middleware('throttle:240,1')
+        ->name('preview.page');
+    Route::get('/preview/fonts/{name}', [PreviewController::class, 'font'])
+        ->where('name', '[A-Za-z0-9-]+\.ttf')
+        ->name('preview.font');
 });
 
 /*
@@ -426,6 +439,23 @@ Route::middleware('auth')->group(function () {
         ->name('billing.show');
     Route::get('/billing/summary', [BillingController::class, 'summary'])
         ->name('billing.summary');
+});
+
+/*
+ | The inbox. Account-level: every row is the signed-in person's own
+ | (InboxItem::scopeFor), about books they can still open.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/inbox', [InboxController::class, 'index'])
+        ->name('inbox.index');
+    Route::post('/inbox/read-all', [InboxController::class, 'readAll'])
+        ->name('inbox.read-all');
+    Route::patch('/inbox/{item}', [InboxController::class, 'update'])
+        ->whereNumber('item')
+        ->name('inbox.update');
+    Route::get('/inbox/{item}/open', [InboxController::class, 'open'])
+        ->whereNumber('item')
+        ->name('inbox.open');
 });
 
 /*

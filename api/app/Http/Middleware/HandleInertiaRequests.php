@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Billing\Entitlements;
 use App\Editorial\DriverFactory;
+use App\Http\Controllers\InboxController;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -74,6 +75,12 @@ class HandleInertiaRequests extends Middleware
                     ->latest('updated_at')
                     ->value('id')
                 : null,
+
+            // Unread items in the account inbox, for the badge on the tab
+            // bar and the dot on the avatar. Lazy, like the account summary.
+            'inbox_unread' => $request->user()
+                ? fn () => InboxController::unread($request->user())
+                : 0,
 
             // Demo credentials, shown on the login page.
             //

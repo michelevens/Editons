@@ -25,7 +25,7 @@ test('the tabs follow the area of the studio', async ({ page }) => {
     const id = await firstBookId(page);
 
     await page.goto('/books');
-    expect(await tabs(page)).toEqual(['books', 'continue', 'store-sales', 'billing', 'more']);
+    expect(await tabs(page)).toEqual(['books', 'continue', 'store-sales', 'inbox', 'more']);
     expect(await current(page)).toBe('mobile:books');
 
     for (const [pane, expected, on] of [
@@ -87,7 +87,7 @@ test('More holds every screen and opens the one tapped', async ({ page }) => {
     const sheet = page.getByRole('dialog', { name: 'Menu' });
     await expect(sheet).toBeVisible();
 
-    for (const key of ['overview', 'research', 'comments', 'workflow', 'layout', 'cover', 'export', 'rights', 'distribution', 'launch', 'marketing']) {
+    for (const key of ['overview', 'research', 'comments', 'workflow', 'layout', 'cover', 'export', 'preview', 'rights', 'distribution', 'launch', 'marketing']) {
         await expect(sheet.locator(`[data-a="sheet:${key}"]`)).toBeVisible();
     }
 

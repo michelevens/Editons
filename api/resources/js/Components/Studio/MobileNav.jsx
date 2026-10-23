@@ -31,7 +31,7 @@ const T = {
     books: { label: 'Books', icon: 'lib' },
     continue: { label: 'Write', icon: 'doc' },
     'store-sales': { label: 'Sales', icon: 'sales' },
-    billing: { label: 'Billing', icon: 'card' },
+    inbox: { label: 'Inbox', icon: 'bell' },
     overview: { label: 'Overview', icon: 'home' },
     manuscript: { label: 'Write', icon: 'doc' },
     ai: { label: 'AI Editor', icon: 'sugg' },
@@ -47,7 +47,8 @@ const T = {
 };
 
 const SETS = {
-    library: ['books', 'continue', 'store-sales', 'billing'],
+    // Billing lives under More's account list; the inbox is checked daily.
+    library: ['books', 'continue', 'store-sales', 'inbox'],
     write: ['overview', 'manuscript', 'ai', 'research'],
     review: ['manuscript', 'ai', 'comments', 'workflow'],
     publish: ['manuscript', 'layout', 'cover', 'export'],
@@ -59,9 +60,9 @@ export function tabSet(current, hasBook) {
     if (!hasBook) return 'library';
 
     if (['ai', 'suggestions', 'comments', 'workflow', 'team'].includes(current)) return 'review';
-    if (['layout', 'cover', 'export', 'rights', 'editions', 'a11y', 'design', 'publishing'].includes(current)) return 'publish';
+    if (['layout', 'cover', 'export', 'preview', 'rights', 'editions', 'a11y', 'design', 'publishing'].includes(current)) return 'publish';
     if (['distribution', 'royalties', 'launch', 'marketing', 'analytics', 'sales'].includes(current)) return 'sell';
-    if (['books', 'billing', 'store-sales', 'purchases', 'account'].includes(current)) return 'library';
+    if (['books', 'inbox', 'billing', 'store-sales', 'purchases', 'account'].includes(current)) return 'library';
 
     return 'write';
 }
@@ -71,11 +72,14 @@ export default function MobileNav({
     bookId = null,
     bookTitle = null,
     aiCount = 0,
+    inboxCount = null,
     onSelect,
     onChapters,
     onAi,
 }) {
-    const { recent_book_id: recentBookId } = usePage().props;
+    const { recent_book_id: recentBookId, inbox_unread: sharedUnread = 0 } = usePage().props;
+    // The inbox page passes its own live count; elsewhere the shared one.
+    const unread = inboxCount ?? sharedUnread ?? 0;
     // On a book's own pages the tabs are that book's. On the shelf and the
     // account pages they are the library's, with "Write" reopening the book
     // last worked on.
@@ -96,7 +100,7 @@ export default function MobileNav({
 
     const go = (key) => {
         if (key === 'books') return router.get(route('books.index'));
-        if (key === 'billing') return router.get(route('billing.show'));
+        if (key === 'inbox') return router.get(route('inbox.index'));
         if (key === 'store-sales') return router.get(route('sales.overview'));
         if (key === 'continue') return goTo(book, 'manuscript');
 
@@ -136,6 +140,15 @@ export default function MobileNav({
                                 >
                                     <Icon name={tab.icon} size={21} strokeWidth={on ? 2.1 : 1.8} />
                                     <span>{tab.label}</span>
+                                    {key === 'inbox' && unread > 0 && (
+                                        <span
+                                            data-a="mobile:inbox-count"
+                                            className="absolute left-1/2 top-1.5 ml-2 min-w-[18px] rounded-badge bg-brand-fill px-1 text-center text-[10.5px] font-semibold leading-[18px] text-white"
+                                        >
+                                            {unread > 99 ? '99+' : unread}
+                                            <span className="sr-only"> unread</span>
+                                        </span>
+                                    )}
                                     {key === 'ai' && aiCount > 0 && (
                                         <span className="absolute left-1/2 top-1.5 ml-2 min-w-[18px] rounded-badge bg-brand-fill px-1 text-center text-[10.5px] font-semibold leading-[18px] text-white">
                                             {aiCount > 99 ? '99+' : aiCount}
@@ -197,6 +210,7 @@ const BOOK_GROUPS = [
             { key: 'layout', label: 'Design', icon: 'layout' },
             { key: 'cover', label: 'Cover', icon: 'cover' },
             { key: 'export', label: 'Export', icon: 'exp' },
+            { key: 'preview', label: 'Preview', icon: 'eye' },
             { key: 'rights', label: 'ISBN & Rights', icon: 'hash' },
             { key: 'editions', label: 'Editions', icon: 'copies' },
             { key: 'a11y', label: 'Accessibility', icon: 'access' },
@@ -215,6 +229,7 @@ const BOOK_GROUPS = [
 
 function MoreSheet({ book, title, onOpen, onClose }) {
     const account = [
+        { label: 'Inbox', icon: 'bell', href: route('inbox.index') },
         { label: 'Plans & billing', icon: 'card', href: route('billing.show') },
         { label: 'Storefront sales', icon: 'sales', href: route('sales.overview') },
         { label: 'Your purchases', icon: 'doc', href: route('purchases.index') },

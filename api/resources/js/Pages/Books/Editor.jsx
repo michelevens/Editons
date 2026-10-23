@@ -18,6 +18,7 @@ import LockedPanel from '@/Components/Studio/LockedPanel';
 import MarketingPanel from '@/Components/Studio/MarketingPanel';
 import LayoutPanel from '@/Components/Studio/LayoutPanel';
 import PublishPanel from '@/Components/Studio/PublishPanel';
+import BookPreview from '@/Components/Studio/BookPreview';
 import RightsPanel from '@/Components/Studio/RightsPanel';
 import SalesPanel from '@/Components/Studio/SalesPanel';
 import Icon from '@/Components/Studio/Icon';
@@ -79,8 +80,19 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // The agent the AI Editor should open filtered to, from Analytics.
     const [aiAgent, setAiAgent] = useState(null);
 
+    // Where the full-screen preview returns to when it closes: the screen
+    // that opened it (Design, Export, or wherever More was tapped from).
+    const here = useRef({ nav: null, pane: null });
+    here.current = { nav, pane };
+    const beforePreview = useRef({ nav: 'publishing', pane: 'export' });
+
     const go = useCallback((key) => {
         const to = destination(key);
+
+        if (to.pane === 'preview' && here.current.pane !== 'preview' && here.current.nav) {
+            beforePreview.current = here.current;
+        }
+
         setAiAgent(null);
         setNav(to.nav);
         setPane(to.pane);
@@ -544,9 +556,18 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             what="This area of the studio has no engine behind it yet."
                             milestone={milestoneFor(nav)}
                         />
+                    ) : effectivePane === 'preview' ? (
+                        // Full screen over everything, a dialog of its own.
+                        <BookPreview
+                            bookId={book.id}
+                            onClose={() => {
+                                setNav(beforePreview.current.nav);
+                                setPane(beforePreview.current.pane);
+                            }}
+                        />
                     ) : effectivePane === 'layout' ? (
                         <Panel>
-                            <LayoutPanel bookId={book.id} onNotify={notify} />
+                            <LayoutPanel bookId={book.id} onNotify={notify} onPreview={() => go('preview')} />
                         </Panel>
                     ) : effectivePane === 'cover' ? (
                         <Panel>
@@ -554,7 +575,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         </Panel>
                     ) : effectivePane === 'export' ? (
                         <Panel>
-                            <PublishPanel bookId={book.id} onNotify={notify} />
+                            <PublishPanel bookId={book.id} onNotify={notify} onPreview={() => go('preview')} />
                         </Panel>
                     ) : effectivePane === 'rights' ? (
                         <Panel>

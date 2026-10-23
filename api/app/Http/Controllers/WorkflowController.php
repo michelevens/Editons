@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Inbox\Inbox;
 use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
@@ -41,6 +42,10 @@ class WorkflowController extends Controller
 
         $section->update($data);
 
+        if ($section->wasChanged('status')) {
+            Inbox::workflowMoved($section, $request->user());
+        }
+
         return response()->json(['chapters' => $this->board($section->book)]);
     }
 
@@ -70,6 +75,7 @@ class WorkflowController extends Controller
 
             if ($reviewer && $reviewer->can('view', $section->book)) {
                 Notify::reviewerAssigned($section, $reviewer, $request->user());
+                Inbox::reviewerAssigned($section, $reviewer, $request->user());
             }
         }
 

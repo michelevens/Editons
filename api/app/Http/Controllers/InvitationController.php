@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Inbox\Inbox;
 use App\Mail\Notify;
 use App\Models\BookMember;
 use Illuminate\Http\RedirectResponse;
@@ -72,6 +73,7 @@ class InvitationController extends Controller
         ])->save();
 
         Notify::invitationAccepted($member->fresh(['book.user', 'user']));
+        Inbox::invitationAccepted($member->fresh(['book.user', 'user']));
 
         return redirect()->route('books.overview', $member->book_id);
     }

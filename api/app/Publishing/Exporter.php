@@ -3,6 +3,7 @@
 namespace App\Publishing;
 
 use App\Jobs\GenerateExport;
+use App\Inbox\Inbox;
 use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookExport;
@@ -150,6 +151,7 @@ class Exporter
                 && $export->created_at->gt(now()->subDay())
                 && $export->book) {
                 Notify::exportFailed($export->fresh(), __('The export stopped before it finished. Generating it again usually works.'));
+                Inbox::exportSettled($export->fresh(), false, __('The export stopped before it finished. Generating it again usually works.'));
             }
         }
 
@@ -235,6 +237,7 @@ class Exporter
                 }
             } elseif ($queued) {
                 Notify::exportReady($export->fresh());
+                Inbox::exportSettled($export->fresh(), true);
             }
         } catch (\Throwable $e) {
             // Recorded, not swallowed: the history should show that a
@@ -244,6 +247,7 @@ class Exporter
 
             if ($failed && $queued && $export->book) {
                 Notify::exportFailed($export->fresh(), $this->reason($e));
+                Inbox::exportSettled($export->fresh(), false, $this->reason($e));
             }
 
             throw $e;
@@ -266,6 +270,148 @@ class Exporter
         return $e instanceof RuntimeException
             ? $e->getMessage()
             : __('Something went wrong while laying out the book. Generating it again usually works; if it fails twice, tell us.');
+    }
+
+    /**
+     * The book as a reader opens it, for the full-screen preview.
+     *
+     * The EPUB's own documents in its own order (Anatomy::plan, the half
+     * title left out and the contents where the book places it), so the
+     * preview cannot drift from the file a store receives. Listed here and
+     * rendered one at a time by readerPage(): a 100k-word book is never
+     * sent, or laid out on a phone, in one piece.
+     *
+     * @return list<array{key: string, title: string, kind: string, depth: int, section_id: int|null, words: int}>
+     */
+    public function readerContents(Book $book): array
+    {
+        return array_map(fn (array $item) => [
+            'key' => $item['key'],
+            'title' => $item['title'],
+            'kind' => $item['kind'],
+            'depth' => $item['depth'],
+            'section_id' => $item['section']?->id,
+            'words' => (int) ($item['section']?->word_count ?? 0),
+        ], $this->readerPlan($book));
+    }
+
+    /**
+     * One document of readerContents(), as the EPUB's body markup.
+     *
+     * Cross-references and the contents link to "preview-{key}#anchor"
+     * rather than to an EPUB file name; the preview follows those itself.
+     * Pictures keep the app's own URL, which the signed-in reader can load.
+     */
+    public function readerPage(Book $book, string $key): ?string
+    {
+        $plan = $this->readerPlan($book);
+        $item = collect($plan)->firstWhere('key', $key);
+
+        if ($item === null) {
+            return null;
+        }
+
+        if ($item['kind'] === 'contents') {
+            $entries = collect($plan)
+                ->filter(fn ($entry) => $entry['section'] !== null)
+                ->map(fn ($entry) => ['depth' => $entry['depth'], 'href' => 'preview-'.$entry['key'], 'title' => $entry['title']])
+                ->values()
+                ->all();
+
+            return '<nav epub:type="toc" id="toc" class="toc"><h1>'.e($item['title']).'</h1>'.$this->navList($entries).'</nav>';
+        }
+
+        if ($item['section'] === null) {
+            return $item['body'];
+        }
+
+        $base = $this->renderer;
+        $structure = $this->structure($book)->values();
+
+        try {
+            $this->renderer = $base->withNumbering(
+                Numbering::forBook($structure),
+                $structure->mapWithKeys(fn ($s) => [$s->id => 'preview-s'.$s->id])->all(),
+            );
+
+            return $this->epubSectionBody($item['section'], $item['part']);
+        } finally {
+            $this->renderer = $base;
+        }
+    }
+
+    /** The EPUB's stylesheet, for the preview to set its pages with. */
+    public function readerCss(Book $book): string
+    {
+        return $this->epubCss($book);
+    }
+
+    /**
+     * The printed book's blocks and stylesheet, for the preview's Print
+     * mode: PrintBook's own plan over the same sections the PDF sets.
+     *
+     * @return array<string, mixed>
+     */
+    public function printContents(Book $book): array
+    {
+        return $this->print->previewContents($book, $this->structure($book), self::languageCode($book->language));
+    }
+
+    /** One block of the printed book as PrintBook sets it, or null. */
+    public function printPage(Book $book, string $key): ?string
+    {
+        return $this->print->previewBlock($book, $this->structure($book), self::languageCode($book->language), $key);
+    }
+
+    /**
+     * The reader's documents, in the EPUB's order, with what it takes to
+     * render each.
+     *
+     * @return list<array{key: string, title: string, kind: string, depth: int, part: string|null, section: ManuscriptSection|null, body?: string}>
+     */
+    private function readerPlan(Book $book): array
+    {
+        $byId = $this->structure($book)->keyBy('id');
+        $items = [];
+        $contents = false;
+
+        foreach (Anatomy::plan($book)['pages'] as $page) {
+            $part = $page['part'];
+
+            if ($part === 'half_title') {
+                continue;
+            }
+
+            if ($part === 'table_of_contents') {
+                if (! $contents) {
+                    $items[] = ['key' => 'toc', 'title' => $page['title'], 'kind' => 'contents', 'depth' => 0, 'part' => $part, 'section' => null];
+                    $contents = true;
+                }
+
+                continue;
+            }
+
+            if ($page['section_id'] === null) {
+                if ($generated = $this->epubGeneratedPage($page)) {
+                    $items[] = ['key' => $generated[0], 'title' => $page['title'], 'kind' => $generated[0], 'depth' => 0,
+                        'part' => $part, 'section' => null, 'body' => $generated[1]];
+                }
+
+                continue;
+            }
+
+            $section = $byId->get($page['section_id']);
+
+            if (! $section || in_array($page['state'], ['empty', 'placeholder'], true)) {
+                continue;
+            }
+
+            $items[] = ['key' => 's'.$section->id, 'title' => $section->title,
+                'kind' => $section->type === 'part' ? 'part' : 'chapter', 'depth' => (int) $page['depth'],
+                'part' => $part, 'section' => $section];
+        }
+
+        return $items;
     }
 
     /**
@@ -987,16 +1133,9 @@ class Exporter
             }
 
             if ($page['section_id'] === null) {
-                [$id, $body] = match ($part) {
-                    'title_page' => ['titlepage', $this->epubTitlePage($page['data'])],
-                    'copyright_page' => ['copyright', '<section epub:type="copyright-page" class="copyright">'
-                        .collect($page['data']['lines'] ?? [])->map(fn ($line) => self::copyrightParagraphs($line['text']))->implode('')
-                        .'</section>'],
-                    'series_page' => ['series', $this->epubSeriesPage($page['data'])],
-                    default => [null, null],
-                };
+                [$id, $body] = $this->epubGeneratedPage($page) ?? [null, null];
 
-                if ($id === null || ($id === 'copyright' && empty($page['data']['lines']))) {
+                if ($id === null) {
                     continue;
                 }
 
@@ -1019,22 +1158,8 @@ class Exporter
 
             $id = $names[$section->id];
             $name = "OEBPS/{$id}.xhtml";
-            $type = self::EPUB_TYPES[$part ?? ''] ?? match ($section->type) {
-                'part' => 'part',
-                'chapter' => 'chapter',
-                default => null,
-            };
-            $typeAttribute = $type ? ' epub:type="'.$type.'"' : '';
 
-            $files[$name] = $this->xhtml(
-                $section->title,
-                $section->type === 'part'
-                    ? '<section class="part"'.$typeAttribute.'><h1 class="part-title">'.e($section->title).'</h1></section>'
-                    // EPUB footnotes, which readers open in a pop-up.
-                    : '<section'.$typeAttribute.'>'.$this->chapterHtml($section, $this->renderer->withNotes('epub')).'</section>',
-                $language,
-                $matter,
-            );
+            $files[$name] = $this->xhtml($section->title, $this->epubSectionBody($section, $part), $language, $matter);
 
             // Pictures go into the package, each declared once.
             $files[$name] = $this->images->rewrite($files[$name], $book->id, function ($image) use (&$files, &$pictures) {
@@ -1146,6 +1271,47 @@ class Exporter
             'OEBPS/nav.xhtml' => $navDocument,
             'OEBPS/style.css' => $this->epubCss($book),
         ], $files), mimetypeFirst: true);
+    }
+
+    /**
+     * A page the EPUB generates from the book's details (title page,
+     * copyright, series list), as [file id, body], or null for one it
+     * leaves out. Shared with the reading preview, so both set it alike.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function epubGeneratedPage(array $page): ?array
+    {
+        [$id, $body] = match ($page['part']) {
+            'title_page' => ['titlepage', $this->epubTitlePage($page['data'])],
+            'copyright_page' => ['copyright', '<section epub:type="copyright-page" class="copyright">'
+                .collect($page['data']['lines'] ?? [])->map(fn ($line) => self::copyrightParagraphs($line['text']))->implode('')
+                .'</section>'],
+            'series_page' => ['series', $this->epubSeriesPage($page['data'])],
+            default => [null, null],
+        };
+
+        if ($id === null || ($id === 'copyright' && empty($page['data']['lines']))) {
+            return null;
+        }
+
+        return [$id, $body];
+    }
+
+    /** One section's EPUB body: a part's title page, or a chapter's text. */
+    private function epubSectionBody(ManuscriptSection $section, ?string $part): string
+    {
+        $type = self::EPUB_TYPES[$part ?? ''] ?? match ($section->type) {
+            'part' => 'part',
+            'chapter' => 'chapter',
+            default => null,
+        };
+        $typeAttribute = $type ? ' epub:type="'.$type.'"' : '';
+
+        return $section->type === 'part'
+            ? '<section class="part"'.$typeAttribute.'><h1 class="part-title">'.e($section->title).'</h1></section>'
+            // EPUB footnotes, which readers open in a pop-up.
+            : '<section'.$typeAttribute.'>'.$this->chapterHtml($section, $this->renderer->withNotes('epub')).'</section>';
     }
 
     /**

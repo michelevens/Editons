@@ -26,6 +26,9 @@ export function destination(key) {
             return { nav: 'design', pane: 'layout' };
         case 'publishing':
             return { nav: 'publishing', pane: 'export' };
+        // The full-screen book preview, opened from Export and Design.
+        case 'preview':
+            return { nav: 'publishing', pane: 'preview' };
         case 'sales':
             return { nav: 'sales', pane: 'distribution' };
         default:

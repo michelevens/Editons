@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Inbox\Inbox;
 use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\Comment;
@@ -65,6 +66,7 @@ class CommentController extends Controller
 
         // @mentions, and replies to everybody else in the thread.
         Notify::commentPosted($comment);
+        Inbox::commentPosted($comment);
 
         return response()->json($this->payload($section->book), 201);
     }
