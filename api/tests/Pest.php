@@ -92,3 +92,29 @@ function declared(Book $book): Book
 
     return $book->fresh();
 }
+
+/**
+ * A platform staff account for the admin console's tests, with two-factor
+ * confirmed unless asked otherwise. Never created by a seeder (docs/ADMIN.md);
+ * only here and by `php artisan platform:admin`.
+ */
+function platformAdmin(string $role = 'owner', bool $twoFactor = true): App\Models\User
+{
+    $user = App\Models\User::factory()->create();
+    $user->forceFill(['platform_role' => $role])->save();
+
+    if ($twoFactor) {
+        app(App\Platform\TwoFactor::class)->begin($user);
+        $user->forceFill(['two_factor_confirmed_at' => now()])->save();
+    }
+
+    return $user->fresh();
+}
+
+/** A one-paragraph ProseMirror document. */
+function platformDoc(string $text): array
+{
+    return ['type' => 'doc', 'content' => [
+        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]],
+    ]];
+}
