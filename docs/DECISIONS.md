@@ -1905,7 +1905,7 @@ bounce tracking (needs the provider's webhook, so there is no `bounced`
 state); translating the shared email footer and the join page.
 
 
-## ADR-00XX — Partner (affiliate) program
+## ADR-0034 — Partner (affiliate) program
 
 **Status:** accepted (2026-10-24). Number assigned at merge.
 
