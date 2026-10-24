@@ -14,7 +14,7 @@
    *
    * Zones, top to bottom; nothing crosses a zone boundary:
    *   0–230      header: wordmark, edition
-   *   250–410    level bar
+   *   250–410    level bar: the country in the flag's colours, then the level
    *   440–1060   title zone: kicker + subject, fitted and centred as one block
    *   1090–1850  illustration panel (art/<book>.png, cropped to fill)
    *   1850–2000  promise band
@@ -39,6 +39,11 @@
         display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 84px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
   .level sup { font-size: .58em; letter-spacing: 0; text-transform: none; vertical-align: .62em; line-height: 0; }
   .level i { font-style: normal; margin: 0 .35em; color: var(--yellow); }
+  /* Haiti's flag: blue #00209F over red #D21034. The level bar is clipped to its radius. */
+  .level { justify-content: flex-start; overflow: hidden; }
+  .level .flag { flex: 0 0 auto; align-self: stretch; display: flex; align-items: center; padding: 0 56px; background: linear-gradient(#00209F 0 50%, #D21034 50% 100%);
+        font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: 126px; letter-spacing: 6px; line-height: 1; text-shadow: 0 4px 0 rgba(0,0,0,.28); border-right: 10px solid #fff; }
+  .level .lvl { flex: 1; min-width: 0; text-align: center; overflow: hidden; }
 
   .titleblock { position: absolute; left: var(--m); right: var(--m); }
   .kicker { font-size: 80px; font-weight: 600; line-height: 1.1; margin-bottom: 10px; }
@@ -76,7 +81,7 @@ const r = document.documentElement.style;
 for (const k of ['c1', 'c2']) r.setProperty('--' + k, d[k]);
 r.setProperty('--brand', d.c1Ink);
 const set = (id, html) => { document.getElementById(id).innerHTML = html; };
-set('edition', d.edition); set('level', `<span>${d.level}</span>`); set('kicker', d.kicker); set('subject', d.subject); set('tagline', d.tagline);
+set('edition', d.edition); set('level', `<span class="flag">${d.country}</span><span class="lvl"><span class="t">${d.level}</span></span>`); set('kicker', d.kicker); set('subject', d.subject); set('tagline', d.tagline);
 set('list', d.promises.map(b => `<li><i>✓</i><span>${b}</span></li>`).join(''));
 if (d.art) set('panel', `<img src="${d.art}" alt="">`);
 // Largest subject size, up to the house maximum, at which the title block
@@ -92,6 +97,10 @@ ready.then(() => {
     if (fits(hi)) lo = hi;
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; fits(mid) ? (lo = mid) : (hi = mid); }
     fits(lo);
+    // The level shares its bar with the country: shrink it to fit beside it.
+    const lvl = document.querySelector('.level .lvl');
+    const t = lvl.querySelector('.t');
+    for (let s = 84; s > 40 && t.getBoundingClientRect().width > lvl.clientWidth - 60; s--) lvl.style.fontSize = s + 'px';
     block.style.top = (ZONE_TOP + (ZONE_BOTTOM - ZONE_TOP - block.offsetHeight) / 2) + 'px';
     // The benefits and the band must fit on one line each.
     const over = [...document.querySelectorAll('.list li span, .band')].filter(e => e.scrollWidth > e.clientWidth + 1

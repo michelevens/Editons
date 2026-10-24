@@ -88,6 +88,8 @@ for book in sys.argv[1:] or sorted(S):
         promises = ['Comprendre les notions essentielles', 'S’entraîner avec des exercices variés',
                     'Réussir le Bac en toute confiance' if bac else 'Réussir l’examen en toute confiance']
     # The level is named as the manifest names it, in French on every book.
+    # The country leads the level bar in the flag's colours (blue over red), in
+    # the book's language: a reader must see at once that this is Haiti's exam.
     level = 'Baccalauréat<i>·</i>NS4' if bac else '9<sup>e</sup>&nbsp;année fondamentale'
     # The illustration panel: art/<book>.jpg or .png, 1600 px wide.
     art = next((f for f in (os.path.join(here, 'art', f'{book}.{x}') for x in ('jpg', 'png')) if os.path.exists(f)), '')
@@ -109,7 +111,7 @@ for book in sys.argv[1:] or sorted(S):
                   f'<b>{exercises}</b> exercices avec corrigés détaillés' if exercises else 'Des exercices avec corrigés détaillés']
         inside_title, footnote = 'Dans ce livre', 'Ouvrage indépendant, sans lien officiel avec le MENFP. Les épreuves officielles sont reproduites avec mention de la source.'
     specs[book] = dict(
-        bac=bac, edition='Édition<b>2026</b>', level=level, kicker=kicker, subject=subject,
+        bac=bac, edition='Édition<b>2026</b>', level=level, country='Ayiti' if kreyol else 'Haïti', kicker=kicker, subject=subject,
         maxSize=MAX_TITLE, tagline=tag, promises=promises,
         c1=c1, c2=c2, c1Ink=f'color-mix(in srgb, {c1} 80%, #000)',
         art=('file:///' + art.replace(os.sep, '/')) if art else None,

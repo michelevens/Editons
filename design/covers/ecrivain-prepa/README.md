@@ -6,6 +6,8 @@ The editable front cover for the 19 Écrivain Prépa exam-prep books (7 for the 
 
 ![The 19 front covers](preview.png)
 
+**Haiti comes first.** The level bar on the front and the back opens with the country in the flag's colours (blue #00209F over red #D21034): HAÏTI, or AYITI on the two Kreyòl books. Someone seeing the cover in a store or on Amazon must know at once that this is Haiti's exam, not France's Bac.
+
 **The series is anonymous.** No personal name, pen name, "Anonymous" or author placeholder appears on a cover, in its metadata or in a file name. ÉCRIVAIN PRÉPA is the only name, as series and publisher brand. The books themselves are created with no author name, so no export (PDF, EPUB, DOCX) prints one.
 
 ## Files

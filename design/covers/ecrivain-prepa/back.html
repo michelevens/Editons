@@ -42,6 +42,12 @@
         display: flex; align-items: center; justify-content: center; gap: .5em; font-weight: 900; font-size: 62px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
   .level sup { font-size: .58em; letter-spacing: 0; text-transform: none; vertical-align: .62em; line-height: 0; }
   .level i { font-style: normal; color: var(--yellow); margin: 0 .3em; }
+  /* The country leads, in the flag's colours, as on the front. */
+  .level { justify-content: flex-start; overflow: hidden; gap: 0; }
+  .level .flag { flex: 0 0 auto; align-self: stretch; display: flex; align-items: center; padding: 0 46px; background: linear-gradient(#00209F 0 50%, #D21034 50% 100%);
+        font-family: Anton, Impact, sans-serif; font-weight: 400; font-size: 100px; letter-spacing: 5px; line-height: 1; text-shadow: 0 3px 0 rgba(0,0,0,.28); border-right: 8px solid #fff; }
+  .level .lvl { flex: 1; min-width: 0; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+  .level .lvl .t { display: inline-flex; gap: .5em; white-space: nowrap; }
 
   .desc { position: absolute; top: 500px; left: var(--l); right: var(--r); height: 630px; display: flex; align-items: center; }
   .desc p { font-size: 50px; line-height: 1.42; font-weight: 500; }
@@ -80,7 +86,7 @@ const r = document.documentElement.style;
 for (const k of ['c1', 'c2']) r.setProperty('--' + k, d[k]);
 r.setProperty('--brand', d.c1Ink);
 const set = (id, html) => { document.getElementById(id).innerHTML = html; };
-set('edition', d.edition); set('level', d.backLevel); set('desc', d.description); set('tagline', d.tagline);
+set('edition', d.edition); set('level', `<span class="flag">${d.country}</span><span class="lvl"><span class="t">${d.backLevel}</span></span>`); set('desc', d.description); set('tagline', d.tagline);
 set('insideTitle', d.insideTitle); set('footnote', d.footnote);
 set('inside', d.inside.map(b => `<li><i>✓</i><span>${b}</span></li>`).join(''));
 if (d.art) set('panel', `<img src="${d.art}" alt="">`);
@@ -95,9 +101,10 @@ ready.then(() => {
     while (size > 30 && p.offsetHeight > box.clientHeight) { size -= 1; p.style.fontSize = size + 'px'; }
     // The level bar names the level and the subject on one line: a long
     // subject ("Histoire et géographie") takes a smaller size, never a break.
-    const level = document.getElementById('level');
+    const level = document.querySelector('.level .lvl');
     let levelSize = 62;
-    while (levelSize > 36 && level.scrollWidth > level.clientWidth - 60) { levelSize -= 1; level.style.fontSize = levelSize + 'px'; }
+    const levelText = level.querySelector('.t');
+    while (levelSize > 36 && levelText.getBoundingClientRect().width > level.clientWidth - 60) { levelSize -= 1; level.style.fontSize = levelSize + 'px'; }
     // The band is full bleed; what must stay inside the safe area is its text.
     const tag = document.getElementById('tagline');
     tag.innerHTML = `<span>${tag.innerHTML}</span>`;
