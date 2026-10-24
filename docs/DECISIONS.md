@@ -1582,7 +1582,7 @@ alerts by email when a job goes late (the page shows it; nobody is paged),
 retrying arbitrary jobs, OpenAI image prices (left null until verified),
 attachments on support tickets, and per-plan feature flags.
 
-## ADR-00XX — Console business: billing, plans, book sales, growth, onboarding
+## ADR-0031 — Console business: billing, plans, book sales, growth, onboarding
 
 **Status:** accepted (2026-10-24). Number assigned at merge.
 
