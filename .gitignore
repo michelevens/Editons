@@ -28,3 +28,5 @@
 # facility the project ran in. None of it is the application's to distribute,
 # and `railway up` would otherwise ship it to a deployed service.
 /Book-ideas/
+
+.claude/settings.local.json
