@@ -1904,3 +1904,96 @@ all there to build on.
 bounce tracking (needs the provider's webhook, so there is no `bounced`
 state); translating the shared email footer and the join page.
 
+
+## ADR-00XX — Partner (affiliate) program
+
+**Status:** accepted (2026-10-24). Number assigned at merge.
+
+**Context.** The owner wants anybody — teachers, schools, bookstores,
+churches, people with a following — to sell books on commission from a
+branded page of their own, including for the platform's own Écrivain Prépa
+series, with Haiti's realities in mind: WhatsApp and printed flyers rather
+than clicks, MonCash rather than Stripe Connect. Direct sales (ADR-0021),
+discount codes and first-touch attribution (ADR-0031), the console's roles,
+audit log, feature flags and moderation (ADR-0029/0030/0032), the email
+system, the inbox and the phone shell (ADR-0024) were all there to build on.
+Details: `docs/PARTNERS.md`.
+
+**Decisions.**
+
+- *Where.* `App\Commerce\Partners\*` — it is money on orders, next to
+  `Revenue`, `Fulfilment` and `Payouts`. `Program` (settings + the flag),
+  `Handles`, `Attribution`, `Commissions`, `Ledger`, `Applications`,
+  `Invitations`, `PartnerPages`, `SellerPartners`, `Insights`,
+  `PartnerNotices`.
+- *The commission is taken out of the royalty at payment, on the item.*
+  `order_items.royalty_cents` is stored already net of the commission and
+  `order_items.partner_commission_cents` beside it. Every existing figure —
+  `Revenue::earned`, statements, *owed*, the console's totals — is
+  therefore right without knowing partners exist; the reports add the
+  commission back only to show it as its own line, and the console's
+  platform share subtracts it so it never comes out of the platform. The
+  commission is `rate × (price after discount − allocated fee)` in basis
+  points, rounded half up, capped at the royalty. After a refund it shrinks
+  in the same proportion as the royalty.
+- *History is copied.* The product's rate goes on the order item when
+  checkout starts; rate, base and amount go on the commission row when the
+  order is paid. Settings changes never rewrite either.
+- *A ledger of rows, not a balance column.* `partner_commissions`: one
+  `sale` row per item (a partial unique index makes a repeated webhook a
+  no-op), negative `adjustment` rows for refunds after payout, `forfeit`
+  rows for staff taking a suspended balance. Balance = approved and paid
+  rows − partner payouts, per currency. It can go negative, and later
+  earnings pay it back.
+- *One payouts ledger.* Partner payouts are `payouts` rows with
+  `kind = partner`; royalty queries filter `kind = royalty`. Extending the
+  table kept "money paid out by hand" in one place, as the brief asked,
+  without a partner payout ever reducing an author's *owed*.
+- *Attribution.* An encrypted first-party cookie, last click wins, its own
+  date honoured against the current `cookie_days`; a partner's discount code
+  beats it. Resolved at checkout start and written on the order with a
+  refusal reason, then re-checked at payment against the email Stripe
+  returns (a guest checkout with the partner's own address) and the
+  partner's current status. Refusal reasons are kept, which is what the
+  "self-purchase attempts" fraud signal counts.
+- *Privacy.* Clicks store HMACs of IP+UA, IP and a SHA-256 of the UA, one
+  row per visitor per partner per day (a unique index, `insertOrIgnore`).
+  Orders keep an HMAC of the checkout IP only when a partner is involved, to
+  compare with the partner's own sign-ins. Partners never see buyers; at
+  most "a reader in {country}". Payout details are an encrypted column,
+  hidden from serialisation, and shown in full only to the owner.
+- *The page.* Inertia like the store, with the meta tags rendered by the
+  root Blade template (`withViewData('meta')`) because WhatsApp and Facebook
+  previews never run JavaScript; `X-Robots-Tag` and a robots meta for
+  anything not live. Partner text is stored as typed and rendered as text —
+  not stripped, because "<3" in a note is a heart — and links are https
+  only. The logo is decoded and re-encoded by GD as a 512 px PNG. The
+  accent's text colour is computed (WCAG luminance, black or white), so no
+  partner choice is unreadable. Old handles are kept in `partner_handles`,
+  301 to the new one and are never reusable by anybody else.
+- *The flag.* `partners` with prerequisite `commerce`; its default is a
+  `config:` reference (`partners.default_on`, from `PARTNERS_DEFAULT_ON`,
+  off in production) — the first flag whose default a deployment sets, so
+  `Features` resolves `config:` defaults.
+- *Invitations by an author* are deliberately not the console's
+  `AuthorInvitation` machinery, which creates accounts with perks. An author
+  invite only pre-approves: the partner is `restricted` to that author's
+  books (`partner_sellers`) until staff open the catalogue. The invitation
+  names only an author name the books carry, so an author's anonymous books
+  are never tied to their name.
+- *Roles.* Support reads and decides applications; money, standing and
+  settings are the owner's, matching Book sales. Every staff action is
+  audited in its transaction; the CSV export is audited too. View as refuses
+  every partner write.
+- *Emails* go through `Notify` (preferences respected) plus an inbox item:
+  status and payout mail are account/billing (always sent); the first sale
+  and the monthly statement are a new `partners` category the partner can
+  switch off. One first-sale email, not one per sale.
+
+**Not done.** Stripe Connect payouts (listed as coming soon). Translated
+partner emails (the mail system has no `lang/fr.json` / `lang/ht.json` yet;
+the page chrome is translated, French and Creole as drafts). Asking a
+partner to accept a new agreement version (the version is stored; the
+prompt is not built). A partner closing their own account from the
+dashboard (done through support for now). Per-book click attribution in
+reports beyond the click's product id.
