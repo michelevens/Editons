@@ -1820,7 +1820,7 @@ unless configured. New-location detection is informative only until devices
 are remembered. Deployers should run `platform:stamp-release` before
 `railway up` for the Releases page to name the commit.
 
-## ADR-00XX — Author invitations from the console
+## ADR-0033 — Author invitations from the console
 
 **Status:** accepted (2026-10-24). Number assigned at merge.
 
