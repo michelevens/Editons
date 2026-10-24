@@ -38,6 +38,7 @@ use App\Models\Comment;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Platform\Ops\MailLogger;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -85,6 +86,10 @@ final class Notify
 
             return true;
         } catch (Throwable $e) {
+            // In the email log as failed: a mail that never left is the one
+            // support most needs to find.
+            MailLogger::failed($mail, $address, $e);
+
             // Under test the queue is sync and the mailer is "array", so a
             // template that throws surfaces here. Swallowing it would hide
             // exactly the regression the suite is there to catch.

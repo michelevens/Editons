@@ -599,12 +599,17 @@ export default function ManuscriptEditor({
         });
     };
 
+    // Suggest mode switched off by the console (App\Platform\Features):
+    // the switch goes, and typing edits directly. Changes already suggested
+    // can still be accepted or rejected.
+    const suggestAllowed = usePage().props.features?.suggest_mode !== false;
+
     useEffect(() => {
         if (!editor || editor.isDestroyed) return;
 
-        editor.storage.suggest.enabled = suggesting;
+        editor.storage.suggest.enabled = suggesting && suggestAllowed;
         editor.storage.suggest.user = user ? { id: user.id, name: user.name } : null;
-    }, [editor, suggesting, user?.id, user?.name]);
+    }, [editor, suggesting, suggestAllowed, user?.id, user?.name]);
 
     useEffect(() => {
         if (!notice) return undefined;
@@ -1000,6 +1005,7 @@ export default function ManuscriptEditor({
                         <span className="max-sm:sr-only">{changes.length === 1 ? 'change' : 'changes'}</span>
                     </button>
                 )}
+                {suggestAllowed && (
                 <button
                     type="button"
                     data-a="editor:suggest"
@@ -1015,13 +1021,14 @@ export default function ManuscriptEditor({
                     <Icon name="aLine" size={15} />
                     <span className="max-lg:sr-only">{suggesting ? 'Suggesting' : 'Suggest'}</span>
                 </button>
+                )}
                 {headerActions}
             </header>
 
             {/* Said in words as well as by the pressed button: on a phone
                 the button is an icon, and typing that does not delete is
                 alarming until you know why. */}
-            {(suggesting || notice) && (
+            {((suggesting && suggestAllowed) || notice) && (
                 <p
                     // Not role=status: that is the save state's, and the
                     // only one in the chapter.

@@ -382,6 +382,14 @@ function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPain
                 )}
             </div>
 
+            {/* The kill switch's sentence (App\Platform\Ai\AiControls): the
+                buttons stay, and refuse without charging, but say so first. */}
+            {(ai.concepts_paused || ai.artwork_paused) && (
+                <p role="status" data-a="cover:ai:paused" className="mt-2 rounded-control bg-status-warning-bg px-2.5 py-1.5 text-[11.5px] text-status-warning">
+                    {ai.concepts_paused ?? ai.artwork_paused}
+                </p>
+            )}
+
             {concepts?.items?.length > 0 && (
                 <ul className="mt-3 space-y-2">
                     {concepts.items.map((concept, index) => {

@@ -6,6 +6,7 @@ use App\Commerce\Commerce;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\Product;
+use App\Platform\Features;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -37,7 +38,8 @@ class ProductController extends Controller
     public function update(Request $request, Book $book): JsonResponse
     {
         $this->authorize('manage', $book);
-        abort_unless(Commerce::enabled(), 404);
+        // Commerce::enabled() and the storefront flag (App\Platform\Features).
+        abort_unless(Features::enabled('storefront', $request->user()), 404);
 
         $data = $request->validate([
             'price' => ['required', 'numeric', 'min:0', 'max:9999.99'],
@@ -122,8 +124,8 @@ class ProductController extends Controller
         $product = $book->product;
 
         return [
-            'enabled' => Commerce::enabled(),
-            'gateway' => Commerce::enabled() ? config('commerce.gateway') : null,
+            'enabled' => Features::enabled('storefront', $request->user()),
+            'gateway' => Features::enabled('storefront', $request->user()) ? config('commerce.gateway') : null,
             'product' => $product ? [
                 'id' => $product->id,
                 'slug' => $product->slug,

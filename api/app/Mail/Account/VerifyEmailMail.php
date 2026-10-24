@@ -3,6 +3,7 @@
 namespace App\Mail\Account;
 
 use App\Mail\EcrivainMail;
+use App\Mail\Support\ContainsSecrets;
 use App\Mail\Support\Letter;
 use App\Models\User;
 
@@ -13,7 +14,7 @@ use App\Models\User;
  * App\Notifications\VerifyEmailNotification, which User uses in place of
  * Laravel's stock notification — ready for when MustVerifyEmail is enabled.
  */
-class VerifyEmailMail extends EcrivainMail
+class VerifyEmailMail extends EcrivainMail implements ContainsSecrets
 {
     public const CATEGORY = 'account';
 

@@ -3,6 +3,7 @@
 namespace App\Mail\Account;
 
 use App\Mail\EcrivainMail;
+use App\Mail\Support\ContainsSecrets;
 use App\Mail\Support\Letter;
 use App\Models\User;
 
@@ -14,7 +15,7 @@ use App\Models\User;
  * Sent by App\Notifications\ResetPasswordNotification; the expiry is the
  * password broker's own (config auth.passwords.users.expire).
  */
-class PasswordResetMail extends EcrivainMail
+class PasswordResetMail extends EcrivainMail implements ContainsSecrets
 {
     public const CATEGORY = 'account';
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InboxItem;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -112,13 +113,18 @@ class InboxController extends Controller
     }
 
     /** Tomorrow morning: the next working start, in the app's time zone. */
-    private static function tomorrow(): \Carbon\CarbonInterface
+    private static function tomorrow(): CarbonInterface
     {
         return now()->addDay()->setTime(8, 0);
     }
 
     private static function destination(InboxItem $item): string
     {
+        // A reply from support opens the conversation.
+        if ($ticket = $item->target['support_ticket_id'] ?? null) {
+            return route('support.show', $ticket);
+        }
+
         if (! $item->book_id) {
             return route('inbox.index');
         }

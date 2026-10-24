@@ -28,6 +28,7 @@ const KIND_ICONS = {
     export_ready: 'exp',
     export_failed: 'info',
     review: 'sugg',
+    support: 'help',
 };
 
 const VIEWS = [

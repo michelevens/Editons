@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { currentTheme, setTheme } from '../../theme';
 import { goTo } from './navigation';
+import { NAV_FEATURES, useFeatures } from '../../features';
 
 /**
  * The account menu behind the avatar.
@@ -39,6 +40,8 @@ const ITEMS = [
         // threw and the menu stayed open.
         { key: 'team', label: 'Team members', icon: 'users', book: 'team' },
         { key: 'account', label: 'Account settings', icon: 'user', route: 'profile.edit' },
+        // Write to Ecrivain support (Pages/Support).
+        { key: 'support', label: 'Help', icon: 'help', route: 'support.index' },
     ],
 ];
 
@@ -47,6 +50,7 @@ export default function UserMenu({ user, account, bookId = null }) {
     const wrap = useRef(null);
     const unread = usePage().props.inbox_unread ?? 0;
     const staff = Boolean(usePage().props.platform?.role);
+    const on = useFeatures();
 
     // Close on an outside click or Escape. Without both, a menu that opens
     // over the manuscript has to be dismissed by navigating away.
@@ -139,7 +143,7 @@ export default function UserMenu({ user, account, bookId = null }) {
                             key={index}
                             className={index > 0 ? 'border-t border-border-divider py-1' : 'py-1'}
                         >
-                            {group.filter((item) => !item.book || bookId).map((item) => (
+                            {group.filter((item) => (!item.book || bookId) && on(NAV_FEATURES[item.key])).map((item) => (
                                 <MenuItem
                                     key={item.key}
                                     item={item}

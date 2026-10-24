@@ -13,6 +13,9 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\UserLogin;
 use App\Platform\AccountAdmin;
+use App\Platform\Ai\AiControls;
+use App\Platform\Ai\AiUsageReport;
+use App\Platform\Features;
 use App\Platform\Impersonation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -76,7 +79,7 @@ class AccountsController extends Controller
         ]);
     }
 
-    public function show(Request $request, User $user, CreditLedger $ledger, AccountAdmin $admin): Response
+    public function show(Request $request, User $user, CreditLedger $ledger, AccountAdmin $admin, AiUsageReport $report, AiControls $controls, Features $features): Response
     {
         $viewer = $request->user();
         $limits = $user->planLimits();
@@ -212,6 +215,19 @@ class AccountsController extends Controller
                     : (int) config('platform.credits.support_max_grant'),
             ],
             'impersonation_minutes' => Impersonation::minutes(),
+            // What this account's AI calls cost, and its cap.
+            'ai' => [
+                'windows' => $report->windows($user),
+                'by_feature' => $report->by('feature', 30, $user),
+                'failures' => $report->recentFailures(10, $user),
+                'cap' => $user->ai_monthly_cap_usd === null ? null : (float) $user->ai_monthly_cap_usd,
+                'effective_cap' => $controls->capFor($user),
+                'spent_this_month' => round($controls->spentThisMonth($user), 4),
+            ],
+            // Each module for this account, and whether an override decides it.
+            'features' => collect(Features::catalog())->map(fn (array $f) => $f + $features->explain($f['key'], $user) + [
+                'override' => $features->overridesFor($user)[$f['key']] ?? null,
+            ])->values(),
         ]);
     }
 

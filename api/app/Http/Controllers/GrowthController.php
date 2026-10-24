@@ -6,6 +6,7 @@ use App\Billing\CreditLedger;
 use App\Billing\Entitlements;
 use App\Marketing\KitGenerator;
 use App\Models\Book;
+use App\Platform\Features;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -145,6 +146,10 @@ class GrowthController extends Controller
         ];
 
         $detail = $screens[$screen] ?? abort(404);
+
+        // A coming-soon entry the console has switched off is gone, not locked.
+        abort_unless(Features::enabled(['audio' => 'audiobook', 'course' => 'course_builder', 'site' => 'author_site'][$screen], request()->user()), 404);
+
         $plan = config("billing.plans.{$detail['plan']}");
 
         return response()->json([

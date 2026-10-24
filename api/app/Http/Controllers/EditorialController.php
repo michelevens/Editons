@@ -13,6 +13,7 @@ use App\Journey\Coach;
 use App\Models\Book;
 use App\Models\EditorialFinding;
 use App\Models\ManuscriptSection;
+use App\Platform\Ai\AiControls;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -83,9 +84,11 @@ class EditorialController extends Controller
         $agent = EditorialAgent::tryFrom($data['agent']);
         abort_unless($agent, 422, 'Unknown editorial agent.');
 
-        // Both checks before any work starts, so an author is told up front
+        // Every check before any work starts, so an author is told up front
         // rather than watching a review begin and then fail. The spend itself
-        // re-checks the balance under a lock.
+        // re-checks the balance under a lock. The kill switch comes first:
+        // a paused review charges nothing and calls nobody.
+        app(AiControls::class)->assertAllowed('editorial_review', $request->user());
         $this->entitlements->assertCanRunAgent($request->user(), $agent);
 
         // Sample output is free, so an empty balance does not stop it.

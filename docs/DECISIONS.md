@@ -1476,3 +1476,108 @@ shell.
 
 **Deploy note.** Two new Composer packages: run `composer install` after
 merging (Railway does this from the lockfile).
+
+## ADR-00XX — Console phase 2: AI cost and kill switches, jobs and health, email log, feature flags, support, errors
+
+**Status:** accepted (2026-10-24). Number assigned at merge.
+
+**Context.** Phase 1 (ADR-0029) let the owner look after accounts. Running
+the platform still meant `railway logs` and tinker: nobody could say what AI
+cost or switch it off during a provider incident, whether the scheduler and
+the worker were alive, whether an email left, which modules a given account
+should not see, what authors were asking for, or which errors kept
+happening. The patterns come from the user's other platforms: Credentik's AI
+governance (global and per-feature kill switch with a reason), system-jobs
+watchdog, email log and `Features` registry with per-tenant overrides, and
+its support inbox; PlanDraft's monthly AI spend against a cap and its error
+groups; ShiftPulse's rule that health reports "unknown" rather than guess.
+
+**Decisions.**
+
+- *AI usage.* `ai_usage` gets one row per provider call, written beside the
+  call by `App\Platform\Ai\AiMeter` — editorial reviews (`ReviewRunner`,
+  around the driver), cover concepts and artwork (`CoverAiController`) and
+  support drafts — success or failure, with tokens or images, latency and
+  the impersonator. The fake drivers are recorded too, `simulated` and
+  costing 0. Cost comes from one price table in `config/platform.php`
+  (`platform.ai.pricing`, source and date cited there), shared with
+  `AnthropicDriver`, longest prefix first; an unlisted model, or OpenAI image
+  pricing (not verified, so not listed), records **null**, and the console
+  shows those calls as "cost unknown" beside the known total, never as zero.
+  The marketing kit is extractive and calls no provider, so it is not metered.
+- *Kill switches.* `ai_controls`: `all` plus one per feature (editorial
+  review, cover concepts, cover artwork, support drafts), each with a
+  required reason, owner-only, audited in the same transaction.
+  `AiControls::assertAllowed` runs before entitlements and before the
+  ledger, so a paused feature costs nothing; it throws `AiPaused` (503,
+  `code: ai_paused`, "AI reviews are paused by Ecrivain — try again later").
+  Cover Studio shows the sentence above its buttons.
+- *Spend cap.* `users.ai_monthly_cap_usd` (owner, audited), else
+  `PLATFORM_AI_DEFAULT_MONTHLY_CAP_USD`; refused once this calendar month's
+  known cost reaches it. Unpriced calls cannot count — the console says so.
+- *Jobs.* The schedule is read from `routes/console.php` itself (console
+  kernel bootstrapped, `Schedule::events()`), so the list cannot drift.
+  `Heartbeats` listens to the scheduler's own `ScheduledTask*` events — every
+  command is wrapped with no per-command code — and to the worker's
+  `Looping` (one write a minute per process). A command is *late* when the
+  latest due time older than the grace period (10 min) passed without it
+  starting, *failing* when its last run failed or exited non-zero, *never*
+  when the scheduler is known alive but this one has not reported, and
+  *unknown* when nothing has ever reported.
+- *Queue.* Backlog by queue with the oldest job, for database queues
+  (unmeasurable otherwise, and said). Failed jobs: retry only exports (the
+  row is given back its `generating` state first, since the job ignores a
+  settled row) and mail — anything else may not be safe twice — and forget;
+  both owner-only and audited. Exports generating past the job timeout can
+  be marked failed by staff (the author is told), as `exports:expire` would.
+- *Health.* Database query, a write/read/delete probe of the files disk,
+  free space where exports live (local disk only — a bucket reports
+  "unknown"), worker and scheduler heartbeats, mail transport configured
+  (the log driver is a warning: nothing reaches an inbox) with 24 h
+  sent/failed counts, Stripe keys and webhook secret configured. Nothing
+  paid is called.
+- *Email log.* `MessageSent` writes `mail_logs`: to, mailable, subject,
+  category, provider id (Resend's `X-Resend-Email-ID`, else the Message-ID).
+  `Notify::send` logs a failure before rethrowing; a queued mailable that
+  fails for good is logged from `JobFailed`. Mailables that carry a secret
+  implement `ContainsSecrets` (password reset, verification, invitation):
+  metadata only, never the body or a string they were built from. Other
+  bodies are kept as text with signed links blanked. Resend rebuilds the
+  same mailable from its constructor arguments (models by reference),
+  respects preferences, links to the original and is audited; a reset or
+  verification is never resent. Bounces need Resend's webhook, which is not
+  connected; the page says "sent means handed to the provider".
+- *Feature flags.* `App\Platform\Features`, stable keys (`storefront`,
+  `ai_cover`, `suggest_mode`, `preview`, `inbox`, `support`, `audiobook`,
+  `course_builder`, `author_site`). Decided by: the module's prerequisite
+  (`Commerce::enabled()` for the storefront, a configured cover provider for
+  AI covers — a flag never turns on what cannot work), then an account
+  override, then the platform switch (`feature_flags`), then the default.
+  Owner-only, reason required, audited. `feature('key', $user)` and the
+  `feature:key` route middleware (404) guard the entry points; the resolved
+  map is shared as `features` and the sidebar, More sheet, tab bar, account
+  menu and the editor's Suggest switch leave out what is off.
+- *Support.* `support_tickets` / `support_messages` / `canned_replies`.
+  Help in the account menu and the More sheet; context attached on send
+  (plan, user agent, screen, referring page, the browser's last error, the
+  account's last server error of the day). An author reads only their own
+  tickets (404 otherwise) and never internal notes. Staff replies are
+  emailed (`SupportReplyMail`, account category) and put in the author's
+  inbox (`support` kind, opening the conversation), audited without the
+  text. Canned replies are the owner's. The AI draft button exists only
+  while the switch allows it and a drafter is configured; the draft fills
+  the box, is metered, and is marked `ai_drafted` if sent.
+- *Error groups.* The exception handler's report hook (so never 404s or
+  validation errors) and `POST /client-errors` (10 a minute per person or
+  IP, 16 KB cap, guests allowed) upsert `error_groups` by fingerprint —
+  class and throw site for the server, normalised message and first frame
+  for the browser (build hashes and line numbers removed). One example is
+  kept: message, a trace without arguments, the path without its query
+  string, a user id. A resolved group that recurs reopens; an ignored one
+  keeps counting. The write runs in its own savepoint so a failed capture
+  cannot abort the caller's transaction.
+
+**Not done.** Resend webhooks (bounces, complaints, suppression list),
+alerts by email when a job goes late (the page shows it; nobody is paged),
+retrying arbitrary jobs, OpenAI image prices (left null until verified),
+attachments on support tickets, and per-plan feature flags.

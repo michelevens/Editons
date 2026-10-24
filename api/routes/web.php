@@ -8,6 +8,7 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\BookImageController;
 use App\Http\Controllers\BookPartsController;
 use App\Http\Controllers\ChartController;
+use App\Http\Controllers\ClientErrorController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\CoverAiController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\OverviewController;
+use App\Http\Controllers\PlatformStatusController;
 use App\Http\Controllers\PreviewController;
 use App\Http\Controllers\PrintKitController;
 use App\Http\Controllers\ProductController;
@@ -34,6 +36,7 @@ use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\WorkflowController;
@@ -389,9 +392,10 @@ Route::middleware('auth')->group(function () {
     // The full-screen preview (PreviewController): contents first, then a
     // page at a time.
     Route::get('/books/{book}/preview', [PreviewController::class, 'show'])
+        ->middleware('feature:preview')
         ->name('preview.show');
     Route::get('/books/{book}/preview/page', [PreviewController::class, 'page'])
-        ->middleware('throttle:240,1')
+        ->middleware(['feature:preview', 'throttle:240,1'])
         ->name('preview.page');
     Route::get('/preview/fonts/{name}', [PreviewController::class, 'font'])
         ->where('name', '[A-Za-z0-9-]+\.ttf')
@@ -487,7 +491,7 @@ Route::middleware('auth')->group(function () {
  | The inbox. Account-level: every row is the signed-in person's own
  | (InboxItem::scopeFor), about books they can still open.
  */
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'feature:inbox'])->group(function () {
     Route::get('/inbox', [InboxController::class, 'index'])
         ->name('inbox.index');
     Route::post('/inbox/read-all', [InboxController::class, 'readAll'])
@@ -651,6 +655,30 @@ Route::get('/start', [BookController::class, 'quickStart'])
  */
 require __DIR__.'/admin.php';
 
-Route::get('/status', App\Http\Controllers\PlatformStatusController::class)
+/*
+ | Help: an author's requests to Écrivain support (SupportController), and
+ | errors the browser caught, for the console's error groups. Reports are
+ | accepted signed in or not — a broken sign-in page is an error too — and
+ | are limited per person and per IP.
+ */
+Route::middleware(['auth', 'feature:support'])->group(function () {
+    Route::get('/support', [SupportController::class, 'index'])->name('support.index');
+    Route::post('/support', [SupportController::class, 'store'])
+        ->middleware('throttle:support')
+        ->name('support.store');
+    Route::get('/support/{ticket}', [SupportController::class, 'show'])
+        ->whereNumber('ticket')
+        ->name('support.show');
+    Route::post('/support/{ticket}/messages', [SupportController::class, 'reply'])
+        ->whereNumber('ticket')
+        ->middleware('throttle:support')
+        ->name('support.reply');
+});
+
+Route::post('/client-errors', [ClientErrorController::class, 'store'])
+    ->middleware('throttle:client-errors')
+    ->name('client-errors.store');
+
+Route::get('/status', PlatformStatusController::class)
     ->middleware('throttle:60,1')
     ->name('platform.status');

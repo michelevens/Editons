@@ -1,4 +1,5 @@
 import Icon from './Icon';
+import { NAV_FEATURES, useFeatures } from '../../features';
 
 /**
  * The book sidebar: book card, then three nav groups.
@@ -74,6 +75,7 @@ export default function BookSidebar({
     onSelectTop,
     className = '',
 }) {
+    const on = useFeatures();
     const groups = topNav
         ? [
               {
@@ -113,7 +115,7 @@ export default function BookSidebar({
                             </p>
                         )}
 
-                        {section.items.map((item) => {
+                        {section.items.filter((item) => on(NAV_FEATURES[item.key])).map((item) => {
                             const isActive = section.top
                                 ? activeNav === item.key
                                 : active === item.key;

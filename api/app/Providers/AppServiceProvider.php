@@ -10,6 +10,10 @@ use App\Editorial\DriverFactory;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Models\User;
+use App\Platform\Ai\AiControls;
+use App\Platform\Features;
+use App\Platform\Ops\Heartbeats;
+use App\Platform\Ops\MailLogger;
 use App\Platform\PlatformSettings;
 use App\Platform\TwoFactor;
 use Illuminate\Auth\Events\Login;
@@ -52,6 +56,13 @@ class AppServiceProvider extends ServiceProvider
         // never reads another's values from a static cache.
         $this->app->singleton(PlatformSettings::class);
         $this->app->singleton(TwoFactor::class);
+        // Likewise the AI kill switches and the feature flags.
+        $this->app->singleton(AiControls::class);
+        $this->app->singleton(Features::class);
+
+        // feature('storefront', $user). A plain function file rather than a
+        // composer "files" entry, so adding it needs no autoload rebuild.
+        require_once app_path('Platform/helpers.php');
 
         // Cashier's route resolves its controller through the container,
         // so this swaps in the stricter one without redefining the route.
@@ -118,6 +129,24 @@ class AppServiceProvider extends ServiceProvider
             Limit::perHour(200)->by('admin-hour|'.$request->user()?->id),
         ]);
         RateLimiter::for('impersonation', fn (Request $request) => Limit::perMinute(5)->by('view-as|'.$request->user()?->id));
+
+        // Running the platform (phase 2): heartbeats from every scheduled
+        // command and the worker, and the email log.
+        Heartbeats::listen();
+        MailLogger::listen();
+
+        // Support requests: a person writing for help, not a script.
+        RateLimiter::for('support', fn (Request $request) => [
+            Limit::perMinute(5)->by('support-minute|'.$request->user()?->id),
+            Limit::perHour(30)->by('support-hour|'.$request->user()?->id),
+        ]);
+
+        // Browser error reports: a page in a crash loop must not fill the
+        // table, so per person (or IP when signed out) and per IP.
+        RateLimiter::for('client-errors', fn (Request $request) => [
+            Limit::perMinute((int) config('platform.errors.client_per_minute', 10))->by('client-errors|'.($request->user()?->id ?? $request->ip())),
+            Limit::perMinute(60)->by('client-errors-ip|'.$request->ip()),
+        ]);
 
         // Six digits are a million guesses; five a minute per pending
         // sign-in (and per IP) makes them take longer than the code lives.

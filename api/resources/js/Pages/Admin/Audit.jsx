@@ -1,7 +1,7 @@
 import AdminLayout, { buttonClass, formatDate, inputClass } from '@/Layouts/AdminLayout';
 import { router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Pager } from './Accounts/Index';
+import { Pager } from '@/Components/Admin/Kit';
 
 /** The admin audit log, filterable, with a CSV of whatever is filtered. */
 export default function Audit({ logs, filters, actions }) {
