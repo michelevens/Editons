@@ -36,7 +36,7 @@ function publishableBook(array $attributes = []): Book
     $book->forceFill(['word_count' => 20_000])->save();
     $book->channels()->create(['channel' => 'amazon_kdp', 'format' => 'ebook']);
 
-    return $book->fresh();
+    return declared($book);
 }
 
 it('lets a complete book through', function () {

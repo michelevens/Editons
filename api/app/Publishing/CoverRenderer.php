@@ -558,7 +558,7 @@ class CoverRenderer
     }
 
     /** Raise the memory limit to at least $limit, never lower it. */
-    private function headroom(string $limit): void
+    public function headroom(string $limit): void
     {
         $current = ini_get('memory_limit');
 

@@ -50,6 +50,12 @@ class BookType
         );
     }
 
+    /** The print trim this type opens on, when it differs from the default. */
+    public function trim(): ?string
+    {
+        return $this->config['trim'] ?? null;
+    }
+
     public function name(): string
     {
         return $this->config['name'];

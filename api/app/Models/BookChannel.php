@@ -30,7 +30,14 @@ class BookChannel extends Model
         'apple_books' => ['Apple Books', 'ebook'],
         'kobo' => ['Kobo', 'ebook'],
         'google_play' => ['Google Play Books', 'ebook'],
+        'kdp_paperback' => ['Amazon KDP (paperback)', 'print'],
         'ingram_print' => ['IngramSpark (print)', 'print'],
+    ];
+
+    /** Print channels, and the print service whose rules apply (PrintSpecs). */
+    public const PRINT_SERVICE = [
+        'kdp_paperback' => 'kdp',
+        'ingram_print' => 'ingram',
     ];
 
     /**
@@ -43,7 +50,8 @@ class BookChannel extends Model
         'apple_books' => ['https://authors.apple.com', 'epub', 'Sign in to Apple Books for Authors, add a new book, enter the listing details and upload the EPUB with its cover.'],
         'kobo' => ['https://www.kobo.com/writinglife', 'epub', 'Sign in to Kobo Writing Life, create a new eBook, enter the listing details and upload the EPUB.'],
         'google_play' => ['https://play.google.com/books/publish', 'epub', 'Sign in to the Google Play Books Partner Center, add a book, enter the listing details and upload the EPUB.'],
-        'ingram_print' => ['https://www.ingramspark.com', 'pdf', 'Sign in to IngramSpark, add a print title at your trim size and upload the PDF interior with a cover file built to their template.'],
+        'kdp_paperback' => ['https://kdp.amazon.com', 'pdf_interior', 'Sign in to Kindle Direct Publishing, create a Paperback at your trim size, upload the print interior PDF and the KDP print cover from this screen, and check the previewer before you publish.'],
+        'ingram_print' => ['https://www.ingramspark.com', 'pdf_interior', 'Sign in to IngramSpark, add a print title at your trim size, take the spine width from its cover template generator for the IngramSpark print cover here, and upload the print interior PDF with that cover.'],
     ];
 
     protected $fillable = ['channel', 'format', 'status'];

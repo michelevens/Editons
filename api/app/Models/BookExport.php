@@ -52,18 +52,26 @@ class BookExport extends Model
          * decision, and when one is added this becomes 'pdf' again.
          */
         'pdf_print' => ['Print-ready HTML', 'html', 'Paginated at your trim size — print to PDF from a browser'],
+        // The interior a printer binds inside a separately supplied cover:
+        // no cover page, recto/verso pagination at the trim size.
+        'pdf_interior' => ['Print interior PDF', 'pdf', 'The pages a printer binds: no cover, at your trim size'],
+        // Back, spine and front in one sheet with bleed, for one print
+        // service and paper (options), sized from the interior's pages.
+        'cover_wrap' => ['Print cover (full wrap)', 'pdf', 'Back, spine and front with bleed, sized for a print service'],
         'docx' => ['Word document', 'docx', 'For editors and co-authors who mark up in Word'],
         'md' => ['Markdown', 'md', 'Plain text with structure preserved'],
         'html' => ['HTML', 'html', 'A single file for the web'],
     ];
 
-    protected $fillable = ['format', 'status', 'word_count', 'byte_size', 'path', 'user_id'];
+    protected $fillable = ['format', 'status', 'word_count', 'byte_size', 'path', 'user_id', 'options'];
 
     protected function casts(): array
     {
         return [
             'word_count' => 'integer',
             'byte_size' => 'integer',
+            'options' => 'array',
+            'pages' => 'integer',
         ];
     }
 
@@ -74,7 +82,16 @@ class BookExport extends Model
 
     public function label(): string
     {
-        return self::FORMATS[$this->format][0] ?? $this->format;
+        $label = self::FORMATS[$this->format][0] ?? $this->format;
+
+        // Which service and paper a cover was made for is the first thing
+        // an author needs to know about it.
+        if ($this->format === 'cover_wrap' && ($service = $this->options['service'] ?? null)) {
+            $label .= ' · '.(config("publishing.print.{$service}.label") ?? $service)
+                .(isset($this->options['paper']) ? ', '.$this->options['paper'].' paper' : '');
+        }
+
+        return $label;
     }
 
     public function extension(): string

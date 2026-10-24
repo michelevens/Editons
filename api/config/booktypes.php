@@ -288,6 +288,9 @@ return [
     'educational' => [
         'name' => 'Educational',
         'blurb' => 'A textbook or course book, written to be taught from.',
+        // Textbooks and workbooks are written in and laid flat: letter size.
+        // Every other type opens on Book::DEFAULT_LAYOUT's 6 x 9.
+        'trim' => '8.5 x 11 in',
         'words' => [50000, 90000],
         'chapters' => [10, 18],
         'parts' => true,

@@ -25,6 +25,7 @@ use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\PreviewController;
+use App\Http\Controllers\PrintKitController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublishingController;
@@ -409,6 +410,21 @@ Route::middleware('auth')->group(function () {
         ->name('publishing.generate');
     Route::get('/books/{book}/exports/{export}/download', [PublishingController::class, 'download'])
         ->name('publishing.download');
+
+    // The print kit: print settings, checks, prices and the cover preview.
+    Route::get('/books/{book}/print-kit', [PrintKitController::class, 'show'])
+        ->name('print-kit.show');
+    Route::patch('/books/{book}/print-kit', [PrintKitController::class, 'update'])
+        ->name('print-kit.update');
+    Route::get('/books/{book}/print-kit/prices', [PrintKitController::class, 'prices'])
+        ->name('print-kit.prices');
+    Route::get('/books/{book}/print-kit/cover-preview', [PrintKitController::class, 'preview'])
+        ->middleware('throttle:60,1')
+        ->name('print-kit.preview');
+    Route::post('/books/{book}/print-kit/back', [PrintKitController::class, 'uploadBack'])
+        ->name('print-kit.back');
+    Route::delete('/books/{book}/print-kit/back', [PrintKitController::class, 'removeBack'])
+        ->name('print-kit.back.destroy');
 });
 
 /*
@@ -426,6 +442,12 @@ Route::middleware('auth')->group(function () {
         ->name('rights.isbn.pool');
     Route::patch('/books/{book}/rights', [RightsController::class, 'updateRights'])
         ->name('rights.update');
+    Route::patch('/books/{book}/rights/isbn-plan', [RightsController::class, 'updateIsbnPlan'])
+        ->name('rights.isbn.plan');
+    Route::put('/books/{book}/rights/declaration', [RightsController::class, 'declareRights'])
+        ->name('rights.declaration');
+    Route::put('/books/{book}/rights/ai-disclosure', [RightsController::class, 'discloseAi'])
+        ->name('rights.ai');
     Route::post('/books/{book}/copyright-page', [RightsController::class, 'insertCopyrightPage'])
         ->name('rights.copyright');
 });

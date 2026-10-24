@@ -2,8 +2,8 @@
 
 namespace App\Publishing;
 
-use App\Jobs\GenerateExport;
 use App\Inbox\Inbox;
+use App\Jobs\GenerateExport;
 use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookExport;
@@ -35,6 +35,7 @@ class Exporter
         private readonly PrintBook $print,
         private readonly CoverRenderer $covers,
         private readonly BookImages $images,
+        private readonly CoverWrap $wraps,
     ) {}
 
     /** Generate one file now and record it: start() then run(). */
@@ -56,7 +57,7 @@ class Exporter
      * click used to queue the same book again ahead of everybody else's.
      * The returned row's wasRecentlyCreated says whether to dispatch a job.
      */
-    public function start(Book $book, string $format, ?int $userId = null): BookExport
+    public function start(Book $book, string $format, ?int $userId = null, array $options = []): BookExport
     {
         if (! isset(BookExport::FORMATS[$format])) {
             throw new RuntimeException("There is no {$format} export.");
@@ -66,6 +67,9 @@ class Exporter
             throw new RuntimeException('There is nothing to export yet. Write a chapter first.');
         }
 
+        // A cover wrap is made for one service and paper; checked here so
+        // a choice that cannot work is refused before a worker is taken.
+        $options = $format === 'cover_wrap' ? $this->wraps->options($book, $options) : [];
         $queued = in_array($format, GenerateExport::FORMATS, true);
 
         if ($queued) {
@@ -73,6 +77,13 @@ class Exporter
             $this->expireStale($book->id);
 
             if ($running = $this->rendering($book, $format)) {
+                // One cover at a time: a wrap for another service would be
+                // a different file, and handing back this one would not be
+                // what was asked for.
+                if ($format === 'cover_wrap' && array_intersect_key($running->options ?? [], $options) != $options) {
+                    throw new RuntimeException('A print cover for '.PrintSpecs::label($running->options['service'] ?? 'kdp').' is being made. Ask for this one when it is ready.');
+                }
+
                 return $running;
             }
         }
@@ -85,6 +96,7 @@ class Exporter
                 'status' => 'generating',
                 'word_count' => $book->word_count,
                 'user_id' => $userId,
+                'options' => $options ?: null,
             ]));
         } catch (UniqueConstraintViolationException $e) {
             // Two clicks raced past the check above; the index let one in.
@@ -217,6 +229,8 @@ class Exporter
                 'epub' => $this->epub($book, $sections, $export),
                 'pdf' => $this->pdf($book, $sections, $export),
                 'pdf_print' => $this->printable($book, $sections, $export),
+                'pdf_interior' => $this->interior($book, $export),
+                'cover_wrap' => $this->coverWrap($book, $export),
                 'docx' => $this->docx($book, $sections, $export),
                 'md' => $this->markdown($book, $sections, $export),
                 'html' => $this->singleHtml($book, $sections, $export),
@@ -590,7 +604,15 @@ class Exporter
 
         // The export id is in the name so regenerating never overwrites an
         // earlier file. Export history promises the old file is still there.
-        return "{$slug}-{$export->id}.".$export->extension();
+        // What a print file is for goes in its name: two PDFs of the same
+        // book that a printer must not confuse.
+        $kind = match ($export->format) {
+            'pdf_interior' => '-interior',
+            'cover_wrap' => '-cover-'.($export->options['service'] ?? 'print'),
+            default => '',
+        };
+
+        return "{$slug}{$kind}-{$export->id}.".$export->extension();
     }
 
     /** @param Collection<int, ManuscriptSection> $sections */
@@ -659,6 +681,45 @@ class Exporter
         return $this->put($book, $export, $this->print->pdf(
             $book, $this->structure($book), self::languageCode($book->language), cover: true,
         ));
+    }
+
+    /**
+     * The print-ready interior: the PDF without its cover, which a printer
+     * binds inside the cover wrap. Records its page count and what that
+     * count depends on (PrintPages), so the cover's spine and the print
+     * checks use the real number.
+     */
+    private function interior(Book $book, BookExport $export): string
+    {
+        $fingerprint = PrintPages::fingerprint($book);
+        $set = $this->print->typeset($book, $this->structure($book), self::languageCode($book->language));
+
+        BookExport::whereKey($export->id)->update([
+            'pages' => $set['pages'],
+            'options' => json_encode(['fingerprint' => $fingerprint]),
+        ]);
+
+        return $this->put($book, $export, $set['pdf']);
+    }
+
+    /**
+     * The full cover for one print service, sized from the interior's
+     * real page count: the one already typeset when the book has not
+     * changed since, else the book is typeset now to count it.
+     */
+    private function coverWrap(Book $book, BookExport $export): string
+    {
+        $options = $this->wraps->options($book, $export->options ?? []);
+        $fingerprint = PrintPages::fingerprint($book);
+        $pages = PrintPages::known($book)['pages']
+            ?? $this->print->typeset($book, $this->structure($book), self::languageCode($book->language))['pages'];
+
+        BookExport::whereKey($export->id)->update([
+            'pages' => $pages,
+            'options' => json_encode($options + ['fingerprint' => $fingerprint]),
+        ]);
+
+        return $this->put($book, $export, $this->wraps->pdf($book, $this->wraps->geometry($book, $options, $pages)));
     }
 
     /**

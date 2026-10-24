@@ -49,7 +49,8 @@ it('offers every buildable format on the top plan', function () {
     $top = collect(config('billing.plans'))->sortByDesc('tier')->first();
 
     foreach (array_keys(BookExport::FORMATS) as $format) {
-        $name = $format === 'pdf_print' ? 'pdf' : $format;
+        // The print files are PDFs, entitled as 'pdf' (PublishingController::planFormat).
+        $name = in_array($format, ['pdf_print', 'pdf_interior', 'cover_wrap'], true) ? 'pdf' : $format;
 
         $this->assertContains($name, $top['formats'], "No plan includes [{$format}].");
     }

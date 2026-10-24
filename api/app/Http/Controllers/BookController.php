@@ -171,6 +171,17 @@ class BookController extends Controller
                 ] : [],
             ));
 
+            // Print defaults, stored so the cover wrap and the calculator
+            // read what the author sees: white paper, black ink, matte,
+            // at the type's trim (letter for textbooks, else 6 x 9).
+            $book->print = Book::DEFAULT_PRINT;
+
+            if ($type?->trim()) {
+                $book->layout = array_merge(Book::DEFAULT_LAYOUT, ['trim' => $type->trim()]);
+            }
+
+            $book->save();
+
             if ($type) {
                 $this->scaffolder->build($book, $type, $data['chapters'] ?? null);
 
@@ -340,6 +351,7 @@ class BookController extends Controller
             'publication.isbn_epub' => ['nullable', 'string', 'max:20', $this->isbnRule()],
             'publication.isbn_pdf' => ['nullable', 'string', 'max:20', $this->isbnRule()],
             'publication.legal_deposit' => ['nullable', 'string', 'max:500'],
+            'publication.country' => ['nullable', 'string', 'regex:/^[A-Z]{2}$/'],
             'publication.printing' => ['nullable', 'string', 'max:500'],
             'publication.disclaimer' => ['nullable', 'string', 'max:3000'],
             'publication.credits' => ['nullable', 'array', 'max:20'],

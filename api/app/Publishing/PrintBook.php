@@ -831,7 +831,7 @@ class PrintBook
      *
      * @return array{0: array<int, float>, 1: array<int, float>}
      */
-    private function edgeColours(string $file, bool $sides): array
+    public function edgeColours(string $file, bool $sides): array
     {
         $white = [1.0, 1.0, 1.0];
         $image = @imagecreatefromstring((string) file_get_contents($file));
@@ -1611,15 +1611,30 @@ class PrintBook
 
     private function margin(array $layout): float
     {
-        return match ($layout['margins']) {
-            'Narrow' => 0.6,
-            'Wide' => 0.95,
-            default => 0.78,
-        };
+        return self::marginInches($layout['margins'] ?? 'Standard');
     }
+
+    /**
+     * The page margin for a Margins setting, in inches. The same on every
+     * side, so it is also the inside (gutter) margin a print service
+     * checks against its own minimum (App\Publishing\PrintCheck).
+     */
+    public static function marginInches(string $margins): float
+    {
+        return self::MARGINS[$margins] ?? self::MARGINS['Standard'];
+    }
+
+    /** Margins settings, narrowest first. */
+    public const MARGINS = ['Narrow' => 0.6, 'Standard' => 0.78, 'Wide' => 0.95];
 
     /** @return array{0: float, 1: float} inches */
     private function trim(string $trim): array
+    {
+        return self::trimInches($trim);
+    }
+
+    /** @return array{0: float, 1: float} width and height in inches */
+    public static function trimInches(string $trim): array
     {
         if (preg_match('/([\d.]+)\s*x\s*([\d.]+)/', $trim, $found)) {
             return [(float) $found[1], (float) $found[2]];

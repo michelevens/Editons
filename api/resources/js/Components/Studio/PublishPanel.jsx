@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import PrintKit from './PrintKit';
 
 /**
  * Export & Publish.
@@ -173,11 +174,11 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
         return () => clearInterval(timer);
     }, [generating, load]);
 
-    const generate = async (format) => {
+    const generate = async (format, options = undefined) => {
         setBusy(`format:${format}`);
 
         try {
-            const response = await window.axios.post(`/books/${bookId}/exports`, { format });
+            const response = await window.axios.post(`/books/${bookId}/exports`, { format, options });
             apply(response.data.book);
             onNotify?.(
                 response.data.already
@@ -480,7 +481,9 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                 Files
                             </h3>
 
-                            {formats.map((format) => (
+                            {/* The print cover is made from Print & price,
+                                where its service and paper are chosen. */}
+                            {formats.filter((format) => format.format !== 'cover_wrap').map((format) => (
                                 <div
                                     key={format.format}
                                     className="flex items-center justify-between gap-3 border-b border-border-default py-2 last:border-0"
@@ -513,6 +516,25 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                         </section>
                     </div>
                 </div>
+
+                <PrintKit
+                    bookId={bookId}
+                    book={book}
+                    refreshKey={[
+                        exports.map((item) => `${item.id}:${item.status}`).join(','),
+                        book.description,
+                        book.category,
+                        book.keywords,
+                        book.isbn,
+                        channels.filter((channel) => channel.enabled).map((channel) => channel.channel).join(','),
+                    ].join('|')}
+                    save={save}
+                    generate={generate}
+                    busy={busy}
+                    rendering={rendering}
+                    locked={!available('cover_wrap')}
+                    onNotify={onNotify}
+                />
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-2 text-[13px] font-semibold text-text-primary">

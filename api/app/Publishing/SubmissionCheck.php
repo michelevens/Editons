@@ -3,6 +3,7 @@
 namespace App\Publishing;
 
 use App\Models\Book;
+use App\Models\BookChannel;
 use App\Models\Isbn;
 
 /**
@@ -73,6 +74,28 @@ class SubmissionCheck
             $errors['channels'] = 'Choose at least one store.';
         }
 
+        // Every store makes the author warrant the rights; the declaration
+        // is where they say so, with the material they reuse.
+        if (! RightsDeclaration::confirmed($book)) {
+            $errors['rights_declaration'] = 'Confirm the rights declaration in ISBN & Rights.';
+        }
+
+        // KDP asks whether text, images or translations are AI-generated.
+        if (AiDisclosure::required($book) && ! AiDisclosure::confirmed($book)) {
+            $errors['ai_disclosure'] = 'Answer the AI-content questions in ISBN & Rights: KDP asks them.';
+        }
+
+        // A print store chosen and a print rule failed: the file would be
+        // rejected (PrintCheck). Rules that rest on an estimated page count
+        // only warn, so they are not here.
+        foreach ($this->printResults($book) as $result) {
+            foreach ($result['items'] as $item) {
+                if ($item['status'] === 'fail') {
+                    $errors["print_{$result['service']}_{$item['key']}"] = $result['label'].': '.$item['message'].($item['fix'] ? ' '.$item['fix'] : '');
+                }
+            }
+        }
+
         return $errors;
     }
 
@@ -95,7 +118,68 @@ class SubmissionCheck
                 : "{$pending} pending suggestions. Files leave them out until they are accepted; accept or reject them in the manuscript.";
         }
 
+        foreach ($this->printResults($book) as $result) {
+            foreach ($result['items'] as $item) {
+                if ($item['status'] === 'warn' && $item['key'] !== 'suggestions') {
+                    $warnings["print_{$result['service']}_{$item['key']}"] = $result['label'].': '.$item['message'].($item['fix'] ? ' '.$item['fix'] : '');
+                }
+            }
+        }
+
+        if (($unsure = RightsDeclaration::unsure($book)) > 0) {
+            $warnings['rights_unsure'] = $unsure === 1
+                ? '1 item in your rights declaration has no permission yet.'
+                : "{$unsure} items in your rights declaration have no permission yet.";
+        }
+
+        if (AiDisclosure::required($book) && AiDisclosure::confirmed($book)
+            && ($outdated = AiDisclosure::for($book)['outdated']) !== []) {
+            $warnings['ai_disclosure'] = "The book's records show more AI use (".implode(', ', $outdated).') than your AI-content answers. Review them in ISBN & Rights.';
+        }
+
+        if ($book->publication()['country'] && $book->channels()->where('format', 'print')->exists()) {
+            $warnings['legal_deposit'] = LegalDeposit::for($book)['message'];
+        }
+
+        // Ebook stores' own limits beyond the shared floor above.
+        $ebooks = $book->channels()->whereIn('status', ['not_submitted', 'ready_to_submit'])->pluck('channel')
+            ->filter(fn ($channel) => (BookChannel::CHANNELS[$channel][1] ?? null) === 'ebook');
+        $hasEpub = $book->exports()->where('format', 'epub')->where('status', 'ready')->exists();
+
+        foreach ($ebooks as $channel) {
+            foreach (app(StoreReadiness::class)->for($book, $channel, $hasEpub)['items'] as $item) {
+                if ($item['status'] !== 'pass' && ! in_array($item['key'], ['description', 'category'], true)) {
+                    $key = $item['key'] === 'epub' ? 'epub' : "store_{$channel}_{$item['key']}";
+                    $warnings[$key] = ($item['key'] === 'epub' ? '' : BookChannel::CHANNELS[$channel][0].': ')
+                        .$item['message'].($item['fix'] ? ' '.$item['fix'] : '');
+                }
+            }
+        }
+
         return $warnings;
+    }
+
+    /**
+     * Print checks for the print stores this book is going to.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function printResults(Book $book): array
+    {
+        $services = $book->channels()
+            ->whereIn('channel', array_keys(BookChannel::PRINT_SERVICE))
+            ->whereIn('status', ['not_submitted', 'ready_to_submit'])
+            ->pluck('channel')
+            ->map(fn ($channel) => BookChannel::PRINT_SERVICE[$channel])
+            ->all();
+
+        if ($services === []) {
+            return [];
+        }
+
+        $check = app(PrintCheck::class);
+
+        return array_map(fn ($service) => $check->for($book, $service), $services);
     }
 
     /** Suggested changes not yet accepted or rejected, across the book. */

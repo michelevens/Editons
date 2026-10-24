@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Icon from './Icon';
+import PublishingDeclarations from './PublishingDeclarations';
 
 /**
  * ISBN & Rights.
@@ -329,6 +330,8 @@ export default function RightsPanel({ bookId, onNotify }) {
                         is then listed as the publisher rather than you.
                     </p>
                 </section>
+
+                <PublishingDeclarations bookId={bookId} data={data} setData={setData} onNotify={onNotify} />
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
