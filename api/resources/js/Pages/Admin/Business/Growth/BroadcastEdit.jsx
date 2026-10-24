@@ -138,7 +138,7 @@ export default function BroadcastEdit({ broadcast, recipients, audiences, everyo
                     {preview === null ? (
                         <Empty>Press Preview to see the email.</Empty>
                     ) : (
-                        <iframe title="Email preview" data-a="admin:broadcast:preview-frame" sandbox="" srcDoc={preview} className="h-[560px] w-full rounded-tile border border-border-default bg-white" />
+                        <iframe title="Email preview" data-a="admin:broadcast:preview-frame" sandbox="allow-same-origin" srcDoc={preview} className="h-[560px] w-full rounded-tile border border-border-default bg-white" />
                     )}
                 </Panel>
             </div>

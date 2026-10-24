@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+﻿import { expect, test } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
@@ -137,13 +137,17 @@ test('an audience counts live, a broadcast previews and test-sends to its author
 
     await page.goto('/admin/growth/broadcasts');
     await page.click('[data-a="admin:broadcast:new"]');
-    await page.fill('[data-a="admin:broadcast:subject"]', 'E2E draft — never sent');
+    await page.fill('[data-a="admin:broadcast:subject"]', 'E2E draft â€” never sent');
     await page.fill('[data-a="admin:broadcast:body"]', 'First paragraph.\n\nSecond paragraph.');
     await page.click('[data-a="admin:broadcast:save"]');
     await expect(page.locator('[data-a="platform:notice"]')).toContainText('Draft saved');
 
     await page.click('[data-a="admin:broadcast:preview"]');
     await expect(page.locator('[data-a="admin:broadcast:preview-frame"]')).toBeVisible();
+
+    // The preview frame is sandboxed with no scripts; Chromium logs that it
+    // refused the browser's own frame script, which is the sandbox working.
+    const sandboxNotice = (e) => e.includes('about:srcdoc') && e.includes('sandboxed');
 
     await page.click('[data-a="admin:broadcast:test"]');
     await expect(page.locator('[data-a="platform:notice"]')).toContainText(ADMIN.email);
@@ -155,7 +159,7 @@ test('an audience counts live, a broadcast previews and test-sends to its author
     await page.click('[data-a="admin:discount:new:confirm"]');
     await expect(page.locator('[data-a="platform:notice"]')).toContainText('created');
 
-    expect(errors).toEqual([]);
+    expect(errors.filter((e) => !sandboxNotice(e))).toEqual([]);
 });
 
 test.describe('on a phone', () => {
