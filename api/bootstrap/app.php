@@ -1,7 +1,13 @@
 <?php
 
+use App\Http\Middleware\DenyAdminPaths;
+use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\ForceHttps;
+use App\Http\Middleware\GuardImpersonation;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\MaintenanceGate;
+use App\Http\Middleware\RequirePlatformTwoFactor;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\TrustedProxies;
 use Illuminate\Foundation\Application;
@@ -27,8 +33,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
+            // The platform layer, in this order: a "View as" session is
+            // checked (and ended, if it is over) before anything reads who
+            // is signed in; then suspended and signed-out-everywhere
+            // accounts; then the default-deny on /admin; then maintenance.
+            GuardImpersonation::class,
+            EnsureAccountActive::class,
+            DenyAdminPaths::class,
+            MaintenanceGate::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+        ]);
+
+        // The admin console's route group (routes/admin.php).
+        $middleware->alias([
+            'platform.admin' => EnsurePlatformAdmin::class,
+            'platform.2fa' => RequirePlatformTwoFactor::class,
         ]);
 
         // app.ecrivain.ai renders the studio and api.ecrivain.ai answers its

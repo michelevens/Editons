@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Editorial\EditorialAgent;
+use App\Platform\RecordsImpersonator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** One run of one agent over one section. */
 class EditorialReview extends Model
 {
-    use HasFactory;
+    use HasFactory, RecordsImpersonator;
 
     protected $fillable = [
         'manuscript_section_id', 'user_id', 'agent', 'status',

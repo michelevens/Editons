@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Editorial\EditorialAgent;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Platform\LoginHistory;
+use App\Platform\PlatformSettings;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +32,9 @@ class RegisteredUserController extends Controller
         $agents = EditorialAgent::cases();
 
         return Inertia::render('Auth/Register', [
+            // Closed from the admin console's settings: the page says so
+            // instead of offering a form that will refuse.
+            'signups_open' => (bool) app(PlatformSettings::class)->get('new_signups_open'),
             'offer' => [
                 'books' => $free['books'],
                 'credits' => (int) $free['credits'],
@@ -49,6 +54,12 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        if (! app(PlatformSettings::class)->get('new_signups_open')) {
+            throw ValidationException::withMessages([
+                'email' => 'New accounts are not open at the moment. Please try again later.',
+            ]);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
@@ -64,6 +75,7 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
 
         Auth::login($user);
+        LoginHistory::record($user, 'registration', $request);
 
         return redirect(route('dashboard', absolute: false));
     }

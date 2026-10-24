@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
+use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -34,16 +36,27 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Attempt to authenticate the request's credentials.
+     * Check the credentials, without signing in yet.
+     *
+     * The controller decides what comes next: a suspended account is
+     * refused, an account with two-factor on goes to the challenge, and only
+     * then is the session signed in. Auth::attempt() would have signed in
+     * first and had to be undone — and undoing it with logout() rotates the
+     * remember token, signing the person out of their other devices.
      *
      * @throws ValidationException
      */
-    public function authenticate(): void
+    public function authenticate(): User
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $credentials = $this->only('email', 'password');
+        $provider = Auth::guard('web')->getProvider();
+        $user = $provider->retrieveByCredentials($credentials);
+
+        if (! $user instanceof User || ! $provider->validateCredentials($user, $credentials)) {
             RateLimiter::hit($this->throttleKey());
+            event(new Failed('web', $user, $credentials));
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -51,6 +64,16 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        // Only after the password is right, so this says nothing about
+        // whether an address has an account.
+        if ($user->isSuspended()) {
+            throw ValidationException::withMessages([
+                'email' => 'This account is suspended. If you think this is a mistake, write to support.',
+            ]);
+        }
+
+        return $user;
     }
 
     /**

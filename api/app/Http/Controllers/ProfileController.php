@@ -7,6 +7,7 @@ use App\Http\Requests\ProfileUpdateRequest;
 use App\Journey\BookType;
 use App\Mail\EmailPreferences;
 use App\Mail\Notify;
+use App\Platform\TwoFactor;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -55,6 +56,7 @@ class ProfileController extends Controller
                 'book_limit' => $limits['books'],
             ],
             'email_preferences' => EmailPreferences::describe($user),
+            'two_factor' => app(TwoFactor::class)->state($user),
         ]);
     }
 

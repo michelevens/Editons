@@ -21,3 +21,11 @@ Artisan::command('inspire', function () {
  */
 Schedule::command('exports:expire')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('exports:expire --missing')->dailyAt('03:30')->withoutOverlapping();
+
+/*
+ | The admin console's daily figures (trend lines start the day this ships;
+ | nothing is back-filled) and the end of complimentary plans. The limits
+ | already treat an ended plan as Free, so a late run gives nothing away.
+ */
+Schedule::command('platform:snapshot-metrics')->dailyAt('23:55')->withoutOverlapping();
+Schedule::command('platform:expire-complimentary')->hourly()->withoutOverlapping();

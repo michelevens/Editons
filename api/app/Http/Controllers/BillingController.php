@@ -191,6 +191,9 @@ class BillingController extends Controller
             'grant' => 'Monthly credits',
             'purchase' => 'Credits purchased',
             'expiry' => 'Credits expired',
+            // Adjustments made by Ecrivain staff from the admin console.
+            'admin_grant' => 'Credits added by '.config('platform.staff_name'),
+            'admin_deduct' => 'Credits adjusted by '.config('platform.staff_name'),
             default => $base,
         };
     }
@@ -208,6 +211,8 @@ class BillingController extends Controller
     {
         $spends = CreditTransaction::where('user_id', $userId)
             ->where('amount', '<', 0)
+            // A staff correction is not use.
+            ->where('kind', '!=', 'admin_deduct')
             ->where('created_at', '>=', now()->subDays(13)->startOfDay())
             ->get()
             ->groupBy(fn (CreditTransaction $row) => $row->created_at->toDateString())
