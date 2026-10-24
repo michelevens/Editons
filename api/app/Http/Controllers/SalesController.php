@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Commerce\Commerce;
 use App\Commerce\SalesReport;
 use App\Models\Book;
 use App\Models\BookChannel;
+use App\Platform\Features;
 use App\Publishing\PrintPages;
 use App\Publishing\Royalties;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +38,7 @@ class SalesController extends Controller
         $this->authorize('view', $book);
 
         // The owner's own sales of this book, and nobody else's eyes.
-        $direct = Commerce::enabled() && $request->user()->can('manage', $book)
+        $direct = Features::enabled('storefront', $request->user()) && $request->user()->can('manage', $book)
             ? ['product' => $book->product ? [
                 'published' => $book->product->isPublished(),
                 'url' => $book->product->isPublished() ? route('store.product', $book->product->slug) : null,
@@ -137,7 +137,7 @@ class SalesController extends Controller
         $user = $request->user();
 
         return Inertia::render('Sales', [
-            'enabled' => Commerce::enabled(),
+            'enabled' => Features::enabled('storefront', $user),
             'report' => SalesReport::for($user, null, 30),
             'products' => $user->products()
                 ->with('book:id,title')

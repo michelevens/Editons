@@ -13,6 +13,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
+use App\Platform\Features;
 use App\Publishing\CoverRenderer;
 use App\Publishing\Exporter;
 use Illuminate\Http\RedirectResponse;
@@ -286,6 +287,10 @@ class StoreController extends Controller
         abort_unless(Commerce::enabled() && $product->isPublished(), 404);
 
         $product->loadMissing('book', 'user');
+
+        // The seller's storefront switched off by the console: their store
+        // pages go with it (App\Platform\Features).
+        abort_unless(Features::enabled('storefront', $product->user), 404);
 
         abort_if(! $product->book, 404);
 

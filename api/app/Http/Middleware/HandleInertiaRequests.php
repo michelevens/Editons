@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Billing\Entitlements;
 use App\Editorial\DriverFactory;
 use App\Http\Controllers\InboxController;
+use App\Platform\Features;
 use App\Platform\Impersonation;
 use App\Platform\PlatformSettings;
 use Illuminate\Http\Request;
@@ -103,6 +104,11 @@ class HandleInertiaRequests extends Middleware
                     : false,
                 'staff_name' => config('platform.staff_name'),
             ],
+
+            // Modules switched on for this person (App\Platform\Features): a
+            // module that is off disappears from the sidebar, the More sheet
+            // and the account menu. During View as, the viewed account's.
+            'features' => fn () => app(Features::class)->resolve($request->user()),
 
             // One-off messages from a redirect: "Viewing ended", a console
             // action's result. Read once, like any flash.
