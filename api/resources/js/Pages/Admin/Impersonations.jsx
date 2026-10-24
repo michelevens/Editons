@@ -1,6 +1,6 @@
 import AdminLayout, { formatDate } from '@/Layouts/AdminLayout';
 import { Link } from '@inertiajs/react';
-import { Badge, Pager } from './Accounts/Index';
+import { Badge, Pager } from '@/Components/Admin/Kit';
 
 /** Every "View as" session: who, whom, why, and how it ended. */
 export default function Impersonations({ sessions, filters }) {

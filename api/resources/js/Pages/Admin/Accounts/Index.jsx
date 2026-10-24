@@ -1,4 +1,5 @@
 import AdminLayout, { buttonClass, formatDate, inputClass } from '@/Layouts/AdminLayout';
+import { Badge, Pager } from '@/Components/Admin/Kit';
 import { Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -93,44 +94,3 @@ export default function Index({ accounts, q, filter }) {
     );
 }
 
-export function Badge({ children, tone = 'neutral' }) {
-    const tones = {
-        neutral: 'bg-bg-subtle text-text-secondary',
-        info: 'bg-status-info-bg text-status-info',
-        danger: 'bg-status-danger-bg text-status-danger',
-        success: 'bg-status-success-bg text-status-success',
-        warning: 'bg-status-warning-bg text-status-warning',
-    };
-
-    return <span className={`rounded-badge px-2 py-0.5 font-medium ${tones[tone]}`}>{children}</span>;
-}
-
-/** Laravel's paginator links, as a row. */
-export function Pager({ links }) {
-    if (!links || links.length <= 3) return null;
-
-    return (
-        <nav aria-label="Pages" className="mt-4 flex flex-wrap gap-1">
-            {links.map((link, index) =>
-                link.url ? (
-                    <Link
-                        key={index}
-                        href={link.url}
-                        preserveScroll
-                        aria-current={link.active ? 'page' : undefined}
-                        className={`tap rounded-control px-3 py-1.5 text-[12.5px] ${
-                            link.active ? 'bg-bg-inverse text-text-inverse' : 'bg-bg-surface text-text-secondary hover:text-text-primary'
-                        }`}
-                        dangerouslySetInnerHTML={{ __html: link.label }}
-                    />
-                ) : (
-                    <span
-                        key={index}
-                        className="rounded-control px-3 py-1.5 text-[12.5px] text-text-muted"
-                        dangerouslySetInnerHTML={{ __html: link.label }}
-                    />
-                ),
-            )}
-        </nav>
-    );
-}

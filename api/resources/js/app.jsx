@@ -6,6 +6,13 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { watchSystemTheme } from './theme';
 import PlatformFrame from './Components/Platform/PlatformFrame';
+import { installErrorReporter } from './errorReporter';
+
+// Browser errors go to the console's error groups (errorReporter.js). Built
+// pages only: the dev server's own errors are not the product's.
+if (import.meta.env.PROD) {
+    installErrorReporter();
+}
 
 // The theme class is set by app.blade.php before paint; this keeps it in step
 // with the device while the choice is 'system'.

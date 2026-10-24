@@ -4,6 +4,7 @@ import Dialog, { CloseButton } from '../Dialog';
 import { useTyping } from '../Editor/useKeyboard';
 import Icon from './Icon';
 import { goTo } from './navigation';
+import { NAV_FEATURES, useFeatures } from '../../features';
 
 /**
  * The tab bar along the bottom of a phone or tablet.
@@ -85,7 +86,9 @@ export default function MobileNav({
     // last worked on.
     const book = bookId ?? recentBookId ?? null;
     const set = tabSet(current, Boolean(bookId));
-    const tabs = SETS[set].filter((key) => key !== 'continue' || book);
+    const on = useFeatures();
+    // A module switched off for this account leaves the bar (App\Platform\Features).
+    const tabs = SETS[set].filter((key) => (key !== 'continue' || book) && on(NAV_FEATURES[key]));
     const [sheet, setSheet] = useState(false);
     // Out of the way while the keyboard is up: the keys, the formatting
     // bar and the text are what a phone has room for then.
@@ -228,13 +231,15 @@ const BOOK_GROUPS = [
 ];
 
 function MoreSheet({ book, title, onOpen, onClose }) {
+    const on = useFeatures();
     const account = [
-        { label: 'Inbox', icon: 'bell', href: route('inbox.index') },
-        { label: 'Plans & billing', icon: 'card', href: route('billing.show') },
-        { label: 'Storefront sales', icon: 'sales', href: route('sales.overview') },
-        { label: 'Your purchases', icon: 'doc', href: route('purchases.index') },
-        { label: 'Account settings', icon: 'user', href: route('profile.edit') },
-    ];
+        { key: 'inbox', label: 'Inbox', icon: 'bell', href: route('inbox.index') },
+        { key: 'billing', label: 'Plans & billing', icon: 'card', href: route('billing.show') },
+        { key: 'store-sales', label: 'Storefront sales', icon: 'sales', href: route('sales.overview') },
+        { key: 'purchases', label: 'Your purchases', icon: 'doc', href: route('purchases.index') },
+        { key: 'account', label: 'Account settings', icon: 'user', href: route('profile.edit') },
+        { key: 'support', label: 'Help', icon: 'help', href: route('support.index') },
+    ].filter((link) => on(NAV_FEATURES[link.key]));
 
     return (
         <Dialog
@@ -267,7 +272,7 @@ function MoreSheet({ book, title, onOpen, onClose }) {
                                 {group.title}
                             </h3>
                             <ul className="grid grid-cols-4">
-                                {group.items.map((item) => (
+                                {group.items.filter((item) => on(NAV_FEATURES[item.key])).map((item) => (
                                     <li key={item.key} className="flex">
                                         <button
                                             type="button"
@@ -297,6 +302,7 @@ function MoreSheet({ book, title, onOpen, onClose }) {
                             <li key={link.label}>
                                 <Link
                                     href={link.href}
+                                    data-a={`sheet:account:${link.key}`}
                                     onClick={onClose}
                                     className="flex min-h-[48px] items-center gap-3 rounded-control px-3 text-[15px] text-text-body transition hover:bg-bg-subtle"
                                 >

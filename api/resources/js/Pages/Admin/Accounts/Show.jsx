@@ -1,9 +1,9 @@
 import Dialog from '@/Components/Dialog';
 import { money } from '@/Components/Store/money';
-import AdminLayout, { Panel, buttonClass, formatDate, inputClass } from '@/Layouts/AdminLayout';
+import AdminLayout, { Panel, buttonClass, formatDate, inputClass, usd } from '@/Layouts/AdminLayout';
 import { Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
-import { Badge } from './Index';
+import { Badge, Empty, Errors, ReasonAction, Table } from '@/Components/Admin/Kit';
 
 /**
  * One account, everything about it but its words.
@@ -24,6 +24,8 @@ export default function Show({
     impersonations,
     can,
     impersonation_minutes: minutes,
+    ai,
+    features,
 }) {
     const owner = can.owner;
 
@@ -196,6 +198,10 @@ export default function Show({
 
                 <Notes account={account} notes={notes} />
 
+                <AiPanel account={account} ai={ai} owner={owner} />
+
+                <FeaturesPanel account={account} features={features} owner={owner} />
+
                 <Panel title="View as sessions" actions={<Link href={route('admin.impersonations.index', { target: account.id })} className="text-[12px] text-brand-primary hover:underline">All</Link>}>
                     {impersonations.length === 0 ? (
                         <Empty>Nobody has viewed as this account.</Empty>
@@ -228,39 +234,6 @@ function methodLabel(method) {
     );
 }
 
-function Empty({ children }) {
-    return <p className="text-[12.5px] text-text-secondary">{children}</p>;
-}
-
-function Table({ head, rows }) {
-    return (
-        <div className="overflow-x-auto">
-            <table className="w-full min-w-[360px] text-left text-[12.5px]">
-                <thead className="text-text-secondary">
-                    <tr>
-                        {head.map((cell) => (
-                            <th key={cell} className="py-1.5 pr-3 font-medium">
-                                {cell}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody className="tabular-nums">
-                    {rows.map((row, index) => (
-                        <tr key={index} className="border-t border-border-divider">
-                            {row.map((cell, i) => (
-                                <td key={i} className="py-1.5 pr-3">
-                                    {cell}
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
 function Ledger({ rows }) {
     if (rows.length === 0) return <p className="mt-3 text-[12.5px] text-text-secondary">No ledger rows.</p>;
 
@@ -280,100 +253,6 @@ function Ledger({ rows }) {
                 </li>
             ))}
         </ul>
-    );
-}
-
-/**
- * A button that opens a dialog asking for a reason, then posts.
- * `extra` adds fields; `children` renders more inputs bound to the form.
- */
-function ReasonAction({ label, route: url, dataA, danger = false, detail = null, extra = {}, noReason = false, confirm = null, children = null, initial = {} }) {
-    const [open, setOpen] = useState(false);
-    const form = useForm({ reason: '', ...extra, ...initial });
-
-    const submit = (event) => {
-        event.preventDefault();
-        // transform() returns nothing in Inertia's useForm: set, then post.
-        form.transform((data) => ({ ...data, ...extra }));
-        form.post(url, {
-            preserveScroll: true,
-            onSuccess: () => {
-                setOpen(false);
-                form.reset();
-            },
-        });
-    };
-
-    return (
-        <>
-            <button
-                type="button"
-                data-a={dataA}
-                onClick={() => setOpen(true)}
-                className={`${buttonClass} border ${
-                    danger
-                        ? 'border-status-danger/40 text-status-danger hover:bg-status-danger-bg'
-                        : 'border-border-default text-text-primary hover:bg-bg-subtle'
-                }`}
-            >
-                {label}
-            </button>
-            {open && (
-                <Dialog label={label} onClose={() => setOpen(false)} className="w-[460px] rounded-panel bg-bg-surface p-5">
-                    <form onSubmit={submit} className="text-left">
-                        <h2 className="text-[16px] font-bold text-text-primary">{label}</h2>
-                        {(detail || confirm) && <p className="mt-1 text-[12.5px] text-text-secondary">{detail ?? confirm}</p>}
-                        {children && <div className="mt-3 space-y-3">{children(form)}</div>}
-                        {!noReason && (
-                            <div className="mt-3">
-                                <label htmlFor={`${dataA}-reason`} className="text-[12.5px] font-medium text-text-primary">
-                                    Reason (kept in the audit log)
-                                </label>
-                                <textarea
-                                    id={`${dataA}-reason`}
-                                    data-a={`${dataA}:reason`}
-                                    data-autofocus
-                                    required
-                                    minLength={4}
-                                    rows={3}
-                                    value={form.data.reason}
-                                    onChange={(event) => form.setData('reason', event.target.value)}
-                                    className={`${inputClass} mt-1`}
-                                />
-                            </div>
-                        )}
-                        <Errors errors={form.errors} />
-                        <div className="mt-4 flex justify-end gap-2">
-                            <button type="button" onClick={() => setOpen(false)} className={`${buttonClass} text-text-secondary hover:bg-bg-subtle`}>
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                data-a={`${dataA}:confirm`}
-                                disabled={form.processing}
-                                className={`${buttonClass} text-white ${danger ? 'bg-status-danger-fill' : 'bg-brand-fill hover:bg-brand-primary-hover'}`}
-                            >
-                                {label}
-                            </button>
-                        </div>
-                    </form>
-                </Dialog>
-            )}
-        </>
-    );
-}
-
-function Errors({ errors }) {
-    const list = Object.values(errors ?? {});
-
-    if (list.length === 0) return null;
-
-    return (
-        <div role="alert" className="mt-3 rounded-tile bg-status-danger-bg px-3 py-2 text-[12.5px] text-status-danger" data-a="admin:error">
-            {list.map((message) => (
-                <p key={message}>{message}</p>
-            ))}
-        </div>
     );
 }
 
@@ -552,6 +431,119 @@ function Notes({ account, notes }) {
                                 Delete
                             </button>
                         </p>
+                    </li>
+                ))}
+            </ul>
+        </Panel>
+    );
+}
+
+/** What this account's AI calls cost, and its monthly cap (owner sets it). */
+function AiPanel({ account, ai, owner }) {
+    if (!ai) return null;
+
+    const d30 = ai.windows.d30;
+
+    return (
+        <Panel
+            title="AI usage"
+            detail={`This month ${usd(ai.spent_this_month)} known cost · cap ${ai.effective_cap === null ? 'none' : usd(ai.effective_cap)}${ai.cap === null && ai.effective_cap !== null ? ' (platform default)' : ''}`}
+            data-a="admin:account:ai"
+        >
+            <p className="text-[12.5px] text-text-body">
+                30 days: {d30.calls} calls ({d30.simulated} sample output), {d30.failed} failed, {usd(d30.cost_usd)} known
+                {d30.unknown_cost > 0 && <span className="text-status-warning"> · {d30.unknown_cost} with unknown cost</span>}
+            </p>
+            {ai.by_feature.length > 0 && (
+                <div className="mt-2">
+                    <Table
+                        head={['Feature', 'Calls', 'Failed', 'Cost']}
+                        rows={ai.by_feature.map((row) => [row.label, row.calls, row.failed, row.unknown_cost > 0 ? `${usd(row.cost_usd)} + ${row.unknown_cost} unknown` : usd(row.cost_usd)])}
+                    />
+                </div>
+            )}
+            {ai.failures.length > 0 && (
+                <ul className="mt-2 space-y-1 text-[12px] text-text-secondary">
+                    {ai.failures.map((f) => (
+                        <li key={f.id} className="truncate">
+                            <span className="text-status-danger">Failed</span> {f.feature} · {formatDate(f.at)} · {f.error}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {owner && (
+                <div className="mt-3">
+                    <ReasonAction
+                        label={ai.cap === null ? 'Set a monthly AI cap' : 'Change the monthly AI cap'}
+                        route={route('admin.accounts.ai-cap', account.id)}
+                        dataA="admin:action:ai-cap"
+                        detail="AI features stop for this account once its known AI cost this calendar month reaches the cap. Empty removes it."
+                        initial={{ cap: ai.cap ?? '' }}
+                    >
+                        {(form) => (
+                            <div>
+                                <label htmlFor="ai-cap" className="text-[12.5px] font-medium text-text-primary">
+                                    Cap in USD (empty for none)
+                                </label>
+                                <input
+                                    id="ai-cap"
+                                    data-a="admin:action:ai-cap:value"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={form.data.cap ?? ''}
+                                    onChange={(event) => form.setData('cap', event.target.value)}
+                                    className={`${inputClass} mt-1`}
+                                />
+                            </div>
+                        )}
+                    </ReasonAction>
+                </div>
+            )}
+        </Panel>
+    );
+}
+
+/** Each module for this account: what decides it, and an override (owner). */
+function FeaturesPanel({ account, features, owner }) {
+    if (!features) return null;
+
+    const sources = { override: 'override', global: 'platform switch', default: 'default', unavailable: 'not configured' };
+
+    return (
+        <Panel title="Feature flags" detail="An override for this account wins over the platform switch." data-a="admin:account:features">
+            <ul className="divide-y divide-border-divider text-[12.5px]">
+                {features.map((f) => (
+                    <li key={f.key} className="flex flex-wrap items-center gap-2 py-1.5">
+                        <span className="min-w-0 flex-1">
+                            <span className="font-medium text-text-primary">{f.label}</span>
+                            <span className="text-text-secondary"> · {sources[f.source]}</span>
+                        </span>
+                        <Badge tone={f.enabled ? 'success' : 'neutral'}>{f.enabled ? 'On' : 'Off'}</Badge>
+                        {owner && f.available && (
+                            <ReasonAction
+                                label="Override"
+                                route={route('admin.accounts.features', account.id)}
+                                dataA={`admin:action:feature:${f.key}`}
+                                detail={`${f.label} for ${account.email}. Default hands the decision back to the platform switch.`}
+                                initial={{ key: f.key, state: f.override === null ? 'default' : f.override ? 'on' : 'off' }}
+                            >
+                                {(form) => (
+                                    <fieldset>
+                                        <legend className="text-[12.5px] font-medium text-text-primary">For this account</legend>
+                                        <div className="mt-1 flex gap-3 text-[13px]">
+                                            {[['on', 'On'], ['off', 'Off'], ['default', 'Default']].map(([value, text]) => (
+                                                <label key={value} className="flex items-center gap-1.5">
+                                                    <input type="radio" name={`feature-${f.key}`} value={value} checked={form.data.state === value} onChange={() => form.setData('state', value)} />
+                                                    {text}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </fieldset>
+                                )}
+                            </ReasonAction>
+                        )}
                     </li>
                 ))}
             </ul>

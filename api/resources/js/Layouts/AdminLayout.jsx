@@ -14,7 +14,13 @@ import { useState } from 'react';
 export const ADMIN_NAV = [
     { key: 'dashboard', label: 'Dashboard', icon: 'chart', route: 'admin.dashboard' },
     { key: 'accounts', label: 'Accounts', icon: 'users', route: 'admin.accounts.index' },
-    { key: 'impersonations', label: 'Impersonation log', icon: 'eye', route: 'admin.impersonations.index' },
+    { key: 'support', label: 'Support', icon: 'help', route: 'admin.support.index' },
+    { key: 'ai', label: 'AI usage', icon: 'bolt', route: 'admin.ai.index' },
+    { key: 'operations', label: 'Jobs & health', icon: 'flow', route: 'admin.operations.index' },
+    { key: 'mail', label: 'Email log', icon: 'bell', route: 'admin.mail.index' },
+    { key: 'errors', label: 'Errors', icon: 'info', route: 'admin.errors.index' },
+    { key: 'features', label: 'Feature flags', icon: 'list', route: 'admin.features.index' },
+    { key: 'impersonations',label: 'Impersonation log', icon: 'eye', route: 'admin.impersonations.index' },
     { key: 'audit', label: 'Audit log', icon: 'history', route: 'admin.audit.index' },
     { key: 'settings', label: 'Settings', icon: 'gear', route: 'admin.settings.show' },
 ];
@@ -191,6 +197,27 @@ export function formatDate(iso, withTime = true) {
     return withTime
         ? date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
         : date.toLocaleDateString(undefined, { dateStyle: 'medium' });
+}
+
+/** Dollars: four decimals under a cent's worth of precision matters, two above. */
+export function usd(value) {
+    if (value === null || value === undefined) return 'unknown';
+
+    const n = Number(value);
+
+    return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: n !== 0 && Math.abs(n) < 1 ? 4 : 2 })}`;
+}
+
+/** "3 h", "2 d": how long something has waited. */
+export function age(iso) {
+    if (!iso) return '—';
+
+    const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+
+    if (minutes < 60) return `${minutes} min`;
+    if (minutes < 60 * 48) return `${Math.round(minutes / 60)} h`;
+
+    return `${Math.round(minutes / 1440)} d`;
 }
 
 export const inputClass =
