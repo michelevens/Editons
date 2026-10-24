@@ -94,6 +94,7 @@ final class Offboarding
             'mail_logs' => DB::table('mail_logs')->where('user_id', $user->id)->orWhere('to', $user->email)->count(),
             'ai_usage' => DB::table('ai_usage')->where('user_id', $user->id)->count(),
             'content_reports_filed' => DB::table('content_reports')->where('reporter_user_id', $user->id)->count(),
+            'author_invitations' => DB::table('author_invitations')->where(fn ($q) => $q->where('accepted_user_id', $user->id)->orWhere('email', mb_strtolower($user->email)))->count(),
         ];
 
         $soldItems = DB::table('order_items')->where('seller_id', $user->id)->count();
@@ -254,6 +255,11 @@ final class Offboarding
             $counts['anonymised']['ai_usage'] = DB::table('ai_usage')->where('user_id', $user->id)->update(['user_id' => null]);
             $counts['anonymised']['content_reports_filed'] = DB::table('content_reports')->where('reporter_user_id', $user->id)
                 ->update(['reporter_user_id' => null, 'reporter_email' => null]);
+            // Invitations keep their place in the console's counts, not the
+            // address, name or note.
+            $counts['anonymised']['author_invitations'] = DB::table('author_invitations')
+                ->where(fn ($q) => $q->where('accepted_user_id', $user->id)->orWhere('email', mb_strtolower($email)))
+                ->update(['email' => DB::raw("'deleted-' || id || '@invalid'"), 'name' => null, 'note' => null, 'status' => DB::raw("case when status = 'pending' then 'revoked' else status end")]);
 
             // Books go for good (not to the bin); sections, versions,
             // comments, reviews, findings, citations, sources, terms,

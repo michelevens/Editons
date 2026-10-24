@@ -31,6 +31,7 @@ export const ADMIN_BUSINESS_NAV = [
     { key: 'plans', label: 'Plans', icon: 'layout', route: 'admin.plans.index' },
     { key: 'sales', label: 'Book sales', icon: 'sales', route: 'admin.sales.index' },
     { key: 'growth', label: 'Growth', icon: 'rocket', route: 'admin.growth.acquisition' },
+    { key: 'invitations', label: 'Invitations', icon: 'mega', route: 'admin.invitations.index' },
     { key: 'onboarding', label: 'Onboarding', icon: 'check', route: 'admin.onboarding.index' },
 ];
 

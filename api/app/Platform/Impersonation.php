@@ -53,7 +53,7 @@ final class Impersonation
         [['DELETE'], ['#^books/\d+$#'], 'deleting a book'],
         [['POST', 'PUT', 'PATCH', 'DELETE'], ['books/*/submit', 'books/*/channels', 'books/*/channels/*'], 'publishing to stores'],
         [['POST', 'PUT', 'PATCH', 'DELETE'], ['books/*/product'], 'storefront products'],
-        [['POST', 'PUT', 'PATCH', 'DELETE'], ['books/*/members', 'members/*', 'invitations/*'], 'team invitations'],
+        [['POST', 'PUT', 'PATCH', 'DELETE'], ['books/*/members', 'members/*', 'invitations/*', 'join/*'], 'team invitations and joining from an invitation'],
         [null, [
             'books/*/exports/*/download', 'books/*/export.md', 'books/*/export.ecrivain',
             'books/*/cover/download', 'store/downloads/*',

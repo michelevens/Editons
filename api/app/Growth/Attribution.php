@@ -17,7 +17,8 @@ use Illuminate\Http\Request;
  * Only the referrer's host is kept, never its path or query (a search
  * engine's query string is the searcher's business), and only when it is
  * another site. The landing path is kept without its query string, for the
- * same reason. Everything is clipped to its column.
+ * same reason, and without a token (/join/…, /invitations/…,
+ * /reset-password/…). Everything is clipped to its column.
  *
  * The marketing site is a different domain, so this cookie cannot see a
  * visit there: links from it to /register should carry utm_* parameters.
@@ -35,7 +36,7 @@ final class Attribution
             'medium' => $clean($request->query('utm_medium'), 100) ?? ($referrer ? 'referral' : null),
             'campaign' => $clean($request->query('utm_campaign'), 150),
             'referrer' => $referrer,
-            'landing' => mb_substr('/'.ltrim($request->path(), '/'), 0, 255),
+            'landing' => mb_substr(self::landing($request->path()), 0, 255),
         ];
     }
 
@@ -63,6 +64,17 @@ final class Attribution
     public static function label(?string $source): string
     {
         return $source === null || $source === '' ? 'Direct or unknown' : $source;
+    }
+
+    /**
+     * The path without a secret in it: an invitation or reset link's token
+     * would otherwise sit in the cookie and then on the account.
+     */
+    private static function landing(string $path): string
+    {
+        $path = '/'.ltrim($path, '/');
+
+        return preg_replace('~^/(join|invitations|reset-password)/[^/]+.*$~', '/$1', $path) ?? $path;
     }
 
     private static function externalHost(?string $referer, string $ownHost): ?string

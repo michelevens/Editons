@@ -27,6 +27,7 @@ use App\Mail\Commerce\OrderReceiptMail;
 use App\Mail\Commerce\RefundProcessedMail;
 use App\Mail\Commerce\RoyaltyStatementMail;
 use App\Mail\EcrivainMail;
+use App\Mail\Growth\AuthorInvitationMail;
 use App\Mail\Growth\BroadcastMail;
 use App\Mail\Growth\LifecycleMail;
 use App\Mail\Publishing\BookLiveMail;
@@ -40,6 +41,7 @@ use App\Mail\Trust\ListingTakenDownMail;
 use App\Mail\Writing\BookDirectorReportMail;
 use App\Mail\Writing\EditorialReviewCompleteMail;
 use App\Mail\Writing\WeeklyDigestMail;
+use App\Models\AuthorInvitation;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
@@ -187,6 +189,8 @@ final class EmailCatalog
             // Growth (the console's broadcasts and lifecycle emails)
             [BroadcastMail::class, 'Growth', 'Broadcast', 'Console: Business → Growth → Broadcasts (growth:send-broadcasts)',
                 fn (array $s) => new BroadcastMail($s['author'], 'Écrivain now speaks Kreyòl', "The whole studio is now available in Haitian Creole, from the editor to the export screens.\n\nSwitch your language in your profile; your books are not touched.", null, 'Open your profile', route('profile.edit'))],
+            [AuthorInvitationMail::class, 'Growth', 'Invitation to join', 'Console: Business → Invitations (InvitationsController::store, ::bulk, ::resend)',
+                fn (array $s) => new AuthorInvitationMail(self::invitation(), 'k3Vd9QxT2mLp8RzW4nYb7HcJ1sFg6AeU0oKiNtPqXyZw5BvC')],
             [LifecycleMail::class, 'Growth', 'Lifecycle: no book yet', 'Console: Business → Growth → Lifecycle (growth:lifecycle, hourly)',
                 fn (array $s) => new LifecycleMail($s['author'], 'Your first book is one click away', "You signed up for Écrivain a few days ago but have not started a book yet.\n\nStart with a title, or import a manuscript you already have.", 'Start a book')],
         ];
@@ -218,6 +222,21 @@ final class EmailCatalog
      *
      * @return array<string, mixed>
      */
+    /** An invitation as the console would send it, never saved. */
+    public static function invitation(string $language = 'en', ?string $note = null): AuthorInvitation
+    {
+        return (new AuthorInvitation)->forceFill([
+            'id' => 12,
+            'email' => 'nadege.pierre@example.com',
+            'name' => 'Nadège Pierre',
+            'language' => $language,
+            'note' => $note ?? 'We loved your reading at the Jacmel book fair. Écrivain is in a private beta and we would be glad to have you.',
+            'perks' => ['plan' => 'author', 'plan_months' => 6, 'credits' => 500],
+            'status' => 'pending',
+            'expires_at' => Carbon::parse('2026-11-23 12:00'),
+        ])->setRelation('inviter', null);
+    }
+
     public static function samples(?string $bookTitle = null): array
     {
         $author = (new User)->forceFill([

@@ -47,6 +47,7 @@ dataset('emails', [
     'order-receipt' => ['order-receipt', 'Your order ECR-48213', 'SALT-7Q4M-2KX9', '/downloads/9f2c?signature=sample'],
     'new-sale' => ['new-sale', 'You sold a copy of', '$9.09', '/books/42/sales'],
     'refund-processed' => ['refund-processed', 'Your refund for order ECR-48213', '5–10 business days', null],
+    'author-invitation' => ['author-invitation', 'Your invitation to write on Écrivain', 'We loved your reading at the Jacmel book fair', '/join/k3Vd9QxT2mLp8RzW4nYb7HcJ1sFg6AeU0oKiNtPqXyZw5BvC'],
     'royalty-statement' => ['royalty-statement', 'September 2026 royalty statement', '$429.12', '/books'],
 ]);
 
@@ -120,7 +121,7 @@ it('has a preview for every Mailable, and nothing extra', function () {
     $catalogued = collect(EmailCatalog::all())->pluck('class')->sort()->values()->all();
 
     expect($catalogued)->toBe($classes)
-        ->and(count($classes))->toBe(36);
+        ->and(count($classes))->toBe(37);
 });
 
 it('puts every email in a known preference category', function (string $slug) {

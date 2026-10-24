@@ -175,7 +175,7 @@ final class MailLogger
             return null;
         }
 
-        $text = preg_replace('~https?://\S*(signature=|/invitations/|/reset-password/|/verify-email/)\S*~i', '[link removed]', $text) ?? '';
+        $text = preg_replace('~https?://\S*(signature=|/invitations/|/join/|/reset-password/|/verify-email/)\S*~i', '[link removed]', $text) ?? '';
 
         return mb_substr($text, 0, self::BODY_LIMIT);
     }
