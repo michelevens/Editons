@@ -49,6 +49,14 @@ dataset('emails', [
     'refund-processed' => ['refund-processed', 'Your refund for order ECR-48213', '5–10 business days', null],
     'author-invitation' => ['author-invitation', 'Your invitation to write on Écrivain', 'We loved your reading at the Jacmel book fair', '/join/k3Vd9QxT2mLp8RzW4nYb7HcJ1sFg6AeU0oKiNtPqXyZw5BvC'],
     'royalty-statement' => ['royalty-statement', 'September 2026 royalty statement', '$429.12', '/books'],
+    'partner-application-received' => ['partner-application-received', 'Partners application', 'is in the queue', '/partner'],
+    'partner-approved' => ['partner-approved', 'You are an Écrivain Partner', 'K7Q2M9XA', '/partner?tab=page'],
+    'partner-declined' => ['partner-declined', 'Partners application', 'We could not find the school page', '/partners/apply'],
+    'partner-first-sale' => ['partner-first-sale', 'Your first partner sale', '$2.84', '/partner?tab=commissions'],
+    'partner-statement' => ['partner-statement', 'September 2026 partner statement', '$24.38', '/partner'],
+    'partner-payout' => ['partner-payout', 'Partner payout: $41.20', 'MC-20261102-118', '/partner?tab=payouts'],
+    'partner-suspended' => ['partner-suspended', 'Partners account is suspended', 'did not allow promotion', '/support'],
+    'partner-invitation' => ['partner-invitation', 'Amélie Laurent invited you to sell their books', 'Kreyòl Kitchen Notes', '/partners/invitations/Hk2s9QxT2mLp8RzW4nYb7HcJ1sFg6AeU0oKiNtPqXyZw5BvC'],
 ]);
 
 it('renders', function (string $slug, string $subject, string $copy, ?string $cta) {
@@ -121,7 +129,7 @@ it('has a preview for every Mailable, and nothing extra', function () {
     $catalogued = collect(EmailCatalog::all())->pluck('class')->sort()->values()->all();
 
     expect($catalogued)->toBe($classes)
-        ->and(count($classes))->toBe(37);
+        ->and(count($classes))->toBe(45);
 });
 
 it('puts every email in a known preference category', function (string $slug) {

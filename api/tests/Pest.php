@@ -1,6 +1,9 @@
 <?php
 
 use App\Billing\PlanCatalog;
+use App\Commerce\Fulfilment;
+use App\Commerce\Partners\Handles;
+use App\Commerce\Partners\Program;
 use App\Commerce\Revenue;
 use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\Drivers\FakeDriver;
@@ -8,8 +11,13 @@ use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewResult;
 use App\Models\Book;
 use App\Models\Order;
+use App\Models\Partner;
 use App\Models\Plan;
+use App\Models\Product;
 use App\Models\User;
+use App\Platform\Features;
+use App\Platform\TwoFactor;
+use Illuminate\Cookie\CookieValuePrefix;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -105,13 +113,13 @@ function declared(Book $book): Book
  * confirmed unless asked otherwise. Never created by a seeder (docs/ADMIN.md);
  * only here and by `php artisan platform:admin`.
  */
-function platformAdmin(string $role = 'owner', bool $twoFactor = true): App\Models\User
+function platformAdmin(string $role = 'owner', bool $twoFactor = true): User
 {
-    $user = App\Models\User::factory()->create();
+    $user = User::factory()->create();
     $user->forceFill(['platform_role' => $role])->save();
 
     if ($twoFactor) {
-        app(App\Platform\TwoFactor::class)->begin($user);
+        app(TwoFactor::class)->begin($user);
         $user->forceFill(['two_factor_confirmed_at' => now()])->save();
     }
 
@@ -203,4 +211,126 @@ function bizWrote(User $user, ?Book $book = null, $at = null): Book
     ]);
 
     return $book;
+}
+
+/*
+ | Écrivain Partners (tests/Feature/Partners). Commerce on the fake gateway,
+ | Stripe's standard fee, no platform share: a 12.00 sale has a 0.65 fee,
+ | a 11.35 net, and a 25 % partner earns 2.84 of it.
+ */
+function partnerProgram(): void
+{
+    config([
+        'commerce.enabled' => true,
+        'commerce.gateway' => 'fake',
+        'commerce.stripe_fee' => ['percent' => 2.9, 'fixed_cents' => 30],
+        'commerce.platform_rate' => 0.0,
+        'partners.default_on' => true,
+    ]);
+    app(Features::class)->flush();
+    app(Program::class)->flush();
+}
+
+/** An approved partner, with an account of their own. */
+function partnerFor(?User $user = null, array $attributes = []): Partner
+{
+    $user ??= User::factory()->create();
+    $partner = new Partner;
+    $partner->forceFill($attributes + [
+        'user_id' => $user->id,
+        'code' => Partner::newCode(),
+        'handle' => Handles::suggest($user->name),
+        'status' => 'approved',
+        'display_name' => $user->name,
+        'promotion_type' => 'school',
+        'agreement_version' => config('partners.agreement_version'),
+        'agreement_accepted_at' => now(),
+        'approved_at' => now(),
+        'payout_method' => 'moncash',
+        'payout_details' => '+509 3700 0000',
+    ])->save();
+
+    return $partner->fresh('user');
+}
+
+/** A book on sale, opted in to partners at $rate %. */
+function partnerProduct(?User $seller = null, int $priceCents = 1200, ?int $rate = 25, array $attributes = []): Product
+{
+    $seller ??= User::factory()->create();
+    $book = Book::factory()->for($seller)->create();
+    $product = new Product;
+    $product->forceFill($attributes + [
+        'user_id' => $seller->id,
+        'book_id' => $book->id,
+        'slug' => Product::newSlug($book->title),
+        'price_cents' => $priceCents,
+        'currency' => 'usd',
+        'formats' => ['epub'],
+        'license' => 'personal',
+        'published_at' => now()->subDay(),
+        'partner_enabled' => $rate !== null,
+        'partner_rate_bps' => $rate !== null ? $rate * 100 : null,
+    ])->save();
+
+    return $product->fresh(['book', 'user']);
+}
+
+/** The partner cookie a visit through $partner's link leaves. */
+function partnerCookie(Partner $partner, ?string $at = null): string
+{
+    return json_encode(['p' => $partner->id, 'at' => $at ?? now()->toIso8601String(), 'via' => 'link']);
+}
+
+/**
+ * Start a checkout as the store would (with an optional partner cookie and
+ * discount code), then complete it the way Stripe's webhook does.
+ */
+function partnerBuy(Product $product, ?Partner $cookie = null, ?string $code = null, string $email = 'reader@example.com', ?User $as = null, bool $pay = true): Order
+{
+    $test = test();
+    $test->flushSession();
+
+    if ($as) {
+        $test->actingAs($as);
+    }
+
+    // Passed to this one request only (withCookie would stick to the test).
+    $cookies = $cookie ? [config('partners.cookie') => partnerEncryptedCookie(config('partners.cookie'), partnerCookie($cookie))] : [];
+    $test->call('POST', "/store/{$product->slug}/checkout", array_filter(['email' => $email, 'code' => $code]), $cookies)->assertRedirect();
+
+    $order = Order::latest('id')->firstOrFail();
+
+    if ($pay) {
+        app(Fulfilment::class)->checkoutCompleted([
+            'id' => $order->stripe_session_id,
+            'payment_status' => 'paid',
+            'amount_total' => $order->total_cents,
+            'currency' => $order->currency,
+            'payment_intent' => 'pi_'.$order->id.Str::random(6),
+            'customer_details' => ['email' => $email, 'name' => 'Jonas Pierre', 'address' => ['country' => 'CA']],
+            'metadata' => ['order_id' => (string) $order->id],
+        ]);
+    }
+
+    if ($as) {
+        auth()->logout();
+    }
+
+    return $order->fresh('items');
+}
+
+/** A cookie as the browser would send it back: encrypted like EncryptCookies does. */
+function partnerEncryptedCookie(string $name, string $value): string
+{
+    return encrypt(CookieValuePrefix::create($name, app('encrypter')->getKey()).$value, false);
+}
+
+/** A Stripe charge.refunded for $order, cumulative as Stripe sends it. */
+function partnerRefund(Order $order, int $cumulativeCents): void
+{
+    app(Fulfilment::class)->chargeRefunded([
+        'payment_intent' => $order->stripe_payment_intent,
+        'amount_refunded' => $cumulativeCents,
+        'metadata' => ['order_id' => (string) $order->id],
+    ]);
 }
