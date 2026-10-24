@@ -78,6 +78,10 @@ class StoreReadiness
             ? $add('epub', 'pass', 'EPUB generated.')
             : $add('epub', 'warn', 'No EPUB yet: this is the file you upload.', 'Generate the EPUB under Files.');
 
+        foreach (IsbnPlan::ebookIssues($book, $channel) as $issue) {
+            $add('isbn', ...$issue);
+        }
+
         if ($channel === 'amazon_kdp' && ($problem = Royalties::kindle(Royalties::prices($book)['ebook'], null, Royalties::prices($book)['print'])['problem'])) {
             $add('price', 'warn', $problem, 'Adjust the list price.');
         }

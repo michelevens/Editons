@@ -99,6 +99,9 @@ class EditionsController extends Controller
             'genre' => $book->genre,
         ]);
 
+        // Written in by hand: letter size, like a textbook.
+        $edition->update(['layout' => array_merge($book->layout(), ['trim' => '8.5 x 11 in'])]);
+
         foreach ($chapters as $index => $chapter) {
             $headings = $this->headings($chapter);
 

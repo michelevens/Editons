@@ -442,6 +442,12 @@ Route::middleware('auth')->group(function () {
         ->name('rights.isbn.pool');
     Route::patch('/books/{book}/rights', [RightsController::class, 'updateRights'])
         ->name('rights.update');
+    Route::patch('/books/{book}/rights/isbn-plan', [RightsController::class, 'updateIsbnPlan'])
+        ->name('rights.isbn.plan');
+    Route::put('/books/{book}/rights/declaration', [RightsController::class, 'declareRights'])
+        ->name('rights.declaration');
+    Route::put('/books/{book}/rights/ai-disclosure', [RightsController::class, 'discloseAi'])
+        ->name('rights.ai');
     Route::post('/books/{book}/copyright-page', [RightsController::class, 'insertCopyrightPage'])
         ->name('rights.copyright');
 });

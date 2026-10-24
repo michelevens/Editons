@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Storage;
  * royalty calculator and store readiness. Every expected number below is
  * worked from the figures in config/publishing.php (docs/POD-SPECS.md).
  */
-function kitBook(?User $owner = null, array $attributes = []): Book
+function podBook(?User $owner = null, array $attributes = []): Book
 {
     $owner ??= User::factory()->create();
     $book = $owner->books()->create(array_merge([
@@ -45,7 +45,7 @@ function kitBook(?User $owner = null, array $attributes = []): Book
         ]]],
     ]);
 
-    return $book->fresh();
+    return declared($book);
 }
 
 /** Record a typeset page count for the book as it stands now. */
@@ -62,7 +62,7 @@ function mediaBox(string $pdf): array
     return [(float) $m[1], (float) $m[2]];
 }
 
-function wrap(Book $book, array $options, int $pages): array
+function podWrap(Book $book, array $options, int $pages): array
 {
     $wraps = app(CoverWrap::class);
 
@@ -72,19 +72,19 @@ function wrap(Book $book, array $options, int $pages): array
 /* ------------------------------------------------------------ dimensions */
 
 it('sizes a KDP wrap as two trims, the spine and the bleed, from the paper', function () {
-    $book = kitBook();
+    $book = podBook();
 
     // 6 x 9, 300 pages, white: spine 300 x 0.002252 = 0.6756 in.
-    $white = wrap($book, ['service' => 'kdp', 'paper' => 'white'], 300);
+    $white = podWrap($book, ['service' => 'kdp', 'paper' => 'white'], 300);
     expect($white['spine'])->toBe(0.6756)
         ->and($white['width'])->toBe(round(2 * 6 + 0.6756 + 2 * 0.125, 4))
         ->and($white['height'])->toBe(9.25);
 
     // Cream is thicker: 300 x 0.0025 = 0.75 in.
-    expect(wrap($book, ['service' => 'kdp', 'paper' => 'cream'], 300)['spine'])->toBe(0.75);
+    expect(podWrap($book, ['service' => 'kdp', 'paper' => 'cream'], 300)['spine'])->toBe(0.75);
 
     // An odd interior is printed with a blank at the end.
-    expect(wrap($book, ['service' => 'kdp', 'paper' => 'white'], 301)['pages'])->toBe(302);
+    expect(podWrap($book, ['service' => 'kdp', 'paper' => 'white'], 301)['pages'])->toBe(302);
 
     // The PDF page is that size in points, with the trim inside the bleed.
     $pdf = app(CoverWrap::class)->pdf($book, $white);
@@ -96,11 +96,11 @@ it('sizes a KDP wrap as two trims, the spine and the bleed, from the paper', fun
 });
 
 it('follows the trim size and the ink', function () {
-    $book = kitBook(attributes: ['layout' => ['trim' => '8.5 x 11 in']]);
+    $book = podBook(attributes: ['layout' => ['trim' => '8.5 x 11 in']]);
     $book->print = ['ink' => 'premium_color', 'paper' => 'cream'];
     $book->save();
 
-    $g = wrap($book->fresh(), ['service' => 'kdp'], 200);
+    $g = podWrap($book->fresh(), ['service' => 'kdp'], 200);
 
     // Colour prints on white, at the premium colour caliper.
     expect($g['paper'])->toBe('white')
@@ -111,30 +111,30 @@ it('follows the trim size and the ink', function () {
 
 it('uses Lulu\'s published formula, which matches its own API example', function () {
     // Lulu's cover-dimensions example: 6 x 9, 210 pages -> 920 x 666 pt.
-    $g = wrap(kitBook(), ['service' => 'lulu', 'paper' => 'white'], 210);
+    $g = podWrap(podBook(), ['service' => 'lulu', 'paper' => 'white'], 210);
 
     expect($g['width'] * 72)->toEqualWithDelta(920, 1)
         ->and($g['height'] * 72)->toEqualWithDelta(666, 0.01)
         ->and($g['barcode'])->toBeNull();
 
-    expect(fn () => wrap(kitBook(), ['service' => 'lulu', 'paper' => 'cream'], 210))
+    expect(fn () => podWrap(podBook(), ['service' => 'lulu', 'paper' => 'cream'], 210))
         ->toThrow(RuntimeException::class, 'white paper only');
 });
 
 it('asks for IngramSpark\'s spine width rather than inventing one', function () {
-    $book = kitBook();
+    $book = podBook();
 
-    expect(fn () => wrap($book, ['service' => 'ingram'], 200))
+    expect(fn () => podWrap($book, ['service' => 'ingram'], 200))
         ->toThrow(RuntimeException::class, 'cover template generator');
 
-    $g = wrap($book, ['service' => 'ingram', 'spine' => 0.5], 200);
+    $g = podWrap($book, ['service' => 'ingram', 'spine' => 0.5], 200);
     expect($g['spine'])->toBe(0.5)
         ->and($g['width'])->toBe(12.75)
         ->and($g['barcode'])->toMatchArray(['width' => 1.75, 'height' => 1.0]);
 });
 
 it('places the KDP barcode box at the lower right of the back, clear of the spine and trim', function () {
-    $g = wrap(kitBook(), ['service' => 'kdp'], 300);
+    $g = podWrap(podBook(), ['service' => 'kdp'], 300);
 
     expect($g['barcode']['x'] + $g['barcode']['width'])->toEqualWithDelta($g['spine_x'] - 0.25, 1e-9)
         ->and($g['barcode']['y'] + $g['barcode']['height'])->toEqualWithDelta($g['height'] - 0.125 - 0.25, 1e-9)
@@ -152,7 +152,7 @@ it('puts text on the spine only from the service\'s minimum page count', functio
         ->and(PrintSpecs::spineText('lulu', 80))->toBeFalse()
         ->and(PrintSpecs::spineText('lulu', 82))->toBeTrue();
 
-    expect(wrap(kitBook(), ['service' => 'kdp'], 60)['spine_text'])->toBeFalse();
+    expect(podWrap(podBook(), ['service' => 'kdp'], 60)['spine_text'])->toBeFalse();
 });
 
 it('keeps IngramSpark\'s narrower spine margin for thin spines', function () {
@@ -162,8 +162,8 @@ it('keeps IngramSpark\'s narrower spine margin for thin spines', function () {
 });
 
 it('sets the title, series, author and publisher on the spine', function () {
-    $book = kitBook(attributes: ['series_name' => 'Fields', 'series_number' => 2, 'publication' => ['imprint' => 'Maison Claire']]);
-    [$title, $rest] = app(CoverWrap::class)->spineLines($book, wrap($book, ['service' => 'kdp'], 300));
+    $book = podBook(attributes: ['series_name' => 'Fields', 'series_number' => 2, 'publication' => ['imprint' => 'Maison Claire']]);
+    [$title, $rest] = app(CoverWrap::class)->spineLines($book, podWrap($book, ['service' => 'kdp'], 300));
 
     expect($title)->toBe('The Long Field')
         ->and($rest)->toContain('Fields 2')
@@ -172,9 +172,9 @@ it('sets the title, series, author and publisher on the spine', function () {
 });
 
 it('prints no author anywhere for an anonymous book', function () {
-    $book = kitBook(attributes: ['author_name' => null, 'cover' => ['author' => '']]);
+    $book = podBook(attributes: ['author_name' => null, 'cover' => ['author' => '']]);
     $wraps = app(CoverWrap::class);
-    $g = wrap($book, ['service' => 'kdp'], 300);
+    $g = podWrap($book, ['service' => 'kdp'], 300);
     [$title, $rest] = $wraps->spineLines($book, $g);
 
     expect($title)->toBe('The Long Field')
@@ -189,7 +189,7 @@ it('prints no author anywhere for an anonymous book', function () {
 /* --------------------------------------------------------- the back cover */
 
 it('builds the back from the description, which is its back-cover copy', function () {
-    $book = kitBook();
+    $book = podBook();
     $wraps = app(CoverWrap::class);
 
     expect($wraps->backCopy($book))->toStartWith('A clear and useful description');
@@ -198,24 +198,24 @@ it('builds the back from the description, which is its back-cover copy', functio
     $book->update(['description' => 'Written for the back.']);
 
     expect($wraps->backCopy($book->fresh()))->toBe('Written for the back.')
-        ->and($wraps->copyFits($book->fresh(), wrap($book, ['service' => 'kdp'], 300))['fits'])->toBeTrue();
+        ->and($wraps->copyFits($book->fresh(), podWrap($book, ['service' => 'kdp'], 300))['fits'])->toBeTrue();
 
     // Too much copy for the back at a readable size is reported, not cut silently.
     $book->update(['description' => str_repeat('A sentence that goes on for a while. ', 400)]);
-    expect($wraps->copyFits($book->fresh(), wrap($book, ['service' => 'kdp'], 300))['fits'])->toBeFalse();
+    expect($wraps->copyFits($book->fresh(), podWrap($book, ['service' => 'kdp'], 300))['fits'])->toBeFalse();
 });
 
 it('says when a book has no back-cover copy, and still makes the cover', function () {
-    $book = kitBook(attributes: ['meta' => ['category' => 'Fiction / Literary']]);
+    $book = podBook(attributes: ['meta' => ['category' => 'Fiction / Literary']]);
     $wraps = app(CoverWrap::class);
 
     expect($wraps->backCopy($book))->toBe('');
     expect(collect(app(PrintCheck::class)->for($book, 'kdp')['items'])->firstWhere('key', 'back')['status'])->toBe('warn');
-    expect($wraps->pdf($book, wrap($book, ['service' => 'kdp'], 120)))->toStartWith('%PDF');
+    expect($wraps->pdf($book, podWrap($book, ['service' => 'kdp'], 120)))->toStartWith('%PDF');
 });
 
 it('uses an uploaded back cover when the book has one', function () {
-    $book = kitBook();
+    $book = podBook();
     $image = imagecreatetruecolor(600, 900);
     imagefill($image, 0, 0, imagecolorallocate($image, 200, 30, 30));
     ob_start();
@@ -224,7 +224,7 @@ it('uses an uploaded back cover when the book has one', function () {
     $book->update(['cover' => ['back_artwork' => "covers/book-{$book->id}/back.jpg"]]);
 
     $wraps = app(CoverWrap::class);
-    $g = wrap($book->fresh(), ['service' => 'kdp'], 300);
+    $g = podWrap($book->fresh(), ['service' => 'kdp'], 300);
     $preview = imagecreatefromstring($wraps->preview($book->fresh(), $g, 30));
     $rgb = imagecolorat($preview, (int) (1.5 * 30), (int) (4 * 30));
 
@@ -239,7 +239,7 @@ it('uses an uploaded back cover when the book has one', function () {
 /* ----------------------------------------------------------- print checks */
 
 it('fails narrow margins on a long book at KDP, with the fix', function () {
-    $book = kitBook(attributes: ['layout' => ['margins' => 'Narrow']]);
+    $book = podBook(attributes: ['layout' => ['margins' => 'Narrow']]);
     typesetAt($book, 400);
 
     $margins = collect(app(PrintCheck::class)->for($book, 'kdp')['items'])->firstWhere('key', 'margins');
@@ -254,13 +254,13 @@ it('fails narrow margins on a long book at KDP, with the fix', function () {
 });
 
 it('sends a very long book to Wide margins, and only warns on an estimate', function () {
-    $book = kitBook();
+    $book = podBook();
     typesetAt($book, 760);
     $margins = collect(app(PrintCheck::class)->for($book, 'kdp')['items'])->firstWhere('key', 'margins');
     expect($margins['status'])->toBe('fail')->and($margins['fix'])->toBe('Switch margins to Wide in Design.');
 
     // An estimate is not a fact: the same rule only warns.
-    $estimated = kitBook(attributes: ['layout' => ['margins' => 'Narrow']]);
+    $estimated = podBook(attributes: ['layout' => ['margins' => 'Narrow']]);
     $estimated->forceFill(['word_count' => 160_000])->save();
     $result = app(PrintCheck::class)->for($estimated->fresh(), 'kdp');
     expect($result['pages']['exact'])->toBeFalse()
@@ -268,24 +268,24 @@ it('sends a very long book to Wide margins, and only warns on an estimate', func
 });
 
 it('checks page limits by paper and trim', function () {
-    $cream = kitBook();
+    $cream = podBook();
     $cream->print = ['paper' => 'cream'];
     $cream->save();
     typesetAt($cream->fresh(), 800);
     expect(collect(app(PrintCheck::class)->for($cream->fresh(), 'kdp')['items'])->firstWhere('key', 'pages')['status'])->toBe('fail');
 
-    $letter = kitBook(attributes: ['layout' => ['trim' => '8.5 x 11 in', 'margins' => 'Wide']]);
+    $letter = podBook(attributes: ['layout' => ['trim' => '8.5 x 11 in', 'margins' => 'Wide']]);
     typesetAt($letter, 600);
     $pages = collect(app(PrintCheck::class)->for($letter, 'kdp')['items'])->firstWhere('key', 'pages');
     expect($pages['status'])->toBe('fail')->and($pages['message'])->toContain('24–590');
 
-    $short = kitBook();
+    $short = podBook();
     typesetAt($short, 120);
     expect(app(PrintCheck::class)->for($short, 'kdp')['status'])->not->toBe('fail');
 });
 
 it('uses a typeset count only while the book is unchanged', function () {
-    $book = kitBook();
+    $book = podBook();
     typesetAt($book, 222);
     expect(PrintPages::for($book)['pages'])->toBe(222)->and(PrintPages::for($book)['exact'])->toBeTrue();
 
@@ -294,7 +294,7 @@ it('uses a typeset count only while the book is unchanged', function () {
 });
 
 it('flags pictures that print below 300 dpi', function () {
-    $book = kitBook();
+    $book = podBook();
     $small = imagecreatetruecolor(400, 300);
     ob_start();
     imagepng($small);
@@ -309,7 +309,7 @@ it('flags pictures that print below 300 dpi', function () {
 });
 
 it('says KDP can assign a free ISBN and IngramSpark needs your own', function () {
-    $book = kitBook();
+    $book = podBook();
     $kdp = collect(app(PrintCheck::class)->for($book, 'kdp')['items'])->firstWhere('key', 'isbn');
     $ingram = collect(app(PrintCheck::class)->for($book, 'ingram')['items'])->firstWhere('key', 'isbn');
 
@@ -319,7 +319,7 @@ it('says KDP can assign a free ISBN and IngramSpark needs your own', function ()
 
 it('blocks Prepare for stores when a print rule fails for a chosen print store', function () {
     $user = User::factory()->create();
-    $book = kitBook($user, ['layout' => ['margins' => 'Narrow']]);
+    $book = podBook($user, ['layout' => ['margins' => 'Narrow']]);
     $book->forceFill(['word_count' => 20_000])->save();
     $book->channels()->create(['channel' => 'kdp_paperback', 'format' => 'print']);
     typesetAt($book->fresh(), 420);
@@ -398,7 +398,7 @@ it('takes every number from config/publishing.php', function () {
 
 it('reports per-copy store terms from the same rates', function () {
     $user = User::factory()->create();
-    $book = kitBook($user, ['list_price' => 20.00, 'meta' => ['print_price' => 15.00]]);
+    $book = podBook($user, ['list_price' => 20.00, 'meta' => ['print_price' => 15.00]]);
     $book->channels()->create(['channel' => 'amazon_kdp', 'format' => 'ebook']);
     $book->channels()->create(['channel' => 'ingram_print', 'format' => 'print']);
 
@@ -413,7 +413,7 @@ it('reports per-copy store terms from the same rates', function () {
 /* ------------------------------------------------------- store readiness */
 
 it('lists what each ebook store still needs', function () {
-    $book = kitBook(attributes: ['meta' => [
+    $book = podBook(attributes: ['meta' => [
         'description' => str_repeat('Words for readers. ', 10),
         'category' => 'Fiction / Literary',
         'keywords' => 'a, b, c, d, e, f, g, h',
@@ -435,7 +435,7 @@ it('lists what each ebook store still needs', function () {
 it('makes the cover wrap on the worker, sized from the typeset interior', function () {
     Queue::fake();
     $user = User::factory()->create();
-    $book = kitBook($user);
+    $book = podBook($user);
 
     $this->actingAs($user)->postJson("/books/{$book->id}/exports", ['format' => 'pdf_interior'])->assertStatus(202);
     $this->actingAs($user)->postJson("/books/{$book->id}/exports", ['format' => 'cover_wrap', 'options' => ['service' => 'kdp', 'paper' => 'cream']])
@@ -472,7 +472,7 @@ it('makes the cover wrap on the worker, sized from the typeset interior', functi
 it('refuses a cover that cannot be made before taking a worker', function () {
     Queue::fake();
     $user = User::factory()->create();
-    $book = kitBook($user);
+    $book = podBook($user);
 
     $this->actingAs($user)->postJson("/books/{$book->id}/exports", ['format' => 'cover_wrap', 'options' => ['service' => 'ingram']])
         ->assertStatus(422)
@@ -483,7 +483,7 @@ it('refuses a cover that cannot be made before taking a worker', function () {
 
 it('serves the print kit, its prices and a cover preview to the author', function () {
     $user = User::factory()->create();
-    $book = kitBook($user);
+    $book = podBook($user);
 
     $kit = $this->actingAs($user)->getJson("/books/{$book->id}/print-kit")->assertOk();
     expect(collect($kit->json('checks'))->pluck('service')->all())->toBe(['kdp', 'ingram'])
@@ -505,7 +505,7 @@ it('serves the print kit, its prices and a cover preview to the author', functio
 });
 
 it('keeps the print kit to the book\'s author', function () {
-    $book = kitBook();
+    $book = podBook();
     $other = User::factory()->create();
 
     $this->actingAs($other)->getJson("/books/{$book->id}/print-kit")->assertForbidden();
@@ -517,7 +517,7 @@ it('keeps the print kit to the book\'s author', function () {
 
 it('takes a back cover upload and removes it again', function () {
     $user = User::factory()->create();
-    $book = kitBook($user);
+    $book = podBook($user);
     $file = UploadedFile::fake()->image('back.jpg', 600, 900);
 
     $this->actingAs($user)->post("/books/{$book->id}/print-kit/back", ['back' => $file], ['Accept' => 'application/json'])

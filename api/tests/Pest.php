@@ -4,6 +4,7 @@ use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\Drivers\FakeDriver;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewResult;
+use App\Models\Book;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -75,4 +76,19 @@ function useChargingDriver(): void
             return 'test-provider';
         }
     });
+}
+
+/**
+ * A book whose author has confirmed the rights declaration and answered the
+ * AI-content questions, as Prepare for stores requires: for tests about
+ * something else that need a book that can be submitted.
+ */
+function declared(Book $book): Book
+{
+    $book->forceFill([
+        'rights_declaration' => ['holds_rights' => true, 'materials' => [], 'confirmed_by' => $book->user_id, 'confirmed_name' => 'Test', 'confirmed_at' => now()->toIso8601String()],
+        'ai_disclosure' => ['answers' => ['text' => 'none', 'images' => 'none', 'translations' => 'none'], 'confirmed_by' => $book->user_id, 'confirmed_name' => 'Test', 'confirmed_at' => now()->toIso8601String()],
+    ])->save();
+
+    return $book->fresh();
 }

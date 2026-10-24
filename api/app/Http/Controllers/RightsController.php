@@ -5,8 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
+use App\Publishing\AiDisclosure;
+use App\Publishing\IsbnPlan;
+use App\Publishing\LegalDeposit;
+use App\Publishing\RightsDeclaration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -136,6 +141,66 @@ class RightsController extends Controller
             'rejected' => $rejected,
             'pool' => $this->pool($request),
         ]);
+    }
+
+    /** Choose, per edition, the author's own ISBN or one a store assigns. */
+    public function updateIsbnPlan(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'edition' => ['required', 'string', 'in:'.implode(',', Book::ISBN_EDITIONS)],
+            'source' => ['required', 'string', 'in:'.implode(',', Book::ISBN_SOURCES)],
+        ]);
+
+        $book->isbn_plan = array_merge($book->isbn_plan ?? [], [$data['edition'] => $data['source']]);
+        $book->save();
+
+        return response()->json($this->payload($request, $book->fresh()));
+    }
+
+    /**
+     * The author confirms they hold the rights, listing the third-party
+     * material in the book and the permission held for each. Who and when
+     * are recorded from the session, never from the request.
+     */
+    public function declareRights(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'holds_rights' => ['accepted'],
+            'materials' => ['present', 'array', 'max:50'],
+            'materials.*.kind' => ['required', 'string', 'in:'.implode(',', array_keys(RightsDeclaration::KINDS))],
+            'materials.*.description' => ['required', 'string', 'max:500'],
+            'materials.*.permission' => ['required', 'string', 'in:'.implode(',', array_keys(RightsDeclaration::PERMISSIONS))],
+        ]);
+
+        RightsDeclaration::confirm($book, $data['materials'], $request->user());
+
+        return response()->json($this->payload($request, $book->fresh()));
+    }
+
+    /**
+     * The author's answers to KDP's AI-content questions. The screen shows
+     * the evidence and a suggestion; the answers are the author's own.
+     */
+    public function discloseAi(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $answers = 'in:'.implode(',', config('publishing.ai_disclosure.answers'));
+        $data = $request->validate([
+            'confirm' => ['accepted'],
+            'answers' => ['required', 'array'],
+            'answers.text' => ['required', 'string', $answers],
+            'answers.images' => ['required', 'string', $answers],
+            'answers.translations' => ['required', 'string', $answers],
+        ]);
+
+        AiDisclosure::confirm($book, Arr::only($data['answers'], AiDisclosure::categories()), $request->user());
+
+        return response()->json($this->payload($request, $book->fresh()));
     }
 
     /** Tick or untick one of the manual attestations. */
@@ -309,6 +374,14 @@ class RightsController extends Controller
                 ],
             ],
             'image_count' => $imageCount,
+            // Per edition: the author's own ISBN or a store's, and where to
+            // get one for the country of publication.
+            'isbn_plan' => IsbnPlan::plan($book),
+            'isbn_agency' => IsbnPlan::agency($book),
+            'declaration' => RightsDeclaration::for($book),
+            'ai' => AiDisclosure::for($book) + ['required' => AiDisclosure::required($book)],
+            'legal_deposit' => LegalDeposit::for($book),
+            'can_edit' => $request->user()->can('update', $book),
             'registration_url' => 'https://www.copyright.gov/registration/',
         ];
     }

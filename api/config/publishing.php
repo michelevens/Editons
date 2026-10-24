@@ -230,4 +230,83 @@ return [
             'google_play' => ['cover_min_short' => 640],
         ],
     ],
+
+    /*
+    | ISBN agencies, by country of publication (the book's publishing
+    | details). Official agency pages only; no fees are quoted here, because
+    | none was read from an agency's own price list except France's, which
+    | changes (https://www.afnil.org/tarification).
+    */
+    'isbn_agencies' => [
+        // Bowker is the US agency in the International ISBN Agency directory;
+        // its own page (myidentifiers.com) refused our reader, so check it there.
+        'US' => ['agency' => 'Bowker (MyIdentifiers)', 'url' => 'https://www.myidentifiers.com', 'free' => false],
+        // "ISBN Canada provides free ISBNs to eligible publishers and publications."
+        'CA' => ['agency' => 'ISBN Canada (Library and Archives Canada)', 'url' => 'https://www.canada.ca/en/library-archives/services/publishers/isbn.html', 'free' => true],
+        // AFNIL serves France, Belgium and francophone Africa; "des frais de gestion
+        // de dossier s'appliquent".
+        'FR' => ['agency' => 'AFNIL', 'url' => 'https://www.afnil.org', 'free' => false],
+        'GB' => ['agency' => 'Nielsen ISBN Agency for UK & Ireland', 'url' => 'https://nielseniq.com/global/en/landing-page/nielseniq-bookdata-isbn-agency', 'free' => false],
+        // Haiti is listed in the International ISBN Agency's directory; no page
+        // of the agency itself could be confirmed, so the directory is the link.
+        'HT' => ['agency' => 'the agency for Haiti in the International ISBN Agency directory', 'url' => 'https://www.isbn-international.org/agencies', 'free' => null],
+        'default' => ['agency' => "your country's agency in the International ISBN Agency directory", 'url' => 'https://www.isbn-international.org/agencies', 'free' => null],
+    ],
+
+    /*
+    | Legal deposit, by country of publication. Shown as a reminder; the
+    | law is the authority, and each entry links to where it was read.
+    */
+    'legal_deposit' => [
+        // BNH notice, Le Nouvelliste, 8 Dec 2011 (a notice issued by the library):
+        // "décret du 20 octobre 1984", art. 18 "Les documents doivent être déposés
+        // en cinq (5) exemplaire[s]". Other sources date the decree 15 October 1984.
+        'HT' => [
+            'copies' => 5,
+            'to' => "the Bibliothèque nationale d'Haïti",
+            'basis' => 'the decree of October 1984 on legal deposit',
+            'when' => null,
+            'source' => 'https://lenouvelliste.com/article/100176/note-informative-de-la-bibliotheque-nationale-dhaiti',
+        ],
+        // https://www.bnf.fr/node/255: "un exemplaire de chacun des documents
+        // imprimés qu'il édite, au plus tard le jour de leur mise en circulation."
+        'FR' => [
+            'copies' => 1,
+            'to' => 'the Bibliothèque nationale de France',
+            'basis' => 'the Code du patrimoine',
+            'when' => 'by the day the book goes on sale',
+            'source' => 'https://www.bnf.fr/node/255',
+        ],
+        // https://www.copyright.gov/mandatory/: "two copies of each work published in
+        // the United States", "within three months of publication", the best edition.
+        'US' => [
+            'copies' => 2,
+            'to' => 'the U.S. Copyright Office',
+            'basis' => 'mandatory deposit',
+            'when' => 'within three months of publication',
+            'source' => 'https://www.copyright.gov/mandatory/',
+        ],
+        // LAC: "2 copies" when 100 or more are produced, "1 copy" for 4 to 99.
+        'CA' => [
+            'copies' => 2,
+            'to' => 'Library and Archives Canada',
+            'basis' => 'the Legal Deposit of Publications Regulations',
+            'when' => 'one copy instead when 4 to 99 copies are produced',
+            'source' => 'https://www.canada.ca/en/library-archives/services/publishers/legal-deposit/physical-publications.html',
+        ],
+    ],
+
+    /*
+    | KDP's AI content questions: https://kdp.amazon.com/en_US/help/topic/G200672390
+    | "We require you to inform us of AI-generated content (text, images, or
+    | translations)". AI-generated: "text, images, or translations created by an
+    | AI-based tool". AI-assisted (you created it and "used AI-based tools to edit,
+    | refine, error-check, or otherwise improve that content"): "It is not necessary
+    | to inform us of the use of such tools or processes."
+    */
+    'ai_disclosure' => [
+        'source' => 'https://kdp.amazon.com/en_US/help/topic/G200672390',
+        'categories' => ['text', 'images', 'translations'],
+        'answers' => ['none', 'assisted', 'generated'],
+    ],
 ];

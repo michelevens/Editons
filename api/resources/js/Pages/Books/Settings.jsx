@@ -213,6 +213,7 @@ function PublicationForm({ book, copyrightPreview }) {
             isbn_epub: publication.isbn_epub ?? '',
             isbn_pdf: publication.isbn_pdf ?? '',
             legal_deposit: publication.legal_deposit ?? '',
+            country: publication.country ?? '',
             printing: publication.printing ?? '',
             disclaimer: publication.disclaimer ?? '',
             credits: publication.credits?.length ? publication.credits : [{ role: '', name: '' }],
@@ -281,6 +282,33 @@ function PublicationForm({ book, copyrightPreview }) {
                     placeholder="e.g. Port-au-Prince"
                     onChange={(v) => set('place', v)}
                 />
+                <label>
+                    <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
+                        Country of publication
+                    </span>
+                    <select
+                        id="country"
+                        value={data.publication.country}
+                        data-a="settings:field:country"
+                        onChange={(event) => set('country', event.target.value)}
+                        className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
+                    >
+                        <option value="">Not set</option>
+                        {Object.entries(COUNTRIES).map(([code, name]) => (
+                            <option key={code} value={code}>
+                                {name}
+                            </option>
+                        ))}
+                    </select>
+                    <span className="mt-1 block text-[11.5px] text-text-secondary">
+                        Which ISBN agency and legal deposit rules apply.
+                    </span>
+                    {error('country') && (
+                        <span role="alert" className="mt-1 block text-[11.5px] font-medium text-status-danger">
+                            {error('country')}
+                        </span>
+                    )}
+                </label>
                 <Field
                     id="edition_statement"
                     label="Edition"
@@ -702,6 +730,21 @@ function ArchiveBox({ book, canArchive }) {
         </section>
     );
 }
+
+/** Countries of publication offered; the server takes any ISO 3166 code. */
+const COUNTRIES = {
+    HT: 'Haiti',
+    US: 'United States',
+    CA: 'Canada',
+    FR: 'France',
+    BE: 'Belgium',
+    CH: 'Switzerland',
+    GB: 'United Kingdom',
+    DO: 'Dominican Republic',
+    ES: 'Spain',
+    DE: 'Germany',
+    PT: 'Portugal',
+};
 
 function Field({ id, label, type = 'text', value, error, hint, className = '', onChange, ...rest }) {
     return (

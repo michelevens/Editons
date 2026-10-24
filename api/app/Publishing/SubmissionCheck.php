@@ -74,6 +74,17 @@ class SubmissionCheck
             $errors['channels'] = 'Choose at least one store.';
         }
 
+        // Every store makes the author warrant the rights; the declaration
+        // is where they say so, with the material they reuse.
+        if (! RightsDeclaration::confirmed($book)) {
+            $errors['rights_declaration'] = 'Confirm the rights declaration in ISBN & Rights.';
+        }
+
+        // KDP asks whether text, images or translations are AI-generated.
+        if (AiDisclosure::required($book) && ! AiDisclosure::confirmed($book)) {
+            $errors['ai_disclosure'] = 'Answer the AI-content questions in ISBN & Rights: KDP asks them.';
+        }
+
         // A print store chosen and a print rule failed: the file would be
         // rejected (PrintCheck). Rules that rest on an estimated page count
         // only warn, so they are not here.
@@ -113,6 +124,21 @@ class SubmissionCheck
                     $warnings["print_{$result['service']}_{$item['key']}"] = $result['label'].': '.$item['message'].($item['fix'] ? ' '.$item['fix'] : '');
                 }
             }
+        }
+
+        if (($unsure = RightsDeclaration::unsure($book)) > 0) {
+            $warnings['rights_unsure'] = $unsure === 1
+                ? '1 item in your rights declaration has no permission yet.'
+                : "{$unsure} items in your rights declaration have no permission yet.";
+        }
+
+        if (AiDisclosure::required($book) && AiDisclosure::confirmed($book)
+            && ($outdated = AiDisclosure::for($book)['outdated']) !== []) {
+            $warnings['ai_disclosure'] = "The book's records show more AI use (".implode(', ', $outdated).') than your AI-content answers. Review them in ISBN & Rights.';
+        }
+
+        if ($book->publication()['country'] && $book->channels()->where('format', 'print')->exists()) {
+            $warnings['legal_deposit'] = LegalDeposit::for($book)['message'];
         }
 
         // Ebook stores' own limits beyond the shared floor above.

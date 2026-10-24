@@ -80,3 +80,39 @@ test('checks, prices and a print cover on a phone', async ({ page }) => {
 
     expect(errors).toEqual([]);
 });
+
+test('ISBN source, rights declaration and AI answers on a phone', async ({ page }) => {
+    const errors = watchForErrors(page);
+    await signIn(page);
+    const id = await firstBookId(page);
+
+    await page.goto(`/books/${id}/edit?pane=rights`);
+    await expect(page.locator('[data-a="rights:isbn-plan"]')).toBeVisible({ timeout: 30_000 });
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+
+    // A store-assigned paperback ISBN, chosen by keyboard.
+    await page.locator('[data-a="rights:isbn-plan:paperback:store"]').focus();
+    await page.keyboard.press('Space');
+    await expect(page.locator('[data-a="rights:isbn-plan:paperback:store"]')).toBeChecked();
+
+    // The declaration needs the author's own confirmation.
+    await page.click('[data-a="rights:material:add"]');
+    await page.fill('[data-a="rights:material:0:description"]', 'Map, page 12');
+    await page.selectOption('[data-a="rights:material:0:permission"]', 'licence');
+    await expect(page.locator('[data-a="rights:declaration:confirm"]')).toBeDisabled();
+    await page.check('[data-a="rights:declaration:holds"]');
+    await page.click('[data-a="rights:declaration:confirm"]');
+    await expect(page.locator('[data-a="rights:declaration:status"]')).toContainText('Confirmed by');
+
+    // AI answers start from the suggestion and are confirmed by the author.
+    await expect(page.locator('[data-a="rights:ai:text"]')).toContainText('Suggested');
+    await page.check('[data-a="rights:ai:sure"]');
+    await page.click('[data-a="rights:ai:confirm"]');
+    await expect(page.locator('[data-a="rights:ai:status"]')).toContainText('At KDP');
+
+    await expect(page.locator('[data-a="rights:deposit"]')).toBeVisible();
+
+    expect(errors).toEqual([]);
+});

@@ -40,7 +40,7 @@ function chapteredBook(User $owner, array $attributes = []): Book
 
     $book->forceFill(['word_count' => 20_000])->save();
 
-    return $book->fresh();
+    return declared($book);
 }
 
 // --- Publishing ---------------------------------------------------------

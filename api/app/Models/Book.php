@@ -56,6 +56,9 @@ class Book extends Model
         'isbn_epub' => null,
         'isbn_pdf' => null,
         'legal_deposit' => null,
+        // ISO 3166 code of the country of publication: which ISBN agency
+        // and which legal deposit rules apply (config/publishing.php).
+        'country' => null,
         'printing' => null,
         'credits' => [],
         'disclaimer' => null,
@@ -98,6 +101,12 @@ class Book extends Model
         'ink' => ['bw', 'standard_color', 'premium_color'],
         'finish' => ['matte', 'glossy'],
     ];
+
+    /** Editions an author chooses an ISBN source for (IsbnPlan). */
+    public const ISBN_EDITIONS = ['ebook', 'paperback', 'hardcover'];
+
+    /** own: the author's ISBN; store: assigned by the store (tied to it). */
+    public const ISBN_SOURCES = ['own', 'store'];
 
     /** Print trim sizes offered on the Design screen. */
     public const TRIMS = ['5 x 8 in', '5.5 x 8.5 in', '6 x 9 in', '7 x 10 in', '8.5 x 11 in'];
@@ -215,6 +224,9 @@ class Book extends Model
             'settings' => 'array',
             'layout' => 'array',
             'print' => 'array',
+            'isbn_plan' => 'array',
+            'rights_declaration' => 'array',
+            'ai_disclosure' => 'array',
             'cover' => 'array',
             'meta' => 'array',
             'rights' => 'array',
