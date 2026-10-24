@@ -61,6 +61,62 @@ class StripeGateway implements PaymentGateway
         return new CheckoutSession($session->id, $session->url);
     }
 
+    public function refund(array $params): array
+    {
+        $refund = Cashier::stripe()->refunds->create([
+            'payment_intent' => $params['payment_intent'],
+            'amount' => $params['amount_cents'],
+            'metadata' => $params['metadata'],
+        ], [
+            // A double-submitted form must not refund twice.
+            'idempotency_key' => $params['idempotency_key'],
+        ]);
+
+        return ['id' => $refund->id, 'status' => (string) $refund->status];
+    }
+
+    /**
+     * A new price on the product of the one it replaces, so Stripe's
+     * dashboard keeps one product per plan. The old price is left alone:
+     * the subscribers on it stay on it.
+     */
+    public function createRecurringPrice(array $params): string
+    {
+        $stripe = Cashier::stripe();
+        $payload = [
+            'unit_amount' => $params['amount_cents'],
+            'currency' => $params['currency'],
+            'recurring' => ['interval' => 'month'],
+            'metadata' => ['plan' => $params['plan_key']],
+            'nickname' => $params['name'].' (monthly)',
+        ];
+
+        $product = $params['replaces'] ? $stripe->prices->retrieve($params['replaces'])->product : null;
+
+        if (is_string($product) && $product !== '') {
+            $payload['product'] = $product;
+        } else {
+            $payload['product_data'] = ['name' => 'Écrivain '.$params['name']];
+        }
+
+        return $stripe->prices->create($payload)->id;
+    }
+
+    public function createCoupon(array $params): string
+    {
+        $payload = array_filter([
+            'name' => $params['code'],
+            'percent_off' => $params['percent_off'],
+            'amount_off' => $params['amount_off_cents'],
+            'currency' => $params['amount_off_cents'] ? $params['currency'] : null,
+            'max_redemptions' => $params['max_redemptions'],
+            'redeem_by' => $params['redeem_by'],
+            'duration' => 'once',
+        ], fn ($value) => $value !== null);
+
+        return Cashier::stripe()->coupons->create($payload)->id;
+    }
+
     public function name(): string
     {
         return 'stripe';

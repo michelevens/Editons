@@ -75,6 +75,21 @@ final class EmailPreferences
             'mandatory' => false,
             'marketing' => true,
         ],
+        // The console's broadcasts and lifecycle emails (App\Growth). On by
+        // default like the digest, each with the one-click unsubscribe; the
+        // console only ever sends them to people for whom this resolves on.
+        'news' => [
+            'label' => 'News from Écrivain',
+            'description' => 'Occasional announcements: new features, events and offers.',
+            'mandatory' => false,
+            'marketing' => true,
+        ],
+        'tips' => [
+            'label' => 'Getting-started tips',
+            'description' => 'A few short emails while you are new, or when a book has been waiting a while.',
+            'mandatory' => false,
+            'marketing' => true,
+        ],
     ];
 
     /** @return list<string> */

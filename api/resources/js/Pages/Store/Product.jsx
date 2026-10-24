@@ -11,7 +11,7 @@ import { Head, useForm } from '@inertiajs/react';
  * line appears only when the book carries an author name.
  */
 export default function Product({ product, series }) {
-    const { data, setData, post, processing, errors } = useForm({ email: '' });
+    const { data, setData, post, processing, errors } = useForm({ email: '', code: '' });
 
     const buy = (event) => {
         event.preventDefault();
@@ -89,6 +89,27 @@ export default function Product({ product, series }) {
                             className="mt-1 w-full max-w-[360px] rounded-input border border-border-input bg-bg-surface px-3 py-2 text-[14px] text-text-primary"
                         />
                         {errors.email && <p className="mt-1 text-[12px] text-status-danger">{errors.email}</p>}
+
+                        <label className="mt-3 block text-[12px] text-text-secondary" htmlFor="discount-code">
+                            Discount code (optional)
+                        </label>
+                        <input
+                            id="discount-code"
+                            data-a="store:code"
+                            autoComplete="off"
+                            autoCapitalize="characters"
+                            maxLength={40}
+                            value={data.code}
+                            onChange={(e) => setData('code', e.target.value)}
+                            aria-invalid={errors.code ? 'true' : undefined}
+                            aria-describedby={errors.code ? 'discount-code-error' : undefined}
+                            className="mt-1 w-full max-w-[220px] rounded-input border border-border-input bg-bg-surface px-3 py-2 text-[14px] uppercase text-text-primary"
+                        />
+                        {errors.code && (
+                            <p id="discount-code-error" data-a="store:code-error" className="mt-1 text-[12px] text-status-danger">
+                                {errors.code}
+                            </p>
+                        )}
                         {errors.checkout && (
                             <p className="mt-1 text-[12px] text-status-danger">{errors.checkout}</p>
                         )}

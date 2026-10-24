@@ -61,7 +61,8 @@ it('refuses a duplicate even if the timestamp is lost', function () {
 });
 
 it('grants nothing on a plan with no allowance', function () {
-    config(['billing.plans.free.credits' => 0]);
+    // The plan catalogue (the plans table) is what the limits read.
+    setPlan('free', ['credits' => 0]);
 
     $user = User::factory()->create(['plan' => 'free']);
 

@@ -144,20 +144,33 @@ class Entitlements
         ];
     }
 
+    /**
+     * The plans an upgrade message may name: those offered, or every plan if
+     * none is (a catalogue with everything hidden still has to answer).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function upgradeCandidates(): array
+    {
+        $catalog = app(PlanCatalog::class);
+
+        return $catalog->offered() ?: $catalog->all();
+    }
+
     /** @return array<string, mixed> */
     private function cheapestPlanWithTier(int $tier): array
     {
-        $plans = collect(config('billing.plans'))
+        $plans = collect($this->upgradeCandidates())
             ->filter(fn (array $plan) => ($plan['tier'] ?? 0) >= $tier)
             ->sortBy('price');
 
-        return $plans->first() ?? config('billing.plans.studio');
+        return $plans->first() ?? app(PlanCatalog::class)->get('studio') ?? config('billing.plans.studio');
     }
 
     /** @return array<string, mixed>|null */
     private function cheapestPlanWithFormat(string $format): ?array
     {
-        return collect(config('billing.plans'))
+        return collect($this->upgradeCandidates())
             ->filter(fn (array $plan) => in_array($format, $plan['formats'] ?? [], true))
             ->sortBy('price')
             ->first();

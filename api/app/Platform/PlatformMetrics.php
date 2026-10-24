@@ -2,7 +2,9 @@
 
 namespace App\Platform;
 
+use App\Billing\PlanCatalog;
 use App\Commerce\Commerce;
+use App\Models\Plan;
 use App\Models\PlatformMetric;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -70,29 +72,32 @@ final class PlatformMetrics
     }
 
     /**
-     * Monthly recurring revenue from active subscriptions, per plan price.
+     * Monthly recurring revenue from active subscriptions, each valued at
+     * the price it is actually on (App\Billing\PlanCatalog::forStripePrice:
+     * every price a plan has had, so a price change does not revalue the
+     * people still paying the old one).
      *
-     * @return array{configured: bool, subscriptions: int, amount: int, currency: string, unknown_prices: int}
+     * `amount` is whole dollars, as the dashboard has always read it;
+     * `amount_cents` is exact.
+     *
+     * @return array{configured: bool, subscriptions: int, amount: int|float, amount_cents: int, currency: string, unknown_prices: int}
      */
     public function mrr(): array
     {
-        $prices = array_flip(array_filter([
-            'author' => config('billing.prices.author'),
-            'studio' => config('billing.prices.studio'),
-        ]));
+        $catalog = app(PlanCatalog::class);
 
         $rows = DB::table('subscriptions')
             ->whereIn('stripe_status', ['active', 'past_due'])
             ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', now()))
             ->get(['stripe_price', 'quantity']);
 
-        $amount = 0;
+        $cents = 0;
         $unknown = 0;
 
         foreach ($rows as $row) {
-            $plan = $prices[$row->stripe_price] ?? null;
+            $price = $catalog->forStripePrice($row->stripe_price);
 
-            if ($plan === null) {
+            if ($price === null) {
                 // A price this deployment does not know: counted, not valued,
                 // rather than guessed at.
                 $unknown++;
@@ -100,13 +105,14 @@ final class PlatformMetrics
                 continue;
             }
 
-            $amount += (int) config("billing.plans.{$plan}.price", 0) * max(1, (int) $row->quantity);
+            $cents += $price['amount_cents'] * max(1, (int) $row->quantity);
         }
 
         return [
             'configured' => filled(config('cashier.secret')),
             'subscriptions' => $rows->count(),
-            'amount' => $amount,
+            'amount' => Plan::dollars($cents),
+            'amount_cents' => $cents,
             'currency' => 'usd',
             'unknown_prices' => $unknown,
         ];

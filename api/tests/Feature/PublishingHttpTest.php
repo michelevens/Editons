@@ -721,7 +721,7 @@ it('holds an edition to the plan\'s book limit', function () {
 
 it('counts an edition toward the limit and frees a slot when one is archived', function () {
     $user = User::factory()->subscribed('author')->create();
-    config(['billing.plans.author.books' => 2]);
+    setPlan('author', ['books' => 2]);
     $book = chapteredBook($user);
 
     $editionId = $this->actingAs($user)

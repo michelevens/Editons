@@ -27,6 +27,8 @@ use App\Mail\Commerce\OrderReceiptMail;
 use App\Mail\Commerce\RefundProcessedMail;
 use App\Mail\Commerce\RoyaltyStatementMail;
 use App\Mail\EcrivainMail;
+use App\Mail\Growth\BroadcastMail;
+use App\Mail\Growth\LifecycleMail;
 use App\Mail\Publishing\BookLiveMail;
 use App\Mail\Publishing\BookUnpublishedMail;
 use App\Mail\Publishing\ExportFailedMail;
@@ -172,6 +174,12 @@ final class EmailCatalog
                     ['title' => $s['book']->title, 'channel' => 'Apple Books', 'units' => 12, 'royalty_cents' => 9072],
                     ['title' => 'Kreyòl Kitchen Notes', 'channel' => 'Écrivain store', 'units' => 9, 'royalty_cents' => 5661],
                 ], 'usd', Carbon::parse('2026-10-31'), null, 36410)],
+
+            // Growth (the console's broadcasts and lifecycle emails)
+            [BroadcastMail::class, 'Growth', 'Broadcast', 'Console: Business → Growth → Broadcasts (growth:send-broadcasts)',
+                fn (array $s) => new BroadcastMail($s['author'], 'Écrivain now speaks Kreyòl', "The whole studio is now available in Haitian Creole, from the editor to the export screens.\n\nSwitch your language in your profile; your books are not touched.", null, 'Open your profile', route('profile.edit'))],
+            [LifecycleMail::class, 'Growth', 'Lifecycle: no book yet', 'Console: Business → Growth → Lifecycle (growth:lifecycle, hourly)',
+                fn (array $s) => new LifecycleMail($s['author'], 'Your first book is one click away', "You signed up for Écrivain a few days ago but have not started a book yet.\n\nStart with a title, or import a manuscript you already have.", 'Start a book')],
         ];
 
         $catalog = [];

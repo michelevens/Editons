@@ -1,11 +1,18 @@
 <?php
 
+use App\Billing\PlanCatalog;
+use App\Commerce\Revenue;
 use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\Drivers\FakeDriver;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewResult;
 use App\Models\Book;
+use App\Models\Order;
+use App\Models\Plan;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /*
@@ -117,4 +124,83 @@ function platformDoc(string $text): array
     return ['type' => 'doc', 'content' => [
         ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]],
     ]];
+}
+
+/**
+ * Change a plan in the catalogue (App\Billing\PlanCatalog), the way the
+ * owner's console does: the limits read the plans table, not the config.
+ */
+function setPlan(string $key, array $changes): void
+{
+    Plan::where('key', $key)->firstOrFail()->forceFill($changes)->save();
+    app(PlanCatalog::class)->forget();
+}
+
+/**
+ * The console's business tests: a Cashier subscription row, as Stripe's
+ * webhooks would have left it.
+ */
+function bizSubscription(User $user, string $status = 'active', ?string $price = 'price_author', array $attributes = []): int
+{
+    return DB::table('subscriptions')->insertGetId($attributes + [
+        'user_id' => $user->id,
+        'type' => 'default',
+        'stripe_id' => 'sub_'.Str::random(14),
+        'stripe_status' => $status,
+        'stripe_price' => $price,
+        'quantity' => 1,
+        'created_at' => now()->subMonths(2),
+        'updated_at' => now(),
+    ]);
+}
+
+/** A paid storefront order of one item, with its fee and royalty worked out as Fulfilment does. */
+function bizPaidOrder(User $seller, int $priceCents, string $currency = 'usd', array $order = [], ?Book $book = null): Order
+{
+    $book ??= Book::factory()->for($seller)->create();
+    $fee = Revenue::fee($priceCents);
+
+    $model = new Order;
+    $model->forceFill($order + [
+        'number' => Order::newNumber(),
+        'status' => 'paid',
+        'buyer_email' => 'reader'.Str::random(5).'@example.com',
+        'currency' => $currency,
+        'total_cents' => $priceCents,
+        'fee_cents' => $fee,
+        'stripe_payment_intent' => 'pi_test_'.Str::random(12),
+        'paid_at' => now(),
+    ])->save();
+
+    $model->items()->make()->forceFill([
+        'book_id' => $book->id,
+        'seller_id' => $seller->id,
+        'title' => $book->title,
+        'formats' => ['epub'],
+        'license_type' => 'personal',
+        'price_cents' => $priceCents,
+        'fee_cents' => $fee,
+        'royalty_cents' => Revenue::royalty($priceCents, $fee),
+    ])->save();
+
+    return $model->fresh('items');
+}
+
+/** A saved version of a new chapter, by $user, as the editor's autosave writes one. */
+function bizWrote(User $user, ?Book $book = null, $at = null): Book
+{
+    $book ??= Book::factory()->for($user)->create();
+    $section = $book->sections()->create(['type' => 'chapter', 'title' => 'One', 'position' => 10]);
+
+    DB::table('manuscript_versions')->insert([
+        'manuscript_section_id' => $section->id,
+        'user_id' => $user->id,
+        'version_number' => 1,
+        'title' => 'One',
+        'content' => json_encode(platformDoc('Hello')),
+        'word_count' => 1,
+        'created_at' => $at ?? now(),
+    ]);
+
+    return $book;
 }

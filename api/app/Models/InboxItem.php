@@ -12,6 +12,8 @@ class InboxItem extends Model
     public const KINDS = [
         'comment', 'reply', 'mention', 'workflow', 'assigned', 'team',
         'export_ready', 'export_failed', 'review', 'support',
+        // A broadcast from Ecrivain with the in-app option (App\Growth\Broadcasts).
+        'announcement',
     ];
 
     protected $fillable = [

@@ -173,7 +173,8 @@ it('flags a balance that is nearly gone', function () {
 it('does not divide by zero on a plan with no allowance', function () {
     // The free plan's allowance could be set to 0, and a percentage of
     // nothing must not take the studio down.
-    config(['billing.plans.free.credits' => 0]);
+    // The plan catalogue (the plans table) is what the limits read.
+    setPlan('free', ['credits' => 0]);
 
     $summary = app(Entitlements::class)->summaryFor(User::factory()->create(['plan' => 'free']));
 

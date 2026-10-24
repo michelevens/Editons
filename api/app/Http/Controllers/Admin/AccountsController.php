@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Billing\CreditLedger;
+use App\Billing\PlanCatalog;
+use App\Growth\Onboarding;
 use App\Http\Controllers\Controller;
 use App\Models\AdminNote;
 use App\Models\Book;
@@ -228,6 +230,20 @@ class AccountsController extends Controller
             'features' => collect(Features::catalog())->map(fn (array $f) => $f + $features->explain($f['key'], $user) + [
                 'override' => $features->overridesFor($user)[$f['key']] ?? null,
             ])->values(),
+            // Business (ADR — console business): setup steps, first touch,
+            // and the paid plans a complimentary plan can be.
+            'onboarding' => app(Onboarding::class)->stepsFor($user),
+            'signup' => [
+                'source' => $user->signup_source,
+                'medium' => $user->signup_medium,
+                'campaign' => $user->signup_campaign,
+                'referrer' => $user->signup_referrer,
+                'landing' => $user->signup_landing,
+            ],
+            'plans' => collect(app(PlanCatalog::class)->all())
+                ->except('free')
+                ->map(fn (array $p, string $key) => ['key' => $key, 'name' => $p['name'], 'visibility' => $p['visibility'] ?? 'public'])
+                ->values(),
         ]);
     }
 

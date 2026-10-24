@@ -24,9 +24,9 @@ use Throwable;
  * nothing. Registered in MailServiceProvider — deliberately not in
  * app/Listeners, where event discovery would register it a second time.
  *
- * Amounts are Stripe's integer minor units; plan names come from
- * config('billing.plans') by matching the price id against
- * config('billing.prices').
+ * Amounts are Stripe's integer minor units; plan names come from the plan
+ * catalogue (App\Billing\PlanCatalog::forStripePrice), which knows every
+ * price a plan has had, so a subscriber on an older price is still named.
  */
 final class SubscriptionEmails
 {
@@ -196,8 +196,7 @@ final class SubscriptionEmails
      */
     private function plan(?string $priceId): array
     {
-        $key = $priceId ? array_search($priceId, array_filter(config('billing.prices', [])), true) : false;
-        $plan = $key !== false ? config("billing.plans.{$key}") : null;
+        $plan = app(PlanCatalog::class)->forStripePrice($priceId)['plan'] ?? null;
 
         return $plan
             ? ['name' => $plan['name'], 'credits' => $plan['credits'], 'tier' => $plan['tier']]

@@ -6,6 +6,7 @@ use App\Commerce\Checkout;
 use App\Commerce\Commerce;
 use App\Commerce\Downloads;
 use App\Commerce\Fulfilment;
+use App\Growth\Discounts;
 use App\Jobs\GenerateExport;
 use App\Models\BookExport;
 use App\Models\License;
@@ -131,10 +132,17 @@ class StoreController extends Controller
 
         $data = $request->validate([
             'email' => ['nullable', 'email:rfc', 'max:255'],
+            'code' => ['nullable', 'string', 'max:40'],
         ]);
 
+        // Checked before anything is created; a code that does not apply is
+        // a message under the field, not a failed checkout.
+        $discount = filled($data['code'] ?? null)
+            ? app(Discounts::class)->quote($data['code'], 'storefront', $product->price_cents, $product->currency, $request->user(), $data['email'] ?? $request->user()?->email)
+            : null;
+
         try {
-            $session = $checkout->start($product, $request->user(), $data['email'] ?? null);
+            $session = $checkout->start($product, $request->user(), $data['email'] ?? null, $discount);
         } catch (Throwable $e) {
             report($e);
 

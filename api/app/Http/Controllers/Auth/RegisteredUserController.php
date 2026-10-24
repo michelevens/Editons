@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Billing\PlanCatalog;
 use App\Editorial\EditorialAgent;
+use App\Growth\Attribution;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Platform\LoginHistory;
@@ -28,7 +30,7 @@ class RegisteredUserController extends Controller
         // rather than written into the page: the copy said "all seven
         // editorial agents ... free" when there were nine and four ran on
         // the free plan.
-        $free = config('billing.plans.free');
+        $free = app(PlanCatalog::class)->get('free');
         $agents = EditorialAgent::cases();
 
         return Inertia::render('Auth/Register', [
@@ -71,6 +73,10 @@ class RegisteredUserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
+
+        // Where they first came from (the first-touch cookie), for the
+        // console's acquisition report.
+        Attribution::apply($user, $request);
 
         event(new Registered($user));
 
