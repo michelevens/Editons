@@ -19,6 +19,12 @@ design decisions are in `docs/DECISIONS.md` (ADR — super-admin console).
 | Complimentary plans (set, extend, end) | ✓ | — |
 | Make or remove support staff | ✓ | — |
 | Change platform settings, maintenance mode | ✓ | — |
+| Answer support tickets, internal notes, assign, close | ✓ | ✓ |
+| Manage canned replies | ✓ | — |
+| Pause or resume AI (all, or one feature); set an account's monthly AI cap | ✓ | — |
+| Feature flags (platform switch, per-account override) | ✓ | — |
+| Retry or forget a failed job | ✓ | — |
+| Mark a stuck export failed, resend an email, resolve or ignore an error | ✓ | ✓ |
 | Make or demote an **owner** | shell only | shell only |
 
 Limits are in `config/platform.php` (environment variables, so changing them
@@ -127,3 +133,87 @@ active Stripe subscription — "No paid subscriptions yet" while there are none.
 Trends come only from `platform_metrics` snapshots, which begin the day this
 ships; nothing earlier is estimated. The 30-day sign-up chart reads
 `users.created_at`, which is real for every account.
+
+## Running the platform (phase 2)
+
+Design decisions: `docs/DECISIONS.md` (ADR — console phase 2). Every write
+below that changes behaviour needs a reason, and every write is audited in
+the same transaction, like everything else in the console.
+
+### AI usage (`/admin/ai`)
+
+Every AI call — editorial reviews, cover concepts, cover artwork, support
+reply drafts — is a row in `ai_usage`: account, book, feature, provider,
+model, tokens or images, latency, status, and an **estimated** cost from the
+price table in `config/platform.php` (`platform.ai.pricing`, with its source
+and date). A model not in the table records no cost, and the page shows such
+calls as "unknown" beside the known total. The fake drivers are recorded as
+*sample* calls costing nothing.
+
+- **Kill switches.** All AI, or one feature. A paused feature refuses before
+  anything is charged or sent to a provider, with a sentence for the author
+  ("AI reviews are paused by Ecrivain — try again later").
+- **Monthly cap.** On an account page (owner). AI stops for that account once
+  this calendar month's known cost reaches it. A platform default can be set
+  with `PLATFORM_AI_DEFAULT_MONTHLY_CAP_USD`.
+- **Prices change.** Update the table in `config/platform.php` with the new
+  rate, its source and the date checked. OpenAI image prices are deliberately
+  absent until verified.
+
+### Jobs & health (`/admin/operations`)
+
+- **Scheduled commands** are read from `routes/console.php`. Each run writes a
+  heartbeat through the scheduler's own events (nothing to add to a new
+  command). *late*: a due time more than 10 minutes old passed without it
+  starting; *failing*: the last run threw or exited non-zero; *unknown*: the
+  scheduler has never reported (is `php artisan schedule:work` running on the
+  worker service?).
+- **Queue worker** writes a heartbeat as it loops; silent for 3 minutes is
+  failing. Backlog by queue with the oldest job (database queues).
+- **Failed jobs**: exports and mail can be retried (the export goes back to
+  generating); anything else can only be forgotten — it may not be safe to
+  run twice.
+- **Stuck exports**: generating past the job timeout; *Mark failed* tells the
+  author, who can generate again. `exports:expire` does the same every five
+  minutes.
+- **Health checks** say what they measured, and "unknown" when they could not
+  (a bucket does not report free space). Stripe and the mail provider are
+  checked for configuration only; nothing paid is called.
+
+### Email log (`/admin/mail`)
+
+Every message handed to the mailer, and every one that failed on the way:
+address, email type, subject, category, the provider's message id. Password
+resets, email verification and invitations carry secrets, so only their
+metadata is kept. Other bodies are kept as text with signed links removed.
+*Resend* builds the same email again for the same address (preferences still
+apply); resets and verifications are never resent — send a new reset from the
+account page. **Bounces and complaints are not shown**: they need Resend's
+webhook, which is not connected, so "sent" means handed to Resend.
+
+### Feature flags (`/admin/features`)
+
+Modules that are incomplete or risky: storefront, AI covers, Suggest mode,
+the book preview, the inbox, Help, and the coming-soon screens. A flag never
+turns on what is not configured (the storefront still needs Stripe). An
+account override (on the account page) wins over the platform switch, which
+wins over the default. A module that is off disappears from the navigation
+and its pages answer 404.
+
+### Support (`/admin/support`)
+
+Authors write from **Help** (account menu, or More on a phone). The ticket
+arrives with their plan, browser, screen size, the page they came from and
+the last error their browser hit — never their manuscript. *Open* waits for
+staff, *pending* for the author. A reply is emailed and appears in the
+author's inbox; an internal note is seen only by staff. Canned replies are
+kept by the owner. **AI draft reply** appears only while support drafts are
+not paused; the draft fills the box and is never sent by itself.
+
+### Errors (`/admin/errors`)
+
+Server exceptions (everything Laravel would log — never 404s or validation
+errors) and browser errors, grouped by where they happen, with a count,
+first and last seen, and one example (message, stack without arguments, path
+without its query string, user id). Resolve when fixed: if it comes back it
+opens again. Ignore what is known and harmless.
