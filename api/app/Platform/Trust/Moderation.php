@@ -7,6 +7,7 @@ use App\Mail\Notify;
 use App\Mail\Trust\ListingRestoredMail;
 use App\Mail\Trust\ListingTakenDownMail;
 use App\Models\ContentReport;
+use App\Models\Partner;
 use App\Models\Product;
 use App\Models\User;
 use App\Platform\AdminAudit;
@@ -92,6 +93,20 @@ final class Moderation
             'reporter_user_id' => $request->user()?->id,
             'status' => 'open',
         ]);
+    }
+
+    /**
+     * A report from a partner's page (/p/{handle}). Same queue, same rules;
+     * staff act on it by suspending the partner (App\Commerce\Partners).
+     *
+     * @param  array{category: string, details?: ?string, email?: ?string}  $data
+     */
+    public function reportPartner(Partner $partner, array $data, Request $request): ContentReport
+    {
+        $report = $this->report(null, null, $data, $request);
+        $report->forceFill(['partner_id' => $partner->id])->save();
+
+        return $report;
     }
 
     /** Resolve (something was done) or dismiss (nothing needed doing). */

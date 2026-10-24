@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Commerce\Commerce;
+use App\Commerce\Partners\Commissions;
+use App\Commerce\Partners\Program;
+use App\Commerce\Revenue;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\Product;
@@ -50,7 +53,13 @@ class ProductController extends Controller
             'title' => ['nullable', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:5000'],
             'published' => ['required', 'boolean'],
+            // Écrivain Partners: whether partners may sell it, and for what
+            // share of the net. Out of the seller's own royalty.
+            'partner_enabled' => ['sometimes', 'boolean'],
+            'partner_rate' => ['nullable', 'integer'],
         ]);
+
+        $partners = $this->partnerSettings($request, $data, $book->product);
 
         $cents = (int) round(((float) $data['price']) * 100);
 
@@ -73,6 +82,7 @@ class ProductController extends Controller
             'license' => $data['license'],
             'published_at' => $data['published'] ? ($wasPublished ? $product->published_at : now()) : null,
         ]);
+        $product->forceFill($partners);
 
         if (! $product->exists) {
             $product->user_id = $book->user_id;
@@ -83,6 +93,28 @@ class ProductController extends Controller
         $product->save();
 
         return response()->json($this->payload($book->fresh(), $request));
+    }
+
+    /**
+     * The partner switch and rate, held to the program's range. With the
+     * program off the stored values are kept as they are.
+     *
+     * @return array{partner_enabled?: bool, partner_rate_bps?: ?int}
+     */
+    private function partnerSettings(Request $request, array $data, ?Product $product): array
+    {
+        if (! Program::enabled($request->user()) || ! array_key_exists('partner_enabled', $data)) {
+            return [];
+        }
+
+        $rates = app(Program::class)->rates();
+        $rate = $data['partner_rate'] ?? ($product?->partner_rate_bps ? intdiv($product->partner_rate_bps, 100) : $rates['default']);
+
+        if ($rate < $rates['min'] || $rate > $rates['max']) {
+            throw ValidationException::withMessages(['partner_rate' => "Choose a rate from {$rates['min']} % to {$rates['max']} %."]);
+        }
+
+        return ['partner_enabled' => (bool) $data['partner_enabled'], 'partner_rate_bps' => $rate * 100];
     }
 
     /** @param  list<string>  $formats */
@@ -117,6 +149,21 @@ class ProductController extends Controller
         }
     }
 
+    /** @return array{price_cents: int, without: int, with: int, commission: int, fee: int} */
+    public static function partnerPreview(int $priceCents, int $rateBps): array
+    {
+        $fee = Revenue::fee($priceCents);
+        $split = Commissions::split($priceCents, $fee, $rateBps);
+
+        return [
+            'price_cents' => $priceCents,
+            'fee' => $fee,
+            'without' => Revenue::royalty($priceCents, $fee),
+            'with' => $split['royalty'],
+            'commission' => $split['commission'],
+        ];
+    }
+
     private function readyExport(Book $book, string $format): ?BookExport
     {
         return $book->exports()->where('format', $format)->where('status', 'ready')->first();
@@ -149,6 +196,17 @@ class ProductController extends Controller
                     'reason' => $product->taken_down_reason,
                 ] : null,
                 'url' => $product->isPublished() ? route('store.product', $product->slug) : null,
+                'partner_enabled' => (bool) $product->partner_enabled,
+                'partner_rate' => $product->partner_rate_bps ? intdiv($product->partner_rate_bps, 100) : null,
+            ] : null,
+            // Écrivain Partners: the switch, the allowed range, and what a
+            // sale pays with and without a partner (Commissions::split, the
+            // same arithmetic the order will use).
+            'partners' => Program::enabled($request->user()) ? [
+                'rates' => app(Program::class)->rates(),
+                'fee' => config('commerce.stripe_fee'),
+                'platform_rate' => (float) config('commerce.platform_rate'),
+                'preview' => $product ? self::partnerPreview($product->price_cents, $product->partner_rate_bps ?: app(Program::class)->rates()['default'] * 100) : null,
             ] : null,
             'defaults' => [
                 'title' => $book->title,

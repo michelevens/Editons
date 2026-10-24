@@ -127,7 +127,7 @@ class InboxController extends Controller
 
         // An announcement's link, when it stays on this app: the inbox is
         // never a redirector to another site.
-        $url = $item->kind === 'announcement' ? ($item->target['url'] ?? null) : null;
+        $url = in_array($item->kind, ['announcement', 'partner'], true) ? ($item->target['url'] ?? null) : null;
 
         if (is_string($url) && parse_url($url, PHP_URL_HOST) === parse_url((string) config('app.url'), PHP_URL_HOST)) {
             return $url;

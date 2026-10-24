@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\Business\BillingController;
 use App\Http\Controllers\Admin\Business\GrowthController;
 use App\Http\Controllers\Admin\Business\InvitationsController;
 use App\Http\Controllers\Admin\Business\OnboardingController;
+use App\Http\Controllers\Admin\Business\PartnersController;
 use App\Http\Controllers\Admin\Business\PlansController;
 use App\Http\Controllers\Admin\Business\SalesController;
 use Illuminate\Support\Facades\Route;
@@ -82,6 +83,34 @@ Route::middleware(['can:platform.owner', 'throttle:admin-actions'])->group(funct
         Route::patch('/lifecycle/{campaign}', [GrowthController::class, 'updateLifecycle'])->whereNumber('campaign')->name('lifecycle.update');
         Route::post('/lifecycle/{campaign}/test', [GrowthController::class, 'testLifecycle'])->whereNumber('campaign')->name('lifecycle.test');
     });
+});
+
+/*
+ | Écrivain Partners (ADR — partner program). All staff read and decide
+ | applications; money, a partner's standing and the program's settings are
+ | the owner's.
+ */
+Route::get('/partners', [PartnersController::class, 'index'])->name('partners.index');
+Route::get('/partners/{partner}', [PartnersController::class, 'show'])->whereNumber('partner')->name('partners.show');
+Route::get('/partners/commissions.csv', [PartnersController::class, 'export'])
+    ->middleware('throttle:admin-actions')
+    ->name('partners.export');
+
+Route::middleware('throttle:admin-actions')->group(function () {
+    Route::post('/partners/{partner}/approve', [PartnersController::class, 'approve'])->whereNumber('partner')->name('partners.approve');
+    Route::post('/partners/{partner}/decline', [PartnersController::class, 'decline'])->whereNumber('partner')->name('partners.decline');
+});
+
+Route::middleware(['can:platform.owner', 'throttle:admin-actions'])->group(function () {
+    Route::post('/partners/{partner}/suspend', [PartnersController::class, 'suspend'])->whereNumber('partner')->name('partners.suspend');
+    Route::post('/partners/{partner}/reinstate', [PartnersController::class, 'reinstate'])->whereNumber('partner')->name('partners.reinstate');
+    Route::post('/partners/{partner}/release', [PartnersController::class, 'release'])->whereNumber('partner')->name('partners.release');
+    Route::post('/partners/{partner}/forfeit', [PartnersController::class, 'forfeit'])->whereNumber('partner')->name('partners.forfeit');
+    Route::post('/partners/{partner}/payout', [PartnersController::class, 'payout'])->whereNumber('partner')->name('partners.payout');
+    Route::post('/partners/{partner}/code', [PartnersController::class, 'code'])->whereNumber('partner')->name('partners.code');
+    Route::post('/partners/{partner}/tax-form', [PartnersController::class, 'taxForm'])->whereNumber('partner')->name('partners.tax-form');
+    Route::post('/partners/{partner}/unrestrict', [PartnersController::class, 'unrestrict'])->whereNumber('partner')->name('partners.unrestrict');
+    Route::post('/partners/settings', [PartnersController::class, 'settings'])->name('partners.settings');
 });
 
 // Reads that compute, while a form is being filled in: the owner's, and

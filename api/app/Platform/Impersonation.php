@@ -44,6 +44,9 @@ final class Impersonation
         [['POST', 'PUT', 'PATCH', 'DELETE'], ['billing', 'billing/*', 'stripe/*'], 'billing and subscriptions'],
         [['POST', 'PUT', 'PATCH', 'DELETE'], ['store/*/checkout', 'store/checkout/*'], 'checkout'],
         [['POST', 'PUT', 'PATCH', 'DELETE'], ['payouts', 'payouts/*'], 'payouts'],
+        // Écrivain Partners: accepting the agreement, payout details, the
+        // page under the partner's name, invitations and blocks.
+        [['POST', 'PUT', 'PATCH', 'DELETE'], ['partners/apply', 'partners/invitations/*', 'partner', 'partner/*', 'sales/partners/*'], 'the partner program'],
         [['PUT'], ['password'], 'password changes'],
         [null, ['user/two-factor', 'user/two-factor/*'], 'two-factor settings'],
         [['PATCH', 'DELETE'], ['profile'], 'email and account changes'],

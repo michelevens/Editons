@@ -28,6 +28,8 @@ use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\OverviewController;
+use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PartnerPageController;
 use App\Http\Controllers\PlatformStatusController;
 use App\Http\Controllers\PreviewController;
 use App\Http\Controllers\PrintKitController;
@@ -38,6 +40,7 @@ use App\Http\Controllers\ReferencesController;
 use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
+use App\Http\Controllers\SellerPartnersController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
@@ -599,6 +602,64 @@ Route::prefix('store')->name('store.')->group(function () {
         ->name('report');
     Route::get('/{product:slug}/cancelled', [StoreController::class, 'cancelled'])
         ->name('checkout.cancelled');
+});
+
+/*
+ | Écrivain Partners (ADR — partner program; docs/PARTNERS.md). The whole
+ | module answers 404 while the `partners` flag is off.
+ |
+ | The partner's own pages are signed in and only ever the account's own
+ | partner record. The public page, /p/{handle}, needs no account; its book
+ | links and the ?partner= parameter give the partner the credit for a
+ | later purchase. An author's invitation opens signed out, so somebody
+ | without an account can read it first.
+ */
+Route::middleware(['auth', 'feature:partners'])->group(function () {
+    Route::get('/partners/apply', [PartnerController::class, 'apply'])->name('partners.apply');
+    Route::post('/partners/apply', [PartnerController::class, 'storeApplication'])
+        ->middleware('throttle:10,1')
+        ->name('partners.apply.store');
+
+    Route::get('/partner', [PartnerController::class, 'dashboard'])->name('partners.dashboard');
+    Route::put('/partner/page', [PartnerController::class, 'updatePage'])->name('partners.page.update');
+    Route::get('/partner/handle', [PartnerController::class, 'checkHandle'])
+        ->middleware('throttle:60,1')
+        ->name('partners.handle.check');
+    Route::post('/partner/logo', [PartnerController::class, 'uploadLogo'])
+        ->middleware('throttle:20,1')
+        ->name('partners.logo');
+    Route::delete('/partner/logo', [PartnerController::class, 'removeLogo'])->name('partners.logo.destroy');
+    Route::put('/partner/payout-details', [PartnerController::class, 'updatePayoutDetails'])->name('partners.payout-details');
+
+    Route::post('/partners/invitations/{token}', [PartnerController::class, 'acceptInvitation'])
+        ->middleware('throttle:10,1')
+        ->name('partners.invitation.accept');
+
+    // The seller's side: who sells their books, block, invite.
+    Route::post('/sales/partners/{partner}/block', [SellerPartnersController::class, 'block'])->whereNumber('partner')->name('sales.partners.block');
+    Route::delete('/sales/partners/{partner}/block', [SellerPartnersController::class, 'unblock'])->whereNumber('partner')->name('sales.partners.unblock');
+    Route::post('/sales/partners/invite', [SellerPartnersController::class, 'invite'])
+        ->middleware('throttle:10,1')
+        ->name('sales.partners.invite');
+});
+
+Route::get('/partners/invitations/{token}', [PartnerController::class, 'invitation'])
+    ->middleware(['feature:partners', 'throttle:30,1'])
+    ->name('partners.invitation');
+
+Route::prefix('p')->name('partners.page')->group(function () {
+    Route::get('/{handle}', [PartnerPageController::class, 'show'])->name('');
+    Route::get('/{handle}/qr.{format}', [PartnerPageController::class, 'qr'])
+        ->where('format', 'svg|png')
+        ->middleware('throttle:30,1')
+        ->name('.qr');
+    Route::get('/{handle}/logo/{version}', [PartnerPageController::class, 'logo'])
+        ->where('version', '[a-f0-9]{8}')
+        ->name('.logo');
+    Route::post('/{handle}/report', [PartnerPageController::class, 'report'])
+        ->middleware('throttle:content-reports')
+        ->name('.report');
+    Route::get('/{handle}/{slug}', [PartnerPageController::class, 'book'])->name('.book');
 });
 
 /*
