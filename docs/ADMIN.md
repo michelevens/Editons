@@ -25,9 +25,10 @@ design decisions are in `docs/DECISIONS.md` (ADR — super-admin console).
 | Feature flags (platform switch, per-account override) | ✓ | — |
 | Retry or forget a failed job | ✓ | — |
 | Mark a stuck export failed, resend an email, resolve or ignore an error | ✓ | ✓ |
-| Business pages: billing, plans, book sales, growth, onboarding (read) | ✓ | ✓ |
+| Business pages: billing, plans, book sales, growth, invitations, onboarding (read) | ✓ | ✓ |
 | Refunds, plan changes, recording payouts | ✓ | — |
 | Audiences, broadcasts, discount codes, lifecycle emails | ✓ | — |
+| Invite authors (one, or a list); resend, revoke | ✓ (with a complimentary plan, credits up to 100,000) | ✓ (no plan; credits up to 500) |
 | Make or demote an **owner** | shell only | shell only |
 
 Limits are in `config/platform.php` (environment variables, so changing them
@@ -95,7 +96,8 @@ Free for every limit, so a late scheduler gives nothing away.
   - one path list refuses, with 403 and a sentence, everything the author
     should do themselves: billing and checkout, payouts, password, email,
     two-factor and email-preference changes, deleting the account or a book,
-    publishing to stores, storefront products, team invitations, **downloads
+    publishing to stores, storefront products, team invitations, joining
+    from an invitation, **downloads
     of their files** (exports, the `.ecrivain` and Markdown copies, covers,
     purchased downloads) and the admin console itself. Support reads a book on
     screen; it does not take a copy away;
@@ -222,7 +224,7 @@ first and last seen, and one example (message, stack without arguments, path
 without its query string, user id). Resolve when fixed: if it comes back it
 opens again. Ignore what is known and harmless.
 
-## Business (billing, plans, book sales, growth, onboarding)
+## Business (billing, plans, book sales, growth, invitations, onboarding)
 
 Design decisions: `docs/DECISIONS.md` (ADR — console business). The
 "Business" group in the console's navigation. All staff can read every
@@ -322,6 +324,61 @@ authors over 30 days, and gross per day.
 ```sh
 php artisan growth:send-broadcasts   # start due broadcasts (scheduled every minute)
 php artisan growth:lifecycle         # send due lifecycle emails (scheduled hourly)
+```
+
+### Invitations (`/admin/invitations`)
+
+Invite people to join Écrivain — the way to run an invite-only beta. Design
+decisions: `docs/DECISIONS.md` (ADR — author invitations). Not the book
+team's invitations (`book_members`), which invite somebody to one book.
+
+- **Invite someone**: email, optional name, the email's language (English,
+  French, Haitian Creole), an optional personal note, and optional perks
+  given when they accept — a complimentary plan for 1–24 months (owner
+  only) and AI credits (support up to its grant limit, 500). The link stays
+  open 30 days unless you choose 1–90. An optional campaign name becomes the
+  account's `utm_campaign`.
+- **Invite a list**: paste `email,name,language` lines or choose a CSV file
+  (a header row starting with `email` is skipped; comma, semicolon or tab).
+  **Preview** checks every row — invalid, duplicate in the list, already a
+  member, already invited, asked not to be invited — and only the rows that
+  can go are sent, at most `GROWTH_INVITATION_BATCH_MAX` (200) at a time.
+  Every row is checked again when the list is sent.
+- **Refused**: an address with an account ("Already a member", with a link
+  to it), one with a pending invitation (resend that instead), and one that
+  clicked "Don't invite me again" in an earlier invitation.
+- **The link** is `/join/{token}`. Only a SHA-256 of the token is stored;
+  the token is in the email alone, so the email log keeps the message's
+  metadata only and cannot resend it. It works while *New sign-ups open* is
+  off. The address is fixed; registering accepts the invitation, verifies
+  the email, applies the perks in the same transaction as the account
+  (a complimentary plan with its end date, credits as an `admin_grant` on
+  the ledger labelled "Invitation #id", both audited as the inviter's), sets
+  the account's source to `invite` (medium `email`) so Growth's funnel shows
+  invited authors, and leaves a welcome in the inbox. Somebody already
+  signed in with the invited address accepts with one button; signed in as
+  somebody else, they are told to sign out. Expired, revoked, used or
+  declined links show a page saying so, with *Request a new invitation*
+  (an email to support), never an error.
+- **Send again** mints a new link (the old one stops working) and renews
+  the expiry — also for an expired invitation. At most 3 times, and not
+  within an hour of the last send. **Revoke** (with a reason) closes the
+  link at once; the person is not told.
+- **Limits**: sending is throttled (10 a minute, 60 an hour per staff
+  member) and capped per 24 hours — owner 1,000, support 100
+  (`GROWTH_INVITATIONS_OWNER_DAILY`, `GROWTH_INVITATIONS_SUPPORT_DAILY`),
+  resends included, counted from the audit log.
+- **Tracking**: counts by state, a funnel (invited → accepted → first book
+  → first chapter saved → first export) for whatever the filters select
+  (state, batch, sender, dates, search), each invitation's timeline (sent,
+  resent, revoked, accepted, expired, and the account's firsts) with its
+  entries in the email log, and a CSV export (audited, formula cells
+  quoted).
+- The email is signed "the Écrivain team". To sign with the sender's own
+  name, set `GROWTH_INVITATION_SHOW_INVITER=true`.
+
+```sh
+php artisan invitations:expire   # mark pending invitations past their date expired (scheduled hourly)
 ```
 
 ### Onboarding (`/admin/onboarding`)
