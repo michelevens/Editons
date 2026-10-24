@@ -8,6 +8,7 @@ use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
+use App\Platform\Trust\MasterData;
 use App\Publishing\Exporter;
 use App\Publishing\SubmissionCheck;
 use Illuminate\Http\JsonResponse;
@@ -357,7 +358,10 @@ class PublishingController extends Controller
                 'word_count' => $book->word_count,
                 'status' => $book->status,
             ],
-            'categories' => self::CATEGORIES,
+            // A fixed list rather than free text: stores match against
+            // their own taxonomy, and a typed category is a rejected
+            // submission. Owner-edited (App\Platform\Trust\MasterData).
+            'categories' => MasterData::with('store_categories', $meta['category'] ?? null),
             'channels' => collect(BookChannel::CHANNELS)
                 ->map(function (array $meta, string $key) use ($channels) {
                     $row = $channels->get($key);
@@ -476,21 +480,4 @@ class PublishingController extends Controller
             ? round($bytes / 1024).' KB'
             : round($bytes / 1048576, 1).' MB';
     }
-
-    /**
-     * Store categories.
-     *
-     * A fixed list rather than free text: stores match against their own
-     * taxonomy, and a typed category is a rejected submission.
-     */
-    private const CATEGORIES = [
-        'Business & Economics / Small Business',
-        'Business & Economics / Entrepreneurship',
-        'Medical / Practice Management',
-        'Medical / Nursing / Practice Management',
-        'Self-Help / Personal Growth',
-        'Education / Professional Development',
-        'Fiction / Literary',
-        'Biography & Autobiography / Personal Memoirs',
-    ];
 }

@@ -36,10 +36,11 @@ function bizBroadcast(User $owner, array $data = []): Broadcast
 
 it('sends only to people who allow news, once each, and counts what happened', function () {
     $owner = platformAdmin();
-    $ada = User::factory()->create();
+    // News is opt-in: the recipients have said yes; bob said no.
+    $ada = User::factory()->create(['email_preferences' => ['news' => true]]);
     $bob = User::factory()->create(['email_preferences' => ['news' => false]]);
-    $cy = User::factory()->create();
-    $suspended = User::factory()->create();
+    $cy = User::factory()->create(['email_preferences' => ['news' => true]]);
+    $suspended = User::factory()->create(['email_preferences' => ['news' => true]]);
     $suspended->forceFill(['suspended_at' => now(), 'suspended_reason' => 'Spam'])->save();
 
     $broadcast = bizBroadcast($owner);
@@ -71,7 +72,7 @@ it('sends only to people who allow news, once each, and counts what happened', f
 
 it('honours an unsubscribe that arrives between resolving and sending', function () {
     $owner = platformAdmin();
-    $ada = User::factory()->create();
+    $ada = User::factory()->create(['email_preferences' => ['news' => true]]);
     $broadcast = bizBroadcast($owner);
     $broadcast->forceFill(['status' => 'sending'])->save();
 
@@ -88,9 +89,9 @@ it('honours an unsubscribe that arrives between resolving and sending', function
 
 it('targets a saved audience and can put it in the inbox too', function () {
     $owner = platformAdmin();
-    $author = User::factory()->create(['plan' => 'author']);
+    $author = User::factory()->create(['plan' => 'author', 'email_preferences' => ['news' => true]]);
     $optedOut = User::factory()->create(['plan' => 'author', 'email_preferences' => ['news' => false]]);
-    $free = User::factory()->create(['plan' => 'free']);
+    $free = User::factory()->create(['plan' => 'free', 'email_preferences' => ['news' => true]]);
     $audience = Audience::create(['name' => 'Authors', 'rules' => ['plans' => ['author']]]);
 
     $broadcast = bizBroadcast($owner, ['audience_id' => $audience->id, 'inbox' => true]);
@@ -108,7 +109,7 @@ it('targets a saved audience and can put it in the inbox too', function () {
 
 it('waits for a scheduled time, and can be cancelled before it', function () {
     $owner = platformAdmin();
-    User::factory()->create();
+    User::factory()->create(['email_preferences' => ['news' => true]]);
     $broadcast = bizBroadcast($owner);
 
     $this->actingAs($owner)->post(route('admin.growth.broadcasts.schedule', $broadcast), ['when' => 'later', 'scheduled_at' => now()->addDay()->toIso8601String(), 'reason' => 'Monday morning'])->assertRedirect();

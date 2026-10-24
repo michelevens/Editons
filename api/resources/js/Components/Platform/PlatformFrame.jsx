@@ -121,7 +121,18 @@ function AnnouncementBanner({ announcement, onDismiss }) {
                 TONES[announcement.tone] ?? TONES.info
             }`}
         >
-            <p className="min-w-0 flex-1 text-center font-medium">{announcement.message}</p>
+            <p className="min-w-0 flex-1 text-center font-medium">
+                {announcement.message}
+                {/* An incident's banner links to the status page. */}
+                {announcement.url && (
+                    <>
+                        {' '}
+                        <a href={announcement.url} data-a="platform:announcement-link" className="underline underline-offset-2">
+                            Status page
+                        </a>
+                    </>
+                )}
+            </p>
             <button
                 type="button"
                 data-a="platform:announcement-dismiss"

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccessibilityController;
+use App\Http\Controllers\AccountExportDownloadController;
 use App\Http\Controllers\AiEditorController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\BillingController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\ChartController;
 use App\Http\Controllers\ClientErrorController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ConsistencyController;
+use App\Http\Controllers\ContentReportController;
 use App\Http\Controllers\CoverAiController;
 use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\DesignController;
@@ -562,6 +564,10 @@ Route::prefix('store')->name('store.')->group(function () {
 
     Route::get('/authors/{handle}', [StoreController::class, 'author'])
         ->name('author');
+    // "Report this book / page": no account, rate-limited per IP.
+    Route::post('/authors/{handle}/report', [ContentReportController::class, 'author'])
+        ->middleware('throttle:content-reports')
+        ->name('author.report');
 
     Route::get('/{product:slug}', [StoreController::class, 'product'])
         ->name('product');
@@ -570,6 +576,9 @@ Route::prefix('store')->name('store.')->group(function () {
     Route::post('/{product:slug}/checkout', [StoreController::class, 'checkout'])
         ->middleware('throttle:10,1')
         ->name('checkout');
+    Route::post('/{product:slug}/report', [ContentReportController::class, 'product'])
+        ->middleware('throttle:content-reports')
+        ->name('report');
     Route::get('/{product:slug}/cancelled', [StoreController::class, 'cancelled'])
         ->name('checkout.cancelled');
 });
@@ -682,3 +691,16 @@ Route::post('/client-errors', [ClientErrorController::class, 'store'])
 Route::get('/status', PlatformStatusController::class)
     ->middleware('throttle:60,1')
     ->name('platform.status');
+Route::get('/status.json', PlatformStatusController::class)
+    ->middleware('throttle:60,1')
+    ->name('platform.status.json');
+
+/*
+ | An account's data export, from the link emailed to it (signed, expiring;
+ | App\Platform\Trust\AccountExporter). No sign-in: the account may be
+ | suspended while it is offboarded.
+ */
+Route::get('/account-exports/{export}/download', AccountExportDownloadController::class)
+    ->whereNumber('export')
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('account-exports.download');

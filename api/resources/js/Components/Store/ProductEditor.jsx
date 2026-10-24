@@ -100,6 +100,13 @@ export default function ProductEditor({ bookId, onSaved }) {
                 )}
             </div>
 
+            {product?.taken_down && (
+                <p role="status" data-a="store:taken-down" className="mb-3 rounded-tile bg-status-danger-bg px-2.5 py-2 text-[12px] text-status-danger">
+                    Ecrivain took this store page down: {product.taken_down.reason} Readers who bought it keep their copy. Write
+                    to support from Help if you think it is a mistake.
+                </p>
+            )}
+
             {product?.url && (
                 <p className="mb-3 text-[12px]">
                     <a

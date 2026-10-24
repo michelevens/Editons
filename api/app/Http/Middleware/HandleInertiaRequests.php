@@ -8,6 +8,7 @@ use App\Http\Controllers\InboxController;
 use App\Platform\Features;
 use App\Platform\Impersonation;
 use App\Platform\PlatformSettings;
+use App\Platform\Trust\StatusPage;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -96,9 +97,11 @@ class HandleInertiaRequests extends Middleware
                     ? $request->user()->platform_role
                     : null,
                 'impersonation' => Impersonation::banner($request),
+                // The owner's announcement; failing that, an open incident
+                // posted with "show in the banner" (App\Platform\Trust\StatusPage).
                 'announcement' => app(PlatformSettings::class)->announcementFor(
                     Impersonation::active($request) ? null : $request->user(),
-                ),
+                ) ?? StatusPage::banner(),
                 'maintenance' => $request->user()?->isPlatformAdmin()
                     ? app(PlatformSettings::class)->maintenance()
                     : false,

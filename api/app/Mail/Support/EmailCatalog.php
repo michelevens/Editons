@@ -34,6 +34,9 @@ use App\Mail\Publishing\BookUnpublishedMail;
 use App\Mail\Publishing\ExportFailedMail;
 use App\Mail\Publishing\ExportReadyMail;
 use App\Mail\Publishing\SubmittedToStoresMail;
+use App\Mail\Trust\AccountExportReadyMail;
+use App\Mail\Trust\ListingRestoredMail;
+use App\Mail\Trust\ListingTakenDownMail;
 use App\Mail\Writing\BookDirectorReportMail;
 use App\Mail\Writing\EditorialReviewCompleteMail;
 use App\Mail\Writing\WeeklyDigestMail;
@@ -84,6 +87,12 @@ final class EmailCatalog
                 fn (array $s) => new AccountDeletedMail('Amélie Laurent', 'amelie@example.com', Carbon::parse('2026-10-21'), 3)],
             [SupportReplyMail::class, 'Account', 'Support reply', 'Wired: Admin\\SupportController::reply',
                 fn (array $s) => new SupportReplyMail($s['ticket'], $s['ticketReply'])],
+            [AccountExportReadyMail::class, 'Account', 'Data export ready', 'Wired: App\Platform\Trust\AccountExporter (when staff ask to email it)',
+                fn (array $s) => new AccountExportReadyMail($s['author'], url('/account-exports/7/download?expires=1761400000&signature=4be1c0'), Carbon::parse('2026-11-01'), 3)],
+            [ListingTakenDownMail::class, 'Account', 'Store listing taken down', 'Wired: App\Platform\Trust\Moderation::takeDown',
+                fn (array $s) => new ListingTakenDownMail($s['author'], $s['book']->title, 'The cover reproduces a photograph the author does not hold the rights to.')],
+            [ListingRestoredMail::class, 'Account', 'Store listing restored', 'Wired: App\Platform\Trust\Moderation::restore',
+                fn (array $s) => new ListingRestoredMail($s['author'], $s['book']->title, 'The photographer confirmed the licence.')],
 
             // Collaboration
             [BookInvitationMail::class, 'Collaboration', 'Invitation to a book', 'Wired: TeamController::invite / resend',

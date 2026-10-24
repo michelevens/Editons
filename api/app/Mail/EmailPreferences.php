@@ -10,8 +10,9 @@ use App\Models\User;
  * Two kinds of category. Mandatory ones — account security, billing, receipts
  * — are always sent: a person cannot opt out of being told their password
  * changed or their card was declined, because the email is the control.
- * Everything else defaults to on and can be switched off from the profile
- * page, or from the unsubscribe link in the footer of the email itself.
+ * Everything else defaults to on, except a category marked 'default' =>
+ * false (news: opt-in marketing), and can be switched from the profile
+ * page, or off from the unsubscribe link in the footer of the email itself.
  *
  * Stored as one JSON column of overrides rather than a column per category,
  * so adding a category is a constant here, not a migration; a key that is
@@ -75,14 +76,18 @@ final class EmailPreferences
             'mandatory' => false,
             'marketing' => true,
         ],
-        // The console's broadcasts and lifecycle emails (App\Growth). On by
-        // default like the digest, each with the one-click unsubscribe; the
-        // console only ever sends them to people for whom this resolves on.
+        // The console's broadcasts (App\Growth). Off until the author turns
+        // it on: announcements and offers are marketing in the strict sense,
+        // and authors in the EU and Canada must opt in to those. Tips and the
+        // digest are about the author's own work and stay on, each with the
+        // one-click unsubscribe; the console only sends to people for whom
+        // this resolves on.
         'news' => [
             'label' => 'News from Écrivain',
             'description' => 'Occasional announcements: new features, events and offers.',
             'mandatory' => false,
             'marketing' => true,
+            'default' => false,
         ],
         'tips' => [
             'label' => 'Getting-started tips',
@@ -122,7 +127,7 @@ final class EmailPreferences
             return true;
         }
 
-        return (bool) (($user->email_preferences ?? [])[$category] ?? true);
+        return (bool) (($user->email_preferences ?? [])[$category] ?? (self::CATEGORIES[$category]['default'] ?? true));
     }
 
     /** @return array<string, bool> every category, resolved */

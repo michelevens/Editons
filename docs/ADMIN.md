@@ -123,8 +123,9 @@ Free for every limit, so a late scheduler gives nothing away.
 | New sign-ups open | Off: the register page says so and registration is refused. |
 | Require two-factor for staff | On by default. Cannot be switched on by an account without two-factor. |
 
-`GET /status` answers `{"status":"ok"|"maintenance","message":…}` for people
-and monitors, even during maintenance.
+`GET /status` answers `{"status":"ok"|"maintenance","message":…}` (plus
+components and incidents) for monitors, and a status page to browsers, even
+during maintenance — see *Status* below.
 
 ## Dashboard figures
 
@@ -329,3 +330,139 @@ Verified email, first book, first chapter saved, first export, two-factor
 on, cover designed: how many accounts have done each, and how many are
 stuck at each (the first step they have not done), with the accounts. The
 same checklist, with where the account came from, is on each account page.
+
+## Trust and operations
+
+Design decisions: `docs/DECISIONS.md` (ADR — console trust and operations).
+Its own group in the console's navigation, *Trust & operations*. Every write
+needs a reason and is audited in the same transaction, as everywhere else.
+
+| | Owner | Support |
+|---|---|---|
+| Catalog, storefront listings, moderation queue, security, data health, status, offboarding list and dry runs, master data, releases (read) | ✓ | ✓ |
+| Resolve or dismiss a report; run the data checks; post and update incidents | ✓ | ✓ |
+| Take a listing down or restore it | ✓ | — |
+| The application log | ✓ | — |
+| Apply a data-health fix (after its dry run) | ✓ | — |
+| Export an account's data, download it, schedule / cancel / carry out a deletion, read its certificate | ✓ | — |
+| Edit or reset a master list | ✓ | — |
+
+### Catalog and moderation (`/admin/catalog`, `/admin/moderation`)
+
+Every book — title, account, type, language, words, status, dates, exports,
+whether it is on sale, open reports — and never a word of it: the query names
+its columns, and a test holds it to that. *Storefront listings* lists every
+product and the public author pages.
+
+**Taking a listing down** hides its public page (and its place on the
+author's shelf and in a series) at once. The product, its orders and the
+licences buyers hold are untouched: a reader who paid keeps their downloads,
+because the download checks the licence and the order, never the page. The
+author is emailed the reason (account mail, always delivered), finds it in
+their inbox, sees it on their storefront panel, and cannot put the book back
+on sale themselves. Restoring tells them too.
+
+**Report this book** is a link at the foot of every public product page
+(*Report this page* on an author's shelf). No account needed; a category,
+optional details and an optional reply address; three a minute and ten an
+hour per IP; a hidden field turns away form-filling scripts. The reporter's
+IP is kept only as an HMAC, enough to see one source filing many reports.
+Reports wait in the queue until staff resolve (something was done) or dismiss
+(nothing needed doing) them; a takedown from a report resolves it.
+
+### Security (`/admin/security`)
+
+Sign-ins (from `user_logins`), failed passwords, wrong two-factor codes and
+lockouts across the platform, for the last 24 hours, 7 or 30 days. A failed
+attempt keeps an HMAC of the address typed — never the address — plus IP and
+browser, and the account when the address has one. A lockout is recorded once
+a minute per address and IP, not on every refused try.
+
+**New location**: by country when Cloudflare sends `CF-IPCountry` (our Worker
+passes it through), otherwise by network (IPv4 /16, IPv6 /32); the page says
+which. An account's first sign-in is never "new". Also: two-factor adoption,
+every staff account with role, two-factor and last sign-in, and signed-in
+sessions per account (database sessions only; another driver cannot be
+counted and the page says so). *Sign out* is the account page's action.
+
+### Logs (`/admin/logs`, owner)
+
+The tail (last 2 MB) of the files under `storage/logs`, newest first, with a
+level filter (a level and worse), a search and 50–1000 lines. Bearer tokens,
+API keys, `password=`/`secret`/`token` values, signed-URL signatures, JWTs,
+email addresses and card-like numbers are removed on the server before a line
+is sent; the search runs after that, so a secret cannot be found by guessing
+it. Opening a file is audited. **If `LOG_CHANNEL` writes to `stderr`** (a
+container stream) there is nothing on disk: the page says so and points at
+Errors and the Email log — Railway's own log viewer has the stream.
+
+### Data health (`/admin/data-health`)
+
+`php artisan platform:data-health` runs daily at 04:10 and stores each run;
+*Run now* adds one. Checks, each with a count, up to 20 rows and a sentence
+on what it measured ("unknown" when it could not):
+
+| Check | Fix |
+|---|---|
+| Ready exports whose file is gone (a bucket: the newest 200, a sample) | mark expired |
+| Cover pictures (front, back) missing from storage | forget the picture on the book |
+| Exports generating past the job timeout | mark failed, author told |
+| Chapters under a deleted or foreign part; versions of no chapter; active books with no chapter | report only |
+| Staff without two-factor | report only |
+| AI reviews running for over an hour; open requests unanswered 72 h | report only |
+| Negative credit balances; refunds reversing nothing or too much; paid orders whose total is not their items | report only |
+
+A fix is a dry run first — the same code, nothing written, the ids it would
+change — then *Apply* with a reason, refused unless the same owner ran the dry
+run in the last 15 minutes.
+
+### Status (`/status`, `/status.json`, `/admin/status`)
+
+Public, no sign-in, open during maintenance. Components: writing studio
+(database), API (asks `PLATFORM_STATUS_API_URL/up` when set, otherwise
+"not measured"), exports (worker heartbeat, stuck and failing exports), email
+(transport and the last hour's failures), storefront (offered, switched on,
+Stripe configured). An open incident makes its components at least as bad as
+its severity. `/status` gives a browser the page and anything else JSON, with
+`status` and `message` as before; `/status.json` is always JSON. Staff post
+incidents with a severity, affected components and a timeline of updates;
+*resolved* closes one (it stays listed for 14 days). An incident can also
+show in the in-app banner while open, unless the owner's announcement is up.
+
+### Offboarding (`/admin/offboarding`, account → Offboarding)
+
+**Data export**: a zip built on the worker — each book (bin included) as
+Markdown, as a `.ecrivain` file and with its newest EPUB if stored, its
+metadata, the account, the credit ledger, purchases and sales (no buyer
+details). Kept seven days (`platform:purge-account-exports` deletes it); the
+owner downloads it (audited) and can have it emailed to the account as a
+signed link.
+
+**Deletion**: the dry run lists what is deleted, anonymised and kept (and
+why), and the files. *Schedule* (owner, reason, the account's email typed)
+suspends the account and signs it out; nothing is deleted for seven days and
+it can be cancelled (the suspension it added is lifted). After the grace
+period the owner carries it out, typing the email again: books and
+everything under them go for good, files are deleted, orders the account
+placed keep their amounts without the buyer's details, comments on other
+people's books stay as "Deleted account", and the user row is emptied — not
+deleted, because buyers' purchase records point at the seller. Then a
+certificate (counts, files, who and when, SHA-256 of its canonical JSON) is
+stored as JSON and HTML and the account is told at its old address. Refused
+for platform staff and while a paid subscription is active.
+
+### Master data (`/admin/master-data`)
+
+Owner-edited lists, starting as the constants they replaced: genres and book
+languages (Book settings), translation languages (Editions), store categories
+(Export & Publish), and which citation styles are shown (a subset only — each
+style is code). A book keeps a value a list drops. Book types and book parts
+are shown read-only, with why.
+
+### Releases (`/admin/releases`)
+
+Read-only: the commit (Railway's `RAILWAY_GIT_COMMIT_SHA` when it builds from
+git; otherwise `storage/app/release.json`, written by
+`php artisan platform:stamp-release` — run it before `railway up`), when,
+PHP and Laravel, the drivers, Railway's service variables, migrations ran and
+pending, worker and scheduler heartbeats, and the feature flags.

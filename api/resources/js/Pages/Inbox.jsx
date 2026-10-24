@@ -30,6 +30,7 @@ const KIND_ICONS = {
     review: 'sugg',
     support: 'help',
     announcement: 'bell',
+    moderation: 'info',
 };
 
 const VIEWS = [

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use App\Models\User;
+use App\Platform\Trust\SignInEvents;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -57,6 +58,7 @@ class LoginRequest extends FormRequest
         if (! $user instanceof User || ! $provider->validateCredentials($user, $credentials)) {
             RateLimiter::hit($this->throttleKey());
             event(new Failed('web', $user, $credentials));
+            SignInEvents::failed('password', (string) $this->input('email'), $user instanceof User ? $user : null, $this);
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -88,6 +90,7 @@ class LoginRequest extends FormRequest
         }
 
         event(new Lockout($this));
+        SignInEvents::failed('lockout', (string) $this->input('email'), User::where('email', (string) $this->input('email'))->first(), $this);
 
         $seconds = RateLimiter::availableIn($this->throttleKey());
 

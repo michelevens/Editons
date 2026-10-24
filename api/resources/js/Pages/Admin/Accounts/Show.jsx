@@ -29,6 +29,7 @@ export default function Show({
     onboarding = null,
     signup = null,
     plans = null,
+    offboarding = null,
 }) {
     const owner = can.owner;
 
@@ -193,11 +194,41 @@ export default function Show({
                                     <span className={login.label ? 'font-semibold text-status-danger' : 'text-text-primary'}>
                                         {login.label ?? methodLabel(login.method)}
                                     </span>
-                                    <span className="text-text-secondary"> · {formatDate(login.at)} · {login.ip ?? 'unknown IP'}</span>
+                                    <span className="text-text-secondary"> · {formatDate(login.at)} · {login.ip ?? 'unknown IP'}{login.country ? ` · ${login.country}` : ''}</span>
+                                    {login.new_location && (
+                                        <span className="ml-1.5 text-[11px]">
+                                            <Badge tone="warning">New location</Badge>
+                                        </span>
+                                    )}
                                     {login.user_agent && <p className="truncate text-[11.5px] text-text-muted">{login.user_agent}</p>}
                                 </li>
                             ))}
                         </ul>
+                    )}
+                </Panel>
+
+                <Panel
+                    title="Offboarding"
+                    detail="A copy of their data, or deleting the account: dry run first, seven days' grace."
+                    data-a="admin:account:offboarding"
+                    actions={
+                        <Link href={route('admin.offboarding.show', account.id)} data-a="admin:account:offboarding:open" className="text-[12px] text-brand-primary hover:underline">
+                            Open
+                        </Link>
+                    }
+                >
+                    {offboarding?.deletion ? (
+                        <p className="text-[12.5px] text-text-primary">
+                            Deletion {offboarding.deletion.status}
+                            {offboarding.deletion.status === 'scheduled' && ` for ${formatDate(offboarding.deletion.scheduled_for)}`}.
+                        </p>
+                    ) : (
+                        <Empty>No deletion requested.</Empty>
+                    )}
+                    {offboarding?.export && (
+                        <p className="mt-1 text-[12px] text-text-secondary">
+                            Latest data export: {offboarding.export.status}, {formatDate(offboarding.export.at)}.
+                        </p>
                     )}
                 </Panel>
 

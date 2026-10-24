@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Book;
 use App\Models\ManuscriptSection;
+use App\Platform\Trust\MasterData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -257,7 +258,8 @@ class EditionsController extends Controller
     private function payload(Book $book): array
     {
         return [
-            'languages' => ['Spanish', 'French', 'Portuguese', 'German', 'Italian', 'Dutch'],
+            // Owner-edited (App\Platform\Trust\MasterData).
+            'languages' => MasterData::get('translation_languages'),
             'source' => [
                 'id' => $book->id,
                 'title' => $book->title,

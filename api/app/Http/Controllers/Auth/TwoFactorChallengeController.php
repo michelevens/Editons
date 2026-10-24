@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Platform\LoginHistory;
+use App\Platform\Trust\SignInEvents;
 use App\Platform\TwoFactor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,6 +57,8 @@ class TwoFactorChallengeController extends Controller
         }
 
         if (! $method) {
+            SignInEvents::failed('two_factor', $user->email, $user, $request);
+
             throw ValidationException::withMessages([
                 filled($data['recovery_code'] ?? null) ? 'recovery_code' : 'code' => 'That code is not right. Codes change every 30 seconds.',
             ]);

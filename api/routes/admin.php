@@ -12,6 +12,15 @@ use App\Http\Controllers\Admin\MailLogController;
 use App\Http\Controllers\Admin\OperationsController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SupportController;
+use App\Http\Controllers\Admin\Trust\CatalogController;
+use App\Http\Controllers\Admin\Trust\DataHealthController;
+use App\Http\Controllers\Admin\Trust\LogsController;
+use App\Http\Controllers\Admin\Trust\MasterDataController;
+use App\Http\Controllers\Admin\Trust\ModerationController;
+use App\Http\Controllers\Admin\Trust\OffboardingController;
+use App\Http\Controllers\Admin\Trust\ReleasesController;
+use App\Http\Controllers\Admin\Trust\SecurityController;
+use App\Http\Controllers\Admin\Trust\StatusIncidentsController;
 use App\Http\Controllers\Admin\TwoFactorSetupController;
 use Illuminate\Support\Facades\Route;
 
@@ -104,6 +113,53 @@ Route::prefix('admin')->name('admin.')->middleware('platform.admin')->group(func
         // In their own file (routes/admin-business.php), required here so
         // this group's gates cover every one of them.
         require __DIR__.'/admin-business.php';
+
+        /*
+         | ── Trust & operations (ADR — console trust and operations) ──────
+         |
+         | Catalog and moderation, sign-in security, the application log,
+         | data health, the status page's incidents, offboarding, master
+         | data and releases. Kept in one block so it merges cleanly beside
+         | the business pages.
+         */
+
+        // Read by all staff.
+        Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
+        Route::get('/catalog/listings', [CatalogController::class, 'listings'])->name('catalog.listings');
+        Route::get('/moderation', [ModerationController::class, 'index'])->name('moderation.index');
+        Route::get('/security', [SecurityController::class, 'index'])->name('security.index');
+        Route::get('/data-health', [DataHealthController::class, 'index'])->name('data-health.index');
+        Route::get('/status', [StatusIncidentsController::class, 'index'])->name('status.index');
+        Route::get('/offboarding', [OffboardingController::class, 'index'])->name('offboarding.index');
+        Route::get('/accounts/{user}/offboarding', [OffboardingController::class, 'show'])->whereNumber('user')->name('offboarding.show');
+        Route::get('/master-data', [MasterDataController::class, 'index'])->name('master-data.index');
+        Route::get('/releases', [ReleasesController::class, 'index'])->name('releases.index');
+
+        // Support and owner: the queue, running the checks, incidents.
+        Route::middleware('throttle:admin-actions')->group(function () {
+            Route::patch('/moderation/{report}', [ModerationController::class, 'update'])->whereNumber('report')->name('moderation.update');
+            Route::post('/data-health/run', [DataHealthController::class, 'run'])->name('data-health.run');
+            Route::post('/status/incidents', [StatusIncidentsController::class, 'store'])->name('status.incidents.store');
+            Route::post('/status/incidents/{incident}', [StatusIncidentsController::class, 'update'])->whereNumber('incident')->name('status.incidents.update');
+        });
+
+        // Owner only: taking listings down, the log, fixes, copies of an
+        // account's books, deleting an account, the master lists.
+        Route::get('/logs', [LogsController::class, 'index'])->middleware('can:platform.owner')->name('logs.index');
+
+        Route::middleware(['can:platform.owner', 'throttle:admin-actions'])->group(function () {
+            Route::post('/catalog/listings/{product}/take-down', [CatalogController::class, 'takeDown'])->whereNumber('product')->name('catalog.take-down');
+            Route::post('/catalog/listings/{product}/restore', [CatalogController::class, 'restore'])->whereNumber('product')->name('catalog.restore');
+            Route::post('/data-health/{check}/fix', [DataHealthController::class, 'fix'])->where('check', '[a-z_]+')->name('data-health.fix');
+            Route::post('/accounts/{user}/offboarding/export', [OffboardingController::class, 'export'])->whereNumber('user')->name('offboarding.export');
+            Route::get('/account-exports/{export}/download', [OffboardingController::class, 'download'])->whereNumber('export')->name('offboarding.export.download');
+            Route::post('/accounts/{user}/offboarding/schedule', [OffboardingController::class, 'schedule'])->whereNumber('user')->name('offboarding.schedule');
+            Route::post('/offboarding/{deletion}/cancel', [OffboardingController::class, 'cancel'])->whereNumber('deletion')->name('offboarding.cancel');
+            Route::post('/offboarding/{deletion}/execute', [OffboardingController::class, 'execute'])->whereNumber('deletion')->name('offboarding.execute');
+            Route::get('/offboarding/{deletion}/certificate', [OffboardingController::class, 'certificate'])->whereNumber('deletion')->name('offboarding.certificate');
+            Route::put('/master-data/{key}', [MasterDataController::class, 'update'])->where('key', '[a-z_]+')->name('master-data.update');
+            Route::delete('/master-data/{key}', [MasterDataController::class, 'reset'])->where('key', '[a-z_]+')->name('master-data.reset');
+        });
     });
 });
 

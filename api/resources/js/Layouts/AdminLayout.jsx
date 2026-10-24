@@ -34,6 +34,23 @@ export const ADMIN_BUSINESS_NAV = [
     { key: 'onboarding', label: 'Onboarding', icon: 'check', route: 'admin.onboarding.index' },
 ];
 
+/**
+ * Trust & operations: its own group, so it merges cleanly beside the
+ * business pages. `owner` entries are hidden from support (the routes
+ * refuse them anyway).
+ */
+export const ADMIN_TRUST_NAV = [
+    { key: 'catalog', label: 'Catalog', icon: 'lib', route: 'admin.catalog.index' },
+    { key: 'moderation', label: 'Moderation', icon: 'shieldDot', route: 'admin.moderation.index' },
+    { key: 'security', label: 'Security', icon: 'lock', route: 'admin.security.index' },
+    { key: 'logs', label: 'Logs', icon: 'code', route: 'admin.logs.index', owner: true },
+    { key: 'data-health', label: 'Data health', icon: 'check', route: 'admin.data-health.index' },
+    { key: 'status', label: 'Status', icon: 'globe', route: 'admin.status.index' },
+    { key: 'offboarding', label: 'Offboarding', icon: 'user', route: 'admin.offboarding.index' },
+    { key: 'master-data', label: 'Master data', icon: 'tmpl', route: 'admin.master-data.index' },
+    { key: 'releases', label: 'Releases', icon: 'rocket', route: 'admin.releases.index' },
+];
+
 export default function AdminLayout({ title, active, children, actions = null, setupOnly = false }) {
     const { auth, platform } = usePage().props;
     const [open, setOpen] = useState(false);
@@ -123,6 +140,9 @@ function Brand() {
 }
 
 function AdminNav({ active, setupOnly, onNavigate }) {
+    const { platform } = usePage().props;
+    const trust = ADMIN_TRUST_NAV.filter((item) => !item.owner || platform?.role === 'owner');
+
     return (
         <nav aria-label="Admin" className="flex-1 overflow-y-auto px-3 pb-3">
             <NavList items={ADMIN_NAV} active={active} setupOnly={setupOnly} onNavigate={onNavigate} />
@@ -130,6 +150,10 @@ function AdminNav({ active, setupOnly, onNavigate }) {
                 Business
             </h2>
             <NavList items={ADMIN_BUSINESS_NAV} active={active} setupOnly={setupOnly} onNavigate={onNavigate} labelledBy="admin-nav-business" />
+            <p className="mb-1 mt-4 px-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-sidebar-muted" id="admin-nav-trust">
+                Trust &amp; operations
+            </p>
+            <NavList items={trust} active={active} setupOnly={setupOnly} onNavigate={onNavigate} labelledBy="admin-nav-trust" />
         </nav>
     );
 }

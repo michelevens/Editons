@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\Citation;
 use App\Models\ResearchSource;
+use App\Platform\Trust\MasterData;
 use App\Research\Bibliography;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,9 @@ class ReferencesController extends Controller
 
         return response()->json([
             'styles' => Bibliography::STYLES,
-            'options' => Bibliography::options(),
+            // The styles the owner shows (App\Platform\Trust\MasterData),
+            // and always the book's own.
+            'options' => MasterData::citationOptions(Bibliography::normalise($book->settings()['citation_style'])),
             'style' => $style,
             'saved_style' => Bibliography::normalise($book->settings()['citation_style']),
             'entries' => $this->bibliography->forBook($book, $style),

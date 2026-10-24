@@ -16,10 +16,14 @@ use Illuminate\Support\Facades\URL;
 
 beforeEach(fn () => Mail::fake());
 
-it('defaults every category to on', function () {
+it('defaults every category to on except news, which is opt-in marketing', function () {
     $user = User::factory()->create();
+    $resolved = EmailPreferences::for($user);
 
-    expect(array_unique(array_values(EmailPreferences::for($user))))->toBe([true]);
+    expect($resolved['news'])->toBeFalse();
+
+    unset($resolved['news']);
+    expect(array_unique(array_values($resolved)))->toBe([true]);
 });
 
 it('stops a toggleable email once it is switched off', function () {
