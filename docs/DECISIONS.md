@@ -1477,7 +1477,7 @@ shell.
 **Deploy note.** Two new Composer packages: run `composer install` after
 merging (Railway does this from the lockfile).
 
-## ADR-00XX — Console phase 2: AI cost and kill switches, jobs and health, email log, feature flags, support, errors
+## ADR-0030 — Console phase 2: AI cost and kill switches, jobs and health, email log, feature flags, support, errors
 
 **Status:** accepted (2026-10-24). Number assigned at merge.
 
