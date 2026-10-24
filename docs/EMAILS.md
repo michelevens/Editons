@@ -12,7 +12,7 @@ Every email Écrivain sends: what each one says, what triggers it, how preferenc
 | Partials: button, callout, facts, status badge, stat card, stats row, divider, book card, items, table, quote | `api/resources/views/emails/partials/` |
 | What an email says, slot by slot | `App\Mail\Support\Letter` |
 | Base Mailable (sender, views, footer, unsubscribe headers) | `App\Mail\EcrivainMail` |
-| One Mailable per occasion (30) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce}\*` |
+| One Mailable per occasion (34) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce,Trust}\*` |
 | Dispatch helper: the only way to send | `App\Mail\Notify` |
 | Preferences | `App\Mail\EmailPreferences`, `users.email_preferences` |
 | Sample data for every email | `App\Mail\Support\EmailCatalog` |
@@ -47,7 +47,7 @@ Every email has the same anatomy, in a fixed order: **preheader**, header **subt
 
 | Category | Toggle | Emails |
 | --- | --- | --- |
-| `account` | always on | welcome, verify email, password reset, password changed, email changed, new sign-in, account deleted |
+| `account` | always on | welcome, verify email, password reset, password changed, email changed, new sign-in, account deleted, support reply, data export ready, store listing taken down or restored |
 | `billing` | always on | subscription receipt, payment failed, plan changed, subscription cancelled, trial ending, credits low, royalty statement |
 | `receipts` | always on | order receipt, refund (to buyers, who usually have no account) |
 | `collaboration` | toggle | invitation, invitation accepted, mention, reply, reviewer assigned |
@@ -68,7 +68,10 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Password changed | `Account\PasswordChangedMail` | account | queued | **Wired**: `PasswordController::update`, `PasswordReset` event |
 | Email changed | `Account\EmailChangedMail` | account | queued | **Wired**: `ProfileController::update`, to the **old** address |
 | New sign-in | `Account\NewSignInMail` | account | queued | Template only (see below) |
-| Account deleted | `Account\AccountDeletedMail` | account | queued | **Wired**: `ProfileController::destroy` |
+| Account deleted | `Account\AccountDeletedMail` | account | queued | **Wired**: `ProfileController::destroy`; console offboarding (`Platform\Trust\Offboarding::execute`), to the old address |
+| Data export ready | `Trust\AccountExportReadyMail` | account | queued | **Wired**: `Platform\Trust\AccountExporter::build`, when the owner asks to email it; signed link, so metadata only in the email log |
+| Store listing taken down | `Trust\ListingTakenDownMail` | account | queued | **Wired**: `Platform\Trust\Moderation::takeDown`, with the reason |
+| Store listing restored | `Trust\ListingRestoredMail` | account | queued | **Wired**: `Platform\Trust\Moderation::restore` |
 | Invitation to a book | `Collaboration\BookInvitationMail` | collaboration | queued | **Wired**: `TeamController::invite`, `::resend` |
 | Invitation accepted | `Collaboration\InvitationAcceptedMail` | collaboration | queued | **Wired**: `InvitationController::accept`, to the owner |
 | Mentioned in a comment | `Collaboration\CommentMentionMail` | collaboration | queued | **Wired**: `CommentController::store` (`@Full Name`, or `@First` when unambiguous; book members only) |

@@ -1581,3 +1581,110 @@ groups; ShiftPulse's rule that health reports "unknown" rather than guess.
 alerts by email when a job goes late (the page shows it; nobody is paged),
 retrying arbitrary jobs, OpenAI image prices (left null until verified),
 attachments on support tickets, and per-plan feature flags.
+
+## ADR-00XX — Console trust and operations: catalog and moderation, security, logs, data health, status page, offboarding, master data, releases
+
+**Status:** accepted (2026-10-24). Number assigned at merge.
+
+**Context.** Phases 1 and 2 (ADR-0029, ADR-0030) let the owner look after
+accounts and keep the platform running. What was still missing is what a
+platform that sells other people's books owes its authors, readers and
+itself: seeing every book without reading it, acting on a complaint about a
+listing, knowing who is trying to sign in, reading the log without a shell,
+finding data that is wrong before an author does, telling readers when
+something is down, giving an author their data and deleting an account
+properly, editing lists that were constants, and knowing what is deployed.
+Patterns come from Credentik's super-admin (offboarding with a dry run,
+grace period, typed confirmation and destruction certificate; status
+incidents; auth events; data health; master data; releases) adapted to
+Laravel + Inertia and to Écrivain's rules.
+
+**Decisions.**
+
+- *Catalog: metadata by construction.* The books query selects named
+  columns only (no content, description, notes, premise or cover data); a
+  test asserts manuscript text and those fields never reach the page.
+- *Takedown hides the page, not the sale.* `products.taken_down_*`;
+  `Product::scopePublished` and `isPublished` exclude a taken-down listing,
+  so the product page, author shelf, series list, cover and checkout all
+  404. Downloads check the licence and the order, never the page, so buyers
+  keep access — tested. The author gets an account-category email (always
+  delivered), an inbox item (`moderation`) and a notice on their product
+  panel, and cannot republish (validation). Owner-only, reason required.
+- *Reports without accounts.* `content_reports`: product or author handle,
+  category from a fixed list, details, optional reply address, IP as HMAC.
+  Rate limit `content-reports` (3/min, 10/h per IP) plus a honeypot field.
+  Staff resolve or dismiss with a reason; a takedown can resolve the report.
+- *Failed sign-ins without addresses.* `login_failures` keeps an HMAC (app
+  key) of the lower-cased address typed, IP, agent, the account when one
+  exists, and kind (password, two_factor, lockout — the last deduplicated per
+  minute). Recorded explicitly in `LoginRequest` and the two-factor
+  challenge rather than by listening to `Failed`, which other guards fire.
+  Recording never breaks a sign-in.
+- *New location* is decided at sign-in (`LoginHistory` →
+  `SignInEvents::locate`) against the account's earlier non-View-as sign-ins:
+  by country when `CF-IPCountry` is present (Cloudflare; the Worker forwards
+  request headers), else by IPv4 /16 or IPv6 /32. The first sign-in is never
+  new. No email is sent on it yet (`NewSignInMail` stays template-only): that
+  needs known-device tracking first, or every phone on mobile data would
+  alert.
+- *Logs.* Read from `storage/logs` only (file name must be one listed
+  there), last 2 MB, parsed into entries; redacted with one function before
+  anything leaves the server; search after redaction; owner-only and
+  audited. A stream channel (`stderr`) is detected from config and the page
+  says the log is Railway's, pointing at error groups and the mail log.
+- *Data health.* `App\Platform\Trust\DataHealth`: eleven checks, stored per
+  run (`data_health_runs`, as a list — jsonb does not keep key order), daily
+  at 04:10 and on demand. File checks against a bucket sample the newest 200
+  rows and say so. Three fixes only, the ones that change no author's words
+  or money (expire missing exports, fail stuck exports via
+  `Exporter::expireStale`, forget a missing cover picture); everything else
+  is report-only with a sentence why. A fix needs a dry run by the same
+  owner in the last 15 minutes, then a reason; audited with the ids.
+- *Status page.* Components derived from `Ops\Health` and the tables, cached
+  60 s; "unknown" for what cannot be measured (the API is a separate service:
+  only measured when `PLATFORM_STATUS_API_URL` is set). Incidents
+  (`status_incidents` + updates) raise their components to at least their
+  severity. `/status` keeps its JSON (`status`, `message`) for monitors and
+  serves the page to browsers (`Accept: text/html`); `/status.json` always
+  JSON; both open during maintenance. An open incident can feed the in-app
+  banner when no owner announcement is showing.
+- *Offboarding: empty the account, keep the row.* Deleting the user row
+  would cascade `order_items.seller_id` and destroy buyers' purchase records
+  and licences. So execution deletes books (cascading their sections,
+  versions, comments, reviews, sources, exports, product), memberships,
+  ISBNs, inbox, tickets, sign-ins, sessions, notes; anonymises orders placed
+  as a buyer, comments on others' books, mail log rows, AI usage; keeps the
+  credit ledger, royalty statements, audit log and sales; then empties the
+  user row (`offboarded_at`). The dry run is the same counting code, stored
+  with the request (without the address); grace is 7 days with the account
+  suspended (lifted on cancel only if scheduling added it); the email is
+  typed at scheduling and at execution; refused for staff and active
+  subscriptions. Files are deleted after the transaction commits (a rolled
+  back deletion must not have lost files) and failures are listed on the
+  certificate. Certificate: JSON on the row + JSON and HTML on the files
+  disk, SHA-256 over canonical JSON (sorted keys). Execution is a manual
+  owner step after the grace period, never automatic.
+- *Data export* on the worker (`BuildAccountExport`), owner-only (it is a
+  copy of manuscripts; support never takes one), kept 7 days then purged;
+  the emailed link is a temporary signed route and the mail is
+  `ContainsSecrets` (metadata only in the email log).
+- *Master data.* `master_lists` rows override defaults that are exactly the
+  former constants, so nothing changes until the owner edits. Only lists
+  stored and validated as free text are editable; citation styles are a
+  shown-subset of `Bibliography::STYLES`; book types and parts are read-only
+  (code drives templates and rendering). Screens keep a book's current value
+  selectable when the list drops it.
+- *Releases.* Read-only. `railway up` is an upload, so Railway has no git
+  SHA; `platform:stamp-release` writes `storage/app/release.json` (ignored by
+  git) before upload, and a developer machine falls back to `.git`.
+- *Routes and navigation* in their own block of `routes/admin.php` and their
+  own "Trust & operations" nav group, so they merge beside the business
+  pages; the Logs entry is hidden from support.
+
+**Consequences.** The owner can answer a takedown request, a GDPR-style
+export or erasure request, and "is it down?" without a shell. The status page
+is only as good as its signals: email delivery and the API are not measured
+unless configured. New-location detection is informative only until devices
+are remembered. Deployers should run `platform:stamp-release` before
+`railway up` for the Releases page to name the commit.
