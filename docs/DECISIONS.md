@@ -1275,7 +1275,7 @@ rename/delete); `tests/Browser/goals.spec.js` at 390px with touch (ring
 and sheet, reorder by ↑/↓ and a real touch drag through the DevTools
 protocol, long-press actions, keyboard access, desktop mouse drag kept).
 
-## ADR-00XX — Print-on-demand kit, and what an author declares before the stores
+## ADR-0028 — Print-on-demand kit, and what an author declares before the stores
 
 **Status:** accepted (2026-10-23)
 
