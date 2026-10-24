@@ -6,11 +6,11 @@ import { Head } from '@inertiajs/react';
  * An author's shelf: their books on sale that carry an author name. The
  * heading is those names — the books' own, never the account's.
  */
-export default function Author({ names, products }) {
+export default function Author({ names, products, report_url: reportUrl }) {
     const heading = names.join(' · ');
 
     return (
-        <StoreLayout>
+        <StoreLayout report={{ url: reportUrl, label: 'Report this page' }}>
             <Head title={heading} />
 
             <h1

@@ -73,6 +73,8 @@ class StoreController extends Controller
                 'language' => $book->language,
                 'license' => $product->licenseTerms(),
                 'checkout_url' => route('store.checkout', $product->slug),
+                // "Report this book": to the console's moderation queue.
+                'report_url' => route('store.report', $product->slug),
                 // Only a named book links to its author's shelf: linking an
                 // anonymous one would put a name to it.
                 'author_url' => $product->authorName()
@@ -107,6 +109,7 @@ class StoreController extends Controller
         return Inertia::render('Store/Author', [
             'names' => $products->map(fn (Product $p) => $p->authorName())->filter()->unique()->values()->all(),
             'products' => $products->map(fn (Product $p) => $this->card($p))->values()->all(),
+            'report_url' => route('store.author.report', $handle),
         ]);
     }
 

@@ -120,7 +120,7 @@ it('has a preview for every Mailable, and nothing extra', function () {
     $catalogued = collect(EmailCatalog::all())->pluck('class')->sort()->values()->all();
 
     expect($catalogued)->toBe($classes)
-        ->and(count($classes))->toBe(31);
+        ->and(count($classes))->toBe(34);
 });
 
 it('puts every email in a known preference category', function (string $slug) {

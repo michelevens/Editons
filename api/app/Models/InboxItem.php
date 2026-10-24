@@ -11,7 +11,7 @@ class InboxItem extends Model
 {
     public const KINDS = [
         'comment', 'reply', 'mention', 'workflow', 'assigned', 'team',
-        'export_ready', 'export_failed', 'review', 'support',
+        'export_ready', 'export_failed', 'review', 'support', 'moderation',
     ];
 
     protected $fillable = [

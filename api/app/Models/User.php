@@ -153,6 +153,7 @@ class User extends Authenticatable
             'complimentary_since' => 'datetime',
             'complimentary_until' => 'datetime',
             'ai_monthly_cap_usd' => 'decimal:2',
+            'offboarded_at' => 'datetime',
             // Overrides only; App\Mail\EmailPreferences resolves defaults.
             'email_preferences' => 'array',
             'password' => 'hashed',

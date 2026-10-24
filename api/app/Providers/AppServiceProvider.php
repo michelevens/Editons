@@ -141,6 +141,13 @@ class AppServiceProvider extends ServiceProvider
             Limit::perHour(30)->by('support-hour|'.$request->user()?->id),
         ]);
 
+        // "Report this book" from the public storefront: a reader, not a
+        // campaign. Per IP, since nobody needs an account to report.
+        RateLimiter::for('content-reports', fn (Request $request) => [
+            Limit::perMinute(3)->by('reports-minute|'.$request->ip()),
+            Limit::perHour(10)->by('reports-hour|'.$request->ip()),
+        ]);
+
         // Browser error reports: a page in a crash loop must not fill the
         // table, so per person (or IP when signed out) and per IP.
         RateLimiter::for('client-errors', fn (Request $request) => [

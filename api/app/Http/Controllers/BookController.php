@@ -8,6 +8,7 @@ use App\Journey\Scaffolder;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
+use App\Platform\Trust\MasterData;
 use App\Publishing\Anatomy;
 use App\Publishing\BookPart;
 use App\Research\Bibliography;
@@ -307,9 +308,11 @@ class BookController extends Controller
             // fetch that would flash an empty panel.
             'anatomy' => Anatomy::checklist($book),
             'copyright_preview' => Anatomy::copyrightLines($book),
-            'genres' => ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'],
-            'languages' => ['English (US)', 'English (UK)', 'Spanish', 'French', 'Haitian Creole', 'German', 'Portuguese'],
-            'citation_styles' => Bibliography::options(),
+            // Owner-edited lists (App\Platform\Trust\MasterData); a value the
+            // book already has stays selectable when the list drops it.
+            'genres' => MasterData::with('genres', $book->genre),
+            'languages' => MasterData::with('languages', $book->language),
+            'citation_styles' => MasterData::citationOptions($book->settings()['citation_style'] ?? null),
             // Archiving the last active book would leave the author with an
             // empty shelf and nowhere to go, so the screen needs to know.
             'can_archive' => $book->user->books()->where('status', '!=', 'archived')->count() > 1,

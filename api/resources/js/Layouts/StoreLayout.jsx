@@ -1,3 +1,5 @@
+import ReportLink from '@/Components/Store/ReportLink';
+
 /**
  * The public storefront's shell.
  *
@@ -5,7 +7,7 @@
  * — "Écrivain" — and never the account's: the only name a page prints is the
  * book's own author name, and only when it has one.
  */
-export default function StoreLayout({ children }) {
+export default function StoreLayout({ children, report = null }) {
     return (
         <div className="min-h-screen bg-bg-app font-ui text-text-body">
             <header className="border-b border-border-default bg-bg-surface">
@@ -20,8 +22,9 @@ export default function StoreLayout({ children }) {
 
             <main className="mx-auto max-w-[1040px] px-4 py-8 sm:px-6 sm:py-10">{children}</main>
 
-            <footer className="mx-auto max-w-[1040px] px-4 pb-10 text-[11.5px] text-text-secondary sm:px-6">
-                Payments are processed by Stripe. Écrivain never sees your card number.
+            <footer className="mx-auto flex max-w-[1040px] flex-wrap items-center justify-between gap-2 px-4 pb-10 text-[11.5px] text-text-secondary sm:px-6">
+                <span>Payments are processed by Stripe. Écrivain never sees your card number.</span>
+                {report && <ReportLink url={report.url} label={report.label} />}
             </footer>
         </div>
     );

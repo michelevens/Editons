@@ -16,6 +16,7 @@ class UserLogin extends Model
     {
         return [
             'impersonated' => 'boolean',
+            'new_location' => 'boolean',
             'created_at' => 'datetime',
         ];
     }

@@ -19,7 +19,7 @@ export default function Product({ product, series }) {
     };
 
     return (
-        <StoreLayout>
+        <StoreLayout report={{ url: product.report_url, label: 'Report this book' }}>
             <Head title={product.title} />
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,300px)_1fr]">

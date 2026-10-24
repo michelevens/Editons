@@ -4,6 +4,7 @@ namespace App\Platform;
 
 use App\Models\User;
 use App\Models\UserLogin;
+use App\Platform\Trust\SignInEvents;
 use Illuminate\Http\Request;
 
 /**
@@ -22,6 +23,9 @@ final class LoginHistory
     public static function record(User $user, string $method, Request $request, ?User $impersonator = null): UserLogin
     {
         return UserLogin::create([
+            // Where from, and whether that is new for the account
+            // (App\Platform\Trust\SignInEvents).
+            ...SignInEvents::locate($user, $request, $impersonator !== null),
             'user_id' => $user->id,
             'method' => $method,
             'impersonated' => $impersonator !== null,

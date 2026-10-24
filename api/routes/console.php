@@ -29,3 +29,10 @@ Schedule::command('exports:expire --missing')->dailyAt('03:30')->withoutOverlapp
  */
 Schedule::command('platform:snapshot-metrics')->dailyAt('23:55')->withoutOverlapping();
 Schedule::command('platform:expire-complimentary')->hourly()->withoutOverlapping();
+
+/*
+ | Trust and operations: the data checks once a day (the console shows the
+ | stored run), and account exports deleted once their link has expired.
+ */
+Schedule::command('platform:data-health')->dailyAt('04:10')->withoutOverlapping();
+Schedule::command('platform:purge-account-exports')->dailyAt('04:40')->withoutOverlapping();

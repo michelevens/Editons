@@ -25,6 +25,23 @@ export const ADMIN_NAV = [
     { key: 'settings', label: 'Settings', icon: 'gear', route: 'admin.settings.show' },
 ];
 
+/**
+ * Trust & operations: its own group, so it merges cleanly beside the
+ * business pages. `owner` entries are hidden from support (the routes
+ * refuse them anyway).
+ */
+export const ADMIN_TRUST_NAV = [
+    { key: 'catalog', label: 'Catalog', icon: 'lib', route: 'admin.catalog.index' },
+    { key: 'moderation', label: 'Moderation', icon: 'shieldDot', route: 'admin.moderation.index' },
+    { key: 'security', label: 'Security', icon: 'lock', route: 'admin.security.index' },
+    { key: 'logs', label: 'Logs', icon: 'code', route: 'admin.logs.index', owner: true },
+    { key: 'data-health', label: 'Data health', icon: 'check', route: 'admin.data-health.index' },
+    { key: 'status', label: 'Status', icon: 'globe', route: 'admin.status.index' },
+    { key: 'offboarding', label: 'Offboarding', icon: 'user', route: 'admin.offboarding.index' },
+    { key: 'master-data', label: 'Master data', icon: 'tmpl', route: 'admin.master-data.index' },
+    { key: 'releases', label: 'Releases', icon: 'rocket', route: 'admin.releases.index' },
+];
+
 export default function AdminLayout({ title, active, children, actions = null, setupOnly = false }) {
     const { auth, platform } = usePage().props;
     const [open, setOpen] = useState(false);
@@ -114,41 +131,54 @@ function Brand() {
 }
 
 function AdminNav({ active, setupOnly, onNavigate }) {
+    const { platform } = usePage().props;
+    const trust = ADMIN_TRUST_NAV.filter((item) => !item.owner || platform?.role === 'owner');
+
     return (
         <nav aria-label="Admin" className="flex-1 overflow-y-auto px-3">
-            <ul className="space-y-0.5">
-                {ADMIN_NAV.map((item) => {
-                    const current = item.key === active;
-
-                    return (
-                        <li key={item.key}>
-                            {setupOnly ? (
-                                <span className="flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] text-text-sidebar-muted opacity-60">
-                                    <Icon name={item.icon} size={17} />
-                                    {item.label}
-                                    <Icon name="lock" size={13} className="ml-auto" />
-                                </span>
-                            ) : (
-                                <Link
-                                    href={route(item.route)}
-                                    data-a={`admin:nav:${item.key}`}
-                                    aria-current={current ? 'page' : undefined}
-                                    onClick={onNavigate}
-                                    className={`flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] transition ${
-                                        current
-                                            ? 'bg-bg-sidebar-active font-semibold text-text-sidebar'
-                                            : 'text-text-sidebar-muted hover:bg-bg-sidebar-active hover:text-text-sidebar'
-                                    }`}
-                                >
-                                    <Icon name={item.icon} size={17} />
-                                    {item.label}
-                                </Link>
-                            )}
-                        </li>
-                    );
-                })}
-            </ul>
+            <NavList items={ADMIN_NAV} active={active} setupOnly={setupOnly} onNavigate={onNavigate} />
+            <p className="mb-1 mt-4 px-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-sidebar-muted" id="admin-nav-trust">
+                Trust &amp; operations
+            </p>
+            <NavList items={trust} active={active} setupOnly={setupOnly} onNavigate={onNavigate} labelledBy="admin-nav-trust" />
         </nav>
+    );
+}
+
+function NavList({ items, active, setupOnly, onNavigate, labelledBy }) {
+    return (
+        <ul className="space-y-0.5" aria-labelledby={labelledBy}>
+            {items.map((item) => {
+                const current = item.key === active;
+
+                return (
+                    <li key={item.key}>
+                        {setupOnly ? (
+                            <span className="flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] text-text-sidebar-muted opacity-60">
+                                <Icon name={item.icon} size={17} />
+                                {item.label}
+                                <Icon name="lock" size={13} className="ml-auto" />
+                            </span>
+                        ) : (
+                            <Link
+                                href={route(item.route)}
+                                data-a={`admin:nav:${item.key}`}
+                                aria-current={current ? 'page' : undefined}
+                                onClick={onNavigate}
+                                className={`flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] transition ${
+                                    current
+                                        ? 'bg-bg-sidebar-active font-semibold text-text-sidebar'
+                                        : 'text-text-sidebar-muted hover:bg-bg-sidebar-active hover:text-text-sidebar'
+                                }`}
+                            >
+                                <Icon name={item.icon} size={17} />
+                                {item.label}
+                            </Link>
+                        )}
+                    </li>
+                );
+            })}
+        </ul>
     );
 }
 

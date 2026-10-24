@@ -22,7 +22,7 @@ use Symfony\Component\HttpFoundation\Response;
 class MaintenanceGate
 {
     private const OPEN = [
-        '/', 'login', 'logout', 'two-factor-challenge', 'status', 'up',
+        '/', 'login', 'logout', 'two-factor-challenge', 'status', 'status.json', 'up',
         'stripe/*', 'admin', 'admin/*', 'impersonation/stop',
     ];
 

@@ -99,6 +99,10 @@ class ProductController extends Controller
             $errors['published'] = 'Restore the book from the archive before selling it.';
         }
 
+        if ($book->product?->isTakenDown()) {
+            $errors['published'] = 'Ecrivain has taken this store page down: '.$book->product->taken_down_reason.' Write to support from Help if you think it is a mistake.';
+        }
+
         $missing = array_values(array_filter($formats, fn (string $format) => ! $this->readyExport($book, $format)));
 
         if ($missing !== []) {
@@ -138,6 +142,12 @@ class ProductController extends Controller
                 'license' => $product->license,
                 'published' => $product->isPublished(),
                 'published_at' => $product->published_at?->toIso8601String(),
+                // Taken down by Ecrivain (App\Platform\Trust\Moderation):
+                // the author sees why, and cannot put it back on sale.
+                'taken_down' => $product->isTakenDown() ? [
+                    'at' => $product->taken_down_at?->toIso8601String(),
+                    'reason' => $product->taken_down_reason,
+                ] : null,
                 'url' => $product->isPublished() ? route('store.product', $product->slug) : null,
             ] : null,
             'defaults' => [

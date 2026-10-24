@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Billing\CreditLedger;
 use App\Http\Controllers\Controller;
+use App\Models\AccountDeletion;
+use App\Models\AccountExport;
 use App\Models\AdminNote;
 use App\Models\Book;
 use App\Models\BookExport;
@@ -185,6 +187,8 @@ class AccountsController extends Controller
                     // when staff did.
                     'label' => $login->impersonated ? "Viewed by {$staff}" : null,
                     'ip' => $login->ip,
+                    'country' => $login->country,
+                    'new_location' => $login->new_location,
                     'user_agent' => $login->user_agent,
                     'at' => $login->created_at?->toIso8601String(),
                 ]),
@@ -223,6 +227,15 @@ class AccountsController extends Controller
                 'cap' => $user->ai_monthly_cap_usd === null ? null : (float) $user->ai_monthly_cap_usd,
                 'effective_cap' => $controls->capFor($user),
                 'spent_this_month' => round($controls->spentThisMonth($user), 4),
+            ],
+            // Its data export and deletion (Trust & operations → Offboarding).
+            'offboarding' => [
+                'deletion' => ($d = AccountDeletion::where('user_id', $user->id)->latest('id')->first())
+                    ? ['status' => $d->status, 'scheduled_for' => $d->scheduled_for?->toIso8601String()]
+                    : null,
+                'export' => ($e = AccountExport::where('user_id', $user->id)->latest('id')->first())
+                    ? ['status' => $e->status, 'at' => $e->created_at?->toIso8601String()]
+                    : null,
             ],
             // Each module for this account, and whether an override decides it.
             'features' => collect(Features::catalog())->map(fn (array $f) => $f + $features->explain($f['key'], $user) + [

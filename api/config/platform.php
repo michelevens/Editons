@@ -90,6 +90,12 @@ return [
         'worker_silent_minutes' => (int) env('PLATFORM_WORKER_SILENT_MINUTES', 3),
     ],
 
+    'status' => [
+        // The API service's base URL, for the status page to ask its /up.
+        // Unset: the API shows "unknown" (it is a separate service).
+        'api_url' => env('PLATFORM_STATUS_API_URL'),
+    ],
+
     'errors' => [
         // Browser error reports: per person (or IP) per minute, and the
         // largest body accepted.

@@ -31,6 +31,7 @@ class Product extends Model
             'formats' => 'array',
             'price_cents' => 'integer',
             'published_at' => 'datetime',
+            'taken_down_at' => 'datetime',
         ];
     }
 
@@ -72,13 +73,22 @@ class Product extends Model
     {
         return $query->whereNotNull('published_at')
             ->where('published_at', '<=', now())
+            // A listing Ecrivain took down is not for sale either, whatever
+            // its author sets (App\Platform\Trust\Moderation).
+            ->whereNull('taken_down_at')
             // A book in the bin is not for sale, whatever its product says.
             ->whereHas('book');
     }
 
     public function isPublished(): bool
     {
-        return $this->published_at !== null && $this->published_at->lte(now());
+        return $this->published_at !== null && $this->published_at->lte(now()) && ! $this->isTakenDown();
+    }
+
+    /** Taken down by Ecrivain. Buyers keep their licences and downloads. */
+    public function isTakenDown(): bool
+    {
+        return $this->taken_down_at !== null;
     }
 
     /** The title buyers see: the product's own, or the book's. */
