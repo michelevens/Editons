@@ -6,6 +6,8 @@ use App\Commerce\Checkout;
 use App\Commerce\Commerce;
 use App\Commerce\Downloads;
 use App\Commerce\Fulfilment;
+use App\Commerce\Partners\Attribution;
+use App\Commerce\Partners\PartnerPages;
 use App\Growth\Discounts;
 use App\Jobs\GenerateExport;
 use App\Models\BookExport;
@@ -43,9 +45,16 @@ class StoreController extends Controller
 {
     public function __construct(private readonly Exporter $exporter) {}
 
-    public function product(Product $product): Response
+    public function product(Request $request, Product $product, Attribution $attribution): Response
     {
         $product = $this->published($product);
+
+        // ?partner=CODE on any book link: the partner gets the credit.
+        $partner = PartnerPages::fromQuery($request);
+
+        if ($partner) {
+            $attribution->click($request, $partner, 'param', $product);
+        }
         $book = $product->book;
 
         $series = null;
@@ -83,6 +92,9 @@ class StoreController extends Controller
                     : null,
             ],
             'series' => $series,
+            // "Recommended by …" with the partner's disclosure, when a
+            // partner's link brought this reader and could earn on this book.
+            'partner' => PartnerPages::recommendation($request, $product, $partner),
         ]);
     }
 
@@ -129,7 +141,7 @@ class StoreController extends Controller
      * Start a purchase: a pending order and a Checkout Session, then off to
      * the hosted payment page. The price is the product's, on the server.
      */
-    public function checkout(Request $request, Product $product, Checkout $checkout): HttpResponse
+    public function checkout(Request $request, Product $product, Checkout $checkout, Attribution $attribution): HttpResponse
     {
         $product = $this->published($product);
 
@@ -144,8 +156,13 @@ class StoreController extends Controller
             ? app(Discounts::class)->quote($data['code'], 'storefront', $product->price_cents, $product->currency, $request->user(), $data['email'] ?? $request->user()?->email)
             : null;
 
+        // Which partner sent this buyer, if any (a partner's code beats
+        // their link), and whether a commission is due.
+        $partner = $attribution->resolve($request, $product, $discount['discount'] ?? null, $request->user(), $data['email'] ?? null)
+            + ['ip_hash' => Attribution::hash((string) $request->ip())];
+
         try {
-            $session = $checkout->start($product, $request->user(), $data['email'] ?? null, $discount);
+            $session = $checkout->start($product, $request->user(), $data['email'] ?? null, $discount, $partner);
         } catch (Throwable $e) {
             report($e);
 

@@ -29,6 +29,8 @@ design decisions are in `docs/DECISIONS.md` (ADR — super-admin console).
 | Refunds, plan changes, recording payouts | ✓ | — |
 | Audiences, broadcasts, discount codes, lifecycle emails | ✓ | — |
 | Invite authors (one, or a list); resend, revoke | ✓ (with a complimentary plan, credits up to 100,000) | ✓ (no plan; credits up to 500) |
+| Partners: read every tab, approve or decline an application, export the commissions CSV | ✓ | ✓ |
+| Partners: suspend / reinstate, release or forfeit a balance, record a partner payout, attach a discount code, mark a tax form, open an invited partner to the whole catalogue, program settings | ✓ | — |
 | Make or demote an **owner** | shell only | shell only |
 
 Limits are in `config/platform.php` (environment variables, so changing them
@@ -224,7 +226,7 @@ first and last seen, and one example (message, stack without arguments, path
 without its query string, user id). Resolve when fixed: if it comes back it
 opens again. Ignore what is known and harmless.
 
-## Business (billing, plans, book sales, growth, invitations, onboarding)
+## Business (billing, plans, book sales, partners, growth, invitations, onboarding)
 
 Design decisions: `docs/DECISIONS.md` (ADR — console business). The
 "Business" group in the console's navigation. All staff can read every
@@ -324,6 +326,48 @@ authors over 30 days, and gross per day.
 ```sh
 php artisan growth:send-broadcasts   # start due broadcasts (scheduled every minute)
 php artisan growth:lifecycle         # send due lifecycle emails (scheduled hourly)
+```
+
+### Partners (`/admin/partners`)
+
+Écrivain Partners, the affiliate program (`docs/PARTNERS.md`; ADR — Partner
+(affiliate) program). Five tabs:
+
+- **Applications.** The queue, oldest first: name, account, how they will
+  promote, their links, the agreement version and when they accepted it.
+  **Approve** (they are emailed and their page goes live) or **Decline**
+  with a reason (emailed; they may apply again). Support and owner.
+- **Partners.** Search and filter; each row opens the partner: their page as
+  visitors see it, visits and orders over 30 days, the **fraud signals**
+  (checkouts refused as self-purchases, paid orders from an IP the partner
+  signs in from — compared as HMACs, refund rate above 20 %, bursts of
+  visits), their ledger and payouts, internal notes (the account's notes),
+  payout details (in full to the owner, "On file" to support), tax form,
+  codes. Owner actions, each with a reason in the audit log: **Suspend**
+  (page offline, links stop earning, balance frozen, emailed),
+  **Reinstate**, **Release balance**, **Forfeit balance**, **Discount
+  code** (attach one storefront code — it attributes without a cookie, and
+  beats one), **Mark tax form received**, **Open the whole catalogue** (for
+  a partner an author invited).
+- **Commissions.** The ledger — sales, refund adjustments, forfeits — by
+  status and currency, with a **CSV** (formula-safe cells; taking it is
+  itself audited).
+- **Payouts.** Who can be paid now (approved balance at least the minimum,
+  not frozen, payout details given) and every partner payout recorded. Pay
+  outside Écrivain, then **Record payout**: never more than the balance,
+  never under the minimum. Partner payouts are rows of the same `payouts`
+  table as royalty payouts (`kind = partner`); Book sales' royalties owed
+  count only royalty payouts.
+- **Settings** (owner). Default, lowest and highest rate, hold days, cookie
+  days, payout minimum. A change applies to what happens next; a commission
+  keeps the rate it was earned at.
+
+Reports on a partner page arrive in **Moderation** like any other, with
+links to the page and to the partner here; act on them by suspending.
+
+```sh
+php artisan partners:release-commissions   # pending → approved after the hold (daily 05:10)
+php artisan partners:statements            # monthly statements (1st, 09:30)
 ```
 
 ### Invitations (`/admin/invitations`)

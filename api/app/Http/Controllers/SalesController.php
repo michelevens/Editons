@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Commerce\Partners\Program;
+use App\Commerce\Partners\SellerPartners;
 use App\Commerce\SalesReport;
 use App\Models\Book;
 use App\Models\BookChannel;
@@ -149,8 +151,11 @@ class SalesController extends Controller
                     'url' => $product->isPublished() ? route('store.product', $product->slug) : null,
                     'price_cents' => $product->price_cents,
                     'currency' => $product->currency,
+                    'partner_enabled' => (bool) $product->partner_enabled,
                 ])
                 ->all(),
+            // Écrivain Partners selling this author's books (SellerPartners).
+            'partners' => Program::enabled($user) ? SellerPartners::for($user) : null,
         ]);
     }
 }

@@ -32,6 +32,12 @@ class ContentReport extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /** A partner's page (Écrivain Partners), reported from /p/{handle}. */
+    public function partner(): BelongsTo
+    {
+        return $this->belongsTo(Partner::class);
+    }
+
     public function resolver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by');

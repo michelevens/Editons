@@ -19,7 +19,7 @@ class ModerationController extends Controller
 
         $reports = ContentReport::query()
             ->when(in_array($status, ContentReport::STATUSES, true), fn ($q) => $q->where('status', $status))
-            ->with(['product' => fn ($p) => $p->with(['book' => fn ($b) => $b->withTrashed()->select('id', 'title', 'deleted_at'), 'user:id,name,email']), 'resolver:id,name'])
+            ->with(['product' => fn ($p) => $p->with(['book' => fn ($b) => $b->withTrashed()->select('id', 'title', 'deleted_at'), 'user:id,name,email']), 'resolver:id,name', 'partner'])
             ->latest('id')
             ->paginate(30)
             ->withQueryString();
@@ -44,6 +44,14 @@ class ModerationController extends Controller
                 'same_source' => $r->reporter_ip_hash ? ContentReport::where('reporter_ip_hash', $r->reporter_ip_hash)->count() : null,
                 'author_handle' => $r->author_handle,
                 'author_url' => $r->author_handle ? route('store.author', $r->author_handle) : null,
+                // A partner's page (Écrivain Partners): staff suspend from
+                // the partner's console page.
+                'partner' => $r->partner ? [
+                    'id' => $r->partner->id,
+                    'name' => $r->partner->display_name,
+                    'url' => $r->partner->pageUrl(),
+                    'admin_url' => route('admin.partners.show', $r->partner->id),
+                ] : null,
                 'product' => $r->product ? [
                     'id' => $r->product->id,
                     'title' => $r->product->displayTitle(),

@@ -12,7 +12,7 @@ Every email Écrivain sends: what each one says, what triggers it, how preferenc
 | Partials: button, callout, facts, status badge, stat card, stats row, divider, book card, items, table, quote | `api/resources/views/emails/partials/` |
 | What an email says, slot by slot | `App\Mail\Support\Letter` |
 | Base Mailable (sender, views, footer, unsubscribe headers) | `App\Mail\EcrivainMail` |
-| One Mailable per occasion (37) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce,Trust,Growth}\*` |
+| One Mailable per occasion (45) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce,Trust,Growth,Partners}\*` |
 | Dispatch helper: the only way to send | `App\Mail\Notify` |
 | Preferences | `App\Mail\EmailPreferences`, `users.email_preferences` |
 | Sample data for every email | `App\Mail\Support\EmailCatalog` |
@@ -47,13 +47,14 @@ Every email has the same anatomy, in a fixed order: **preheader**, header **subt
 
 | Category | Toggle | Emails |
 | --- | --- | --- |
-| `account` | always on | welcome, verify email, password reset, password changed, email changed, new sign-in, account deleted, support reply, data export ready, store listing taken down or restored |
-| `billing` | always on | subscription receipt, payment failed, plan changed, subscription cancelled, trial ending, credits low, royalty statement |
+| `account` | always on | welcome, verify email, password reset, password changed, email changed, new sign-in, account deleted, support reply, data export ready, store listing taken down or restored, partner application received / approved / declined, partner suspended |
+| `billing` | always on | subscription receipt, payment failed, plan changed, subscription cancelled, trial ending, credits low, royalty statement, partner payout recorded |
 | `receipts` | always on | order receipt, refund (to buyers, who usually have no account) |
-| `collaboration` | toggle | invitation to a book, invitation to join Écrivain (always sent: the invitee has no account), invitation accepted, mention, reply, reviewer assigned |
+| `collaboration` | toggle | invitation to a book, invitation to join Écrivain (always sent: the invitee has no account), invitation accepted, mention, reply, reviewer assigned, an author's invitation to partner (always sent: the invitee may have no account) |
 | `writing` | toggle | editorial review complete, Book Director report |
 | `publishing` | toggle | export ready, export failed, submitted to stores, live, unpublished |
 | `sales` | toggle | new sale |
+| `partners` | toggle | first partner sale, monthly partner statement (docs/PARTNERS.md) |
 | `digest` | toggle, marketing | weekly digest — with an unsubscribe link and `List-Unsubscribe` / one-click headers, like every marketing category |
 | `news` | toggle, marketing | the console's broadcasts (docs/ADMIN.md, Growth) |
 | `tips` | toggle, marketing | the console's lifecycle emails (no book yet, two weeks quiet) |
@@ -99,7 +100,15 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Order receipt (buyer) | `Commerce\OrderReceiptMail` | receipts | queued | **Wired**: order fulfilled (`App\Commerce\Fulfilment::checkoutCompleted`) |
 | New sale (author) | `Commerce\NewSaleMail` | sales | queued | **Wired**: order fulfilled, to each seller |
 | Refund processed | `Commerce\RefundProcessedMail` | receipts | queued | **Wired**: `charge.refunded` (`Fulfilment::chargeRefunded`), once per refunded amount |
-| Royalty statement | `Commerce\RoyaltyStatementMail` | billing | queued | **Command**: `commerce:royalty-statements` (not scheduled; one per author, month and currency, ever) |
+| Royalty statement | `Commerce\RoyaltyStatementMail` | billing | queued | **Command**: `commerce:royalty-statements` (not scheduled; one per author, month and currency, ever). Partner commissions are their own negative line |
+| Partner application received | `Partners\PartnerApplicationReceivedMail` | account | queued | **Wired**: `Commerce\Partners\Applications::apply` (+ inbox) |
+| Partner approved | `Partners\PartnerApprovedMail` | account | queued | **Wired**: `Applications::approve` (console), `Partners\Invitations::accept` (+ inbox) |
+| Partner declined | `Partners\PartnerDeclinedMail` | account | queued | **Wired**: `Applications::decline` (console), with the reason (+ inbox) |
+| Partner suspended | `Partners\PartnerSuspendedMail` | account | queued | **Wired**: `Applications::suspend` (console, owner), with the reason (+ inbox) |
+| First partner sale | `Partners\PartnerFirstSaleMail` | partners | queued | **Wired**: `Fulfilment::checkoutCompleted` → `PartnerNotices::earned`, the first commission only (every commission gets an inbox line) |
+| Monthly partner statement | `Partners\PartnerStatementMail` | partners | queued | **Command**: `partners:statements` (1st of the month, 09:30; only partners with a commission or adjustment that month; one per partner, month and currency, ever) |
+| Partner payout recorded | `Partners\PartnerPayoutMail` | billing | queued | **Wired**: `Partners\Ledger::recordPayout` (console, owner) (+ inbox) |
+| Invitation to partner (from an author) | `Partners\PartnerInvitationMail` | collaboration | queued | **Wired**: `Partners\Invitations::invite` (Sales page). Names only the books' own author name, never the account's |
 
 ## The invitation to join (`Growth\AuthorInvitationMail`)
 

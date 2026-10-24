@@ -222,6 +222,15 @@ export default function ProductEditor({ bookId, onSaved }) {
                 <p className="mt-1 text-[11px] text-text-secondary">Plain text. Line breaks are kept.</p>
             </Field>
 
+            {data.partners && (
+                <PartnerOptions
+                    partners={data.partners}
+                    form={form}
+                    set={set}
+                    errors={errors}
+                />
+            )}
+
             <p className="mb-3 text-[11px] leading-snug text-text-secondary">
                 {data.defaults.author_name
                     ? `The page shows the author as “${data.defaults.author_name}”.`
@@ -271,7 +280,98 @@ function toForm(data) {
         license: p?.license ?? data.options.licenses[0]?.key,
         title: p?.title ?? '',
         description: p?.description ?? '',
+        // Sent only when the partner program is on for this account.
+        ...(data.partners
+            ? {
+                  partner_enabled: p?.partner_enabled ?? false,
+                  partner_rate: p?.partner_rate ?? data.partners.rates.default,
+              }
+            : {}),
     };
+}
+
+/**
+ * The same arithmetic as App\Commerce\Partners\Commissions::split, for the
+ * preview only: what one sale pays the author with and without a partner.
+ * The server works the real figures out when an order is paid.
+ */
+export function partnerSplit(priceCents, ratePercent, fee, platformRate) {
+    const gross = Math.max(0, Math.round(priceCents));
+    const feeCents = gross <= 0 ? 0 : Math.min(gross, Math.round((gross * fee.percent) / 100) + fee.fixed_cents);
+    const net = Math.max(0, gross - feeCents);
+    const royalty = Math.max(0, net - Math.round(net * platformRate));
+    const commission = Math.min(royalty, net <= 0 ? 0 : Math.floor((net * ratePercent * 100 + 5000) / 10000));
+
+    return { fee: feeCents, without: royalty, with: royalty - commission, commission };
+}
+
+/**
+ * "Let partners sell this book": the switch, the rate, and — before it is
+ * switched on — what one sale would pay with and without a partner.
+ */
+function PartnerOptions({ partners, form, set, errors }) {
+    const priceCents = Math.round((parseFloat(form.price) || 0) * 100);
+    const rate = Number(form.partner_rate) || partners.rates.default;
+    const split = partnerSplit(priceCents, rate, partners.fee, partners.platform_rate);
+    const format = (cents) =>
+        new Intl.NumberFormat(undefined, { style: 'currency', currency: String(form.currency || 'usd').toUpperCase() }).format(cents / 100);
+
+    return (
+        <div data-a="store:partners" className="mb-3 rounded-tile border border-border-default bg-bg-subtle/50 p-3">
+            <label className="flex items-start gap-2 text-[12.5px] font-semibold text-text-primary">
+                <input
+                    data-a="store:partners:toggle"
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={!!form.partner_enabled}
+                    onChange={(e) => set('partner_enabled', e.target.checked)}
+                />
+                <span>
+                    Let partners sell this book
+                    <span className="mt-0.5 block text-[11px] font-normal leading-snug text-text-secondary">
+                        Teachers, bookstores and others share it from their own Écrivain Partners page and earn a
+                        commission on each copy they sell. It comes out of your royalty.
+                    </span>
+                </span>
+            </label>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[12.5px]">
+                <label htmlFor="partner-rate" className="text-text-secondary">
+                    Partner commission
+                </label>
+                <input
+                    id="partner-rate"
+                    data-a="store:partners:rate"
+                    type="number"
+                    min={partners.rates.min}
+                    max={partners.rates.max}
+                    step="1"
+                    value={form.partner_rate ?? ''}
+                    onChange={(e) => set('partner_rate', e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-[72px] rounded-input border border-border-input bg-bg-surface px-2 py-1 text-[13px] text-text-primary"
+                />
+                <span className="text-text-secondary">
+                    % of the net ({partners.rates.min}–{partners.rates.max} %)
+                </span>
+            </div>
+            {errors.partner_rate && <p className="mt-1 text-[11.5px] text-status-danger">{[].concat(errors.partner_rate)[0]}</p>}
+
+            {priceCents > 0 && (
+                <dl data-a="store:partners:preview" className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] tabular-nums">
+                    <dt className="text-text-secondary">A sale without a partner pays you</dt>
+                    <dd className="text-right font-semibold text-text-primary" data-a="store:partners:without">{format(split.without)}</dd>
+                    <dt className="text-text-secondary">A sale through a partner pays you</dt>
+                    <dd className="text-right font-semibold text-text-primary" data-a="store:partners:with">{format(split.with)}</dd>
+                    <dt className="text-text-secondary">and the partner</dt>
+                    <dd className="text-right text-text-body">{format(split.commission)}</dd>
+                </dl>
+            )}
+            <p className="mt-1.5 text-[10.5px] leading-snug text-text-secondary">
+                At {format(priceCents)}, after the estimated card fee ({format(split.fee)}). Discounts lower both. The rate is fixed
+                when a reader starts checkout.
+            </p>
+        </div>
+    );
 }
 
 function Field({ label, error, children }) {

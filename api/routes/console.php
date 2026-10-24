@@ -51,3 +51,11 @@ Schedule::command('invitations:expire')->hourly()->withoutOverlapping();
  */
 Schedule::command('platform:data-health')->dailyAt('04:10')->withoutOverlapping();
 Schedule::command('platform:purge-account-exports')->dailyAt('04:40')->withoutOverlapping();
+
+/*
+ | Écrivain Partners: commissions whose refund hold is over become payable
+ | once a day, and partners with activity get a statement on the 1st (each
+ | recorded, so a repeat sends nothing twice).
+ */
+Schedule::command('partners:release-commissions')->dailyAt('05:10')->withoutOverlapping();
+Schedule::command('partners:statements')->monthlyOn(1, '09:30')->withoutOverlapping();

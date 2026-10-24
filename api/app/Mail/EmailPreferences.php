@@ -70,6 +70,15 @@ final class EmailPreferences
             'mandatory' => false,
             'marketing' => false,
         ],
+        // Écrivain Partners: a first sale and the monthly statement. A
+        // partner's approval, suspension and payouts go as account and
+        // billing mail, which are always sent.
+        'partners' => [
+            'label' => 'Partner program',
+            'description' => 'Your first partner sale and a monthly statement of your commissions.',
+            'mandatory' => false,
+            'marketing' => false,
+        ],
         'digest' => [
             'label' => 'Weekly progress',
             'description' => 'A Monday summary of what you wrote last week.',

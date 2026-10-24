@@ -44,6 +44,14 @@ export default function SalesReport({ report, compact = false }) {
                         hint="estimate"
                     />
                     <Stat label="Net" value={money(row.net_cents, row.currency)} />
+                    {row.partner_cents > 0 && (
+                        <Stat
+                            label="Partner commissions"
+                            value={`−${money(row.partner_cents, row.currency)}`}
+                            hint={`${row.partner_units} sale${row.partner_units === 1 ? '' : 's'} through partners`}
+                            dataA={`sales:partners:${row.currency}`}
+                        />
+                    )}
                     <Stat
                         label="Your royalty"
                         value={money(row.royalty_cents, row.currency)}
@@ -124,6 +132,11 @@ export default function SalesReport({ report, compact = false }) {
                             </span>
                             <span className="tabular-nums text-text-body">
                                 {money(order.amount_cents, order.currency)}
+                                {order.partner_cents > 0 && (
+                                    <span className="ml-2 text-[11px] text-text-secondary">
+                                        partner −{money(order.partner_cents, order.currency)}
+                                    </span>
+                                )}
                                 {order.status !== 'paid' && (
                                     <span className="ml-2 rounded-badge bg-status-warning-bg px-1.5 py-0.5 text-[10.5px] font-semibold text-status-warning">
                                         {order.status === 'refunded' ? 'Refunded' : 'Part refunded'}
@@ -137,16 +150,16 @@ export default function SalesReport({ report, compact = false }) {
 
             <p className="text-[11px] leading-relaxed text-text-secondary">
                 Payment fees are estimated from Stripe&rsquo;s standard card pricing; Stripe does
-                not return its fee on a refund. Royalties are what is left after fees and
-                refunds.
+                not return its fee on a refund. Royalties are what is left after fees,
+                refunds and any partner&rsquo;s commission.
             </p>
         </div>
     );
 }
 
-function Stat({ label, value, hint = null, strong = false }) {
+function Stat({ label, value, hint = null, strong = false, dataA = undefined }) {
     return (
-        <div className="rounded-tile border border-border-default bg-bg-surface px-3 py-2.5">
+        <div className="rounded-tile border border-border-default bg-bg-surface px-3 py-2.5" data-a={dataA}>
             <p className="text-[10.5px] uppercase tracking-wide text-text-secondary">{label}</p>
             <p
                 className={`mt-0.5 tabular-nums ${

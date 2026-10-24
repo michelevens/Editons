@@ -30,6 +30,14 @@ use App\Mail\EcrivainMail;
 use App\Mail\Growth\AuthorInvitationMail;
 use App\Mail\Growth\BroadcastMail;
 use App\Mail\Growth\LifecycleMail;
+use App\Mail\Partners\PartnerApplicationReceivedMail;
+use App\Mail\Partners\PartnerApprovedMail;
+use App\Mail\Partners\PartnerDeclinedMail;
+use App\Mail\Partners\PartnerFirstSaleMail;
+use App\Mail\Partners\PartnerInvitationMail;
+use App\Mail\Partners\PartnerPayoutMail;
+use App\Mail\Partners\PartnerStatementMail;
+use App\Mail\Partners\PartnerSuspendedMail;
 use App\Mail\Publishing\BookLiveMail;
 use App\Mail\Publishing\BookUnpublishedMail;
 use App\Mail\Publishing\ExportFailedMail;
@@ -50,6 +58,8 @@ use App\Models\Comment;
 use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
+use App\Models\Partner;
+use App\Models\Payout;
 use App\Models\SupportMessage;
 use App\Models\SupportTicket;
 use App\Models\User;
@@ -193,6 +203,27 @@ final class EmailCatalog
                 fn (array $s) => new AuthorInvitationMail(self::invitation(), 'k3Vd9QxT2mLp8RzW4nYb7HcJ1sFg6AeU0oKiNtPqXyZw5BvC')],
             [LifecycleMail::class, 'Growth', 'Lifecycle: no book yet', 'Console: Business → Growth → Lifecycle (growth:lifecycle, hourly)',
                 fn (array $s) => new LifecycleMail($s['author'], 'Your first book is one click away', "You signed up for Écrivain a few days ago but have not started a book yet.\n\nStart with a title, or import a manuscript you already have.", 'Start a book')],
+
+            // Écrivain Partners (App\Commerce\Partners\PartnerNotices)
+            [PartnerApplicationReceivedMail::class, 'Partners', 'Application received', 'Wired: App\Commerce\Partners\Applications::apply',
+                fn (array $s) => new PartnerApplicationReceivedMail($s['author'], self::partner())],
+            [PartnerApprovedMail::class, 'Partners', 'Application approved', 'Wired: Applications::approve, Invitations::accept',
+                fn (array $s) => new PartnerApprovedMail($s['author'], self::partner())],
+            [PartnerDeclinedMail::class, 'Partners', 'Application declined', 'Wired: Applications::decline (console)',
+                fn (array $s) => new PartnerDeclinedMail($s['author'], self::partner(), 'We could not find the school page you linked to. Add a link where we can see your work.')],
+            [PartnerFirstSaleMail::class, 'Partners', 'First partner sale', 'Wired: Fulfilment → PartnerNotices::earned (first commission only)',
+                fn (array $s) => new PartnerFirstSaleMail($s['author'], self::partner(), $s['book']->title, 284, 'usd', Carbon::parse('2026-11-23'))],
+            [PartnerStatementMail::class, 'Partners', 'Monthly partner statement', 'Command: partners:statements (scheduled monthly, only with activity)',
+                fn (array $s) => new PartnerStatementMail($s['author'], self::partner(), Carbon::parse('2026-09-01'), [
+                    ['title' => $s['book']->title, 'units' => 7, 'amount_cents' => 1988],
+                    ['title' => 'Kreyòl Kitchen Notes', 'units' => 2, 'amount_cents' => 450],
+                ], 'usd', 312, 4120, 2438)],
+            [PartnerPayoutMail::class, 'Partners', 'Partner payout recorded', 'Wired: App\Commerce\Partners\Ledger::recordPayout (console)',
+                fn (array $s) => new PartnerPayoutMail($s['author'], self::partner(), self::partnerPayout(), 0)],
+            [PartnerSuspendedMail::class, 'Partners', 'Partner suspended', 'Wired: Applications::suspend (console)',
+                fn (array $s) => new PartnerSuspendedMail($s['author'], self::partner(), 'Your links were posted in groups that did not allow promotion.')],
+            [PartnerInvitationMail::class, 'Partners', 'Invitation to partner (from an author)', 'Wired: App\Commerce\Partners\Invitations::invite (Sales page)',
+                fn (array $s) => new PartnerInvitationMail('Amélie Laurent', url('/partners/invitations/Hk2s9QxT2mLp8RzW4nYb7HcJ1sFg6AeU0oKiNtPqXyZw5BvC'), [$s['book']->title, 'Kreyòl Kitchen Notes'], Carbon::parse('2026-11-23'))],
         ];
 
         $catalog = [];
@@ -235,6 +266,31 @@ final class EmailCatalog
             'status' => 'pending',
             'expires_at' => Carbon::parse('2026-11-23 12:00'),
         ])->setRelation('inviter', null);
+    }
+
+    /** A partner, in memory. */
+    private static function partner(): Partner
+    {
+        return (new Partner)->forceFill([
+            'id' => 9,
+            'display_name' => 'Lekòl Sen Jozèf',
+            'handle' => 'lekol-sen-jozef',
+            'code' => 'K7Q2M9XA',
+            'agreement_version' => (string) config('partners.agreement_version'),
+            'status' => 'approved',
+        ]);
+    }
+
+    private static function partnerPayout(): Payout
+    {
+        return (new Payout)->forceFill([
+            'kind' => 'partner',
+            'amount_cents' => 4120,
+            'currency' => 'usd',
+            'method' => 'moncash',
+            'reference' => 'MC-20261102-118',
+            'paid_on' => Carbon::parse('2026-11-02'),
+        ]);
     }
 
     public static function samples(?string $bookTitle = null): array

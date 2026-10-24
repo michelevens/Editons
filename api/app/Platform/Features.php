@@ -45,6 +45,14 @@ final class Features
             'default' => true,
             'requires' => 'commerce',
         ],
+        // Écrivain Partners (App\Commerce\Partners). Off by default in
+        // production until commerce is live (config partners.default_on).
+        'partners' => [
+            'label' => 'Écrivain Partners (affiliate program)',
+            'description' => 'Partner applications, branded partner pages (/p/…), partner links and commissions, and the “Let partners sell this book” switch on a product.',
+            'default' => 'config:partners.default_on',
+            'requires' => 'commerce',
+        ],
         'ai_cover' => [
             'label' => 'AI cover concepts and artwork',
             'description' => 'The two AI buttons in Cover Studio. Designing a cover by hand is not affected.',
@@ -132,7 +140,7 @@ final class Features
             return ['enabled' => $global['enabled'], 'source' => 'global'];
         }
 
-        return ['enabled' => (bool) $meta['default'], 'source' => 'default'];
+        return ['enabled' => self::defaultOf($meta), 'source' => 'default'];
     }
 
     /**
@@ -265,10 +273,20 @@ final class Features
         $out = [];
 
         foreach (self::CATALOG as $key => $meta) {
-            $out[] = ['key' => $key, 'label' => $meta['label'], 'description' => $meta['description'], 'default' => $meta['default'], 'available' => ! $meta['requires'] || self::prerequisite($meta['requires'])];
+            $out[] = ['key' => $key, 'label' => $meta['label'], 'description' => $meta['description'], 'default' => self::defaultOf($meta), 'available' => ! $meta['requires'] || self::prerequisite($meta['requires'])];
         }
 
         return $out;
+    }
+
+    /** A default is a boolean, or `config:key` for one a deployment sets. */
+    private static function defaultOf(array $meta): bool
+    {
+        $default = $meta['default'];
+
+        return is_string($default) && str_starts_with($default, 'config:')
+            ? (bool) config(substr($default, 7))
+            : (bool) $default;
     }
 
     /** What has to be configured before a module can be on at all. */

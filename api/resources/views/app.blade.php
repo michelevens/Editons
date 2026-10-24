@@ -22,8 +22,15 @@
              headers, so the token has to be available to put in the body. --}}
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title inertia>{{ config('app.name', 'Ecrivain') }}</title>
-        <meta name="description" content="Write, edit, publish and grow your book in one place.">
+        <title inertia>{{ $meta['title'] ?? config('app.name', 'Ecrivain') }}</title>
+        {{-- A page can bring its own (withViewData('meta')): a partner's page is
+             shared on WhatsApp and Facebook, whose previews never run the
+             app's JavaScript, so its name has to be in the HTML itself. --}}
+        @php($meta = $meta ?? [])
+        <meta name="description" content="{{ $meta['description'] ?? 'Write, edit, publish and grow your book in one place.' }}">
+        @if (! empty($meta['noindex']))
+            <meta name="robots" content="noindex, nofollow">
+        @endif
 
         {{-- Brand marks from ecrivain-brand-assets. The SVG comes first so a
              browser that supports it skips the raster versions; the .ico
@@ -41,9 +48,12 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
         {{-- What a link to the app looks like when somebody shares it. --}}
-        <meta property="og:title" content="{{ config('app.name', 'Ecrivain') }}">
-        <meta property="og:description" content="Write. Edit. Publish. Grow.">
-        <meta property="og:image" content="{{ rtrim(config('app.url'), '/') }}/brand/open-graph.png">
+        <meta property="og:title" content="{{ $meta['title'] ?? config('app.name', 'Ecrivain') }}">
+        <meta property="og:description" content="{{ $meta['description'] ?? 'Write. Edit. Publish. Grow.' }}">
+        <meta property="og:image" content="{{ $meta['image'] ?? rtrim(config('app.url'), '/').'/brand/open-graph.png' }}">
+        @isset($meta['url'])
+            <meta property="og:url" content="{{ $meta['url'] }}">
+        @endisset
         <meta property="og:type" content="website">
         <meta name="twitter:card" content="summary_large_image">
 

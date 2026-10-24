@@ -2,6 +2,7 @@
 
 namespace App\Commerce;
 
+use App\Commerce\Partners\Commissions;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payout;
@@ -92,7 +93,7 @@ final class PlatformSales
                 'earned_cents' => (int) $rows->sum(fn ($item) => self::earned($item)),
             ]);
 
-        $paid = Payout::select('user_id', 'currency', DB::raw('sum(amount_cents) as paid'), DB::raw('max(paid_on) as last_paid'))
+        $paid = Payout::where('kind', 'royalty')->select('user_id', 'currency', DB::raw('sum(amount_cents) as paid'), DB::raw('max(paid_on) as last_paid'))
             ->groupBy('user_id', 'currency')
             ->get()
             ->keyBy(fn ($row) => $row->user_id.'|'.$row->currency);
@@ -184,7 +185,7 @@ final class PlatformSales
     /** @return list<array<string, mixed>> */
     public function payouts(int $limit = 100): array
     {
-        return Payout::with(['user:id,name,email', 'recorder:id,name'])
+        return Payout::where('kind', 'royalty')->with(['user:id,name,email', 'recorder:id,name'])
             ->latest('paid_on')
             ->latest('id')
             ->limit($limit)
@@ -210,7 +211,7 @@ final class PlatformSales
             ->where('currency', $currency)
             ->sum(fn ($item) => self::earned($item));
 
-        return $earned - (int) Payout::where('user_id', $seller->id)->where('currency', $currency)->sum('amount_cents');
+        return $earned - (int) Payout::where('kind', 'royalty')->where('user_id', $seller->id)->where('currency', $currency)->sum('amount_cents');
     }
 
     // ── Internals ───────────────────────────────────────────────────────
@@ -224,20 +225,30 @@ final class PlatformSales
             ->whereNotNull('o.paid_at')
             ->when($days, fn ($q) => $q->where('o.paid_at', '>=', now()->subDays($days - 1)->startOfDay()))
             ->when($sellerId, fn ($q) => $q->where('i.seller_id', $sellerId))
-            ->get(['i.id', 'i.order_id', 'i.book_id', 'i.seller_id', 'i.title', 'i.price_cents', 'i.fee_cents', 'i.royalty_cents', 'i.refunded_cents', 'o.currency', 'o.paid_at']);
+            ->get(['i.id', 'i.order_id', 'i.book_id', 'i.seller_id', 'i.title', 'i.price_cents', 'i.fee_cents', 'i.royalty_cents', 'i.refunded_cents', 'i.partner_commission_cents', 'o.currency', 'o.paid_at']);
     }
 
     /** Revenue::earned on a plain row. */
     private static function earned(object $item): int
     {
-        $model = (new OrderItem)->forceFill([
+        return Revenue::earned(self::model($item));
+    }
+
+    /** A partner's commission on a plain row, after refunds (Commissions::earned). */
+    private static function commission(object $item): int
+    {
+        return Commissions::earned(self::model($item));
+    }
+
+    private static function model(object $item): OrderItem
+    {
+        return (new OrderItem)->forceFill([
             'price_cents' => (int) $item->price_cents,
             'fee_cents' => (int) $item->fee_cents,
             'royalty_cents' => (int) $item->royalty_cents,
             'refunded_cents' => (int) $item->refunded_cents,
+            'partner_commission_cents' => (int) ($item->partner_commission_cents ?? 0),
         ]);
-
-        return Revenue::earned($model);
     }
 
     /** @return array<string, int> */
@@ -247,6 +258,9 @@ final class PlatformSales
         $refunded = (int) $rows->sum('refunded_cents');
         $fee = (int) $rows->sum('fee_cents');
         $royalty = (int) $rows->sum(fn ($item) => self::earned($item));
+        // Partners' commissions come out of the royalty, never the
+        // platform's share: what is left to the platform is net of both.
+        $partners = (int) $rows->sum(fn ($item) => self::commission($item));
         $net = $gross - $refunded - $fee;
 
         return [
@@ -257,7 +271,8 @@ final class PlatformSales
             'fee_cents' => $fee,
             'net_cents' => $net,
             'royalty_cents' => $royalty,
-            'platform_cents' => $net - $royalty,
+            'partner_cents' => $partners,
+            'platform_cents' => $net - $royalty - $partners,
         ];
     }
 }

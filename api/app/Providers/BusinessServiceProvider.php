@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Billing\PlanCatalog;
 use App\Billing\SubscriptionSync;
+use App\Commerce\Partners\Program;
 use App\Http\Middleware\CaptureAttribution;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
@@ -22,6 +23,8 @@ class BusinessServiceProvider extends ServiceProvider
         // Scoped: loaded once per request or queued job, so a long-running
         // worker never keeps a catalogue the owner has since changed.
         $this->app->scoped(PlanCatalog::class);
+        // Écrivain Partners' settings, read once per request or job.
+        $this->app->scoped(Program::class);
     }
 
     public function boot(Router $router): void

@@ -14,6 +14,8 @@ class InboxItem extends Model
         'export_ready', 'export_failed', 'review', 'support', 'moderation',
         // A broadcast from Ecrivain with the in-app option (App\Growth\Broadcasts).
         'announcement',
+        // Écrivain Partners: the application, sales, payouts (App\Commerce\Partners\PartnerNotices).
+        'partner',
     ];
 
     protected $fillable = [

@@ -33,6 +33,8 @@ const ITEMS = [
         { key: 'billing', label: 'Plans & billing', icon: 'card', route: 'billing.show' },
         { key: 'sales', label: 'Storefront sales', icon: 'sales', route: 'sales.overview' },
         { key: 'purchases', label: 'Your purchases', icon: 'doc', route: 'purchases.index' },
+        // Écrivain Partners: the dashboard, or the application form.
+        { key: 'partner', label: 'Partner program', icon: 'coin', route: 'partners.dashboard' },
     ],
     [
         { key: 'books', label: 'My books', icon: 'doc', route: 'books.index' },
