@@ -8,6 +8,7 @@ use App\Mail\Account\EmailChangedMail;
 use App\Mail\Account\NewSignInMail;
 use App\Mail\Account\PasswordChangedMail;
 use App\Mail\Account\PasswordResetMail;
+use App\Mail\Account\SupportReplyMail;
 use App\Mail\Account\VerifyEmailMail;
 use App\Mail\Account\WelcomeMail;
 use App\Mail\Billing\CreditsLowMail;
@@ -42,6 +43,8 @@ use App\Models\Comment;
 use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
+use App\Models\SupportMessage;
+use App\Models\SupportTicket;
 use App\Models\User;
 use Closure;
 use Illuminate\Support\Carbon;
@@ -77,6 +80,8 @@ final class EmailCatalog
                 fn (array $s) => new NewSignInMail($s['author'], '198.51.100.7', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15', Carbon::parse('2026-10-21 22:41'), 'Montréal, Canada')],
             [AccountDeletedMail::class, 'Account', 'Account deleted', 'Wired: ProfileController::destroy',
                 fn (array $s) => new AccountDeletedMail('Amélie Laurent', 'amelie@example.com', Carbon::parse('2026-10-21'), 3)],
+            [SupportReplyMail::class, 'Account', 'Support reply', 'Wired: Admin\\SupportController::reply',
+                fn (array $s) => new SupportReplyMail($s['ticket'], $s['ticketReply'])],
 
             // Collaboration
             [BookInvitationMail::class, 'Collaboration', 'Invitation to a book', 'Wired: TeamController::invite / resend',
@@ -322,7 +327,16 @@ final class EmailCatalog
         ]);
         $channel->setRelation('book', $book);
 
+        $ticket = (new SupportTicket)->forceFill(['subject' => 'My PDF export stops at chapter 12', 'status' => 'pending']);
+        $ticket->setRelation('user', $author);
+        $ticketReply = (new SupportMessage)->forceFill([
+            'from_staff' => true,
+            'body' => "Thanks for the details. The export stopped on a table that is wider than the page in chapter 12.\n\nNarrow its last column, or turn the table sideways in Design, and export again: it will run to the end.",
+        ]);
+
         return [
+            'ticket' => $ticket,
+            'ticketReply' => $ticketReply,
             'author' => $author,
             'reviewer' => $reviewer,
             'book' => $book,

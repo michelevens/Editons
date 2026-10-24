@@ -3,6 +3,7 @@
 namespace App\Mail\Collaboration;
 
 use App\Mail\EcrivainMail;
+use App\Mail\Support\ContainsSecrets;
 use App\Mail\Support\Letter;
 use App\Models\BookMember;
 use App\Models\User;
@@ -14,7 +15,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
  * Addressed to an email, not an account: the person invited usually has
  * none yet. When they do, their collaboration preference is honoured.
  */
-class BookInvitationMail extends EcrivainMail implements ShouldQueue
+class BookInvitationMail extends EcrivainMail implements ContainsSecrets, ShouldQueue
 {
     public const CATEGORY = 'collaboration';
 

@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\DenyAdminPaths;
 use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\GuardImpersonation;
@@ -10,6 +11,7 @@ use App\Http\Middleware\MaintenanceGate;
 use App\Http\Middleware\RequirePlatformTwoFactor;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\TrustedProxies;
+use App\Platform\Ops\ErrorGroups;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -49,6 +51,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'platform.admin' => EnsurePlatformAdmin::class,
             'platform.2fa' => RequirePlatformTwoFactor::class,
+            // feature:inbox — 404 when a module is switched off (App\Platform\Features).
+            'feature' => EnsureFeature::class,
         ]);
 
         // app.ecrivain.ai renders the studio and api.ecrivain.ai answers its
@@ -110,4 +114,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Every exception Laravel reports (never 404s or validation errors)
+        // is also counted in the console's error groups. Returning nothing
+        // lets the normal logging carry on.
+        $exceptions->report(function (Throwable $e) {
+            ErrorGroups::captureServer($e);
+        });
     })->create();
