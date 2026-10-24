@@ -1274,3 +1274,102 @@ archived and other people's books, the sheet's payload, props, JSON
 rename/delete); `tests/Browser/goals.spec.js` at 390px with touch (ring
 and sheet, reorder by ↑/↓ and a real touch drag through the DevTools
 protocol, long-press actions, keyboard access, desktop mouse drag kept).
+
+## ADR-00XX — Print-on-demand kit, and what an author declares before the stores
+
+**Status:** accepted (2026-10-23)
+
+**Context.** Every book could make a reading PDF and an EPUB, but nothing
+a print-on-demand service accepts: the print-ready interior was HTML, the
+reading PDF opens on its cover, and no cover wrap (back, spine, front with
+bleed) existed. Authors priced books with no idea of print cost, the sales
+table paid 70% on a $20 Kindle book and "45% of list" at IngramSpark, and
+nothing recorded the rights or AI-content statements the stores ask for.
+The figures every rule needs were researched from each service's own pages
+on 2026-10-23: `docs/POD-SPECS.md` (quotes and URLs) and
+`config/publishing.php` (every number the code uses, each with its source).
+Where a service publishes no figure, the code says so; it never estimates.
+
+**Decisions.**
+- *Specs in config, arithmetic in one place.* `App\Publishing\PrintSpecs`
+  (spine width, gutter by page count, page ranges, trims, KDP's print-cost
+  formula) is the only place the numbers are used, so the cover, the checks
+  and the calculator cannot disagree. Tests change a config value and see
+  the result change.
+- *Print interior* (`pdf_interior`): the PDF without its cover, typeset on
+  the worker (ADR-0018), recording its page count and a fingerprint of what
+  moves pages (layout, publishing details, sections' last change).
+  `PrintPages` uses that count while the fingerprint matches, else an
+  estimate from the word count and page geometry, always labelled as one.
+- *Cover wrap* (`cover_wrap`, options service and paper, on the worker,
+  because the spine needs the typeset page count, which takes minutes for a
+  long book; it reuses a current interior count instead of typesetting
+  again). `App\Publishing\CoverWrap`: 2 × trim + spine + 2 × bleed by trim
+  + 2 × bleed, drawn at 300 dpi with GD and wrapped in a one-page PDF with
+  TrimBox and BleedBox. Front: the store cover fitted whole into its panel,
+  bands in the image's edge colours. Spine: that colour; title, series,
+  author and imprint only from the service's minimum page count, inside its
+  spine margins, reading top to bottom, sized to fit or left blank. Back:
+  an uploaded back cover (new upload on the Publish screen; the reading
+  PDF already used `cover.back_artwork`), else the description and the
+  imprint with a blank barcode box where the service puts it. No author
+  name is printed for a book without one. KDP, IngramSpark (the author
+  enters the spine width from its Cover Template Generator, the only place
+  it publishes one) and Lulu (its public formula, white paper; it matches
+  Lulu's own API example). A 48-dpi preview is drawn in the request.
+- *Print checks* (`PrintCheck`, KDP and IngramSpark): trim, page range by
+  paper/ink/trim, inside margin by page count with the Margins setting
+  that fixes it, pictures under 300 dpi at the text measure, pending
+  suggestions, ISBN, front and back cover (including copy too long for the
+  back). Rules resting on an estimated page count warn; on the typeset count
+  they fail, and a failure blocks Prepare for stores for a chosen print
+  store (`SubmissionCheck`). A KDP paperback store is added.
+- *Calculator* (`Royalties`): KDP paperback (print cost, 50%/60% royalty,
+  Expanded Distribution, the lowest list price that covers printing),
+  IngramSpark wholesale before its unpublished print cost, Kindle 35%/70%
+  with delivery cost (band $2.99–$12.99 since 7 July 2026, 20% under the
+  paperback), Apple, Kobo, Google. The paperback has its own price
+  (`meta.print_price`). The sales table uses the same functions.
+- *Store readiness* (`StoreReadiness`): per ebook store, description
+  limits, keywords, category, cover pixels and EPUB, from each store's
+  published limits; shown on the Publish screen and as submission warnings.
+- *ISBN per edition* (`books.isbn_plan`, `IsbnPlan`): own or store-assigned
+  for ebook, paperback and hardcover. A store's ISBN ties the edition to
+  that store, so one paperback at KDP and IngramSpark with a store ISBN
+  fails, as does "own" with no number. The agency link follows the new
+  `publication.country` (official pages only, no fees).
+- *Rights declaration* (`books.rights_declaration`): the author states they
+  hold the rights and lists third-party material (quotations, images,
+  official papers) with what they hold for each; who and when come from the
+  session. Required for Prepare for stores; "not sure yet" warns.
+- *AI content* (`books.ai_disclosure`, `AiDisclosure`): evidence from the
+  app's own provenance (versions with reason `ai_draft` and `ai_suggestion`,
+  accepted findings with `applied_version_id`, the cover's
+  `artwork_source`), a suggested answer per KDP category (text, images,
+  translations: none, assisted, generated), and the author's own confirmed
+  answers with the evidence they saw. Never answered for them. Required
+  when a KDP store is chosen; answers below what the records show warn.
+- *Legal deposit*: a reminder by country of publication from official
+  sources (Haiti 5 copies to the BNH, France, US, Canada), generic
+  elsewhere; a submission warning when a print store is chosen.
+- *Print defaults*: new books store paper white, ink black, finish matte
+  (`books.print`, set on the Publish screen); trim 6 × 9, letter for the
+  educational type and for workbook editions.
+
+**Not done.** No store or Lulu API is called. IngramSpark print cost and
+ebook net revenue, Lulu interior rules and barcode, KDP hardcover, EUR/GBP
+print costs and the exact wording of KDP's AI form are not encoded (see
+POD-SPECS.md). Interior pictures carry no AI provenance, so the images
+evidence covers the cover only.
+
+**Tests.** `tests/Feature/PrintKitTest.php` (wrap sizes in points per
+service, trim, paper and ink; Lulu against its API example; IngramSpark
+spine required; barcode placement; spine text thresholds and margins;
+anonymous book; back from description, uploaded back, missing and overlong
+copy; print-check margins, limits, estimates, images, ISBN; submission
+blocking; calculator arithmetic; config-driven numbers; sales terms; store
+readiness; the export end to end through the job; authorization).
+`tests/Feature/PublishingDeclarationsTest.php` (ISBN plan and conflicts,
+ebook ISBN per store, agencies, print defaults, rights declaration, AI
+evidence and confirmation, legal deposit, country setting).
+`tests/Browser/printkit.spec.js` at 390px with touch.
