@@ -8,8 +8,15 @@ use App\Commerce\Gateway\StripeGateway;
 use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\DriverFactory;
 use App\Http\Controllers\StripeWebhookController;
+use App\Http\Middleware\EnsureAccountActive;
+use App\Models\User;
+use App\Platform\PlatformSettings;
+use App\Platform\TwoFactor;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
@@ -41,6 +48,11 @@ class AppServiceProvider extends ServiceProvider
             fn () => config('commerce.gateway') === 'stripe' ? new StripeGateway : new FakeGateway,
         );
 
+        // Platform settings memoise per container, so a test or a queue job
+        // never reads another's values from a static cache.
+        $this->app->singleton(PlatformSettings::class);
+        $this->app->singleton(TwoFactor::class);
+
         // Cashier's route resolves its controller through the container,
         // so this swaps in the stricter one without redefining the route.
         $this->app->bind(
@@ -57,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         $this->configureAuthRateLimits();
+        $this->configurePlatform();
 
         // Generate every URL from APP_URL rather than from the request host.
         //
@@ -77,6 +90,41 @@ class AppServiceProvider extends ServiceProvider
                 URL::forceHttps();
             }
         }
+    }
+
+    /**
+     * The admin console: who may do what, how often, and the session's
+     * sign-in time that "sign out everywhere" is compared with.
+     */
+    private function configurePlatform(): void
+    {
+        // Every sign-in — password, two-factor, registration, remember-me,
+        // "View as" and its return — stamps the session (EnsureAccountActive).
+        Event::listen(Login::class, function () {
+            if (app()->bound('request') && request()->hasSession()) {
+                request()->session()->put(EnsureAccountActive::SIGNED_IN_AT, now()->getTimestamp());
+            }
+        });
+
+        // Owner-only console actions: plans, deductions, suspension, 2FA
+        // resets, roles and settings. Support reads, takes notes, adds small
+        // credit top-ups and can "View as".
+        Gate::define('platform.owner', fn (User $user) => $user->isPlatformOwner());
+
+        // Dangerous console actions, per admin: enough for a busy support
+        // shift, too few for a script working through the user table.
+        RateLimiter::for('admin-actions', fn (Request $request) => [
+            Limit::perMinute(20)->by('admin-minute|'.$request->user()?->id),
+            Limit::perHour(200)->by('admin-hour|'.$request->user()?->id),
+        ]);
+        RateLimiter::for('impersonation', fn (Request $request) => Limit::perMinute(5)->by('view-as|'.$request->user()?->id));
+
+        // Six digits are a million guesses; five a minute per pending
+        // sign-in (and per IP) makes them take longer than the code lives.
+        RateLimiter::for('two-factor', fn (Request $request) => [
+            Limit::perMinute(5)->by('2fa|'.$request->session()->get('login.id').'|'.$request->ip()),
+            Limit::perHour(30)->by('2fa-hour|'.$request->ip()),
+        ]);
     }
 
     /**

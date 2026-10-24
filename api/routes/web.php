@@ -35,6 +35,7 @@ use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -81,6 +82,15 @@ Route::middleware('auth')->group(function () {
     // The daily writing goal, from the studio's goals sheet (JSON).
     Route::patch('/profile/daily-goal', [GoalsController::class, 'daily'])->name('profile.daily-goal');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Two-factor sign-in (App\Platform\TwoFactor). Throttled: each takes a
+    // password or a code, and a guess at either should be slow.
+    Route::middleware('throttle:6,1')->group(function () {
+        Route::post('/user/two-factor', [TwoFactorController::class, 'enable'])->name('two-factor.enable');
+        Route::post('/user/two-factor/confirm', [TwoFactorController::class, 'confirm'])->name('two-factor.confirm');
+        Route::post('/user/two-factor/recovery-codes', [TwoFactorController::class, 'recoveryCodes'])->name('two-factor.recovery-codes');
+        Route::delete('/user/two-factor', [TwoFactorController::class, 'disable'])->name('two-factor.disable');
+    });
 });
 
 require __DIR__.'/auth.php';
@@ -635,3 +645,12 @@ Route::middleware('auth')->group(function () {
 Route::get('/start', [BookController::class, 'quickStart'])
     ->middleware('auth')
     ->name('books.quick');
+
+/*
+ | The platform owner's console, "View as" and the public status endpoint.
+ */
+require __DIR__.'/admin.php';
+
+Route::get('/status', App\Http\Controllers\PlatformStatusController::class)
+    ->middleware('throttle:60,1')
+    ->name('platform.status');

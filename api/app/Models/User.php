@@ -24,7 +24,13 @@ use Laravel\Cashier\Billable;
     'name', 'email', 'password',
     'author_name', 'bio', 'website', 'default_book_type', 'daily_word_goal',
 ])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden([
+    'password', 'remember_token',
+    // Shared with every Inertia page as auth.user, so anything secret about
+    // the account must be listed here or it reaches the browser.
+    'two_factor_secret', 'two_factor_recovery_codes', 'two_factor_last_step',
+    'suspended_reason', 'sessions_revoked_at',
+])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -33,10 +39,56 @@ class User extends Authenticatable
     /** The appearance choices; 'system' follows prefers-color-scheme. */
     public const THEMES = ['system', 'light', 'dark'];
 
+    /**
+     * Platform roles: the people who run Écrivain, not authors on it.
+     *
+     * Granted only from the shell (`php artisan platform:admin`), never by a
+     * form an author can reach and never by a seeder. Owner can change plans,
+     * settings and roles; support can look, take notes and "View as".
+     */
+    public const PLATFORM_ROLES = ['owner', 'support'];
+
+    public function isPlatformAdmin(): bool
+    {
+        return in_array($this->platform_role, self::PLATFORM_ROLES, true);
+    }
+
+    public function isPlatformOwner(): bool
+    {
+        return $this->platform_role === 'owner';
+    }
+
+    /** Has this account finished turning on two-factor sign-in? */
+    public function hasTwoFactor(): bool
+    {
+        return $this->two_factor_secret !== null && $this->two_factor_confirmed_at !== null;
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
+    }
+
+    /**
+     * The plan the limits come from.
+     *
+     * A complimentary plan past its end date counts as free from that
+     * moment, even before platform:expire-complimentary has written it back:
+     * a scheduler that is late must not leave a gift running.
+     */
+    public function effectivePlan(): string
+    {
+        if ($this->complimentary_until !== null && $this->complimentary_until->isPast()) {
+            return 'free';
+        }
+
+        return (string) $this->plan;
+    }
+
     /** The plan's configured limits, falling back to free if it is unknown. */
     public function planLimits(): array
     {
-        return config("billing.plans.{$this->plan}")
+        return config("billing.plans.{$this->effectivePlan()}")
             ?? config('billing.plans.free');
     }
 
@@ -90,6 +142,14 @@ class User extends Authenticatable
             // broke the moment anything read it.
             'credits_granted_at' => 'datetime',
             'credits_low_notified_at' => 'datetime',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
+            'two_factor_last_step' => 'integer',
+            'suspended_at' => 'datetime',
+            'sessions_revoked_at' => 'datetime',
+            'complimentary_since' => 'datetime',
+            'complimentary_until' => 'datetime',
             // Overrides only; App\Mail\EmailPreferences resolves defaults.
             'email_preferences' => 'array',
             'password' => 'hashed',

@@ -5,6 +5,8 @@ namespace App\Http\Middleware;
 use App\Billing\Entitlements;
 use App\Editorial\DriverFactory;
 use App\Http\Controllers\InboxController;
+use App\Platform\Impersonation;
+use App\Platform\PlatformSettings;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -81,6 +83,33 @@ class HandleInertiaRequests extends Middleware
             'inbox_unread' => $request->user()
                 ? fn () => InboxController::unread($request->user())
                 : 0,
+
+            /*
+             | The platform layer: the "View as" banner, the announcement,
+             | and whether this account may open the admin console (the link
+             | in the account menu). A "View as" session is never staff, so
+             | the console link disappears while viewing.
+             */
+            'platform' => fn () => [
+                'role' => $request->user()?->isPlatformAdmin() && ! Impersonation::active($request)
+                    ? $request->user()->platform_role
+                    : null,
+                'impersonation' => Impersonation::banner($request),
+                'announcement' => app(PlatformSettings::class)->announcementFor(
+                    Impersonation::active($request) ? null : $request->user(),
+                ),
+                'maintenance' => $request->user()?->isPlatformAdmin()
+                    ? app(PlatformSettings::class)->maintenance()
+                    : false,
+                'staff_name' => config('platform.staff_name'),
+            ],
+
+            // One-off messages from a redirect: "Viewing ended", a console
+            // action's result. Read once, like any flash.
+            'flash' => fn () => [
+                'notice' => $request->session()->get('platform_notice'),
+                'error' => $request->session()->get('platform_error'),
+            ],
 
             // Demo credentials, shown on the login page.
             //
