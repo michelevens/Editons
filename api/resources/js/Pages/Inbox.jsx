@@ -32,6 +32,7 @@ const KIND_ICONS = {
     announcement: 'bell',
     moderation: 'info',
     welcome: 'heart',
+    partner: 'coin',
 };
 
 const VIEWS = [

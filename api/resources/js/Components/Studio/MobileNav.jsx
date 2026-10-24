@@ -45,6 +45,11 @@ const T = {
     distribution: { label: 'Sales', icon: 'sales' },
     launch: { label: 'Launch', icon: 'rocket' },
     analytics: { label: 'Analytics', icon: 'chart' },
+    // Écrivain Partners: the dashboard's own tabs, on its pages.
+    'partner-overview': { label: 'Partner', icon: 'home' },
+    'partner-links': { label: 'Links', icon: 'mega' },
+    'partner-page': { label: 'My page', icon: 'layout' },
+    'partner-earnings': { label: 'Earnings', icon: 'coin' },
 };
 
 const SETS = {
@@ -54,10 +59,12 @@ const SETS = {
     review: ['manuscript', 'ai', 'comments', 'workflow'],
     publish: ['manuscript', 'layout', 'cover', 'export'],
     sell: ['manuscript', 'distribution', 'launch', 'analytics'],
+    partner: ['partner-overview', 'partner-links', 'partner-page', 'partner-earnings'],
 };
 
 /** Which set of tabs a screen belongs to. */
 export function tabSet(current, hasBook) {
+    if (String(current ?? '').startsWith('partner-')) return 'partner';
     if (!hasBook) return 'library';
 
     if (['ai', 'suggestions', 'comments', 'workflow', 'team'].includes(current)) return 'review';
@@ -106,6 +113,11 @@ export default function MobileNav({
         if (key === 'inbox') return router.get(route('inbox.index'));
         if (key === 'store-sales') return router.get(route('sales.overview'));
         if (key === 'continue') return goTo(book, 'manuscript');
+        if (key.startsWith('partner-')) {
+            const tab = { 'partner-overview': 'overview', 'partner-links': 'links', 'partner-page': 'page', 'partner-earnings': 'commissions' }[key];
+
+            return onSelect ? onSelect(key) : router.get(route('partners.dashboard', { tab }));
+        }
 
         // Write while writing: the chapter list, which is what a second tap
         // on the tab you are on means in most apps.
@@ -237,6 +249,7 @@ function MoreSheet({ book, title, onOpen, onClose }) {
         { key: 'billing', label: 'Plans & billing', icon: 'card', href: route('billing.show') },
         { key: 'store-sales', label: 'Storefront sales', icon: 'sales', href: route('sales.overview') },
         { key: 'purchases', label: 'Your purchases', icon: 'doc', href: route('purchases.index') },
+        { key: 'partner', label: 'Partner program', icon: 'coin', href: route('partners.dashboard') },
         { key: 'account', label: 'Account settings', icon: 'user', href: route('profile.edit') },
         { key: 'support', label: 'Help', icon: 'help', href: route('support.index') },
     ].filter((link) => on(NAV_FEATURES[link.key]));

@@ -18,6 +18,12 @@ export function useFeatures() {
 export const NAV_FEATURES = {
     inbox: 'inbox',
     'store-sales': 'storefront',
+    // Écrivain Partners: the dashboard and its tabs.
+    partner: 'partners',
+    'partner-overview': 'partners',
+    'partner-links': 'partners',
+    'partner-page': 'partners',
+    'partner-earnings': 'partners',
     sales: 'storefront',
     support: 'support',
     preview: 'preview',

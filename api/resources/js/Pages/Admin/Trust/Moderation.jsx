@@ -28,7 +28,7 @@ export default function Moderation({ status, counts, reports, can }) {
                         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                             <Badge tone={r.category === 'sexual_minors' || r.category === 'illegal' ? 'danger' : 'warning'}>{r.category_label}</Badge>
                             <span className="font-semibold text-text-primary">
-                                {r.product ? r.product.title : r.author_handle ? `Author page ${r.author_handle}` : 'A page no longer on sale'}
+                                {r.product ? r.product.title : r.partner ? `Partner page: ${r.partner.name}` : r.author_handle ? `Author page ${r.author_handle}` : 'A page no longer on sale'}
                             </span>
                             <span className="ml-auto text-text-muted">
                                 #{r.id} · {formatDate(r.created_at)}
@@ -62,6 +62,16 @@ export default function Moderation({ status, counts, reports, can }) {
                                 <a href={r.author_url} target="_blank" rel="noreferrer" className="text-brand-primary hover:underline">
                                     Author page
                                 </a>
+                            )}
+                            {r.partner && (
+                                <>
+                                    <a href={r.partner.url} target="_blank" rel="noreferrer" className="text-brand-primary hover:underline">
+                                        Partner page
+                                    </a>
+                                    <Link href={r.partner.admin_url} className="text-brand-primary hover:underline">
+                                        Partner in the console
+                                    </Link>
+                                </>
                             )}
                             {r.product?.taken_down && <Badge tone="danger">Listing taken down</Badge>}
                             {r.status === 'open' && (

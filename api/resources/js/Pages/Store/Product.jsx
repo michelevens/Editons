@@ -10,7 +10,7 @@ import { Head, useForm } from '@inertiajs/react';
  * whatever an author pasted cannot run in a reader's browser. The author
  * line appears only when the book carries an author name.
  */
-export default function Product({ product, series }) {
+export default function Product({ product, series, partner = null }) {
     const { data, setData, post, processing, errors } = useForm({ email: '', code: '' });
 
     const buy = (event) => {
@@ -58,6 +58,16 @@ export default function Product({ product, series }) {
                             ) : (
                                 <span className="font-semibold">{product.author}</span>
                             )}
+                        </p>
+                    )}
+
+                    {partner && (
+                        <p data-a="store:partner" className="mt-4 rounded-tile border border-border-default bg-bg-surface px-3 py-2 text-[12.5px] text-text-body">
+                            Recommended by{' '}
+                            <a href={partner.url} className="font-semibold text-brand-primary hover:underline">
+                                {partner.name}
+                            </a>
+                            . <span className="text-text-secondary">{partner.disclosure}</span>
                         </p>
                     )}
 
