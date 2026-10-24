@@ -386,3 +386,19 @@
 .safe-top {
     padding-top: env(safe-area-inset-top);
 }
+
+/*
+ | The platform frame (Components/Platform/PlatformFrame.jsx). With a banner
+ | showing — "View as", an announcement, maintenance — the page lives in the
+ | space below it, so a page drawn as a full-screen column fills that space
+ | instead of the whole viewport and its phone tab bar stays on screen.
+ */
+.platform-frame-body .h-dvh,
+.platform-frame-body .h-screen {
+    height: 100%;
+}
+
+.platform-frame-body .min-h-screen,
+.platform-frame-body .min-h-dvh {
+    min-height: 100%;
+}

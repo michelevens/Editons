@@ -5,6 +5,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { watchSystemTheme } from './theme';
+import PlatformFrame from './Components/Platform/PlatformFrame';
 
 // The theme class is set by app.blade.php before paint; this keeps it in step
 // with the device while the choice is 'system'.
@@ -22,11 +23,25 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) =>
-        resolvePageComponent(
+    // Every page sits inside PlatformFrame: the "View as" banner, the
+    // announcement and notices are on every screen without each page having
+    // to remember them. A page with its own layout keeps it, inside.
+    resolve: async (name) => {
+        const page = await resolvePageComponent(
             `./Pages/${name}.jsx`,
             import.meta.glob('./Pages/**/*.jsx'),
-        ),
+        );
+        const own = page.default.layout;
+
+        page.default.layout = own?.platformFramed
+            ? own
+            : Object.assign(
+                  (child) => <PlatformFrame>{typeof own === 'function' ? own(child) : child}</PlatformFrame>,
+                  { platformFramed: true },
+              );
+
+        return page;
+    },
     setup({ el, App, props }) {
         const root = createRoot(el);
 

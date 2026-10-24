@@ -9,7 +9,7 @@ function listOf(items) {
     return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-export default function Register({ offer = null }) {
+export default function Register({ offer = null, signups_open: signupsOpen = true }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: '',
@@ -41,6 +41,18 @@ export default function Register({ offer = null }) {
                         : 'Your first book and a research library — free.'
                 }
             />
+
+            {/* Closed from the admin console (new_signups_open): say so
+                before the form rather than after somebody fills it in. */}
+            {!signupsOpen && (
+                <p
+                    role="status"
+                    data-a="register:closed"
+                    className="mb-6 rounded-xl bg-status-warning-bg px-3.5 py-3 text-[13px] text-status-warning"
+                >
+                    New accounts are not open at the moment. Please try again later.
+                </p>
+            )}
 
             {/* What the free plan actually gives, stated before the form
                 rather than after the signup. The numbers are the configured

@@ -46,6 +46,7 @@ export default function UserMenu({ user, account, bookId = null }) {
     const [open, setOpen] = useState(false);
     const wrap = useRef(null);
     const unread = usePage().props.inbox_unread ?? 0;
+    const staff = Boolean(usePage().props.platform?.role);
 
     // Close on an outside click or Escape. Without both, a menu that opens
     // over the manuscript has to be dismissed by navigating away.
@@ -149,6 +150,17 @@ export default function UserMenu({ user, account, bookId = null }) {
                             ))}
                         </div>
                     ))}
+
+                    {/* Platform staff only, and never during View as (the
+                        server sends no role then). */}
+                    {staff && (
+                        <div className="border-t border-border-divider py-1">
+                            <MenuItem
+                                item={{ key: 'admin', label: 'Ecrivain Admin', icon: 'lock', route: 'admin.dashboard' }}
+                                onDone={() => setOpen(false)}
+                            />
+                        </div>
+                    )}
 
                     <ThemeSwitch />
 

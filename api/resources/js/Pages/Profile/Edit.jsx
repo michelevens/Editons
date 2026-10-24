@@ -1,5 +1,6 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
+import TwoFactorPanel from '@/Components/Platform/TwoFactorPanel';
 import { ThemeSwitch } from '@/Components/Studio/UserMenu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import DeleteUserForm from './Partials/DeleteUserForm';
@@ -23,6 +24,7 @@ export default function Edit({
     book_types: bookTypes,
     plan,
     email_preferences: emailPreferences = [],
+    two_factor: twoFactor = null,
 }) {
     const { auth } = usePage().props;
 
@@ -82,6 +84,16 @@ export default function Edit({
                         >
                             <UpdatePasswordForm className="max-w-full" />
                         </Box>
+
+                        {twoFactor && (
+                            <Box
+                                title="Two-factor sign-in"
+                                detail="A code from an authenticator app as well as your password, so a stolen password is not enough."
+                                data-a="profile:two-factor"
+                            >
+                                <TwoFactorPanel state={twoFactor} />
+                            </Box>
+                        )}
 
                         <Box
                             title="Delete your account"
