@@ -25,6 +25,9 @@ design decisions are in `docs/DECISIONS.md` (ADR — super-admin console).
 | Feature flags (platform switch, per-account override) | ✓ | — |
 | Retry or forget a failed job | ✓ | — |
 | Mark a stuck export failed, resend an email, resolve or ignore an error | ✓ | ✓ |
+| Business pages: billing, plans, book sales, growth, onboarding (read) | ✓ | ✓ |
+| Refunds, plan changes, recording payouts | ✓ | — |
+| Audiences, broadcasts, discount codes, lifecycle emails | ✓ | — |
 | Make or demote an **owner** | shell only | shell only |
 
 Limits are in `config/platform.php` (environment variables, so changing them
@@ -217,3 +220,112 @@ errors) and browser errors, grouped by where they happen, with a count,
 first and last seen, and one example (message, stack without arguments, path
 without its query string, user id). Resolve when fixed: if it comes back it
 opens again. Ignore what is known and harmless.
+
+## Business (billing, plans, book sales, growth, onboarding)
+
+Design decisions: `docs/DECISIONS.md` (ADR — console business). The
+"Business" group in the console's navigation. All staff can read every
+page; every change below is the **owner's**, needs a reason where it moves
+money or reaches people, and is audited in the same transaction. While
+Stripe is not configured, every page still opens and says what is missing
+instead of showing zeros.
+
+### Billing (`/admin/billing`)
+
+- **Overview.** MRR (active and past-due subscriptions, each at the price it
+  is actually on), ARR, ARPA, new and churned MRR this month and net new,
+  trialing and past-due counts. "No paid subscriptions yet" while there are
+  none. Opening MRR and the trend come only from the nightly
+  `platform_metrics` snapshots.
+- **Subscriptions** with status (including *cancels at period end*), plan
+  and search filters; **Trials ending** (7/14/30 days, card on file or not);
+  **Past due** (since the first failed invoice, when Stripe told us);
+  **Cancellations** with the customer's reason from Stripe's cancellation
+  flow (too expensive, missing features…), their comment, and whether they
+  came back. Écrivain has no cancel screen of its own: authors cancel in
+  Stripe's billing portal, and its answers are what is shown.
+- **Credit packs & refunds.** Packs bought, and every refund made from the
+  console. Refund a pack: the money goes back through Stripe, the pack's
+  unspent credits are taken back. Storefront orders are refunded from Book
+  sales; subscription invoices from Stripe's dashboard.
+- Refunds are refused with a sentence when Stripe is not configured. With
+  Stripe, the order updates when Stripe confirms the refund
+  (`charge.refunded`), exactly as for a refund made in Stripe's dashboard.
+
+### Plans (`/admin/plans`)
+
+The plan catalogue every limit reads — monthly credits, books, seats,
+export formats, specialist tier — with visibility *public* (offered),
+*hidden* (not offered, can be given as a complimentary plan) or *legacy*
+(kept for the people on it). It was seeded from `config/billing.php`, which
+stays as the fallback if the table is ever empty.
+
+- **Changing a price never edits a Stripe price.** It creates a new one for
+  new subscribers; everyone already subscribed stays on theirs (the price
+  history on each plan shows it). Without Stripe the new price is recorded
+  and the page says no Stripe price was made.
+- Limits apply to everybody on the plan at once.
+- Free stays at $0 and public: it is what new accounts start on.
+- A new plan's key is permanent (accounts store it).
+
+### Book sales (`/admin/sales`)
+
+Storefront orders across the platform (buyers' addresses masked), totals
+per currency (never added across), estimated payment fees, best sellers and
+authors over 30 days, and gross per day.
+
+- **Royalties owed** per author and currency: what they earned (after the
+  estimated fee and any refunds — the same arithmetic as their statements)
+  less what has been paid.
+- **Stripe Connect is not built**: Écrivain pays nobody automatically. Pay
+  the author outside it (bank transfer, PayPal, Wise, MonCash, cheque),
+  then **Record payout** (amount, method, reference, date, reason). A payout
+  can never be more than is owed.
+- Refund an order (all or part) from its row. A full refund revokes the
+  buyer's download links.
+
+### Growth (`/admin/growth`)
+
+- **Acquisition.** Where accounts came from: the first visit's UTM source,
+  medium and campaign, or the referring site (host only), and the landing
+  page, captured in a cookie and saved at sign-up. Then the funnel —
+  sign-up, first book, first chapter saved, first export, first payment —
+  by source and by sign-up week, counted from the rows. The marketing site
+  is another domain: give its links to `/register` `utm_` parameters.
+- **Audiences.** Saved rules — plan, sign-up date, active within or
+  inactive for, books, words, exported or not, language, country of
+  publication, accepts news — with a live count. Suspended accounts and
+  staff are never in an audience.
+- **Broadcasts.** Subject and plain paragraphs in the standard email
+  template; preview it; **Send me a test** (to you only, marked [Test]);
+  then send now or schedule. It goes in batches of
+  `GROWTH_BROADCAST_PER_MINUTE` (120) a minute, **only to people whose
+  preferences allow "News from Écrivain"**, each with a one-click
+  unsubscribe, once per account. Optionally an inbox item too, for everyone
+  in the audience. Cancel before it starts; it cannot be changed after.
+  Stats: sent (handed to the mail provider), failed, skipped. Opens and
+  clicks are not tracked.
+- **Discounts.** Percent or amount off, storefront and/or plans, a use
+  limit, an expiry, first purchase only. Buyers type storefront codes on a
+  book's page; the order is priced with it, so the author's royalty is on
+  what was paid. Plan codes are stored (with a Stripe coupon when Stripe is
+  set up) but **cannot be used until subscription checkout exists**. A
+  code's value never changes; switch it off instead.
+- **Lifecycle.** "No book three days after signing up" and "two weeks
+  without writing", both off until you switch them on. Hourly, once per
+  account ever, only within `GROWTH_LIFECYCLE_WINDOW_DAYS` (7) of the
+  trigger — switching one on does not email every old account — and only to
+  people who allow "Getting-started tips". Each page shows how many would
+  get it on the next run; **Send me a test** first.
+
+```sh
+php artisan growth:send-broadcasts   # start due broadcasts (scheduled every minute)
+php artisan growth:lifecycle         # send due lifecycle emails (scheduled hourly)
+```
+
+### Onboarding (`/admin/onboarding`)
+
+Verified email, first book, first chapter saved, first export, two-factor
+on, cover designed: how many accounts have done each, and how many are
+stuck at each (the first step they have not done), with the accounts. The
+same checklist, with where the account came from, is on each account page.

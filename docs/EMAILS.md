@@ -54,7 +54,9 @@ Every email has the same anatomy, in a fixed order: **preheader**, header **subt
 | `writing` | toggle | editorial review complete, Book Director report |
 | `publishing` | toggle | export ready, export failed, submitted to stores, live, unpublished |
 | `sales` | toggle | new sale |
-| `digest` | toggle, marketing | weekly digest — the only email with an unsubscribe link and `List-Unsubscribe` / one-click headers |
+| `digest` | toggle, marketing | weekly digest — with an unsubscribe link and `List-Unsubscribe` / one-click headers, like every marketing category |
+| `news` | toggle, marketing | the console's broadcasts (docs/ADMIN.md, Growth) |
+| `tips` | toggle, marketing | the console's lifecycle emails (no book yet, two weeks quiet) |
 
 Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe link is a signed URL (`/email/unsubscribe/{user}/{category}`) that works signed out, and answers RFC 8058 one-click POSTs.
 
@@ -77,6 +79,8 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Editorial review complete | `Writing\EditorialReviewCompleteMail` | writing | queued | Helper `Notify::editorialReviewComplete($review)` |
 | Book Director report | `Writing\BookDirectorReportMail` | writing | queued | Helper `Notify::bookDirectorReport($book, $findings)` |
 | Weekly digest | `Writing\WeeklyDigestMail` | digest | queued | **Command**: `emails:weekly-digest` (not scheduled) |
+| Broadcast | `Growth\BroadcastMail` | news | sent by the broadcast's throttled jobs | **Command**: `growth:send-broadcasts` (every minute), from the console |
+| Lifecycle | `Growth\LifecycleMail` | tips | immediate, from the command | **Command**: `growth:lifecycle` (hourly), campaigns switched on in the console |
 | Export ready | `Publishing\ExportReadyMail` | publishing | queued | **Wired**: `Exporter::run()`, PDF and EPUB only, when it settles the row as ready |
 | Export failed | `Publishing\ExportFailedMail` | publishing | queued | **Wired**: `Exporter::run()` (render threw), `GenerateExport::failed()` (worker timeout) and `Exporter::expireStale()` (dead worker, rows under a day old); PDF and EPUB only, only when the row changed |
 | Ready for the stores | `Publishing\SubmittedToStoresMail` | publishing | queued | **Wired**: `PublishingController::submit`, with each store's upload page. Nothing is sent to a store (no integration exists) and the email says so |

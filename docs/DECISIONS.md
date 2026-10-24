@@ -1581,3 +1581,134 @@ groups; ShiftPulse's rule that health reports "unknown" rather than guess.
 alerts by email when a job goes late (the page shows it; nobody is paged),
 retrying arbitrary jobs, OpenAI image prices (left null until verified),
 attachments on support tickets, and per-plan feature flags.
+
+## ADR-00XX — Console business: billing, plans, book sales, growth, onboarding
+
+**Status:** accepted (2026-10-24). Number assigned at merge.
+
+**Context.** Phases 1–2 (ADR-0029, ADR-0030) let the owner look after
+accounts and run the platform. Nothing in the console said what the
+business earns, who pays and who is about to stop, what authors are owed,
+where accounts come from or how far they get, and the plans themselves
+were a PHP array only a deploy could change. Stripe is not configured in
+production, so every page has to work, and say so, with no paid
+subscription in sight. The patterns come from the user's Credentik
+super-admin (billing ops, plans, book sales, growth: acquisition,
+audiences, broadcasts, discounts, campaigns; onboarding), adapted to
+Laravel, Inertia and this platform's data rather than copied.
+
+**Decisions.**
+
+- *One group.* Every route is in `routes/admin-business.php`, required
+  inside `routes/admin.php`'s `platform.admin` + `platform.2fa` group, so
+  the 404-for-non-staff and two-factor rules cover it. All staff read;
+  every change is `can:platform.owner`, throttled `admin-actions`, and
+  audited in the same transaction (`AdminAudit`). The navigation has a
+  "Business" group of its own (`ADMIN_BUSINESS_NAV`).
+- *Plan catalogue.* `plans` (key, name, price, credits, book and seat
+  limits, formats, specialist tier, visibility public/hidden/legacy) and
+  `plan_prices` (every price a plan has had, with its Stripe price id). The
+  migration seeds both from `config/billing.php`, so the day it ships every
+  limit is identical; `App\Billing\PlanCatalog` reads the table (scoped per
+  request or job) and falls back to the config only when the table is
+  missing or empty. `User::planLimits()`, `Entitlements`, `MonthlyAllowance`
+  (through `planLimits`), `BillingController`, registration's offer and the
+  coming-soon screens read it, in the config's shape. `users.plan` is now a
+  foreign key to `plans.key` instead of a CHECK on three names.
+  `PlanEditor` changes a plan: a new price is a **new** Stripe price
+  (created through the gateway before anything is written, on the old
+  price's product); the old row is retired and kept, so subscribers stay on
+  their price and are still valued at it. Without Stripe the new price is
+  recorded with no Stripe id and the page says so. A configured
+  `STRIPE_PRICE_*` is used only while the catalogue still charges what the
+  config says. Free stays at 0 and public. Hidden and legacy plans can be
+  given as complimentary plans.
+- *Gateway.* `App\Commerce\Gateway\PaymentGateway` gains `refund`,
+  `createRecurringPrice` and `createCoupon` (Stripe and fake).
+  `App\Billing\Payments::refusal()` is the one rule: Stripe needs
+  `STRIPE_SECRET`; the fake gateway is refused in production. Nothing paid
+  is called in tests.
+- *Billing figures* (`App\Billing\BillingReport`), from Cashier's rows and
+  the price history: MRR (active and past due), ARR, ARPA, new MRR
+  (started this month), churned MRR (ended this month, at the price they
+  were on), net new, and opening MRR only from the snapshot taken on the
+  last night of last month. While nobody pays every money figure is null
+  and the page says "No paid subscriptions yet". Cashier does not keep the
+  period end, a scheduled cancellation or when dunning began, so
+  `App\Billing\SubscriptionSync` (a `WebhookHandled` listener, like
+  `SubscriptionEmails`) sets them from Stripe's events, and stores Stripe's
+  `cancellation_details` (reason, feedback, comment) in
+  `subscription_cancellations`, marking one resumed when it is undone.
+  There is no author-side cancel screen to add a reason step to — plan
+  changes and cancelling are Stripe's billing portal — so the reasons are
+  the ones Stripe's flow collects.
+- *Refunds* (`App\Billing\Refunds`), owner only, reason required: a
+  storefront order (all or part) or a credit-pack purchase (the pack's
+  unspent credits are taken back). The gateway is asked first; the refund
+  row and its audit row are written together, and a refusal is recorded as
+  failed and shown. With Stripe the order changes when `charge.refunded`
+  arrives (the path a dashboard refund takes); the fake gateway has no
+  webhook, so its refund is applied through `Fulfilment` at once.
+  Subscription invoices are refunded in Stripe's dashboard: the console
+  keeps no invoices.
+- *Book sales* (`App\Commerce\PlatformSales`): orders across the platform
+  (buyers masked by `App\Platform\Mask`), totals per currency (never added
+  across), royalties from `Revenue::earned` — the statements' arithmetic —
+  less the `payouts` the owner records (method, reference, date; never more
+  than is owed, under a row lock). Stripe Connect is not built, and the
+  page says so.
+- *Acquisition.* `CaptureAttribution` (pushed onto the web group) sets an
+  encrypted first-touch cookie on a guest's first page view — UTM source,
+  medium and campaign, the referring host (never its path or query, never
+  our own), the landing path without its query — and never overwrites it.
+  Registration copies it to `users.signup_*`. `App\Growth\Funnel` counts
+  sign-up, first book, first chapter saved (own versions, not View as),
+  first export and first payment, by source and by sign-up week.
+- *Audiences.* A fixed rule shape (`App\Growth\AudienceRules`), normalised
+  before it is stored or run and compiled to one query: plan, signed up
+  within or before, active within or inactive for (sign-ins and saves, View
+  as excluded), books, words, has exported, language, country of
+  publication, accepts news. Suspended accounts and staff are always out.
+  A live count, and how many accept news, while the rules are built.
+- *Broadcasts* (`App\Growth\Broadcasts`, `BroadcastMail` in the standard
+  template, category `news`, one-click unsubscribe). Draft, scheduled (now
+  or at a time), sending, sent; cancellable until it starts. Every minute
+  `growth:send-broadcasts` claims due broadcasts (one UPDATE), resolves the
+  audience into `broadcast_recipients` (unique per account) and queues
+  batches of `GROWTH_BROADCAST_PER_MINUTE`, a minute apart; each recipient
+  row is claimed before sending, so a retry emails nobody twice.
+  Preferences are checked when the audience is resolved and again by
+  `Notify::send`. The in-app option adds an inbox item (`announcement`) for
+  everyone in the audience — the inbox is not email. A test send goes only
+  to the owner, marked "[Test]", without an unsubscribe link. Opens and
+  clicks are not tracked, and the page says so.
+- *Email categories.* `news` and `tips` are new marketing categories, on
+  by default like the weekly digest, each switchable in the profile and by
+  the footer link.
+- *Discount codes* (`App\Growth\Discounts`): percent or amount, storefront
+  and/or plans, a limit (counting paid orders and checkouts open in the
+  last two hours), an expiry, first purchase only. At the storefront a code
+  lowers the order's price before the Checkout Session, so the session,
+  the webhook's amount check and the author's royalty all see the price
+  paid; the redemption is recorded once, when the order is paid. Stripe
+  takes no card payment under 50¢, so a code may not go below it.
+  Subscription checkout is not built: plan codes are stored, with a Stripe
+  coupon when Stripe is configured, and the page says nobody can use them
+  yet. Kind and value never change once a code exists.
+- *Lifecycle emails* (`App\Growth\Lifecycle`, `LifecycleMail`, category
+  `tips`): "no book N days after signing up" and "N days without signing in
+  or writing", seeded switched off. `growth:lifecycle` (hourly) writes the
+  unique `lifecycle_sends` row before the email (ON CONFLICT DO NOTHING), so
+  each goes once per account, ever, and only within
+  `GROWTH_LIFECYCLE_WINDOW_DAYS` of the trigger, so switching one on does
+  not email every dormant account.
+- *Onboarding* (`App\Growth\Onboarding`): verified email, first book, first
+  chapter, first export, two-factor, cover designed — from rows, on the
+  account page with the first touch, and an overview of how many accounts
+  are stuck at each step (the first one not done), with the list.
+
+**Not done.** Subscription checkout and a self-serve cancel screen (so no
+reason step of our own, and plan codes cannot be redeemed yet); Stripe
+Connect payouts; open and click tracking (it needs Resend's webhooks);
+refunding subscription invoices from the console; attribution across the
+marketing site's domain (its links must carry `utm_` parameters).
