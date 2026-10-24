@@ -12,7 +12,7 @@ Every email Écrivain sends: what each one says, what triggers it, how preferenc
 | Partials: button, callout, facts, status badge, stat card, stats row, divider, book card, items, table, quote | `api/resources/views/emails/partials/` |
 | What an email says, slot by slot | `App\Mail\Support\Letter` |
 | Base Mailable (sender, views, footer, unsubscribe headers) | `App\Mail\EcrivainMail` |
-| One Mailable per occasion (34) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce,Trust}\*` |
+| One Mailable per occasion (37) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce,Trust,Growth}\*` |
 | Dispatch helper: the only way to send | `App\Mail\Notify` |
 | Preferences | `App\Mail\EmailPreferences`, `users.email_preferences` |
 | Sample data for every email | `App\Mail\Support\EmailCatalog` |
@@ -50,7 +50,7 @@ Every email has the same anatomy, in a fixed order: **preheader**, header **subt
 | `account` | always on | welcome, verify email, password reset, password changed, email changed, new sign-in, account deleted, support reply, data export ready, store listing taken down or restored |
 | `billing` | always on | subscription receipt, payment failed, plan changed, subscription cancelled, trial ending, credits low, royalty statement |
 | `receipts` | always on | order receipt, refund (to buyers, who usually have no account) |
-| `collaboration` | toggle | invitation, invitation accepted, mention, reply, reviewer assigned |
+| `collaboration` | toggle | invitation to a book, invitation to join Écrivain (always sent: the invitee has no account), invitation accepted, mention, reply, reviewer assigned |
 | `writing` | toggle | editorial review complete, Book Director report |
 | `publishing` | toggle | export ready, export failed, submitted to stores, live, unpublished |
 | `sales` | toggle | new sale |
@@ -83,6 +83,7 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Book Director report | `Writing\BookDirectorReportMail` | writing | queued | Helper `Notify::bookDirectorReport($book, $findings)` |
 | Weekly digest | `Writing\WeeklyDigestMail` | digest | queued | **Command**: `emails:weekly-digest` (not scheduled) |
 | Broadcast | `Growth\BroadcastMail` | news | sent by the broadcast's throttled jobs | **Command**: `growth:send-broadcasts` (every minute), from the console |
+| Invitation to join | `Growth\AuthorInvitationMail` | collaboration | queued | **Wired**: console → Business → Invitations (`Growth\Invitations\Invitations::invite`, `::bulk`, `::resend`). Carries the only copy of the `/join/{token}` link, so `ContainsSecrets`: metadata only in the email log, never resent from there (Send again in the console mints a new link) |
 | Lifecycle | `Growth\LifecycleMail` | tips | immediate, from the command | **Command**: `growth:lifecycle` (hourly), campaigns switched on in the console |
 | Export ready | `Publishing\ExportReadyMail` | publishing | queued | **Wired**: `Exporter::run()`, PDF and EPUB only, when it settles the row as ready |
 | Export failed | `Publishing\ExportFailedMail` | publishing | queued | **Wired**: `Exporter::run()` (render threw), `GenerateExport::failed()` (worker timeout) and `Exporter::expireStale()` (dead worker, rows under a day old); PDF and EPUB only, only when the row changed |
@@ -99,6 +100,25 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | New sale (author) | `Commerce\NewSaleMail` | sales | queued | **Wired**: order fulfilled, to each seller |
 | Refund processed | `Commerce\RefundProcessedMail` | receipts | queued | **Wired**: `charge.refunded` (`Fulfilment::chargeRefunded`), once per refunded amount |
 | Royalty statement | `Commerce\RoyaltyStatementMail` | billing | queued | **Command**: `commerce:royalty-statements` (not scheduled; one per author, month and currency, ever) |
+
+## The invitation to join (`Growth\AuthorInvitationMail`)
+
+- **Language.** English, French or Haitian Creole, chosen per invitation.
+  The copy is in the Mailable (`AuthorInvitationMail::COPY`) because the app
+  has no `lang/*.json` yet; the shared footer stays English until it does.
+  **The Haitian Creole is awaiting review by a native speaker** — change
+  `COPY['ht']` only, nothing else depends on the wording.
+- **Signed** "the Écrivain team" (`l’équipe Écrivain`, `ekip Écrivain`). The
+  sender's own name only with `GROWTH_INVITATION_SHOW_INVITER=true`.
+- **The note** staff type is a quote block, plain text and escaped like
+  every slot (a test sends `<script>` in it).
+- **No unsubscribe footer.** It is one personal message to somebody without
+  an account, not a list mailing, so it is not a marketing category. In its
+  place a secondary link, *Don’t invite me again*, opens a confirmation
+  that puts the address (as an HMAC) on the do-not-invite list; the console
+  then refuses to invite it.
+- **Bounces** are not known (no provider webhook), so there is no
+  "bounced" state; "sent" means handed to the mailer.
 
 ## Call sites to wire after merge
 

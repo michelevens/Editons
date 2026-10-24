@@ -1819,3 +1819,88 @@ is only as good as its signals: email delivery and the API are not measured
 unless configured. New-location detection is informative only until devices
 are remembered. Deployers should run `platform:stamp-release` before
 `railway up` for the Releases page to name the commit.
+
+## ADR-00XX — Author invitations from the console
+
+**Status:** accepted (2026-10-24). Number assigned at merge.
+
+**Context.** The owner asked that staff be able to invite potential authors.
+The obvious use is an invite-only beta: *New sign-ups open* switched off,
+and a link that still lets the invited person in. Book invitations
+(`book_members`) invite somebody to one author's book and are not this;
+the console's phase-1 account actions (complimentary plans, credit grants),
+email templates, email log, inbox and Growth's first-touch attribution were
+all there to build on.
+
+**Decisions.**
+
+- *A table of its own.* `author_invitations` (address lower-cased, name,
+  language en/fr/ht, note, perks JSON, SHA-256 of the token, status
+  pending/accepted/expired/revoked/declined, sender, batch, campaign, sent,
+  resend count, accepted account and time, expiry) and
+  `author_invitation_batches` for a list. A partial unique index allows one
+  pending invitation per address, so two staff sending at once cannot both
+  succeed whatever the checks said; a pending row past its date is settled
+  as expired before a new one is made.
+- *The token exists only in the email.* `Str::random(48)`, stored as its
+  SHA-256; the Mailable carries it, so it is `ContainsSecrets` (metadata
+  only in the email log, no resend from there). A resend mints a new token —
+  the old link stops working — because the old one cannot be recovered.
+  The queued job holds the token until it is sent, as every queued
+  invitation mail does. Attribution's landing path drops `/join/…`,
+  `/invitations/…` and `/reset-password/…` segments so a token never lands
+  in the first-touch cookie or on an account.
+- *Who may be invited.* Not an address with an account ("Already a member",
+  linked), not one with a live pending invitation (resend it), not one on
+  the do-not-invite list. There was no global "do not contact" list to
+  honour, and the invitation is a one-off personal message rather than
+  marketing (category `collaboration`, no unsubscribe footer — the invitee
+  has no preferences to consult). What stands in for an unsubscribe is
+  *Don't invite me again* in the email: it declines the invitation and
+  stores an HMAC of the address (`author_invitation_opt_outs`), so the
+  list refuses without being a list of addresses.
+- *Roles.* Owner and support both invite (support handles beta requests).
+  A plan perk is the owner's, as complimentary plans are; credits follow the
+  phase-1 limits (support 500, owner 100,000). Sends are throttled per staff
+  member (10/min, 60/h) and capped per 24 hours (owner 1,000, support 100,
+  resends included) by counting `invitation.sent`/`invitation.resent` audit
+  rows — the audit log is already the record of who sent what.
+- *Lists are previewed, then checked again.* The preview parses pasted text
+  or a CSV (BOM, CRLF, comma/semicolon/tab, quoted cells, Windows-1252
+  fallback) and gives each row a status; nothing is written. Sending re-runs
+  the same checks on the rows sent and skips what no longer qualifies. At
+  most 200 rows a batch. Each invitation and its audit row are one
+  transaction; the email is handed to the mailer after the commit.
+- *Joining.* `/join/{token}` is outside `auth` and ignores
+  `new_signups_open`. The address is the invitation's, not a form field.
+  Registering creates the account and accepts in one transaction, with the
+  invitation row locked (single use): perks through the existing mechanisms
+  — `AccountAdmin::setComplimentary` (now accepting a null actor for a
+  sender who has left) with an end date of N months, and
+  `CreditLedger::grant` as `admin_grant`, labelled and referenced by the
+  invitation so it cannot be granted twice — audited as the sender's, the
+  acceptance as the invitee's. A perk that cannot apply (the account pays
+  through Stripe) is skipped and recorded in `perks_applied`, not a failed
+  registration. The email is marked verified (the link proved it), the
+  source set to `invite`/`email` with the campaign (or `batch-N`), and a
+  `welcome` inbox item says what came with it. A signed-in account with the
+  invited address accepts with a button (keeping its own first touch); a
+  different account is told to sign out; View as refuses `/join/*`. Expired,
+  revoked, used, declined and unknown links each get a sentence and a way
+  to ask for a new one, never an error page.
+- *Tracking.* Counts by state (a pending row past its date counts as
+  expired before the hourly `invitations:expire` writes it), a funnel
+  invited → accepted → first book → first chapter (not View as) → first
+  export from the rows, filters (state, batch, sender, dates, search), a
+  timeline from the audit rows plus the account's firsts, the email log's
+  entries, and an audited CSV export with formula cells quoted.
+- *Offboarding* anonymises an account's invitations (address replaced, name
+  and note cleared, a pending one revoked) and keeps them in the counts.
+- *Email copy* in English, French and Haitian Creole lives in the Mailable
+  until the app has translation files; the Creole awaits native review.
+  Signed "the Écrivain team" unless `GROWTH_INVITATION_SHOW_INVITER` is on.
+
+**Not done.** A public "request an invitation" form (not asked for);
+bounce tracking (needs the provider's webhook, so there is no `bounced`
+state); translating the shared email footer and the join page.
+

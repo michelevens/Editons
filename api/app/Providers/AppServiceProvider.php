@@ -128,6 +128,12 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(20)->by('admin-minute|'.$request->user()?->id),
             Limit::perHour(200)->by('admin-hour|'.$request->user()?->id),
         ]);
+        // Sending invitations, per staff member: a list is one request, so
+        // the daily cap (Invitations::remainingToday) does the counting.
+        RateLimiter::for('invitations', fn (Request $request) => [
+            Limit::perMinute(10)->by('invitations-minute|'.$request->user()?->id),
+            Limit::perHour(60)->by('invitations-hour|'.$request->user()?->id),
+        ]);
         RateLimiter::for('impersonation', fn (Request $request) => Limit::perMinute(5)->by('view-as|'.$request->user()?->id));
 
         // Running the platform (phase 2): heartbeats from every scheduled

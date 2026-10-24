@@ -23,6 +23,7 @@ use App\Http\Controllers\GrowthController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\JoinController;
 use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
 use App\Http\Controllers\ManuscriptSectionController;
@@ -334,6 +335,23 @@ Route::get('/invitations/{token}', [InvitationController::class, 'show'])
 Route::post('/invitations/{token}', [InvitationController::class, 'accept'])
     ->middleware('auth')
     ->name('invitations.accept');
+
+/*
+ | Joining Écrivain from an invitation the console sent (ADR — author
+ | invitations). Signed out by design, and open while new sign-ups are
+ | closed: that is what an invite-only beta is. Registering shares the
+ | sign-up page's throttle.
+ */
+Route::get('/join/{token}', [JoinController::class, 'show'])->name('join.show');
+Route::post('/join/{token}', [JoinController::class, 'register'])
+    ->middleware(['guest', 'throttle:register'])
+    ->name('join.register');
+Route::post('/join/{token}/accept', [JoinController::class, 'accept'])
+    ->middleware(['auth', 'throttle:10,1'])
+    ->name('join.accept');
+Route::post('/join/{token}/decline', [JoinController::class, 'decline'])
+    ->middleware('throttle:10,1')
+    ->name('join.decline');
 
 /*
  | Comments. Gated on view rather than update: a reviewer who cannot edit the

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\Business\BillingController;
 use App\Http\Controllers\Admin\Business\GrowthController;
+use App\Http\Controllers\Admin\Business\InvitationsController;
 use App\Http\Controllers\Admin\Business\OnboardingController;
 use App\Http\Controllers\Admin\Business\PlansController;
 use App\Http\Controllers\Admin\Business\SalesController;
@@ -31,6 +32,29 @@ Route::prefix('growth')->name('growth.')->group(function () {
     Route::get('/broadcasts/{broadcast}', [GrowthController::class, 'editBroadcast'])->whereNumber('broadcast')->name('broadcasts.edit');
     Route::get('/discounts', [GrowthController::class, 'discounts'])->name('discounts.index');
     Route::get('/lifecycle', [GrowthController::class, 'lifecycle'])->name('lifecycle.index');
+});
+
+/*
+ | Invitations (ADR — author invitations). Owner and support both invite —
+ | support without a plan and with credits up to its grant limit, which
+ | Invitations::perks enforces. Sending is throttled twice: the console's
+ | write limit, and `invitations` per staff member; the daily cap is counted
+ | from the audit log.
+ */
+Route::get('/invitations', [InvitationsController::class, 'index'])->name('invitations.index');
+Route::get('/invitations/export', [InvitationsController::class, 'export'])
+    ->middleware('throttle:admin-actions')
+    ->name('invitations.export');
+Route::get('/invitations/{invitation}', [InvitationsController::class, 'show'])->whereNumber('invitation')->name('invitations.show');
+Route::post('/invitations/preview', [InvitationsController::class, 'preview'])
+    ->middleware('throttle:60,1')
+    ->name('invitations.preview');
+
+Route::middleware(['throttle:admin-actions', 'throttle:invitations'])->group(function () {
+    Route::post('/invitations', [InvitationsController::class, 'store'])->name('invitations.store');
+    Route::post('/invitations/bulk', [InvitationsController::class, 'bulk'])->name('invitations.bulk');
+    Route::post('/invitations/{invitation}/resend', [InvitationsController::class, 'resend'])->whereNumber('invitation')->name('invitations.resend');
+    Route::post('/invitations/{invitation}/revoke', [InvitationsController::class, 'revoke'])->whereNumber('invitation')->name('invitations.revoke');
 });
 
 Route::middleware(['can:platform.owner', 'throttle:admin-actions'])->group(function () {

@@ -40,6 +40,12 @@ Schedule::command('growth:send-broadcasts')->everyMinute()->withoutOverlapping()
 Schedule::command('growth:lifecycle')->hourly()->withoutOverlapping();
 
 /*
+ | Invitations past their date are marked expired. The link refuses them
+ | from that moment anyway; this keeps the console's counts honest.
+ */
+Schedule::command('invitations:expire')->hourly()->withoutOverlapping();
+
+/*
  | Trust and operations: the data checks once a day (the console shows the
  | stored run), and account exports deleted once their link has expired.
  */

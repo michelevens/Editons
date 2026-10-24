@@ -31,6 +31,7 @@ const KIND_ICONS = {
     support: 'help',
     announcement: 'bell',
     moderation: 'info',
+    welcome: 'heart',
 };
 
 const VIEWS = [

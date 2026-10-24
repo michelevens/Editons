@@ -111,8 +111,12 @@ final class AccountAdmin
      * Refused while the account pays Stripe: the subscription decides the
      * plan there, and a gift on top would be overwritten by the next invoice,
      * or worse, outlive a cancellation (PlanDraft's setPlanDraftPlan rule).
+     *
+     * $actor is null when the platform gives it on staff's behalf and the
+     * staff account is gone (an accepted invitation whose sender left): the
+     * audit row is then the system's.
      */
-    public function setComplimentary(User $target, string $plan, ?Carbon $until, string $reason, User $actor): void
+    public function setComplimentary(User $target, string $plan, ?Carbon $until, string $reason, ?User $actor): void
     {
         // Any paid plan in the catalogue, hidden and legacy ones included:
         // a plan no longer offered can still be given.
@@ -144,7 +148,7 @@ final class AccountAdmin
             ])->save();
 
             [$from, $to] = AdminAudit::diff($before, $this->planState($target));
-            AdminAudit::record('plan.complimentary_set', $target, $from, $to, $reason, $actor);
+            AdminAudit::record('plan.complimentary_set', $target, $from, $to, $reason, $actor, system: $actor === null);
         });
     }
 
