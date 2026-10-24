@@ -2,6 +2,7 @@
 
 namespace App\Commerce;
 
+use App\Commerce\Partners\Commissions;
 use App\Models\Book;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -20,7 +21,9 @@ use Illuminate\Support\Collection;
  *   refunded  what was given back
  *   fee       estimated payment fees (App\Commerce\Revenue)
  *   net       gross − refunded − fee
- *   royalty   the author's share, after refunds
+ *   royalty   the author's share, after refunds — and after partners'
+ *             commissions, which are their own figure (partner) so a
+ *             statement shows where the difference went
  *
  * Money is never added across currencies: totals come per currency, and the
  * daily series is in the currency with the most sales.
@@ -73,6 +76,7 @@ final class SalesReport
                     'amount_cents' => $item->price_cents,
                     'refunded_cents' => $item->refunded_cents,
                     'royalty_cents' => Revenue::earned($item),
+                    'partner_cents' => Commissions::earned($item),
                     'currency' => $item->order->currency,
                     'status' => $item->order->status,
                     'country' => $item->order->buyer_country,
@@ -102,6 +106,8 @@ final class SalesReport
             'fee_cents' => $fee,
             'net_cents' => $gross - $refunded - $fee,
             'royalty_cents' => (int) $rows->sum(fn (OrderItem $item) => Revenue::earned($item)),
+            'partner_cents' => (int) $rows->sum(fn (OrderItem $item) => Commissions::earned($item)),
+            'partner_units' => $rows->where('partner_commission_cents', '>', 0)->count(),
         ];
     }
 
@@ -145,6 +151,10 @@ final class SalesReport
      * it happened reduces that month's royalty through Revenue::earned on
      * the item as it stands now — simple, and never negative.
      *
+     * Sales a partner brought in show at the royalty before the partner's
+     * commission, and the commissions are their own line ("Partner
+     * commissions", negative), so the lines add up to what was earned.
+     *
      * @return array<string, array{units: int, royalty_cents: int, lines: list<array{title: string, channel: string, units: int, royalty_cents: int}>}>
      */
     public static function month(User $seller, CarbonInterface $month): array
@@ -167,10 +177,22 @@ final class SalesReport
                         'title' => $group->first()->title,
                         'channel' => __('Écrivain store'),
                         'units' => $group->filter(fn (OrderItem $item) => $item->refunded_cents < $item->price_cents)->count(),
-                        'royalty_cents' => (int) $group->sum(fn (OrderItem $item) => Revenue::earned($item)),
+                        'royalty_cents' => (int) $group->sum(fn (OrderItem $item) => Revenue::earned($item) + Commissions::earned($item)),
                     ])
                     ->values()
                     ->all();
+
+                $commissions = (int) $rows->sum(fn (OrderItem $item) => Commissions::earned($item));
+
+                if ($commissions > 0) {
+                    $lines[] = [
+                        'title' => __('Partner commissions'),
+                        'channel' => __('Écrivain Partners'),
+                        // Not copies: the copies are counted on their books.
+                        'units' => 0,
+                        'royalty_cents' => -$commissions,
+                    ];
+                }
 
                 return [
                     'units' => array_sum(array_column($lines, 'units')),

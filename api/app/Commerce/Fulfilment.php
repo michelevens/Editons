@@ -2,6 +2,8 @@
 
 namespace App\Commerce;
 
+use App\Commerce\Partners\Commissions;
+use App\Commerce\Partners\PartnerNotices;
 use App\Growth\Discounts;
 use App\Mail\Notify;
 use App\Models\License;
@@ -104,11 +106,17 @@ final class Fulfilment
             // A discount code counts as used once the order is paid.
             app(Discounts::class)->redeem($order);
 
-            return $order;
+            // A partner's commission comes out of the seller's royalty, so
+            // it is taken before anybody is told what they earned.
+            $commissions = app(Commissions::class)->accrue($order, $items);
+
+            return [$order, $commissions];
         });
 
         if ($fulfilled) {
+            [$fulfilled, $commissions] = $fulfilled;
             $this->announceSale($fulfilled->fresh(['items.license', 'items.product.book', 'items.book', 'items.seller']));
+            PartnerNotices::earned($commissions);
         }
 
         return $fulfilled;
@@ -181,6 +189,9 @@ final class Fulfilment
                     ->where('status', 'active')
                     ->update(['status' => 'revoked', 'revoked_at' => now()]);
             }
+
+            // A partner's commission shrinks with the sale it came from.
+            app(Commissions::class)->refunded($order);
 
             return [$order, $delta];
         });
