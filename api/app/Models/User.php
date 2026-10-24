@@ -30,6 +30,8 @@ use Laravel\Cashier\Billable;
     // the account must be listed here or it reaches the browser.
     'two_factor_secret', 'two_factor_recovery_codes', 'two_factor_last_step',
     'suspended_reason', 'sessions_revoked_at',
+    // Set by the owner in the console; the author is told when it is reached.
+    'ai_monthly_cap_usd',
 ])]
 class User extends Authenticatable
 {
@@ -150,6 +152,7 @@ class User extends Authenticatable
             'sessions_revoked_at' => 'datetime',
             'complimentary_since' => 'datetime',
             'complimentary_until' => 'datetime',
+            'ai_monthly_cap_usd' => 'decimal:2',
             // Overrides only; App\Mail\EmailPreferences resolves defaults.
             'email_preferences' => 'array',
             'password' => 'hashed',

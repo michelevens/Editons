@@ -6,6 +6,7 @@ use App\Editorial\Contracts\EditorialDriver;
 use App\Editorial\EditorialAgent;
 use App\Editorial\Finding;
 use App\Editorial\ReviewResult;
+use App\Platform\Ai\AiPricing;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -27,25 +28,6 @@ use RuntimeException;
  */
 class AnthropicDriver implements EditorialDriver
 {
-    /**
-     * Price per million tokens, in USD, keyed by model prefix.
-     *
-     * Used only to record what a review cost. Unknown models record a null
-     * cost rather than a guess — an invented number in a billing column is
-     * worse than an absent one.
-     *
-     * @var array<string, array{in: float, out: float}>
-     */
-    private const PRICING = [
-        // Most specific first: 'claude-opus-5' would otherwise match
-        // claude-opus-5-5 and record Opus 5's higher rate.
-        'claude-opus-5-5' => ['in' => 4.0, 'out' => 20.0],
-        'claude-opus-5' => ['in' => 5.0, 'out' => 25.0],
-        'claude-sonnet-5-5' => ['in' => 2.0, 'out' => 10.0],
-        'claude-sonnet-5' => ['in' => 2.0, 'out' => 10.0],
-        'claude-haiku-5-5' => ['in' => 0.10, 'out' => 0.50],
-    ];
-
     /** Appended to both examiners' roles. */
     private const EXAMINER_RULES = ' Never rewrite the student\'s text and never supply replacement sentences: this is work they will submit for a degree, so explain the problem and what a strong answer would demonstrate, and leave the writing to them. Never invent, name or recommend specific sources you cannot verify; say what kind of source is missing.';
 
@@ -285,19 +267,12 @@ class AnthropicDriver implements EditorialDriver
         return $schema;
     }
 
-    /** Null for an unrecognised model: an invented cost is worse than none. */
+    /**
+     * Null for an unrecognised model: an invented cost is worse than none.
+     * The price table is config/platform.php's, shared with the AI usage log.
+     */
     private function cost(string $model, int $inputTokens, int $outputTokens): ?float
     {
-        foreach (self::PRICING as $prefix => $rates) {
-            if (str_starts_with($model, $prefix)) {
-                return round(
-                    ($inputTokens / 1_000_000) * $rates['in']
-                        + ($outputTokens / 1_000_000) * $rates['out'],
-                    6,
-                );
-            }
-        }
-
-        return null;
+        return AiPricing::tokens('anthropic', $model, $inputTokens, $outputTokens);
     }
 }

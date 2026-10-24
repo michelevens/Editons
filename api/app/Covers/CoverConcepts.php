@@ -22,6 +22,9 @@ use RuntimeException;
  */
 class CoverConcepts
 {
+    /** What the last call to Claude used, read by propose(). */
+    private ?array $usage = null;
+
     /**
      * Whether proposing is real here. The fake designer exists for tests and
      * development; in production it would charge for templates.
@@ -34,11 +37,12 @@ class CoverConcepts
     }
 
     /**
-     * @return array{concepts: array<int, array<string, mixed>>, model: string}
+     * @return array{concepts: array<int, array<string, mixed>>, model: string, usage: ?array{input: int, output: int, model: string}}
      */
     public function propose(Book $book): array
     {
         $driver = config('covers.concepts.driver');
+        $this->usage = null;
 
         $concepts = match ($driver) {
             'anthropic' => $this->claude($book),
@@ -48,7 +52,21 @@ class CoverConcepts
         return [
             'concepts' => array_map(fn (array $c) => $this->clean($c), array_slice($concepts, 0, 3)),
             'model' => $driver === 'anthropic' ? (string) config('covers.concepts.model') : 'fake',
+            // Token counts as the provider reported them, for the AI usage
+            // log; null for the fake designer, which calls nobody.
+            'usage' => $this->usage,
         ];
+    }
+
+    /**
+     * The tokens the last call used, even when it then failed (a refusal is
+     * still billed by the provider).
+     *
+     * @return array{input: int, output: int, model: string}|null
+     */
+    public function lastUsage(): ?array
+    {
+        return $this->usage;
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -134,6 +152,12 @@ class CoverConcepts
                 ],
             ],
         );
+
+        $this->usage = [
+            'input' => $message->usage->inputTokens,
+            'output' => $message->usage->outputTokens,
+            'model' => $message->model,
+        ];
 
         if ($message->stopReason === 'refusal') {
             throw new RuntimeException('The designer declined this book. Try again, or design the cover by hand.');

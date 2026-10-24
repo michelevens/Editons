@@ -6,6 +6,8 @@ use App\Covers\CoverArtist;
 use App\Covers\CoverConcepts;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
+use App\Platform\Ai\AiControls;
+use App\Platform\Features;
 use App\Publishing\CoverRenderer;
 use App\Publishing\DocumentRenderer;
 use Illuminate\Http\JsonResponse;
@@ -224,8 +226,12 @@ class DesignController extends Controller
             'ai' => [
                 'concepts_cost' => config('billing.costs.cover_concepts'),
                 'artwork_cost' => config('billing.costs.cover_artwork'),
-                'concepts_available' => CoverConcepts::available(),
-                'artwork_available' => CoverArtist::available(),
+                // Configured, and not switched off for this account.
+                'concepts_available' => CoverConcepts::available() && Features::enabled('ai_cover', auth()->user()),
+                'artwork_available' => CoverArtist::available() && Features::enabled('ai_cover', auth()->user()),
+                // The kill switch's sentence, when it is thrown.
+                'concepts_paused' => app(AiControls::class)->refusal('cover_concepts', auth()->user()),
+                'artwork_paused' => app(AiControls::class)->refusal('cover_artwork', auth()->user()),
             ],
             'layouts' => collect(CoverRenderer::LAYOUTS)
                 ->map(fn ($name, $key) => ['key' => $key, 'name' => $name])

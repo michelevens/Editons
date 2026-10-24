@@ -11,6 +11,7 @@ use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Platform\Ai\AiMeter;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -71,7 +72,7 @@ class ReviewRunner
             // credits pay for, and production ran on them for weeks.
             $charge = $this->simulated() ? null : $this->charge($userId, $agent, $review);
 
-            $result = $this->driver->review($agent, $text);
+            $result = $this->callDriver($agent, $text, $section, $userId);
 
             DB::transaction(function () use ($review, $section, $agent, $result) {
                 // Supersede the previous open findings from this same agent.
@@ -131,6 +132,43 @@ class ReviewRunner
         Inbox::reviewFinished($review);
 
         return $review;
+    }
+
+    /**
+     * Ask the driver, and put the call in the AI usage log either way.
+     *
+     * Sample output is recorded too (simulated, nothing spent), and so are
+     * failures: the console's failure rate comes from these rows.
+     */
+    private function callDriver(EditorialAgent $agent, string $text, ManuscriptSection $section, ?int $userId): ReviewResult
+    {
+        $started = hrtime(true);
+        $row = [
+            'feature' => 'editorial_review',
+            'provider' => $this->driver->name(),
+            'user' => $userId,
+            'book' => $section->book_id,
+            'simulated' => $this->simulated(),
+        ];
+
+        try {
+            $result = $this->driver->review($agent, $text);
+        } catch (Throwable $e) {
+            AiMeter::record(...$row, model: null, status: 'failed', latencyMs: AiMeter::since($started), error: $e->getMessage());
+
+            throw $e;
+        }
+
+        AiMeter::record(
+            ...$row,
+            model: $result->model,
+            inputTokens: $result->inputTokens,
+            outputTokens: $result->outputTokens,
+            cost: $result->costUsd,
+            latencyMs: AiMeter::since($started),
+        );
+
+        return $result;
     }
 
     /** Is this driver's output sample output rather than a model's review? */
