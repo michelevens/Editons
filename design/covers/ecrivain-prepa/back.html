@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Écrivain Prépa back cover (print), 1838 × 2775: the back panel of a 6 × 9 in
+   * paperback at 300 dpi, with the 0.125 in bleed on the outer, top and bottom
+   * edges (none on the spine side, where the wrap continues). Uploaded as the
+   * book's back cover; the platform's cover wrap places it beside the spine.
+   *
+   * Same tokens as the front: ivory #FFFDF5, navy #06243E, yellow #FFC62B, the
+   * subject colour (c1, darkened) for PRÉPA and the check marks. Anonymous: no
+   * author anywhere, only the series/publisher wordmark.
+   *
+   * Geometry (px): bleed 37.5 on the left, top and bottom; type stays 0.25 in
+   * (75 px) inside the trim, so x 112–1763 and y 112–2662.
+   *   112–262     header: wordmark, edition
+   *   300–440     level bar
+   *   500–1130    the book's description, fitted to its zone
+   *   1180–1660   "In this book": four counts taken from the book itself
+   *   1700–2140   illustration strip (the front's panel art), full bleed
+   *   2140–2260   promise band
+   *   2302–2662   barcode area, KDP's 2 × 1.2 in at the lower right, kept white;
+   *               the wordmark sits at the lower left, opposite it.
+   */
+  :root { --ivory: #FFFDF5; --navy: #06243E; --yellow: #FFC62B; --l: 112px; --r: 75px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1838px; height: 2775px; overflow: hidden; }
+  body { font-family: Inter, Arial, sans-serif; background: var(--ivory); color: var(--navy); position: relative; }
+
+  .top { position: absolute; top: 112px; left: var(--l); right: var(--r); height: 150px; display: flex; align-items: center; justify-content: space-between; }
+  .mark { font-family: Anton, Impact, sans-serif; font-weight: 400; line-height: 1; letter-spacing: 1px; position: relative; color: var(--navy); }
+  .mark b { font-weight: 400; color: var(--brand); margin-left: .22em; }
+  .mark::after { content: ''; position: absolute; left: .03em; bottom: -.2em; width: 2.6em; height: .12em; border-radius: .06em; background: var(--yellow); }
+  .top .mark { font-size: 96px; }
+  .edition { text-align: right; font-size: 34px; font-weight: 600; letter-spacing: 7px; text-transform: uppercase; line-height: 1.1; }
+  .edition b { display: block; font-size: 70px; font-weight: 900; letter-spacing: 2px; border-bottom: 10px solid var(--yellow); padding-bottom: 5px; }
+
+  .level { position: absolute; top: 300px; left: var(--l); right: var(--r); height: 140px; border-radius: 22px; background: var(--navy); color: #fff;
+        display: flex; align-items: center; justify-content: center; gap: .5em; font-weight: 900; font-size: 62px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
+  .level sup { font-size: .58em; letter-spacing: 0; text-transform: none; vertical-align: .62em; line-height: 0; }
+  .level i { font-style: normal; color: var(--yellow); margin: 0 .3em; }
+
+  .desc { position: absolute; top: 500px; left: var(--l); right: var(--r); height: 630px; display: flex; align-items: center; }
+  .desc p { font-size: 50px; line-height: 1.42; font-weight: 500; }
+
+  .inside { position: absolute; top: 1180px; left: var(--l); right: var(--r); }
+  .inside h2 { font-size: 46px; font-weight: 800; letter-spacing: 6px; text-transform: uppercase; color: var(--brand); margin-bottom: 26px; }
+  .inside li { list-style: none; display: flex; gap: 30px; align-items: center; font-size: 50px; font-weight: 600; line-height: 1.2; margin-bottom: 20px; white-space: nowrap; }
+  .inside li i { flex: 0 0 68px; height: 68px; border-radius: 50%; background: var(--brand); color: #fff; font-style: normal; font-weight: 900;
+        display: flex; align-items: center; justify-content: center; font-size: 40px; }
+  .inside li b { font-weight: 900; }
+
+  .panel { position: absolute; top: 1700px; left: 0; right: 0; height: 440px; overflow: hidden; background: linear-gradient(120deg, var(--c1), var(--c2)); }
+  .panel img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+  .band { position: absolute; top: 2140px; left: 0; right: 0; height: 120px; background: var(--navy); color: #fff;
+        display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 46px; letter-spacing: 5px; text-transform: uppercase; white-space: nowrap; }
+
+  .foot { position: absolute; left: var(--l); top: 2302px; height: 360px; width: 1000px; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; }
+  .foot .mark { font-size: 76px; }
+  .foot p { font-size: 30px; font-weight: 500; color: rgba(6,36,62,.75); line-height: 1.3; margin-top: 24px; }
+  /* KDP prints its barcode here; the area stays plain white. */
+  .barcode { position: absolute; left: 1163px; top: 2302px; width: 600px; height: 360px; background: #fff; }
+</style>
+</head>
+<body>
+<header class="top"><div class="mark">ÉCRIVAIN<b>PRÉPA</b></div><div class="edition" id="edition"></div></header>
+<div class="level" id="level"></div>
+<div class="desc"><p id="desc"></p></div>
+<section class="inside"><h2 id="insideTitle"></h2><ul id="inside"></ul></section>
+<div class="panel" id="panel"></div>
+<div class="band" id="tagline"></div>
+<footer class="foot"><div class="mark">ÉCRIVAIN<b>PRÉPA</b></div><p id="footnote"></p></footer>
+<div class="barcode" aria-hidden="true"></div>
+<script>
+const d = window.COVER;
+const r = document.documentElement.style;
+for (const k of ['c1', 'c2']) r.setProperty('--' + k, d[k]);
+r.setProperty('--brand', d.c1Ink);
+const set = (id, html) => { document.getElementById(id).innerHTML = html; };
+set('edition', d.edition); set('level', d.backLevel); set('desc', d.description); set('tagline', d.tagline);
+set('insideTitle', d.insideTitle); set('footnote', d.footnote);
+set('inside', d.inside.map(b => `<li><i>✓</i><span>${b}</span></li>`).join(''));
+if (d.art) set('panel', `<img src="${d.art}" alt="">`);
+// The description is fitted to its zone: the largest size, up to 50 px, at
+// which it fits 630 px tall. Anything else that would cross its zone is
+// reported, never cut.
+const ready = Promise.all([document.fonts.ready, ...[...document.images].map(i => i.decode().catch(() => {}))]);
+ready.then(() => {
+    const box = document.querySelector('.desc');
+    const p = document.getElementById('desc');
+    let size = 50;
+    while (size > 30 && p.offsetHeight > box.clientHeight) { size -= 1; p.style.fontSize = size + 'px'; }
+    // The level bar names the level and the subject on one line: a long
+    // subject ("Histoire et géographie") takes a smaller size, never a break.
+    const level = document.getElementById('level');
+    let levelSize = 62;
+    while (levelSize > 36 && level.scrollWidth > level.clientWidth - 60) { levelSize -= 1; level.style.fontSize = levelSize + 'px'; }
+    // The band is full bleed; what must stay inside the safe area is its text.
+    const tag = document.getElementById('tagline');
+    tag.innerHTML = `<span>${tag.innerHTML}</span>`;
+    const over = [...document.querySelectorAll('.inside li span, .band span, .level')]
+        .filter(e => e.scrollWidth > e.clientWidth + 1 || e.getBoundingClientRect().right > 1838 - 75 || e.getBoundingClientRect().left < 112 - 1);
+    if (p.offsetHeight > box.clientHeight) over.push(p);
+    if (document.querySelector('.inside').getBoundingClientRect().bottom > 1680) over.push(document.querySelector('.inside'));
+    window.OVERFLOW = over.map(e => e.textContent.slice(0, 60));
+    window.FITTED = size;
+});
+</script>
+</body>
+</html>

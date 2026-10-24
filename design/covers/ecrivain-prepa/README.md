@@ -45,7 +45,15 @@ The editable front cover for the 19 Écrivain Prépa exam-prep books (7 for the 
 
 ## Before print
 
-These are digital front covers. A print wrap (spine, back, bleed, CMYK) needs the trim size, page count, binding, paper and printer specifications first. A Haitian Creole proofreader should check the Kreyòl copy before release.
+## Print: back cover and spine
+
+- `back.html`: the print back cover, 1838 × 2775 px. That is the back panel of a 6 × 9 in paperback at 300 dpi, with 0.125 in bleed on the outer, top and bottom edges.
+- **What it shows:** the wordmark, the level and subject, the book's own description, and "Dans ce livre" / "Nan liv sa a". Every figure on it (chapters, official papers and years, mock exams, exercises) is counted from the book's files by `specs.py`. Below that come the panel art, the promise band, and an independence note: no official link to MENFP; papers reproduced with their source.
+- **Barcode:** KDP's 2 × 1.2 in barcode area at the lower right is left plain white.
+- **To render:** `node render.cjs --back` writes `back/<book>.png`.
+- **In the app:** the backs are uploaded as each book's back cover. The platform's cover wrap (Export & Publish → print cover) puts them beside a navy spine (print setting "Spine and back colour" = #06243e), with the title and "Écrivain Prépa · N" on the spine.
+
+The spine and back are drawn by the platform from the page count and paper. CMYK conversion is left to the print service. A Haitian Creole proofreader should check the Kreyòl copy before release.
 
 ## Use
 

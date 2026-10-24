@@ -91,11 +91,30 @@ for book in sys.argv[1:] or sorted(S):
     level = 'Baccalauréat<i>·</i>NS4' if bac else '9<sup>e</sup>&nbsp;année fondamentale'
     # The illustration panel: art/<book>.jpg or .png, 1600 px wide.
     art = next((f for f in (os.path.join(here, 'art', f'{book}.{x}') for x in ('jpg', 'png')) if os.path.exists(f)), '')
+    # The back (print): the book's own description and what it holds, every
+    # figure counted from the book's files by stats(), never estimated.
+    _, annales, years, mocks, exercises, chapters = stats(book)
+    plain = re.sub(r'<span class="sub">(.*?)</span>', r' (\1)', subject).replace('<br>', ' ')
+    span = f' ({years[0]}–{years[1]})' if years and years[0] != years[1] else (f' ({years[0]})' if years else '')
+    if kreyol:
+        inside = [f'<b>{chapters}</b> chapit kou, metòd ak egzèsis',
+                  f'<b>{annales}</b> egzamen ofisyèl korije{span}' if annales else 'Yon tès dyagnostik pou kòmanse',
+                  f'<b>{mocks}</b> egzamen blan ak korije' if mocks else 'Pyèj pou evite ak konsèy pou egzamen an',
+                  f'<b>{exercises}</b> egzèsis ak korije detaye' if exercises else 'Egzèsis ak korije detaye']
+        inside_title, footnote = 'Nan liv sa a', 'Liv endepandan: li pa gen okenn lyen ofisyèl ak MENFP. Egzamen ofisyèl yo repwodui ak non sous la.'
+    else:
+        inside = [f'<b>{chapters}</b> chapitres de cours, de méthodes et d’exercices',
+                  f'<b>{annales}</b> sujets officiels corrigés{span}' if annales else 'Un test diagnostique pour commencer',
+                  f'<b>{mocks}</b> examens blancs avec corrigés' if mocks else 'Les pièges à éviter et les conseils pour l’examen',
+                  f'<b>{exercises}</b> exercices avec corrigés détaillés' if exercises else 'Des exercices avec corrigés détaillés']
+        inside_title, footnote = 'Dans ce livre', 'Ouvrage indépendant, sans lien officiel avec le MENFP. Les épreuves officielles sont reproduites avec mention de la source.'
     specs[book] = dict(
         bac=bac, edition='Édition<b>2026</b>', level=level, kicker=kicker, subject=subject,
         maxSize=MAX_TITLE, tagline=tag, promises=promises,
         c1=c1, c2=c2, c1Ink=f'color-mix(in srgb, {c1} 80%, #000)',
         art=('file:///' + art.replace(os.sep, '/')) if art else None,
+        backLevel=f'<span>{level}</span><i>·</i><span>{plain}</span>',
+        description=meta.get('description', ''), insideTitle=inside_title, inside=inside, footnote=footnote,
     )
 json.dump(specs, open(os.path.join(here, 'specs.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 for b, s in specs.items():
