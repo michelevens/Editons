@@ -1373,3 +1373,106 @@ readiness; the export end to end through the job; authorization).
 ebook ISBN per store, agencies, print defaults, rights declaration, AI
 evidence and confirmation, legal deposit, country setting).
 `tests/Browser/printkit.spec.js` at 390px with touch.
+
+---
+
+## ADR-00XX — Super-admin console: platform roles, two-factor, View as
+
+**Status:** accepted (2026-10-24). Number assigned at merge.
+
+**Context.** Écrivain had no notion of anybody above an author: no admin
+role, no second factor, and no way to look at an account, fix a credit
+balance, give a plan, suspend an abuser or see the platform's numbers except
+`railway ssh` and tinker. The patterns come from the user's other platforms —
+Credentik's "View as" and audit design, PlanDraft's shell-only first admin and
+default-deny on `/admin`, MemberMD's typed settings registry and maintenance
+gate, ShiftPulse's lesson that impersonation needs one global path list
+rather than per-endpoint checks, Educasoftio's "no seeder creates a platform
+account" — adapted from Sanctum SPAs to Laravel session auth and Inertia.
+
+**Decisions.**
+
+- *Roles.* `users.platform_role` is null, `owner` or `support` (CHECK
+  constraint, never mass-assignable). The first owner is made only by
+  `php artisan platform:admin {email}` (creates with a generated password
+  printed once, or promotes); `platform:demote` refuses the last owner. Owner
+  is the only role for money, suspension, roles and settings; support reads,
+  takes notes, signs people out, sends resets, adds up to 500 credits and can
+  View as. Limits are config, not settings, so a compromised admin cannot
+  raise them.
+- *Two-factor.* TOTP for every account (profile), required for staff by
+  default (`platform.2fa` leaves only the set-up page). `pragmarx/google2fa`
+  + `bacon/bacon-qr-code`, the pair Fortify is built on; Fortify itself was
+  not adopted because it would replace Breeze's auth routes with a second
+  implementation. Secret encrypted (`encrypted` cast), recovery codes as HMACs
+  inside an encrypted array, the last accepted 30-second step stored so a
+  code cannot be replayed. Login validates the password without signing in
+  (`LoginRequest::authenticate` returns the user), then either signs in or
+  parks `login.id` in the session for a five-minute challenge.
+- *Routing.* One `/admin` group behind `platform.admin` (404 for everybody
+  else, guests included — `auth` would redirect and confirm the console
+  exists) and `platform.2fa`; owner routes add `can:platform.owner`; writes
+  are throttled per admin. `DenyAdminPaths` (global web middleware) 404s any
+  `/admin` path for non-staff as a second layer.
+- *Audit.* `admin_audit_logs`, append-only at the model, written by
+  `App\Platform\AdminAudit::record` inside the same transaction as the change
+  (`AdminAudit::transaction`), so a failed audit write rolls the change back.
+  Only changed fields go in before/after. The impersonator is filled from the
+  current View as session automatically.
+- *Accounts.* Search, and an account page of counts (never manuscript text),
+  ledger, exports, orders and sales, sign-ins (`user_logins`, recorded at the
+  password form, the challenge, registration and View as), View as sessions
+  and pinned internal notes (`admin_notes`). Suspension and "sign out
+  everywhere" set `users.sessions_revoked_at`; `EnsureAccountActive` compares
+  it with the session's sign-in stamp (set on every `Login` event), so it
+  works on any session driver; database session rows are deleted and the
+  remember token rotated as well. A suspended account is refused at sign-in —
+  after the password check, so it reveals nothing about which addresses exist.
+- *Plans and credits.* A complimentary plan sets `plan` plus
+  `complimentary_since/until`; it is refused while Cashier shows an active
+  subscription (PlanDraft's rule: the next invoice would overwrite it).
+  `User::effectivePlan()` treats a lapsed one as Free at once;
+  `platform:expire-complimentary` (hourly) writes it back with an audit row.
+  Credit adjustments are ledger rows of new kinds `admin_grant` (> 0) and
+  `admin_deduct` (< 0), added to the database's kind and sign constraints
+  (ADR-0010); deductions lock the user row and never go below zero.
+- *View as.* `impersonation_sessions` (reason, started, hard expiry, ended,
+  end reason, IP, agent). The session is switched to the target with
+  `Auth::login` and the admin's id kept beside it; stop, sign-out, expiry or
+  the admin losing staff rights end it and put the admin back (or sign the
+  browser out). `GuardImpersonation` checks every request and refuses one
+  list of paths with 403 (billing, checkout, payouts, password/email/2FA and
+  email preferences, deleting the account or a book, store submission,
+  storefront products, team invitations, all downloads of the author's files,
+  and the console). Downloads are refused on purpose: support reads on
+  screen, it does not take copies. Versions, comments, reviews and ledger
+  rows written meanwhile carry `impersonator_id` (`RecordsImpersonator`); the
+  target's sign-in history shows "Viewed by Ecrivain support".
+- *Platform frame.* `Components/Platform/PlatformFrame` is every page's
+  persistent layout (set in `app.jsx`): the View as banner, the announcement,
+  staff's maintenance reminder and one-off notices. With a banner showing the
+  page sits below it (`.platform-frame-body .h-dvh { height: 100% }`), so the
+  banner never covers a header and the phone tab bar stays on screen; the
+  wrappers are `display: contents` otherwise, so a banner coming or going
+  never remounts the editor.
+- *Settings and maintenance.* `App\Platform\PlatformSettings`, a typed
+  registry (container singleton, cached, every change audited with its diff):
+  maintenance mode and message, announcement (tone, audience, end time),
+  `new_signups_open`, `require_2fa_for_admins` (default on; refused to an
+  account without two-factor). `MaintenanceGate` serves a 503 Inertia page to
+  everybody but staff, and leaves sign-in, `/status`, `/up` and Stripe's
+  webhook open.
+- *Dashboard.* Live counts plus MRR from active subscriptions' plan prices
+  ("No paid subscriptions yet" when there are none; unknown prices counted,
+  not valued). `platform_metrics` is written daily by
+  `platform:snapshot-metrics`; trends start the day it ships and nothing is
+  back-filled.
+
+**Not done (phase 2).** Deleting accounts, refunds from the console, an
+email to the author when somebody views their account, WebAuthn/passkeys,
+IP allow-lists for staff, per-admin session lists, charts over the snapshot
+history (a table for now), and owner management of other owners outside the
+shell.
+
+**Deploy note.** Two new Composer packages: run `composer install` after
+merging (Railway does this from the lockfile).
