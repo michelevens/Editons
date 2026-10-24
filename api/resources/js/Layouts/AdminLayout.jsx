@@ -25,6 +25,15 @@ export const ADMIN_NAV = [
     { key: 'settings', label: 'Settings', icon: 'gear', route: 'admin.settings.show' },
 ];
 
+/** The business pages (ADR — console business): a group of their own. */
+export const ADMIN_BUSINESS_NAV = [
+    { key: 'billing', label: 'Billing', icon: 'card', route: 'admin.billing.index' },
+    { key: 'plans', label: 'Plans', icon: 'layout', route: 'admin.plans.index' },
+    { key: 'sales', label: 'Book sales', icon: 'sales', route: 'admin.sales.index' },
+    { key: 'growth', label: 'Growth', icon: 'rocket', route: 'admin.growth.acquisition' },
+    { key: 'onboarding', label: 'Onboarding', icon: 'check', route: 'admin.onboarding.index' },
+];
+
 export default function AdminLayout({ title, active, children, actions = null, setupOnly = false }) {
     const { auth, platform } = usePage().props;
     const [open, setOpen] = useState(false);
@@ -115,40 +124,50 @@ function Brand() {
 
 function AdminNav({ active, setupOnly, onNavigate }) {
     return (
-        <nav aria-label="Admin" className="flex-1 overflow-y-auto px-3">
-            <ul className="space-y-0.5">
-                {ADMIN_NAV.map((item) => {
-                    const current = item.key === active;
-
-                    return (
-                        <li key={item.key}>
-                            {setupOnly ? (
-                                <span className="flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] text-text-sidebar-muted opacity-60">
-                                    <Icon name={item.icon} size={17} />
-                                    {item.label}
-                                    <Icon name="lock" size={13} className="ml-auto" />
-                                </span>
-                            ) : (
-                                <Link
-                                    href={route(item.route)}
-                                    data-a={`admin:nav:${item.key}`}
-                                    aria-current={current ? 'page' : undefined}
-                                    onClick={onNavigate}
-                                    className={`flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] transition ${
-                                        current
-                                            ? 'bg-bg-sidebar-active font-semibold text-text-sidebar'
-                                            : 'text-text-sidebar-muted hover:bg-bg-sidebar-active hover:text-text-sidebar'
-                                    }`}
-                                >
-                                    <Icon name={item.icon} size={17} />
-                                    {item.label}
-                                </Link>
-                            )}
-                        </li>
-                    );
-                })}
-            </ul>
+        <nav aria-label="Admin" className="flex-1 overflow-y-auto px-3 pb-3">
+            <NavList items={ADMIN_NAV} active={active} setupOnly={setupOnly} onNavigate={onNavigate} />
+            <h2 id="admin-nav-business" className="mb-1 mt-4 px-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-sidebar-muted">
+                Business
+            </h2>
+            <NavList items={ADMIN_BUSINESS_NAV} active={active} setupOnly={setupOnly} onNavigate={onNavigate} labelledBy="admin-nav-business" />
         </nav>
+    );
+}
+
+function NavList({ items, active, setupOnly, onNavigate, labelledBy }) {
+    return (
+        <ul className="space-y-0.5" aria-labelledby={labelledBy}>
+            {items.map((item) => {
+                const current = item.key === active;
+
+                return (
+                    <li key={item.key}>
+                        {setupOnly ? (
+                            <span className="flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] text-text-sidebar-muted opacity-60">
+                                <Icon name={item.icon} size={17} />
+                                {item.label}
+                                <Icon name="lock" size={13} className="ml-auto" />
+                            </span>
+                        ) : (
+                            <Link
+                                href={route(item.route)}
+                                data-a={`admin:nav:${item.key}`}
+                                aria-current={current ? 'page' : undefined}
+                                onClick={onNavigate}
+                                className={`flex h-10 items-center gap-3 rounded-control px-3 text-[13.5px] transition ${
+                                    current
+                                        ? 'bg-bg-sidebar-active font-semibold text-text-sidebar'
+                                        : 'text-text-sidebar-muted hover:bg-bg-sidebar-active hover:text-text-sidebar'
+                                }`}
+                            >
+                                <Icon name={item.icon} size={17} />
+                                {item.label}
+                            </Link>
+                        )}
+                    </li>
+                );
+            })}
+        </ul>
     );
 }
 

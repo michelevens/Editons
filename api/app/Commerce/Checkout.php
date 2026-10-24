@@ -4,6 +4,7 @@ namespace App\Commerce;
 
 use App\Commerce\Gateway\CheckoutSession;
 use App\Commerce\Gateway\PaymentGateway;
+use App\Models\DiscountCode;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -17,16 +18,27 @@ use Throwable;
  * price comes from the product row on the server, never from the request.
  * A pending order is not a sale — only a signed webhook makes it one
  * (Fulfilment).
+ *
+ * A discount code lowers the price before the order is written, so the
+ * order, the session and the item (and so the author's royalty) all carry
+ * the price actually paid.
  */
 final class Checkout
 {
     public function __construct(private readonly PaymentGateway $gateway) {}
 
-    public function start(Product $product, ?User $buyer = null, ?string $email = null): CheckoutSession
+    /**
+     * $discount is a quote from App\Growth\Discounts::quote, already checked.
+     *
+     * @param  array{discount: DiscountCode, discount_cents: int, total_cents: int}|null  $discount
+     */
+    public function start(Product $product, ?User $buyer = null, ?string $email = null, ?array $discount = null): CheckoutSession
     {
         $product->loadMissing('book');
+        // What the buyer pays: the product's price, less a discount code.
+        $price = $discount['total_cents'] ?? $product->price_cents;
 
-        $order = DB::transaction(function () use ($product, $buyer, $email) {
+        $order = DB::transaction(function () use ($product, $buyer, $email, $discount, $price) {
             $order = new Order;
             $order->forceFill([
                 'number' => Order::newNumber(),
@@ -34,7 +46,9 @@ final class Checkout
                 'buyer_user_id' => $buyer?->id,
                 'buyer_email' => $email ?? $buyer?->email,
                 'currency' => $product->currency,
-                'total_cents' => $product->price_cents,
+                'total_cents' => $price,
+                'discount_code_id' => $discount ? $discount['discount']->id : null,
+                'discount_cents' => $discount['discount_cents'] ?? 0,
             ])->save();
 
             $order->items()->make()->forceFill([
@@ -44,7 +58,7 @@ final class Checkout
                 'title' => $product->displayTitle(),
                 'formats' => array_values($product->formats),
                 'license_type' => $product->license,
-                'price_cents' => $product->price_cents,
+                'price_cents' => $price,
             ])->save();
 
             return $order;
@@ -78,8 +92,9 @@ final class Checkout
                 // Formats and license, so the buyer sees what they are paying
                 // for on Stripe's page. Never an author name: it may be an
                 // anonymous book.
-                'description' => $formats.' · '.$product->licenseTerms()['label'].' license',
-                'amount_cents' => $product->price_cents,
+                'description' => $formats.' · '.$product->licenseTerms()['label'].' license'
+                    .($order->discount_cents > 0 ? ' · discount applied' : ''),
+                'amount_cents' => $order->total_cents,
                 'quantity' => 1,
             ]],
             'customer_email' => $order->buyer_email,

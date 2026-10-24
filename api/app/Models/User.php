@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Billing\PlanCatalog;
 use App\Notifications\ResetPasswordNotification;
 use App\Notifications\VerifyEmailNotification;
 use Database\Factories\UserFactory;
@@ -32,6 +33,8 @@ use Laravel\Cashier\Billable;
     'suspended_reason', 'sessions_revoked_at',
     // Set by the owner in the console; the author is told when it is reached.
     'ai_monthly_cap_usd',
+    // Where the account came from (App\Growth\Attribution): the console's.
+    'signup_source', 'signup_medium', 'signup_campaign', 'signup_referrer', 'signup_landing',
 ])]
 class User extends Authenticatable
 {
@@ -87,10 +90,17 @@ class User extends Authenticatable
         return (string) $this->plan;
     }
 
-    /** The plan's configured limits, falling back to free if it is unknown. */
+    /**
+     * The plan's limits, from the plan catalogue (App\Billing\PlanCatalog:
+     * the plans table, with config/billing.php as its fallback), falling
+     * back to free if the plan is unknown.
+     */
     public function planLimits(): array
     {
-        return config("billing.plans.{$this->effectivePlan()}")
+        $catalog = app(PlanCatalog::class);
+
+        return $catalog->get($this->effectivePlan())
+            ?? $catalog->get('free')
             ?? config('billing.plans.free');
     }
 

@@ -120,7 +120,7 @@ it('has a preview for every Mailable, and nothing extra', function () {
     $catalogued = collect(EmailCatalog::all())->pluck('class')->sort()->values()->all();
 
     expect($catalogued)->toBe($classes)
-        ->and(count($classes))->toBe(31);
+        ->and(count($classes))->toBe(33);
 });
 
 it('puts every email in a known preference category', function (string $slug) {
@@ -133,9 +133,12 @@ it('only marks marketing mail with an unsubscribe link and header', function (st
     $mail = EmailCatalog::make($slug);
     $headers = $mail->headers()->text;
 
-    if ($slug === 'weekly-digest') {
-        expect($mail->unsubscribeUrl())->toContain('/email/unsubscribe/1/digest?signature=')
-            ->and($headers['List-Unsubscribe'])->toContain('/email/unsubscribe/1/digest')
+    // The digest, and the console's broadcasts (news) and lifecycle emails (tips).
+    $marketing = ['weekly-digest' => 'digest', 'broadcast' => 'news', 'lifecycle' => 'tips'];
+
+    if (isset($marketing[$slug])) {
+        expect($mail->unsubscribeUrl())->toContain("/email/unsubscribe/1/{$marketing[$slug]}?signature=")
+            ->and($headers['List-Unsubscribe'])->toContain("/email/unsubscribe/1/{$marketing[$slug]}")
             ->and($headers['List-Unsubscribe-Post'])->toBe('List-Unsubscribe=One-Click')
             ->and($mail->render())->toContain('Unsubscribe from these emails');
     } else {

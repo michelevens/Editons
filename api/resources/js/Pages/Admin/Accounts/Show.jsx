@@ -26,6 +26,9 @@ export default function Show({
     impersonation_minutes: minutes,
     ai,
     features,
+    onboarding = null,
+    signup = null,
+    plans = null,
 }) {
     const owner = can.owner;
 
@@ -111,11 +114,13 @@ export default function Show({
 
                 <Panel title="Plan and credits" detail={`${credits.balance.toLocaleString()} credits · ${credits.monthly.toLocaleString()} a month on this plan`}>
                     <div className="flex flex-wrap gap-2">
-                        {owner && <PlanAction account={account} />}
+                        {owner && <PlanAction account={account} plans={plans} />}
                         <CreditsAction account={account} max={can.max_grant} owner={owner} />
                     </div>
                     <Ledger rows={credits.ledger} />
                 </Panel>
+
+                {onboarding && <OnboardingPanel steps={onboarding} signup={signup} />}
 
                 <Panel title={`Books (${books.length})`} detail="Counts only: open a book with View as.">
                     {books.length === 0 ? (
@@ -256,7 +261,36 @@ function Ledger({ rows }) {
     );
 }
 
-function PlanAction({ account }) {
+/** Setup steps from real rows (App\Growth\Onboarding), and where they came from. */
+function OnboardingPanel({ steps, signup }) {
+    const done = steps.filter((s) => s.done).length;
+
+    return (
+        <Panel title="Onboarding" detail={`${done} of ${steps.length} steps done`} data-a="admin:account:onboarding">
+            <ul className="grid grid-cols-1 gap-1.5 text-[13px] sm:grid-cols-2">
+                {steps.map((s) => (
+                    <li key={s.key} className="flex items-center gap-2" data-a={`admin:account:onboarding:${s.key}`} data-done={s.done ? 'yes' : 'no'}>
+                        <span aria-hidden="true" className={`grid h-5 w-5 place-items-center rounded-full text-[11px] ${s.done ? 'bg-status-success-bg text-status-success' : 'bg-bg-subtle text-text-muted'}`}>
+                            {s.done ? '✓' : ''}
+                        </span>
+                        <span className={s.done ? 'text-text-primary' : 'text-text-secondary'}>{s.label}</span>
+                        <span className="sr-only">{s.done ? 'done' : 'not done'}</span>
+                    </li>
+                ))}
+            </ul>
+            {signup && (
+                <p className="mt-3 text-[12px] text-text-secondary">
+                    Came from: {signup.source ?? 'direct or unknown'}
+                    {signup.medium ? ` · ${signup.medium}` : ''}
+                    {signup.campaign ? ` · ${signup.campaign}` : ''}
+                    {signup.landing ? ` · landed on ${signup.landing}` : ''}
+                </p>
+            )}
+        </Panel>
+    );
+}
+
+function PlanAction({ account, plans }) {
     return (
         <>
             <ReasonAction
@@ -283,8 +317,12 @@ function PlanAction({ account }) {
                                 onChange={(event) => form.setData('plan', event.target.value)}
                                 className={`${inputClass} mt-1`}
                             >
-                                <option value="author">Author</option>
-                                <option value="studio">Studio</option>
+                                {(plans ?? [{ key: 'author', name: 'Author' }, { key: 'studio', name: 'Studio' }]).map((p) => (
+                                    <option key={p.key} value={p.key}>
+                                        {p.name}
+                                        {p.visibility && p.visibility !== 'public' ? ` (${p.visibility})` : ''}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Billing\CreditLedger;
 use App\Billing\Entitlements;
+use App\Billing\PlanCatalog;
 use App\Marketing\KitGenerator;
 use App\Models\Book;
 use App\Platform\Features;
@@ -150,7 +151,7 @@ class GrowthController extends Controller
         // A coming-soon entry the console has switched off is gone, not locked.
         abort_unless(Features::enabled(['audio' => 'audiobook', 'course' => 'course_builder', 'site' => 'author_site'][$screen], request()->user()), 404);
 
-        $plan = config("billing.plans.{$detail['plan']}");
+        $plan = app(PlanCatalog::class)->get($detail['plan']);
 
         return response()->json([
             'screen' => $screen,

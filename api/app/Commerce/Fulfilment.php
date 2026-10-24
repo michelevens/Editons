@@ -2,6 +2,7 @@
 
 namespace App\Commerce;
 
+use App\Growth\Discounts;
 use App\Mail\Notify;
 use App\Models\License;
 use App\Models\Order;
@@ -99,6 +100,9 @@ final class Fulfilment
                     'status' => 'active',
                 ])->save();
             }
+
+            // A discount code counts as used once the order is paid.
+            app(Discounts::class)->redeem($order);
 
             return $order;
         });

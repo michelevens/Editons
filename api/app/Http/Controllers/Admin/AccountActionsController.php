@@ -67,7 +67,7 @@ class AccountActionsController extends Controller
     {
         $data = $request->validate([
             'action' => ['required', 'in:set,clear'],
-            'plan' => ['required_if:action,set', 'nullable', 'in:author,studio'],
+            'plan' => ['required_if:action,set', 'nullable', 'string', 'max:32'],
             'until' => ['nullable', 'date'],
             'reason' => self::REASON,
         ]);

@@ -125,6 +125,14 @@ class InboxController extends Controller
             return route('support.show', $ticket);
         }
 
+        // An announcement's link, when it stays on this app: the inbox is
+        // never a redirector to another site.
+        $url = $item->kind === 'announcement' ? ($item->target['url'] ?? null) : null;
+
+        if (is_string($url) && parse_url($url, PHP_URL_HOST) === parse_url((string) config('app.url'), PHP_URL_HOST)) {
+            return $url;
+        }
+
         if (! $item->book_id) {
             return route('inbox.index');
         }

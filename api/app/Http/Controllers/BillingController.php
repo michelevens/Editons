@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Billing\CreditLedger;
 use App\Billing\Entitlements;
 use App\Billing\MonthlyAllowance;
+use App\Billing\PlanCatalog;
 use App\Models\CreditTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,7 +82,10 @@ class BillingController extends Controller
                     ? ucfirst((string) $user->pm_type).' ending '.$user->pm_last_four
                     : null,
             ],
-            'plans' => collect(config('billing.plans'))
+            'plans' => collect(app(PlanCatalog::class)->all())
+                // Offered plans, and the one this account is on even when it
+                // is no longer offered (hidden or legacy).
+                ->filter(fn (array $plan, string $key) => ($plan['visibility'] ?? 'public') === 'public' || $key === $user->plan)
                 ->map(fn (array $plan, string $key) => [
                     'key' => $key,
                     'name' => $plan['name'],

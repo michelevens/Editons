@@ -3,6 +3,7 @@
 namespace App\Platform;
 
 use App\Billing\CreditLedger;
+use App\Billing\PlanCatalog;
 use App\Models\CreditTransaction;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -113,8 +114,10 @@ final class AccountAdmin
      */
     public function setComplimentary(User $target, string $plan, ?Carbon $until, string $reason, User $actor): void
     {
-        if (! in_array($plan, ['author', 'studio'], true)) {
-            throw ValidationException::withMessages(['plan' => 'Choose Author or Studio. To end a complimentary plan, clear it.']);
+        // Any paid plan in the catalogue, hidden and legacy ones included:
+        // a plan no longer offered can still be given.
+        if ($plan === 'free' || app(PlanCatalog::class)->get($plan) === null) {
+            throw ValidationException::withMessages(['plan' => 'Choose a paid plan. To end a complimentary plan, clear it.']);
         }
 
         if ($this->hasActiveSubscription($target)) {

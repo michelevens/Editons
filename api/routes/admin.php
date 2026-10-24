@@ -99,6 +99,11 @@ Route::prefix('admin')->name('admin.')->middleware('platform.admin')->group(func
             Route::patch('/support/canned/{canned}', [SupportController::class, 'updateCanned'])->whereNumber('canned')->name('support.canned.update');
             Route::delete('/support/canned/{canned}', [SupportController::class, 'destroyCanned'])->whereNumber('canned')->name('support.canned.destroy');
         });
+
+        // ── Business: billing, plans, book sales, growth, onboarding ────
+        // In their own file (routes/admin-business.php), required here so
+        // this group's gates cover every one of them.
+        require __DIR__.'/admin-business.php';
     });
 });
 

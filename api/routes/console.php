@@ -29,3 +29,12 @@ Schedule::command('exports:expire --missing')->dailyAt('03:30')->withoutOverlapp
  */
 Schedule::command('platform:snapshot-metrics')->dailyAt('23:55')->withoutOverlapping();
 Schedule::command('platform:expire-complimentary')->hourly()->withoutOverlapping();
+
+/*
+ | The console's growth tools (docs/ADMIN.md, "Business"): broadcasts whose
+ | time has come are started every minute (each is claimed first, so an
+ | overlap starts nothing twice), and lifecycle emails go hourly, each once
+ | per account. Both send only what the owner switched on.
+ */
+Schedule::command('growth:send-broadcasts')->everyMinute()->withoutOverlapping();
+Schedule::command('growth:lifecycle')->hourly()->withoutOverlapping();
