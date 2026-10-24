@@ -1376,7 +1376,7 @@ evidence and confirmation, legal deposit, country setting).
 
 ---
 
-## ADR-00XX — Super-admin console: platform roles, two-factor, View as
+## ADR-0029 — Super-admin console: platform roles, two-factor, View as
 
 **Status:** accepted (2026-10-24). Number assigned at merge.
 
