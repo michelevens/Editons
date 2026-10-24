@@ -168,6 +168,31 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                     options={{ matte: 'Matte', glossy: 'Glossy' }}
                 />
             </div>
+
+            {/* The spine is what shows on a shelf: matching the cover's
+                edge suits one book, a chosen colour suits a series. */}
+            <div className="flex flex-wrap items-end gap-2.5">
+                <Select
+                    label="Spine and back colour"
+                    value={kit.print.spine_color ? 'custom' : 'auto'}
+                    data="kit:spine-mode"
+                    onChange={(value) => updatePrint({ spine_color: value === 'auto' ? null : kit.print.spine_color || '#06243e' })}
+                    options={{ auto: 'Match the front cover', custom: 'Choose a colour' }}
+                />
+                {kit.print.spine_color && (
+                    <label className="flex items-center gap-2 pb-1 text-[12.5px] text-text-body">
+                        <input
+                            type="color"
+                            value={kit.print.spine_color}
+                            data-a="kit:spine-color"
+                            onChange={(event) => updatePrint({ spine_color: event.target.value })}
+                            className="h-9 w-12 cursor-pointer rounded-control border border-border-input bg-transparent p-0.5"
+                            aria-label="Spine and back colour"
+                        />
+                        {kit.print.spine_color}
+                    </label>
+                )}
+            </div>
             <p data-a="kit:pages" className="text-[11.5px] text-text-body">
                 {kit.trim} · {kit.margins} margins ·{' '}
                 {pages.exact

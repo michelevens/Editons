@@ -100,7 +100,7 @@ it('opens new books at 6 x 9 on white, black ink, matte, and textbooks at letter
     $this->actingAs($user)->post('/books', ['title' => 'A Novel'])->assertRedirect();
     $novel = $user->books()->where('title', 'A Novel')->first();
     expect($novel->layout()['trim'])->toBe('6 x 9 in')
-        ->and($novel->print)->toEqual(['paper' => 'white', 'ink' => 'bw', 'finish' => 'matte']);
+        ->and($novel->print)->toEqual(['paper' => 'white', 'ink' => 'bw', 'finish' => 'matte', 'spine_color' => null]);
 
     $this->actingAs($user)->post('/books', ['title' => 'Physique 9e', 'book_type' => 'educational'])->assertRedirect();
     expect($user->books()->where('title', 'Physique 9e')->first()->layout()['trim'])->toBe('8.5 x 11 in');

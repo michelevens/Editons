@@ -49,6 +49,7 @@ class PrintKitController extends Controller
             'paper' => ['sometimes', 'string', 'in:'.implode(',', Book::PRINT_OPTIONS['paper'])],
             'ink' => ['sometimes', 'string', 'in:'.implode(',', Book::PRINT_OPTIONS['ink'])],
             'finish' => ['sometimes', 'string', 'in:'.implode(',', Book::PRINT_OPTIONS['finish'])],
+            'spine_color' => ['sometimes', 'nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ]);
 
         $book->print = array_merge($book->printSettings(), $data);

@@ -166,7 +166,7 @@ it('sets the title, series, author and publisher on the spine', function () {
     [$title, $rest] = app(CoverWrap::class)->spineLines($book, podWrap($book, ['service' => 'kdp'], 300));
 
     expect($title)->toBe('The Long Field')
-        ->and($rest)->toContain('Fields 2')
+        ->and($rest)->toContain('Fields · 2')
         ->and($rest)->toContain('A Writer')
         ->and($rest)->toContain('Maison Claire');
 });
@@ -184,6 +184,50 @@ it('prints no author anywhere for an anonymous book', function () {
 
     // And it still renders.
     expect($wraps->pdf($book, $g))->toStartWith('%PDF');
+});
+
+it('says a series named for its publisher once on the spine', function () {
+    // "Écrivain Prépa 15 · Écrivain Prépa": the series is the publisher.
+    $book = podBook(attributes: [
+        'author_name' => null,
+        'series_name' => 'Écrivain Prépa',
+        'series_number' => 15,
+        'publication' => ['publisher' => 'Ecrivain Prépa'],
+    ]);
+    [, $rest] = app(CoverWrap::class)->spineLines($book, podWrap($book, ['service' => 'kdp'], 300));
+
+    expect($rest)->toBe('Écrivain Prépa · 15');
+});
+
+it('takes a chosen spine colour, which rebuilds the wrap, and refuses one that is not a colour', function () {
+    $user = User::factory()->create();
+    $book = podBook($user);
+    $wraps = app(CoverWrap::class);
+
+    expect($wraps->options($book, ['service' => 'kdp']))->not->toHaveKey('spine_color');
+
+    $this->actingAs($user)->patchJson("/books/{$book->id}/print-kit", ['spine_color' => '#06243E'])
+        ->assertOk()
+        ->assertJsonPath('print.spine_color', '#06243E');
+    $this->actingAs($user)->patchJson("/books/{$book->id}/print-kit", ['spine_color' => 'navy'])->assertStatus(422);
+
+    // Part of the wrap's options, so a wrap made before the change is not reused.
+    expect($wraps->options($book->fresh(), ['service' => 'kdp'])['spine_color'])->toBe('#06243e');
+
+    // The spine is drawn in it: sample the middle of the spine.
+    $book = $book->fresh();
+    $g = podWrap($book, ['service' => 'kdp'], 300);
+    $image = imagecreatefromstring($wraps->preview($book, $g, 48));
+    $dpi = imagesx($image) / $g['width'];
+    $rgb = imagecolorat($image, (int) (($g['spine_x'] + $g['spine'] / 2) * $dpi), (int) (0.5 * $dpi));
+    [$r, $gr, $b] = [($rgb >> 16) & 0xFF, ($rgb >> 8) & 0xFF, $rgb & 0xFF];
+
+    expect(abs($r - 6) + abs($gr - 36) + abs($b - 62))->toBeLessThan(24);
+
+    // And back to matching the front.
+    $this->actingAs($user)->patchJson("/books/{$book->id}/print-kit", ['spine_color' => null])
+        ->assertOk()
+        ->assertJsonPath('print.spine_color', null);
 });
 
 /* --------------------------------------------------------- the back cover */

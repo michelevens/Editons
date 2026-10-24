@@ -80,7 +80,10 @@ class CoverWrap
             throw new RuntimeException(PrintSpecs::label($service).' publishes spine widths only through its cover template generator. Enter the spine width it gives you for this book.');
         }
 
-        return ['service' => $service, 'paper' => $paper, 'ink' => $ink, 'spine' => $spine];
+        $color = $print['spine_color'] ?? null;
+
+        return ['service' => $service, 'paper' => $paper, 'ink' => $ink, 'spine' => $spine]
+            + ($color ? ['spine_color' => strtolower($color)] : []);
     }
 
     /**
@@ -205,18 +208,20 @@ class CoverWrap
             throw new RuntimeException('The front cover could not be drawn.');
         }
 
-        // The colour the spine and a designed back take: the front's own
-        // edge on the spine side, so the three panels read as one cover.
+        // The colour the spine and a designed back take: the author's choice,
+        // or the front's own edge on the spine side, so the three panels read
+        // as one cover. The front's bleed keeps its own edges either way.
         [$spineSide, $outerSide] = $this->edgeColours($front, true);
-        $ground = $this->allocate($image, $spineSide);
+        $spineGround = self::rgb($book->printSettings()['spine_color'] ?? null) ?? $spineSide;
+        $ground = $this->allocate($image, $spineGround);
 
         imagefilledrectangle($image, 0, 0, imagesx($image) - 1, imagesy($image) - 1, $ground);
 
         $this->drawFront($image, $front, $g, $dpi, $spineSide, $outerSide);
-        $this->drawBack($book, $image, $g, $dpi, $spineSide);
+        $this->drawBack($book, $image, $g, $dpi, $spineGround);
 
         if ($g['spine_text']) {
-            $this->drawSpine($book, $image, $g, $dpi, $spineSide);
+            $this->drawSpine($book, $image, $g, $dpi, $spineGround);
         }
 
         imagedestroy($front);
@@ -388,10 +393,15 @@ class CoverWrap
         $settings = $this->covers->settings($book);
         $publication = $book->publication();
         $series = trim((string) $book->series_name);
+        $publisher = trim((string) ($publication['imprint'] ?: $publication['publisher']));
+        // A series named for its publisher ("Écrivain Prépa", published by
+        // Écrivain Prépa) is said once: the spine printed it twice.
+        $same = fn (string $a, string $b) => $a !== '' && $b !== ''
+            && mb_strtolower(Str::ascii($a)) === mb_strtolower(Str::ascii($b));
         $rest = array_values(array_filter([
-            $series !== '' ? $series.($book->series_number ? ' '.$book->series_number : '') : '',
+            $series !== '' ? $series.($book->series_number ? ' · '.$book->series_number : '') : '',
             $settings['author'],
-            trim((string) ($publication['imprint'] ?: $publication['publisher'])),
+            $same($series, $publisher) ? '' : $publisher,
         ], fn ($part) => trim((string) $part) !== ''));
         $title = $settings['title'] !== '' ? $settings['title'] : (string) $book->title;
         $room = ($g['trim'][1] - 2 * self::SAFE) * 72;
@@ -588,6 +598,16 @@ class CoverWrap
         $c = imagecolorsforindex($image, $index);
 
         return ($c['red'] << 16) | ($c['green'] << 8) | $c['blue'];
+    }
+
+    /** "#rrggbb" as [r, g, b], or null. */
+    private static function rgb(?string $hex): ?array
+    {
+        if (! is_string($hex) || ! preg_match('/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i', $hex, $m)) {
+            return null;
+        }
+
+        return [hexdec($m[1]), hexdec($m[2]), hexdec($m[3])];
     }
 
     /** Near-black on a light ground, white on a dark one. */

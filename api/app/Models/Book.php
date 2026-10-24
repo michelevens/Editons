@@ -94,6 +94,10 @@ class Book extends Model
         'paper' => 'white',
         'ink' => 'bw',
         'finish' => 'matte',
+        // The spine and a designed back cover: null takes the colour of the
+        // front cover's spine-side edge; a #rrggbb sets one, so a series
+        // can share a spine on the shelf.
+        'spine_color' => null,
     ];
 
     public const PRINT_OPTIONS = [
