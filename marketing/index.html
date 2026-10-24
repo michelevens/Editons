@@ -18,6 +18,9 @@
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
 <meta name="theme-color" content="#2166F5">
+<link rel="alternate" hreflang="en" href="https://ecrivain.ai/">
+<link rel="alternate" hreflang="fr" href="https://ecrivain.ai/fr/">
+<link rel="alternate" hreflang="x-default" href="https://ecrivain.ai/">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -100,7 +103,8 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(248,250,252,.9);
 .nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 .nav-right .signin{font-size:15px;font-weight:600;color:var(--ink);padding:10px 6px}
 .nav-right .btn{min-height:40px;padding:8px 16px;font-size:14.5px}
-@media(min-width:1000px){.nav-links{display:flex}}
+@media(min-width:1240px){.nav-links{display:flex}}
+.nav-links a{white-space:nowrap}
 /* The phone menu: a <details> sheet, so it works without JavaScript. */
 .menu{position:relative}
 .menu summary{list-style:none;display:grid;place-items:center;width:44px;height:44px;border-radius:var(--r);cursor:pointer;color:var(--ink)}
@@ -110,7 +114,7 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(248,250,252,.9);
   box-shadow:var(--shadow);padding:8px 20px 20px}
 .menu-sheet a{display:flex;align-items:center;min-height:48px;font-size:17px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line-soft)}
 .menu-sheet .btn{margin-top:16px;width:100%;color:#fff;border:0}
-@media(min-width:1000px){.menu{display:none}}
+@media(min-width:1240px){.menu{display:none}}
 @media(max-width:999px){.nav-right .btn.desk{display:none}}
 
 /* ---------- hero ---------- */
@@ -173,7 +177,7 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(248,250,252,.9);
 .phones figure{margin:0;flex:0 0 auto;scroll-snap-align:center}
 .phones .phone{width:220px}
 .phones figcaption{text-align:center;margin-top:12px;font-size:13.5px;color:var(--muted);font-weight:500}
-@media(min-width:1000px){.phones{overflow:visible;margin:0;padding:0;justify-content:center}.phones .phone{width:205px}.phones figure:nth-child(2){transform:translateY(-22px)}}
+@media(min-width:1000px){.phones{overflow:visible;margin:0;padding:0;justify-content:center}.phones figure{flex:0 1 205px;min-width:0}.phones .phone{width:100%;border-radius:clamp(22px,2.4vw,34px)}.phones figure:nth-child(2){transform:translateY(-22px)}}
 .feature-list{display:grid;gap:14px;margin-top:26px}
 .feature-list li{display:flex;gap:14px;align-items:flex-start}
 .feature-list .ico{margin:0;flex:none}
@@ -196,6 +200,30 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(248,250,252,.9);
 .formats div{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--surface)}
 .formats b{display:block;color:var(--ink);font-size:15px}
 .formats span{font-size:13px;color:var(--muted);line-height:1.4;display:block;margin-top:2px}
+
+/* ---------- print section ---------- */
+.wrap-shot{border-radius:12px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(15,23,42,.45);border:1px solid var(--line);background:#fff}
+.numbers{width:100%;border-collapse:collapse;margin-top:18px;font-size:14.5px}
+.numbers th,.numbers td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+.numbers th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.numbers td b{color:var(--ink)}
+.split > *{min-width:0}
+@media(max-width:640px){.numbers thead{display:none}.numbers,.numbers tbody,.numbers tr{display:block}.numbers td{display:flex;justify-content:space-between;gap:12px;padding:9px 2px}.numbers td::before{content:attr(data-label);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}}
+.source{font-size:12.5px;color:var(--faint);margin-top:10px}
+
+/* ---------- comparison ---------- */
+.cmp{width:100%;border-collapse:separate;border-spacing:0;font-size:14.5px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.cmp th,.cmp td{padding:12px 14px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+.cmp thead th{background:#FCFDFE;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.cmp thead th:last-child{color:var(--brand-deep)}
+.cmp td:last-child{color:var(--ink);font-weight:500}
+.cmp tr:last-child td{border-bottom:0}
+.cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:32px}
+@media(max-width:640px){.cmp{min-width:560px}}
+
+/* ---------- language switch ---------- */
+.lang{font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:6px 10px;min-height:32px;display:inline-flex;align-items:center}
+.lang:hover{color:var(--brand-deep);border-color:var(--brand-pale)}
 
 /* ---------- steps ---------- */
 .step-n{width:32px;height:32px;border-radius:99px;display:grid;place-items:center;background:var(--ink);color:#fff;font:700 13px Inter,sans-serif;margin-bottom:12px}
@@ -266,11 +294,13 @@ footer a:hover{color:#fff}
       <a href="#books">Made with Ecrivain</a>
       <a href="#studio">The studio</a>
       <a href="#mobile">On your phone</a>
+      <a href="#print">Print</a>
       <a href="#publish">Publishing</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav-right">
+      <a class="lang" href="/fr/" hreflang="fr" lang="fr" aria-label="Français">FR</a>
       <a class="signin" href="https://app.ecrivain.ai/login">Sign in</a>
       <a class="btn btn-primary desk" href="https://app.ecrivain.ai/register">Start writing</a>
       <details class="menu">
@@ -281,9 +311,11 @@ footer a:hover{color:#fff}
           <a href="#books">Made with Ecrivain</a>
           <a href="#studio">The studio</a>
           <a href="#mobile">On your phone</a>
+          <a href="#print">Print a paperback</a>
           <a href="#publish">Publishing</a>
           <a href="#pricing">Pricing</a>
           <a href="#faq">FAQ</a>
+          <a href="/fr/" hreflang="fr" lang="fr">Version française</a>
           <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Start writing free</a>
         </nav>
       </details>
@@ -302,8 +334,9 @@ footer a:hover{color:#fff}
       <p class="lede">
         Ecrivain is a book studio. Organise your chapters, get an editorial
         review you decide on line by line, design the interior and the cover,
-        and export a PDF, EPUB or Word file ready for readers and stores — in
-        English, French or Kreyòl, at your desk or on your phone.
+        and leave with an EPUB for the ebook stores and a print-ready paperback
+        — interior and full cover, spine included — in English, French or
+        Kreyòl, at your desk or on your phone.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Start writing free</a>
@@ -431,10 +464,11 @@ footer a:hover{color:#fff}
         <h3>Publish</h3>
         <p>Files a store will take.</p>
         <ul class="checks">
-          <li>Reading PDF that opens on your cover, and a print-ready interior</li>
-          <li>EPUB 3, Word, Markdown and HTML</li>
-          <li>Exports build in the background and email you, cover included</li>
-          <li>ISBN &amp; rights, editions, accessibility checks, store preparation</li>
+          <li>The print-ready paperback: interior PDF and the full cover — back, spine and front</li>
+          <li>Print checks for KDP and IngramSpark before you upload</li>
+          <li>A price and royalty calculator for paperback and ebook stores</li>
+          <li>EPUB 3, Word, Markdown and HTML; exports email you when ready</li>
+          <li>An ISBN per format, a rights declaration and help with the AI disclosure KDP asks for</li>
         </ul>
       </div>
       <div class="card">
@@ -519,6 +553,77 @@ footer a:hover{color:#fff}
   </div>
 </section>
 
+<!-- ================= PRINT ================= -->
+<section id="print">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Print-on-demand</p>
+      <h2>From manuscript to a paperback on Amazon</h2>
+      <p class="lede mt-s">
+        Ecrivain makes the two files a print-on-demand service asks for — the
+        interior and the full cover — and checks them against that service's
+        rules before you upload, so a rejection is caught here, not by the store.
+      </p>
+      <ul class="checks mt">
+        <li><span><b>The whole cover:</b> back, spine and front on one sheet, with bleed, the spine sized from your real page count and paper, and the barcode area left clear</span></li>
+        <li><span><b>Print checks:</b> page limits, the inside margin a thick book needs, trim size, picture resolution, ISBN</span></li>
+        <li><span><b>The price that pays you:</b> print cost, royalty and the lowest list price that still earns, for KDP and IngramSpark</span></li>
+        <li><span><b>Ready for the store's questions:</b> rights declaration, AI disclosure, and where to get an ISBN in your country</span></li>
+      </ul>
+      <table class="numbers" aria-label="A real example: Réussir le Bac (NS4) — Mathématiques">
+        <thead><tr><th>Real example</th><th>Pages</th><th>Print cost</th><th>List price</th><th>Royalty / copy</th></tr></thead>
+        <tbody><tr><td data-label="Real example"><b>Bac NS4 — Mathématiques</b></td><td data-label="Pages">538</td><td data-label="Print cost">$7.46</td><td data-label="List price"><b>$19.99</b></td><td data-label="Royalty / copy"><b>$4.53</b></td></tr></tbody>
+      </table>
+      <p class="source">KDP paperback, 6 × 9 in, black-and-white on white paper, 60% royalty — figures as published by Amazon KDP and checked on 23 October 2026. Check them at the store before you set a price.</p>
+    </div>
+    <figure style="margin:0">
+      <div class="wrap-shot"><img src="/shots/print-wrap.jpg" width="1481" height="1018" alt="The full paperback cover made by Ecrivain for Réussir le Bac (NS4) Mathématiques: back cover with the book's description and contents, a navy spine with the title, and the front cover." loading="lazy"></div>
+      <figcaption class="source" style="text-align:center">The full cover Ecrivain made for this book — sized to 13.46 × 9.25 in for its 538 pages.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= HAITI ================= -->
+<section class="alt">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Made for publishing in Haiti — and the diaspora</p>
+      <h2>Your language, your exams, your readers</h2>
+    </div>
+    <div class="grid g4 mt-l">
+      <div class="card"><h3>French and Kreyòl</h3><p>Book parts, title pages and contents named in the book's language — “Avant-propos”, “Remèsiman”, “Tab matyè”.</p></div>
+      <div class="card"><h3>ISBN and legal deposit</h3><p>Guidance for the Bibliothèque Nationale d'Haïti, and a reminder of the five copies the law asks for.</p></div>
+      <div class="card"><h3>Built for Android phones</h3><p>The whole studio on a phone, installable from the browser, and honest about a dropped connection.</p></div>
+      <div class="card"><h3>Paying in Haiti</h3><p>Card payments come first; MonCash is next on the list, so readers in Haiti can buy too.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= COMPARISON ================= -->
+<section>
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Why one studio</p>
+      <h2>Everything the usual set of tools does — in one place</h2>
+      <p class="lede mt-s">Most authors stitch together a word processor, a formatting app, a designer and a spreadsheet. Here is what changes.</p>
+    </div>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead><tr><th scope="col">What you need</th><th scope="col">The usual set of tools</th><th scope="col">Ecrivain</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Write anywhere</th><td>A desktop app; the phone version is a viewer, if there is one</td><td>The full studio on your phone, tablet or desktop</td></tr>
+          <tr><th scope="row">Editorial review</th><td>Hire an editor, or paste chapters into a separate tool</td><td>Nine review agents; you accept or dismiss each finding, with undo</td></tr>
+          <tr><th scope="row">Co-authors and editors</th><td>Email attachments and “final_v7.docx”</td><td>Tracked changes, comments, a review workflow and roles</td></tr>
+          <tr><th scope="row">A real book layout</th><td>A separate formatting app</td><td>Every book part, trim, type and running heads, previewed as a reader sees it</td></tr>
+          <tr><th scope="row">The paperback cover</th><td>A designer and the printer's template</td><td>Back, spine and front made from your page count, checked for the store</td></tr>
+          <tr><th scope="row">Price and royalties</th><td>A spreadsheet and the store's help pages</td><td>A calculator built on the stores' published rates</td></tr>
+          <tr><th scope="row">French and Kreyòl</th><td>English defaults to fix by hand</td><td>Book parts named in the book's language</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <!-- ================= HOW IT WORKS ================= -->
 <section>
   <div class="wrap">
@@ -530,7 +635,7 @@ footer a:hover{color:#fff}
       <div class="card"><div class="step-n">1</div><h3>Bring your draft</h3><p>Start from a blank page or import Markdown or Word. Headings become chapters; anything the importer can't carry is reported, never dropped.</p></div>
       <div class="card"><div class="step-n">2</div><h3>Write and revise</h3><p>Every save is a version. Run the editorial agents, review each finding, track changes, and invite co-authors or reviewers.</p></div>
       <div class="card"><div class="step-n">3</div><h3>Design</h3><p>Choose the trim and the type, set the cover, mark the front and back matter, and page through the book as a reader will see it.</p></div>
-      <div class="card"><div class="step-n">4</div><h3>Publish</h3><p>Export PDF, EPUB or Word. We email you when it's ready, and prepare the files and details each store asks for.</p></div>
+      <div class="card"><div class="step-n">4</div><h3>Publish</h3><p>Export the EPUB for the ebook stores and the interior and full cover for your paperback, checked against the store's rules.</p></div>
     </div>
   </div>
 </section>
@@ -551,7 +656,9 @@ footer a:hover{color:#fff}
           <li>Suggest mode, comments, review workflow and team roles</li>
           <li>Research library, citations and cross-book consistency</li>
           <li>Book design, Cover Studio, book parts and full-screen preview</li>
+          <li>Print-on-demand: paperback cover wraps, print checks and the royalty calculator</li>
           <li>PDF, EPUB 3, Word, Markdown and HTML exports</li>
+          <li>Writing goals and streaks, typewriter mode, an inbox, two-factor sign-in</li>
           <li>Phone and tablet studio, installable to your home screen</li>
           <li>English, French and Kreyòl books, and more languages for book parts</li>
         </ul>
@@ -561,7 +668,7 @@ footer a:hover{color:#fff}
         <ul class="soon" style="margin-top:12px">
           <li>Model-backed editorial reviews. Today the agents run built-in automated checks, labelled “Sample” and free of credits</li>
           <li>Paid plans and credit packs at checkout</li>
-          <li>Direct sales from your own storefront</li>
+          <li>Direct sales from your own storefront, and MonCash for readers in Haiti</li>
           <li>Audiobook narration</li>
           <li>Course builder and author website</li>
         </ul>
@@ -658,6 +765,14 @@ footer a:hover{color:#fff}
         <p>The credits are refunded automatically and the failure is shown as a failure — never as a clean chapter.</p>
       </details>
       <details class="q">
+        <summary>Can I print paperbacks?</summary>
+        <p>Yes, through a print-on-demand service such as Amazon KDP or IngramSpark: Ecrivain makes the interior and the full cover — back, spine and front — sized for your book, checks them against the service's rules and shows what each copy would earn you. You upload them to the service yourself; it prints and ships each copy as it sells.</p>
+      </details>
+      <details class="q">
+        <summary>Do I need an ISBN?</summary>
+        <p>Not for Kindle or Google Play ebooks. A paperback needs one: KDP can give you a free one that only works on Amazon, while IngramSpark needs your own. Ecrivain records one ISBN per format and points you to the agency for your country — in Haiti, the Bibliothèque Nationale.</p>
+      </details>
+      <details class="q">
         <summary>Is it finished?</summary>
         <p>Not entirely, and the “Honest status” section above says exactly which parts are coming. Writing, review, design and export work today.</p>
       </details>
@@ -693,6 +808,7 @@ footer a:hover{color:#fff}
         <ul>
           <li><a href="#studio">The studio</a></li>
           <li><a href="#mobile">On your phone</a></li>
+          <li><a href="#print">Print a paperback</a></li>
           <li><a href="#publish">Publishing</a></li>
           <li><a href="#pricing">Pricing</a></li>
         </ul>
@@ -708,6 +824,8 @@ footer a:hover{color:#fff}
         <h4>Company</h4>
         <ul>
           <li><a href="mailto:hello@ecrivain.ai">Contact</a></li>
+          <li><a href="https://app.ecrivain.ai/status">Status</a></li>
+          <li><a href="/fr/" hreflang="fr" lang="fr">Français</a></li>
           <li><a href="/privacy.html">Privacy</a></li>
           <li><a href="/terms.html">Terms</a></li>
         </ul>

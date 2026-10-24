@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ecrivain — écrivez, corrigez, mettez en page et publiez votre livre</title>
+<meta name="description" content="Un studio d'édition du premier jet au livre terminé : chapitres, relecture éditoriale, mise en page, couvertures, exports PDF, EPUB et Word, et livre broché prêt à imprimer — en français, en kreyòl ou en anglais, sur ordinateur ou sur téléphone.">
+
+<meta property="og:title" content="Ecrivain — écrivez, corrigez, mettez en page et publiez votre livre">
+<meta property="og:description" content="Chapitres, relecture éditoriale, mise en page, couvertures et livre broché prêt à imprimer, dans un seul studio — sur tous vos écrans.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ecrivain.ai/fr/">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:image" content="https://ecrivain.ai/brand/open-graph.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- Brand marks from ecrivain-brand-assets. -->
+<link rel="icon" href="/brand/symbol.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<meta name="theme-color" content="#2166F5">
+<link rel="alternate" hreflang="en" href="https://ecrivain.ai/">
+<link rel="alternate" hreflang="fr" href="https://ecrivain.ai/fr/">
+<link rel="alternate" hreflang="x-default" href="https://ecrivain.ai/">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* Brand colours from ecrivain-brand-assets/brand/tokens.json — the site, the
+   app and the logo are the same blue. Mobile first: the phone layout is the
+   base, wider screens add columns. Everything shown as working is in the
+   product today; what is not is listed as coming, with the same honesty the
+   app itself uses ("Sample" reviews, "not built yet"). */
+:root{
+  --bg:#F8FAFC; --surface:#FFFFFF; --ink:#10223D; --body:#475569;
+  --muted:#64748B; --faint:#94A3B8; --line:#E2E8F0; --line-soft:#EEF2F7;
+  --brand:#2166F5; --brand-deep:#1748C4; --brand-tint:#F5F8FF; --brand-pale:#A9C4FB;
+  --dark:#0F172A; --dark-2:#1E293B;
+  --ok:#22AD7B; --ok-tint:#ECFDF5; --warn:#B45309; --warn-tint:#FFFBEB;
+  --r:10px; --r-lg:14px; --r-xl:20px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.06);
+  --shadow:0 18px 40px -22px rgba(15,23,42,.35);
+  --shadow-cta:0 10px 24px -12px rgba(33,102,245,.7);
+  --pad:64px;
+}
+@media(min-width:900px){:root{--pad:100px}}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--body);
+  font:400 16px/1.65 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+h1,h2,h3,h4{
+  font-family:"Bricolage Grotesque",Inter,system-ui,sans-serif;
+  color:var(--ink);margin:0;font-weight:800;letter-spacing:-.03em;line-height:1.08;
+}
+h1{font-size:clamp(36px,7.4vw,64px)}
+h2{font-size:clamp(28px,5vw,42px)}
+h3{font-size:18px;font-weight:700;letter-spacing:-.015em;line-height:1.3}
+p{margin:0}
+a{color:inherit;text-decoration:none}
+/* height:auto, or the width/height attributes (there to reserve space while
+   loading) fix the height and the image is stretched or cropped. */
+img{max-width:100%;height:auto;display:block}
+ul{margin:0;padding:0;list-style:none}
+.wrap{max-width:1160px;margin:0 auto;padding:0 20px}
+@media(min-width:640px){.wrap{padding:0 28px}}
+section{padding:var(--pad) 0}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-deep);margin-bottom:12px}
+.center{text-align:center}
+.lede{font-size:17px;line-height:1.65;color:var(--muted);max-width:62ch}
+@media(min-width:900px){.lede{font-size:18px}}
+.center .lede{margin-left:auto;margin-right:auto}
+.mt-s{margin-top:14px}.mt{margin-top:24px}.mt-l{margin-top:40px}
+.alt{background:var(--surface);border-block:1px solid var(--line)}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:16px;top:16px;z-index:100;background:var(--surface);color:var(--ink);padding:10px 16px;border-radius:var(--r);box-shadow:var(--shadow)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:6px}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;
+  font:600 15px Inter,sans-serif;padding:11px 20px;border-radius:var(--r);border:1px solid transparent;cursor:pointer;transition:.16s ease}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:var(--shadow-cta)}
+.btn-primary:hover{background:var(--brand-deep)}
+.btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow-sm)}
+.btn-ghost:hover{border-color:var(--brand-pale);color:var(--brand-deep)}
+.btn-white{background:#fff;color:var(--brand-deep)}
+.btn-dark{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.24)}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.cta-row .btn{flex:1 1 200px}
+@media(min-width:640px){.cta-row .btn{flex:0 0 auto}}
+
+/* ---------- nav ---------- */
+header.nav{position:sticky;top:0;z-index:50;background:rgba(248,250,252,.9);
+  backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:24px;height:62px}
+.logo{display:flex;align-items:center;gap:9px;font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.02em}
+.logo img{width:30px;height:30px}
+.nav-links{display:none;gap:24px;font-size:14.5px}
+.nav-links a:hover{color:var(--ink)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.nav-right .signin{font-size:15px;font-weight:600;color:var(--ink);padding:10px 6px}
+.nav-right .btn{min-height:40px;padding:8px 16px;font-size:14.5px}
+@media(min-width:1240px){.nav-links{display:flex}}
+.nav-links a{white-space:nowrap}
+/* The phone menu: a <details> sheet, so it works without JavaScript. */
+.menu{position:relative}
+.menu summary{list-style:none;display:grid;place-items:center;width:44px;height:44px;border-radius:var(--r);cursor:pointer;color:var(--ink)}
+.menu summary::-webkit-details-marker{display:none}
+.menu[open] summary{background:var(--brand-tint)}
+.menu-sheet{position:fixed;left:0;right:0;top:62px;background:var(--surface);border-bottom:1px solid var(--line);
+  box-shadow:var(--shadow);padding:8px 20px 20px}
+.menu-sheet a{display:flex;align-items:center;min-height:48px;font-size:17px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line-soft)}
+.menu-sheet .btn{margin-top:16px;width:100%;color:#fff;border:0}
+@media(min-width:1240px){.menu{display:none}}
+@media(max-width:999px){.nav-right .btn.desk{display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:44px 0 var(--pad)}
+.hero-grid{display:grid;gap:44px;align-items:center}
+@media(min-width:1000px){.hero{padding:76px 0 var(--pad)}.hero-grid{grid-template-columns:1fr 1.05fr;gap:52px}}
+.hero h1{margin-bottom:18px}
+.trust{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:22px;font-size:14px;color:var(--muted)}
+.trust span{display:flex;align-items:center;gap:7px}
+.tick{color:var(--ok);flex:none}
+.stage{position:relative;padding-bottom:0}
+.browser{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(15,23,42,.35)}
+.browser-bar{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line-soft);background:#FCFDFE}
+.browser-bar i{width:9px;height:9px;border-radius:99px;background:#E2E8F0}
+.browser-bar span{margin-left:8px;font-size:11.5px;color:var(--faint)}
+.phone{width:min(64vw,250px);border-radius:34px;padding:9px;background:#0B1322;box-shadow:0 30px 60px -24px rgba(15,23,42,.55)}
+.phone img{border-radius:26px;width:100%;aspect-ratio:390/844;object-fit:cover;object-position:top}
+.stage .phone{position:absolute;right:-18px;bottom:-44px;width:min(24vw,158px);padding:7px;border-radius:28px}
+.stage .phone img{border-radius:22px}
+@media(max-width:999px){.stage .browser{display:none}.stage{display:flex;justify-content:center}.stage .phone{position:static;width:min(70vw,270px)}}
+
+/* ---------- shelf (the books made in Ecrivain) ---------- */
+.shelf-band{background:linear-gradient(180deg,var(--surface),var(--bg));border-block:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:28px}
+@media(min-width:800px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 18px}
+.stat b{display:block;font:800 30px "Bricolage Grotesque",sans-serif;color:var(--ink);letter-spacing:-.03em;line-height:1.1}
+.stat span{font-size:13.5px;color:var(--muted)}
+.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:8px 20px 26px;margin:28px -20px 0;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.shelf::-webkit-scrollbar{display:none}
+.shelf figure{margin:0;flex:0 0 auto;width:150px;scroll-snap-align:start}
+@media(min-width:640px){.shelf{margin:28px -28px 0;padding:8px 28px 26px}.shelf figure{width:176px}}
+.shelf img{width:100%;aspect-ratio:400/640;object-fit:cover;border-radius:4px 10px 10px 4px;
+  box-shadow:-3px 0 0 #0B1322 inset,0 18px 30px -16px rgba(15,23,42,.55);background:#E2E8F0}
+.shelf figcaption{margin-top:9px;font-size:12.5px;line-height:1.35;color:var(--muted)}
+.shelf figcaption b{display:block;color:var(--ink);font-size:13px}
+.hint{font-size:13px;color:var(--faint);display:flex;align-items:center;gap:6px}
+@media(min-width:1000px){.hint{display:none}}
+
+/* ---------- cards / pillars ---------- */
+.grid{display:grid;gap:16px}
+@media(min-width:700px){.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1000px){.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:700px) and (max-width:999px){.g4{grid-template-columns:repeat(2,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-sm)}
+.card h3{margin-bottom:8px}
+.card p{font-size:15px;color:var(--muted);line-height:1.6}
+.ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--brand-tint);color:var(--brand-deep);margin-bottom:14px}
+.ico svg{width:20px;height:20px}
+.checks{margin-top:12px}
+.checks li{display:flex;gap:9px;padding:5px 0;font-size:14.5px;line-height:1.5;color:var(--body)}
+.checks li::before{content:"";flex:none;width:16px;height:16px;margin-top:3px;border-radius:99px;background:var(--ok-tint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322AD7B' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/10px no-repeat}
+
+/* ---------- phone section ---------- */
+.split{display:grid;gap:36px;align-items:center}
+@media(min-width:1000px){.split{grid-template-columns:1fr 1.1fr;gap:56px}.split.rev > :first-child{order:2}}
+.phones{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 20px 30px;margin:0 -20px;scrollbar-width:none}
+.phones::-webkit-scrollbar{display:none}
+.phones figure{margin:0;flex:0 0 auto;scroll-snap-align:center}
+.phones .phone{width:220px}
+.phones figcaption{text-align:center;margin-top:12px;font-size:13.5px;color:var(--muted);font-weight:500}
+@media(min-width:1000px){.phones{overflow:visible;margin:0;padding:0;justify-content:center}.phones figure{flex:0 1 205px;min-width:0}.phones .phone{width:100%;border-radius:clamp(22px,2.4vw,34px)}.phones figure:nth-child(2){transform:translateY(-22px)}}
+.feature-list{display:grid;gap:14px;margin-top:26px}
+.feature-list li{display:flex;gap:14px;align-items:flex-start}
+.feature-list .ico{margin:0;flex:none}
+.feature-list b{display:block;color:var(--ink);font-size:16px}
+.feature-list span{font-size:15px;color:var(--muted)}
+
+/* ---------- dark band ---------- */
+.band{background:var(--dark);color:#CBD5E1}
+.band h2,.band h3{color:#fff}
+.band .eyebrow{color:var(--brand-pale)}
+.band .lede{color:#94A3B8}
+.band .card{background:var(--dark-2);border-color:#2B3954;box-shadow:none}
+.band .card p,.band .checks li{color:#A6B3C6}
+.band .ico{background:rgba(99,140,255,.16);color:var(--brand-pale)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+.chips span{font-size:13.5px;padding:7px 12px;border-radius:99px;background:var(--brand-tint);color:var(--brand-deep);font-weight:600;border:1px solid #DCE6FD}
+.band .chips span{background:rgba(255,255,255,.06);color:#DCE5F5;border-color:rgba(255,255,255,.12)}
+.formats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:22px}
+@media(min-width:640px){.formats{grid-template-columns:repeat(3,1fr)}}
+.formats div{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--surface)}
+.formats b{display:block;color:var(--ink);font-size:15px}
+.formats span{font-size:13px;color:var(--muted);line-height:1.4;display:block;margin-top:2px}
+
+/* ---------- print section ---------- */
+.wrap-shot{border-radius:12px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(15,23,42,.45);border:1px solid var(--line);background:#fff}
+.numbers{width:100%;border-collapse:collapse;margin-top:18px;font-size:14.5px}
+.numbers th,.numbers td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+.numbers th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.numbers td b{color:var(--ink)}
+.split > *{min-width:0}
+@media(max-width:640px){.numbers thead{display:none}.numbers,.numbers tbody,.numbers tr{display:block}.numbers td{display:flex;justify-content:space-between;gap:12px;padding:9px 2px}.numbers td::before{content:attr(data-label);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}}
+.source{font-size:12.5px;color:var(--faint);margin-top:10px}
+
+/* ---------- comparison ---------- */
+.cmp{width:100%;border-collapse:separate;border-spacing:0;font-size:14.5px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.cmp th,.cmp td{padding:12px 14px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+.cmp thead th{background:#FCFDFE;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.cmp thead th:last-child{color:var(--brand-deep)}
+.cmp td:last-child{color:var(--ink);font-weight:500}
+.cmp tr:last-child td{border-bottom:0}
+.cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:32px}
+@media(max-width:640px){.cmp{min-width:560px}}
+
+/* ---------- language switch ---------- */
+.lang{font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:6px 10px;min-height:32px;display:inline-flex;align-items:center}
+.lang:hover{color:var(--brand-deep);border-color:var(--brand-pale)}
+
+/* ---------- steps ---------- */
+.step-n{width:32px;height:32px;border-radius:99px;display:grid;place-items:center;background:var(--ink);color:#fff;font:700 13px Inter,sans-serif;margin-bottom:12px}
+
+/* ---------- status chips ---------- */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:99px}
+.chip-now{background:var(--ok-tint);color:var(--ok)}
+.chip-soon{background:var(--warn-tint);color:var(--warn)}
+.soon li{display:flex;gap:10px;padding:6px 0;font-size:14.5px;color:var(--muted)}
+.soon li::before{content:"○";color:var(--faint);flex:none}
+
+/* ---------- pricing ---------- */
+.prices{display:grid;gap:18px;align-items:start}
+@media(min-width:1000px){.prices{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:999px){.prices{max-width:460px;margin-left:auto;margin-right:auto}}
+.price{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:26px;box-shadow:var(--shadow-sm)}
+.price.featured{background:var(--dark);border-color:var(--dark);color:#CBD5E1;box-shadow:0 26px 50px -26px rgba(15,23,42,.6)}
+.price.featured h3,.price.featured .amount{color:#fff}
+.price.featured .checks li{color:#CBD5E1}
+.badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;font:700 10.5px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;white-space:nowrap}
+.amount{font:800 42px "Bricolage Grotesque",sans-serif;color:var(--ink);letter-spacing:-.04em;line-height:1}
+.per{font-size:14px;color:var(--muted);font-weight:500}
+.price .btn{width:100%;margin-top:20px}
+
+/* ---------- faq ---------- */
+.faq{max-width:800px;margin:0 auto}
+details.q{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:0 18px;margin-bottom:10px}
+details.q[open]{border-color:var(--brand-pale)}
+details.q summary{font:600 16px Inter,sans-serif;color:var(--ink);cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px;align-items:center;min-height:58px;padding:12px 0}
+details.q summary::-webkit-details-marker{display:none}
+details.q summary::after{content:"+";color:var(--brand);font-size:22px;line-height:1;flex:none}
+details.q[open] summary::after{content:"\2212"}
+details.q p{padding:0 0 18px;font-size:15px;color:var(--muted);line-height:1.65}
+
+/* ---------- final cta / footer ---------- */
+.final{background:linear-gradient(135deg,#10223D,#2166F5 58%,#5B8DF8);border-radius:var(--r-xl);padding:44px 24px;text-align:center;color:#fff}
+@media(min-width:700px){.final{padding:60px 40px}}
+.final h2{color:#fff}
+.final p{color:#DCE6FF;margin:14px auto 0;max-width:52ch;font-size:17px}
+.final .cta-row{justify-content:center}
+footer{background:var(--dark);color:#94A3B8;padding:56px 0 32px;font-size:14.5px}
+.foot-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px}
+@media(min-width:820px){.foot-grid{grid-template-columns:1.6fr repeat(3,1fr)}}
+.foot-grid > :first-child{grid-column:1/-1}
+@media(min-width:820px){.foot-grid > :first-child{grid-column:auto}}
+footer h4{color:#fff;font:700 12px Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;margin:0 0 12px}
+footer li a{display:inline-block;padding:6px 0}
+footer a:hover{color:#fff}
+.foot-bottom{border-top:1px solid #1E293B;margin-top:36px;padding-top:22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:#64748B}
+
+/* ---------- phone CTA bar ---------- */
+/* What the app's tab bar is to the studio: the one action, under the thumb. */
+.mobile-cta{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  background:rgba(255,255,255,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line)}
+.mobile-cta .btn{flex:1}
+@media(min-width:1000px){.mobile-cta{display:none}}
+@media(max-width:999px){body{padding-bottom:calc(70px + env(safe-area-inset-bottom))}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Aller au contenu</a>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="/fr/"><img src="/brand/symbol.svg" alt="" width="30" height="30"> Ecrivain</a>
+    <nav class="nav-links" aria-label="Navigation principale">
+      <a href="#books">Les livres</a>
+      <a href="#studio">Studio</a>
+      <a href="#mobile">Téléphone</a>
+      <a href="#print">Impression</a>
+      <a href="#publish">Publication</a>
+      <a href="#pricing">Tarifs</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-right">
+      <a class="lang" href="/" hreflang="en" lang="en" aria-label="English">EN</a>
+      <a class="signin" href="https://app.ecrivain.ai/login">Connexion</a>
+      <a class="btn btn-primary desk" href="https://app.ecrivain.ai/register">Commencer</a>
+      <details class="menu">
+        <summary aria-label="Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </summary>
+        <nav class="menu-sheet" aria-label="Menu">
+          <a href="#books">Faits avec Ecrivain</a>
+          <a href="#studio">Le studio</a>
+          <a href="#mobile">Sur téléphone</a>
+          <a href="#print">Imprimer un livre broché</a>
+          <a href="#publish">Publication</a>
+          <a href="#pricing">Tarifs</a>
+          <a href="#faq">FAQ</a>
+          <a href="/" hreflang="en" lang="en">English version</a>
+          <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Commencer gratuitement</a>
+        </nav>
+      </details>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Écrire · Corriger · Mettre en page · Publier</p>
+      <h1>Du premier jet au livre terminé — sur tous vos écrans.</h1>
+      <p class="lede">
+        Ecrivain est un studio d'édition. Organisez vos chapitres, recevez une
+        relecture éditoriale que vous validez ligne par ligne, composez
+        l'intérieur et la couverture, et repartez avec un EPUB pour les
+        librairies numériques et un livre broché prêt à imprimer — intérieur et
+        couverture complète, dos compris — en français, en kreyòl ou en anglais,
+        à votre bureau ou sur votre téléphone.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Commencer gratuitement</a>
+        <a class="btn btn-ghost" href="#books">Voir les livres réalisés</a>
+      </div>
+      <div class="trust">
+        <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Offre gratuite, sans carte</span>
+        <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Rien ne change dans votre texte sans votre accord</span>
+        <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Votre manuscrit s'exporte à tout moment</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="browser">
+        <div class="browser-bar"><i></i><i></i><i></i><span>app.ecrivain.ai — Studio d'écriture</span></div>
+        <img src="/shots/desktop-studio.jpg" width="2160" height="1350" alt="Le studio d'écriture Ecrivain : la liste des chapitres, le manuscrit et l'éditeur IA à côté.">
+      </div>
+      <div class="phone"><img src="/shots/phone-write.jpg" width="780" height="1688" alt="Le même chapitre sur un téléphone, avec la barre d'onglets en bas."></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAITS AVEC ECRIVAIN ================= -->
+<section id="books" class="shelf-band">
+  <div class="wrap">
+    <p class="eyebrow">Faits avec Ecrivain</p>
+    <h2>La collection Écrivain Prépa</h2>
+    <p class="lede mt-s">
+      Dix-neuf livres de préparation aux examens d'État haïtiens — sept pour la
+      9e Année Fondamentale, douze pour le Bac (NS4), en français et en kreyòl.
+      Chacun a été assemblé, relu, mis en page et exporté dans Ecrivain&nbsp;: la
+      couverture en première page, une page de titre, une page de mentions
+      légales, une table des matières, des parties et des chapitres, et une page
+      sur la collection.
+    </p>
+
+    <div class="stats">
+      <div class="stat"><b>19</b><span>livres dans la collection</span></div>
+      <div class="stat"><b>8 000+</b><span>pages composées</span></div>
+      <div class="stat"><b>2</b><span>langues&nbsp;: français et kreyòl</span></div>
+      <div class="stat"><b>1</b><span>studio, du Markdown au PDF d'impression</span></div>
+    </div>
+
+    <div class="shelf" role="list" aria-label="Livres de la collection Écrivain Prépa">
+      <figure role="listitem"><img src="/books/9e-anglais.jpg" width="400" height="640" alt="Couverture : Réussir l'examen de 9e AF — Anglais"><figcaption><b>Anglais</b>9e Année Fondamentale</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-math.jpg" width="400" height="640" alt="Couverture : Réussir l'examen de 9e AF — Mathématiques"><figcaption><b>Mathématiques</b>9e Année Fondamentale</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-creole.jpg" width="400" height="640" alt="Couverture : Reyisi egzamen 9e AF — Kreyòl"><figcaption><b>Kreyòl</b>9e Ane Fondamantal</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-francais.jpg" width="400" height="640" alt="Couverture : Réussir l'examen de 9e AF — Français" loading="lazy"><figcaption><b>Français</b>9e Année Fondamentale</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-sciences-exp.jpg" width="400" height="640" alt="Couverture : Réussir l'examen de 9e AF — Sciences expérimentales" loading="lazy"><figcaption><b>Sciences expérimentales</b>9e Année Fondamentale</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-sciences-sociales.jpg" width="400" height="640" alt="Couverture : Réussir l'examen de 9e AF — Sciences sociales" loading="lazy"><figcaption><b>Sciences sociales</b>9e Année Fondamentale</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-espagnol.jpg" width="400" height="640" alt="Couverture : Réussir l'examen de 9e AF — Espagnol" loading="lazy"><figcaption><b>Espagnol</b>9e Année Fondamentale</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-philosophie.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Philosophie" loading="lazy"><figcaption><b>Philosophie</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-math.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Mathématiques" loading="lazy"><figcaption><b>Mathématiques</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-physique.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Physique" loading="lazy"><figcaption><b>Physique</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-chimie.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Chimie" loading="lazy"><figcaption><b>Chimie</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-svt.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — SVT" loading="lazy"><figcaption><b>SVT</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-sciences-sociales.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Histoire et Géographie" loading="lazy"><figcaption><b>Histoire et Géographie</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-economie.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Économie" loading="lazy"><figcaption><b>Économie</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-informatique.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Informatique" loading="lazy"><figcaption><b>Informatique</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-anglais.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Anglais" loading="lazy"><figcaption><b>Anglais</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-espagnol.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Espagnol" loading="lazy"><figcaption><b>Espagnol</b>Baccalauréat NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-creole.jpg" width="400" height="640" alt="Couverture : Reyisi Bak la (NS4) — Kreyòl" loading="lazy"><figcaption><b>Kreyòl</b>Bakaloreya NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-art-musique.jpg" width="400" height="640" alt="Couverture : Réussir le Bac (NS4) — Arts et Musique" loading="lazy"><figcaption><b>Arts et Musique</b>Baccalauréat NS4</figcaption></figure>
+    </div>
+    <p class="hint">Faites défiler pour voir les dix-neuf <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></p>
+  </div>
+</section>
+
+<!-- ================= LE STUDIO ================= -->
+<section id="studio">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Le studio</p>
+      <h2>Tout ce que traverse un livre, au même endroit</h2>
+      <p class="lede mt-s">Six étapes, un seul manuscrit. Chaque partie enregistre, versionne et exporte le même texte — aucun copier-coller d'un outil à l'autre.</p>
+    </div>
+
+    <div class="grid g3 mt-l">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h8l5 5v13H6z"/><path d="M13 3v6h6M9 13h6M9 17h6"/></svg></div>
+        <h3>Écrire</h3>
+        <p>Un éditeur calme, le plan du livre à côté.</p>
+        <ul class="checks">
+          <li>Parties, chapitres et sections à réorganiser à la souris ou au doigt</li>
+          <li>Tableaux, images, notes, équations, graphiques et renvois</li>
+          <li>Enregistrement automatique, historique complet, restauration en un clic</li>
+          <li>Objectifs de mots avec anneaux de progression, objectif du jour et série</li>
+          <li>Défilement «&nbsp;machine à écrire&nbsp;» et mode sans distraction</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4z"/></svg></div>
+        <h3>Relire</h3>
+        <p>Neuf agents éditoriaux, et c'est vous qui décidez.</p>
+        <ul class="checks">
+          <li>Structure, style, correction, vérification des faits, cohérence, expertise du domaine et accessibilité — plus des examinateurs de mémoire et de thèse</li>
+          <li>Chaque remarque cite votre phrase&nbsp;; parcourez-les une à une, avec annulation</li>
+          <li>Mode suggestion&nbsp;: des modifications suivies que vous acceptez ou refusez</li>
+          <li>Commentaires, @mentions, circuit de relecture et rôles d'équipe</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h10a1 1 0 0 1 1 1v15H6V5a1 1 0 0 1 1-1z"/><path d="M9 17h6M12 8v5"/></svg></div>
+        <h3>Documenter</h3>
+        <p>Savoir sur quoi repose chaque affirmation.</p>
+        <ul class="checks">
+          <li>Une bibliothèque de sources, chacune avec son statut de vérification</li>
+          <li>Citations APA, Chicago, MLA, Harvard, IEEE ou Vancouver, bibliographie à jour</li>
+          <li>Alerte quand la phrase citée change</li>
+          <li>Termes et noms vérifiés dans tout le livre à la fois</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 9v11"/></svg></div>
+        <h3>Mettre en page</h3>
+        <p>L'intérieur et la couverture, prévisualisés au fil du travail.</p>
+        <ul class="checks">
+          <li>Format, marges, police, corps et interligne, titres courants, lettrines</li>
+          <li>Studio de couverture — ou importez la couverture finie de votre graphiste</li>
+          <li>Toutes les parties d'un livre, dans le bon ordre</li>
+          <li>Aperçu plein écran&nbsp;: téléphone, liseuse ou page imprimée</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div>
+        <h3>Publier</h3>
+        <p>Des fichiers que les librairies acceptent.</p>
+        <ul class="checks">
+          <li>Le livre broché prêt à imprimer&nbsp;: PDF intérieur et couverture complète — 4e de couverture, dos et 1re</li>
+          <li>Vérifications d'impression pour KDP et IngramSpark avant l'envoi</li>
+          <li>Un calculateur de prix et de redevances pour le broché et le numérique</li>
+          <li>EPUB 3, Word, Markdown et HTML&nbsp;; un e-mail vous prévient quand c'est prêt</li>
+          <li>Un ISBN par format, une déclaration de droits et de l'aide pour la déclaration d'IA demandée par KDP</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></div>
+        <h3>Faire connaître</h3>
+        <p>Après le livre, les lecteurs.</p>
+        <ul class="checks">
+          <li>Planificateur de lancement et kit marketing</li>
+          <li>Statistiques d'écriture, calculées à partir de vos versions</li>
+          <li>Une boîte de réception pour les commentaires, relectures et exports terminés</li>
+          <li><span>Boutique de vente directe <em>(ouverture avec le paiement en ligne)</em></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SUR TÉLÉPHONE ================= -->
+<section id="mobile" class="alt">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Sur téléphone</p>
+      <h2>Tout le studio dans votre poche</h2>
+      <p class="lede mt-s">Pas une simple visionneuse — le vrai studio, pensé pour le pouce. Écrire dans le bus, relire un chapitre dans une file d'attente, vérifier la couverture avant de dormir.</p>
+      <ul class="feature-list">
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M6 17h12"/></svg></span>
+          <div><b>Une barre d'onglets qui vous suit</b><span>L'écriture, la relecture, la publication et la vente placent chacune leurs outils sous votre pouce. Tout le reste est à un geste, dans «&nbsp;Plus&nbsp;».</span></div></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18v10H3zM7 10h.01M11 10h.01M15 10h.01M8 13h8"/></svg></span>
+          <div><b>La mise en forme sur le clavier</b><span>Gras, titres, listes et le reste se placent au-dessus du clavier pendant que vous tapez, et la ligne en cours reste visible.</span></div></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h4"/></svg></span>
+          <div><b>Une remarque à la fois</b><span>Parcourez la relecture éditoriale&nbsp;: appliquer, écarter ou annuler, d'une seule touche.</span></div></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 10l5 5 5-5"/><rect x="4" y="17" width="16" height="4" rx="1"/></svg></span>
+          <div><b>S'installe comme une application</b><span>Ajoutez Ecrivain à votre écran d'accueil&nbsp;: il s'ouvre en plein écran. Si la connexion coupe, le chapitre vous le dit et enregistre dès votre retour.</span></div></li>
+      </ul>
+    </div>
+    <div class="phones" role="list" aria-label="Écrans du studio sur téléphone">
+      <figure role="listitem"><div class="phone"><img src="/shots/phone-keyboard.jpg" width="780" height="1688" alt="Écriture d'un chapitre sur téléphone, la barre de mise en forme au-dessus du clavier." loading="lazy"></div><figcaption>Écrire</figcaption></figure>
+      <figure role="listitem"><div class="phone"><img src="/shots/phone-preview.jpg" width="780" height="1688" alt="Le livre en aperçu, comme sur une liseuse." loading="lazy"></div><figcaption>Aperçu</figcaption></figure>
+      <figure role="listitem"><div class="phone"><img src="/shots/phone-more.jpg" width="780" height="1688" alt="Le menu Plus : tous les outils du studio en vignettes." loading="lazy"></div><figcaption>Tous les outils</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PUBLICATION ================= -->
+<section id="publish" class="band">
+  <div class="wrap split rev">
+    <div>
+      <p class="eyebrow">Mise en page &amp; publication</p>
+      <h2>Toutes les parties d'un vrai livre</h2>
+      <p class="lede mt-s">
+        Indiquez qu'un chapitre est un avant-propos, un prologue ou une annexe&nbsp;:
+        il prend sa place. Pages liminaires en chiffres romains, le corps du
+        livre en chiffres arabes, chaque partie nommée dans la langue du livre.
+      </p>
+      <div class="chips">
+        <span>Couverture</span><span>Faux-titre</span><span>Page de titre</span><span>Mentions légales</span><span>Dédicace</span>
+        <span>Épigraphe</span><span>Table des matières</span><span>Préface</span><span>Avant-propos</span><span>Remerciements</span>
+        <span>Introduction</span><span>Prologue</span><span>Parties &amp; chapitres</span><span>Conclusion</span><span>Épilogue</span>
+        <span>Postface</span><span>Annexe</span><span>Notes</span><span>Glossaire</span><span>Bibliographie</span>
+        <span>Index</span><span>À propos de l'auteur</span><span>À propos de la collection</span><span>Colophon</span>
+      </div>
+      <p class="mt" style="color:#A6B3C6;font-size:15px">Les noms des parties sont justes en français, en kreyòl, en anglais, en espagnol, en allemand et en portugais — «&nbsp;Avant-propos&nbsp;», «&nbsp;Remèsiman&nbsp;», «&nbsp;Anteportada&nbsp;».</p>
+    </div>
+    <div class="phones" style="justify-content:center">
+      <figure><div class="phone"><img src="/shots/phone-cover.jpg" width="780" height="1688" alt="Le studio de couverture sur téléphone, avec une couverture finie importée." loading="lazy"></div><figcaption style="color:#94A3B8">Studio de couverture</figcaption></figure>
+    </div>
+  </div>
+
+  <div class="wrap mt-l">
+    <div class="card">
+      <h3>Des exports prêts à l'emploi</h3>
+      <div class="formats">
+        <div><b>PDF de lecture</b><span>S'ouvre sur votre couverture, composé à votre format</span></div>
+        <div><b>PDF d'impression</b><span>L'intérieur, pour KDP ou IngramSpark</span></div>
+        <div><b>EPUB 3</b><span>Couverture, table et repères pour les liseuses</span></div>
+        <div><b>Word (.docx)</b><span>Pour les correcteurs et les coauteurs</span></div>
+        <div><b>Markdown</b><span>Texte brut, structure conservée</span></div>
+        <div><b>HTML</b><span>Pour le web ou votre propre chaîne</span></div>
+      </div>
+      <p class="mt-s" style="font-size:14px;color:#94A3B8">Les modifications suivies en attente ne sont jamais imprimées comme si elles étaient acceptées, et la vérification avant publication signale celles qui restent.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= IMPRESSION ================= -->
+<section id="print">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Impression à la demande</p>
+      <h2>Du manuscrit au livre broché sur Amazon</h2>
+      <p class="lede mt-s">
+        Ecrivain produit les deux fichiers qu'un service d'impression à la
+        demande réclame — l'intérieur et la couverture complète — et les
+        vérifie selon les règles de ce service avant l'envoi&nbsp;: un refus se voit
+        ici, pas chez le libraire.
+      </p>
+      <ul class="checks mt">
+        <li><span><b>La couverture entière&nbsp;:</b> 4e de couverture, dos et 1re sur une seule feuille, avec fond perdu, le dos calculé d'après votre nombre réel de pages et votre papier, et la zone du code-barres laissée libre</span></li>
+        <li><span><b>Vérifications d'impression&nbsp;:</b> nombre de pages, marge intérieure nécessaire à un livre épais, format, résolution des images, ISBN</span></li>
+        <li><span><b>Le prix qui vous rapporte&nbsp;:</b> coût d'impression, redevance et prix public minimal encore rentable, pour KDP et IngramSpark</span></li>
+        <li><span><b>Prêt pour les questions du libraire&nbsp;:</b> déclaration de droits, déclaration d'IA, et où obtenir un ISBN dans votre pays</span></li>
+      </ul>
+      <table class="numbers" aria-label="Exemple réel : Réussir le Bac (NS4) — Mathématiques">
+        <thead><tr><th>Exemple réel</th><th>Pages</th><th>Impression</th><th>Prix public</th><th>Redevance / ex.</th></tr></thead>
+        <tbody><tr><td data-label="Exemple réel"><b>Bac NS4 — Mathématiques</b></td><td data-label="Pages">538</td><td data-label="Impression">7,46&nbsp;$</td><td data-label="Prix public"><b>19,99&nbsp;$</b></td><td data-label="Redevance / ex."><b>4,53&nbsp;$</b></td></tr></tbody>
+      </table>
+      <p class="source">Broché KDP, 6 × 9 po, noir et blanc sur papier blanc, redevance de 60 % — chiffres publiés par Amazon KDP, vérifiés le 23 octobre 2026. Vérifiez-les chez le libraire avant de fixer un prix.</p>
+    </div>
+    <figure style="margin:0">
+      <div class="wrap-shot"><img src="/shots/print-wrap.jpg" width="1481" height="1018" alt="La couverture complète du livre broché réalisée par Ecrivain pour Réussir le Bac (NS4) Mathématiques : 4e de couverture avec la description et le contenu, dos bleu marine avec le titre, et 1re de couverture." loading="lazy"></div>
+      <figcaption class="source" style="text-align:center">La couverture complète qu'Ecrivain a produite pour ce livre — 13,46 × 9,25 po pour ses 538 pages.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= HAÏTI ================= -->
+<section class="alt">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Pensé pour publier en Haïti — et dans la diaspora</p>
+      <h2>Votre langue, vos examens, vos lecteurs</h2>
+    </div>
+    <div class="grid g4 mt-l">
+      <div class="card"><h3>Français et kreyòl</h3><p>Parties du livre, pages de titre et tables nommées dans la langue du livre — «&nbsp;Avant-propos&nbsp;», «&nbsp;Remèsiman&nbsp;», «&nbsp;Tab matyè&nbsp;».</p></div>
+      <div class="card"><h3>ISBN et dépôt légal</h3><p>Des indications pour la Bibliothèque Nationale d'Haïti, et un rappel des cinq exemplaires que la loi demande.</p></div>
+      <div class="card"><h3>Pensé pour Android</h3><p>Tout le studio sur un téléphone, installable depuis le navigateur, et franc quand la connexion coupe.</p></div>
+      <div class="card"><h3>Payer en Haïti</h3><p>Le paiement par carte d'abord&nbsp;; MonCash est le prochain sur la liste, pour que les lecteurs en Haïti puissent acheter aussi.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= COMPARAISON ================= -->
+<section>
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Pourquoi un seul studio</p>
+      <h2>Tout ce que fait la panoplie habituelle — au même endroit</h2>
+      <p class="lede mt-s">La plupart des auteurs assemblent un traitement de texte, une application de mise en page, un graphiste et un tableur. Voici ce qui change.</p>
+    </div>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead><tr><th scope="col">Ce qu'il vous faut</th><th scope="col">La panoplie habituelle</th><th scope="col">Ecrivain</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Écrire partout</th><td>Une application de bureau&nbsp;; sur téléphone, une simple visionneuse, s'il y en a une</td><td>Tout le studio sur téléphone, tablette ou ordinateur</td></tr>
+          <tr><th scope="row">Relecture éditoriale</th><td>Engager un correcteur, ou coller ses chapitres dans un autre outil</td><td>Neuf agents de relecture&nbsp;; vous acceptez ou écartez chaque remarque, avec annulation</td></tr>
+          <tr><th scope="row">Coauteurs et correcteurs</th><td>Des pièces jointes et «&nbsp;final_v7.docx&nbsp;»</td><td>Modifications suivies, commentaires, circuit de relecture et rôles</td></tr>
+          <tr><th scope="row">Une vraie mise en page</th><td>Une application de mise en page à part</td><td>Toutes les parties du livre, format, typographie et titres courants, vus comme le lecteur les verra</td></tr>
+          <tr><th scope="row">La couverture du broché</th><td>Un graphiste et le gabarit de l'imprimeur</td><td>4e, dos et 1re faits d'après votre nombre de pages, vérifiés pour le libraire</td></tr>
+          <tr><th scope="row">Prix et redevances</th><td>Un tableur et les pages d'aide du libraire</td><td>Un calculateur fondé sur les tarifs publiés par les libraires</td></tr>
+          <tr><th scope="row">Français et kreyòl</th><td>Des valeurs anglaises à corriger à la main</td><td>Les parties du livre nommées dans la langue du livre</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= COMMENT ÇA MARCHE ================= -->
+<section>
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Comment ça marche</p>
+      <h2>Quatre étapes jusqu'au fichier final</h2>
+    </div>
+    <div class="grid g4 mt-l">
+      <div class="card"><div class="step-n">1</div><h3>Apportez votre texte</h3><p>Partez d'une page blanche ou importez du Markdown ou du Word. Les titres deviennent des chapitres&nbsp;; ce que l'import ne peut pas reprendre est signalé, jamais perdu en silence.</p></div>
+      <div class="card"><div class="step-n">2</div><h3>Écrivez et révisez</h3><p>Chaque enregistrement est une version. Lancez les agents éditoriaux, examinez chaque remarque, suivez les modifications, invitez coauteurs et relecteurs.</p></div>
+      <div class="card"><div class="step-n">3</div><h3>Mettez en page</h3><p>Choisissez le format et la typographie, la couverture, les pages liminaires et finales, et feuilletez le livre comme un lecteur le verra.</p></div>
+      <div class="card"><div class="step-n">4</div><h3>Publiez</h3><p>Exportez l'EPUB pour les librairies numériques, et l'intérieur et la couverture complète de votre broché, vérifiés selon les règles du libraire.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= OÙ EN SOMMES-NOUS ================= -->
+<section class="alt">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">En toute franchise</p>
+      <h2>Ce qui marche aujourd'hui, et ce qui vient</h2>
+      <p class="lede mt-s">Ecrivain est en accès anticipé. Voici exactement où passe la limite — l'application dit la même chose là où ça compte.</p>
+    </div>
+    <div class="grid g2 mt-l">
+      <div class="card">
+        <span class="chip chip-now">Disponible</span>
+        <ul class="checks">
+          <li>Éditeur de chapitres, plan du livre, enregistrement automatique et historique</li>
+          <li>Mode suggestion, commentaires, circuit de relecture et rôles d'équipe</li>
+          <li>Bibliothèque de sources, citations et cohérence dans tout le livre</li>
+          <li>Mise en page, studio de couverture, parties du livre et aperçu plein écran</li>
+          <li>Impression à la demande&nbsp;: couvertures complètes, vérifications d'impression et calculateur de redevances</li>
+          <li>Exports PDF, EPUB 3, Word, Markdown et HTML</li>
+          <li>Objectifs d'écriture et séries, mode machine à écrire, boîte de réception, connexion à deux facteurs</li>
+          <li>Le studio sur téléphone et tablette, installable sur l'écran d'accueil</li>
+          <li>Livres en français, en kreyòl et en anglais, et d'autres langues pour les parties du livre</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="chip chip-soon">Bientôt</span>
+        <ul class="soon" style="margin-top:12px">
+          <li>Relectures par un modèle d'IA. Aujourd'hui, les agents exécutent des vérifications automatiques intégrées, signalées «&nbsp;Exemple&nbsp;» et sans crédit</li>
+          <li>Abonnements payants et packs de crédits au paiement</li>
+          <li>Vente directe depuis votre boutique, et MonCash pour les lecteurs en Haïti</li>
+          <li>Livres audio</li>
+          <li>Créateur de cours et site d'auteur</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TARIFS ================= -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Tarifs</p>
+      <h2>Commencez gratuitement. Passez à l'offre supérieure quand le livre le demande.</h2>
+      <p class="lede mt-s">Les relectures IA utilisent des crédits pris sur une allocation mensuelle&nbsp;; une relecture qui échoue est remboursée automatiquement. Tout le monde commence avec l'offre gratuite en attendant l'ouverture du paiement.</p>
+    </div>
+    <div class="prices mt-l">
+      <div class="price">
+        <h3>Gratuit</h3>
+        <p style="font-size:14.5px;color:var(--muted);margin:6px 0 16px">Pour un premier livre.</p>
+        <div><span class="amount">0&nbsp;$</span> <span class="per">/mois</span></div>
+        <ul class="checks">
+          <li>1 livre, 2 places de collaborateur</li>
+          <li>100 crédits IA par mois</li>
+          <li>Agents structure, style, correction et accessibilité</li>
+          <li>Export PDF et EPUB</li>
+          <li>Téléphone, tablette et ordinateur</li>
+        </ul>
+        <a class="btn btn-ghost" href="https://app.ecrivain.ai/register">Commencer</a>
+      </div>
+      <div class="price featured">
+        <span class="badge">Pour les auteurs</span>
+        <h3>Auteur</h3>
+        <p style="font-size:14.5px;color:#94A3B8;margin:6px 0 16px">Pour le livre que vous comptez finir.</p>
+        <div><span class="amount">19&nbsp;$</span> <span class="per" style="color:#94A3B8">/mois</span></div>
+        <ul class="checks">
+          <li>10 livres, 5 places de collaborateur</li>
+          <li>1 000 crédits IA par mois</li>
+          <li>En plus&nbsp;: vérification des faits, cohérence et examinateurs de mémoire</li>
+          <li>PDF, EPUB, Word et Markdown</li>
+          <li>Historique complet des versions</li>
+        </ul>
+        <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Commencer gratuitement</a>
+      </div>
+      <div class="price">
+        <h3>Studio</h3>
+        <p style="font-size:14.5px;color:var(--muted);margin:6px 0 16px">Pour une collection ou un catalogue.</p>
+        <div><span class="amount">79&nbsp;$</span> <span class="per">/mois</span></div>
+        <ul class="checks">
+          <li>Livres et collaborateurs illimités</li>
+          <li>5 000 crédits IA par mois</li>
+          <li>En plus&nbsp;: expertise du domaine — tous les agents</li>
+          <li>Tous les formats d'export, HTML compris</li>
+          <li>Assistance prioritaire</li>
+        </ul>
+        <a class="btn btn-ghost" href="https://app.ecrivain.ai/register">Commencer gratuitement</a>
+      </div>
+    </div>
+    <p class="center mt" style="font-size:13.5px;color:var(--faint)">Packs de crédits&nbsp;: 500 pour 15&nbsp;$, 2 000 pour 50&nbsp;$ avec toute offre payante. Prix de lancement, en dollars américains&nbsp;; un abonné garde son tarif.</p>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section id="faq" class="alt">
+  <div class="wrap">
+    <div class="center"><p class="eyebrow">Questions</p><h2>Questions fréquentes</h2></div>
+    <div class="faq mt-l">
+      <details class="q" open>
+        <summary>L'IA réécrit-elle mon livre&nbsp;?</summary>
+        <p>Non. Chaque remarque est une suggestion que vous appliquez ou écartez, et une correction appliquée peut être annulée. Les modifications suivies d'un coauteur attendent elles aussi votre accord. Rien ne change dans votre manuscrit sans votre geste.</p>
+      </details>
+      <details class="q">
+        <summary>Peut-on vraiment écrire sur un téléphone&nbsp;?</summary>
+        <p>Oui. La version téléphone est le studio complet&nbsp;: chapitres, mise en forme sur le clavier, relecture, commentaires, mise en page, couverture, aperçu et export. Ajoutez-le à votre écran d'accueil et il s'ouvre comme une application. Sur tablette, le plan du livre s'affiche à côté du texte.</p>
+      </details>
+      <details class="q">
+        <summary>Quel modèle d'IA relit mes chapitres&nbsp;?</summary>
+        <p>En accès anticipé, les agents exécutent des vérifications automatiques intégrées — phrases longues, chiffres sans source, orthographes mélangées, mots répétés — clairement signalées «&nbsp;Exemple&nbsp;» et sans crédit. Les relectures par modèle, dont Claude parmi les fournisseurs, sont en cours d'activation&nbsp;; l'application indiquera quel modèle a fait chaque relecture.</p>
+      </details>
+      <details class="q">
+        <summary>Dans quelles langues mon livre peut-il être&nbsp;?</summary>
+        <p>N'importe laquelle. L'interface est en anglais&nbsp;; les livres en français, kreyòl, anglais, espagnol, allemand et portugais ont leurs parties nommées dans leur langue, et la collection Écrivain Prépa ci-dessus a été réalisée en français et en kreyòl.</p>
+      </details>
+      <details class="q">
+        <summary>Puis-je récupérer mon manuscrit&nbsp;?</summary>
+        <p>À tout moment, en PDF, EPUB, Word, Markdown ou HTML selon votre offre — et en Markdown avec toutes les offres. C'est votre livre.</p>
+      </details>
+      <details class="q">
+        <summary>Mon manuscrit inédit sert-il à entraîner une IA&nbsp;?</summary>
+        <p>Non. Le texte n'est envoyé à un fournisseur que lorsque vous lancez une relecture, et seulement le chapitre relu. Les polices sont hébergées par le studio, et l'application installée ne garde aucune copie de votre manuscrit sur l'appareil.</p>
+      </details>
+      <details class="q">
+        <summary>Que se passe-t-il si une relecture échoue&nbsp;?</summary>
+        <p>Les crédits sont remboursés automatiquement et l'échec est présenté comme un échec — jamais comme un chapitre sans remarque.</p>
+      </details>
+      <details class="q">
+        <summary>Puis-je imprimer des livres brochés&nbsp;?</summary>
+        <p>Oui, par un service d'impression à la demande comme Amazon KDP ou IngramSpark&nbsp;: Ecrivain produit l'intérieur et la couverture complète — 4e, dos et 1re — au format de votre livre, les vérifie selon les règles du service et vous montre ce que chaque exemplaire vous rapporterait. Vous les envoyez vous-même au service, qui imprime et expédie chaque exemplaire vendu.</p>
+      </details>
+      <details class="q">
+        <summary>Ai-je besoin d'un ISBN&nbsp;?</summary>
+        <p>Pas pour les livres numériques Kindle ou Google Play. Un livre broché en a besoin&nbsp;: KDP peut en fournir un gratuit, valable seulement sur Amazon, tandis qu'IngramSpark demande le vôtre. Ecrivain enregistre un ISBN par format et vous indique l'agence de votre pays — en Haïti, la Bibliothèque Nationale.</p>
+      </details>
+      <details class="q">
+        <summary>Est-ce terminé&nbsp;?</summary>
+        <p>Pas entièrement, et la section «&nbsp;En toute franchise&nbsp;» ci-dessus dit exactement ce qui arrive. L'écriture, la relecture, la mise en page et l'export fonctionnent aujourd'hui.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= APPEL FINAL ================= -->
+<section>
+  <div class="wrap">
+    <div class="final">
+      <h2>Votre livre, terminé — et dans votre poche</h2>
+      <p>Commencez gratuitement&nbsp;: un livre, cent crédits par mois, export PDF et EPUB, sur tous vos écrans.</p>
+      <div class="cta-row">
+        <a class="btn btn-white" href="https://app.ecrivain.ai/register">Commencer gratuitement</a>
+        <a class="btn btn-dark" href="mailto:hello@ecrivain.ai">Nous écrire</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="logo" href="/fr/" style="color:#fff"><img src="/brand/symbol.svg" alt="" width="30" height="30"> Ecrivain</a>
+        <p style="margin-top:12px;max-width:36ch;line-height:1.6">Un studio d'édition pour ceux qui veulent être lus avec attention.</p>
+      </div>
+      <div>
+        <h4>Produit</h4>
+        <ul>
+          <li><a href="#studio">Le studio</a></li>
+          <li><a href="#mobile">Sur téléphone</a></li>
+          <li><a href="#print">Imprimer un livre broché</a></li>
+          <li><a href="#publish">Publication</a></li>
+          <li><a href="#pricing">Tarifs</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Compte</h4>
+        <ul>
+          <li><a href="https://app.ecrivain.ai/login">Connexion</a></li>
+          <li><a href="https://app.ecrivain.ai/register">Créer un compte</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Ecrivain</h4>
+        <ul>
+          <li><a href="mailto:hello@ecrivain.ai">Contact</a></li>
+          <li><a href="https://app.ecrivain.ai/status">État du service</a></li>
+          <li><a href="/" hreflang="en" lang="en">English</a></li>
+          <li><a href="/privacy.html">Confidentialité</a></li>
+          <li><a href="/terms.html">Conditions</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© <span id="yr">2026</span> Ecrivain. Tous droits réservés.</span>
+      <span>Votre manuscrit vous appartient. Exportez-le à tout moment.</span>
+    </div>
+  </div>
+</footer>
+
+<div class="mobile-cta">
+  <a class="btn btn-ghost" href="https://app.ecrivain.ai/login">Connexion</a>
+  <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Commencer gratuitement</a>
+</div>
+
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+  // Le menu du téléphone se referme quand on choisit un lien.
+  document.querySelectorAll('.menu-sheet a').forEach(function (a) {
+    a.addEventListener('click', function () { a.closest('details').removeAttribute('open'); });
+  });
+</script>
+</body>
+</html>
