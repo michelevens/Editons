@@ -35,13 +35,43 @@ class ChartRenderer
     private const GRID = '#E3E7EC';
 
     /**
+     * Print, in black and white: greys far enough apart to tell on paper,
+     * black type and gridlines a printer does not drop. The pale web
+     * colours printed as near-white bars on a grey-scale press.
+     */
+    private const MONO = ['#000000', '#7A7A7A', '#B5B5B5', '#3D3D3D', '#9A9A9A', '#5C5C5C', '#D0D0D0', '#262626'];
+
+    /** Drawing for print: the MONO palette and darker rules. */
+    private bool $mono = false;
+
+    /** The colours in use. @return array{palette: array<int, string>, ink: string, muted: string, grid: string} */
+    private function colours(): array
+    {
+        return $this->mono
+            ? ['palette' => self::MONO, 'ink' => '#000000', 'muted' => '#262626', 'grid' => '#BDBDBD']
+            : ['palette' => self::PALETTE, 'ink' => self::INK, 'muted' => self::MUTED, 'grid' => self::GRID];
+    }
+
+    /** How a chart is described to a screen reader, by language. */
+    private const DESCRIBE = [
+        'en' => ['chart' => ':type chart of :series by :x, :n :rows.', 'and' => 'and', 'row' => 'row', 'rows' => 'rows', 'values' => 'values', 'category' => 'category',
+            'types' => ['bar' => 'Bar', 'line' => 'Line', 'pie' => 'Pie', 'scatter' => 'Scatter']],
+        'fr' => ['chart' => ':type de :series en fonction de :x, :n :rows.', 'and' => 'et', 'row' => 'ligne', 'rows' => 'lignes', 'values' => 'valeurs', 'category' => 'catégorie',
+            'types' => ['bar' => 'Diagramme en barres', 'line' => 'Courbe', 'pie' => 'Diagramme circulaire', 'scatter' => 'Nuage de points']],
+        'ht' => ['chart' => ':type pou :series dapre :x, :n :rows.', 'and' => 'ak', 'row' => 'liy', 'rows' => 'liy', 'values' => 'valè', 'category' => 'kategori',
+            'types' => ['bar' => 'Grafik ak baton', 'line' => 'Koub', 'pie' => 'Grafik sèk', 'scatter' => 'Nwaj pwen']],
+        'es' => ['chart' => ':type de :series según :x, :n :rows.', 'and' => 'y', 'row' => 'fila', 'rows' => 'filas', 'values' => 'valores', 'category' => 'categoría',
+            'types' => ['bar' => 'Gráfico de barras', 'line' => 'Gráfico de líneas', 'pie' => 'Gráfico circular', 'scatter' => 'Diagrama de dispersión']],
+    ];
+
+    /**
      * @param  array{type?: string, title?: string, xLabel?: string, yLabel?: string, data?: string}  $spec
      */
-    public function svg(array $spec): string
+    public function svg(array $spec, string $language = 'en'): string
     {
         $shapes = $this->layout($spec);
         $out = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '.self::WIDTH.' '.self::HEIGHT.'" '
-            .'width="'.self::WIDTH.'" height="'.self::HEIGHT.'" role="img" aria-label="'.e($this->describe($spec)).'" '
+            .'width="'.self::WIDTH.'" height="'.self::HEIGHT.'" role="img" aria-label="'.e($this->describe($spec, $language)).'" '
             .'font-family="Source Sans 3, Source Sans Pro, Helvetica, Arial, sans-serif">';
 
         foreach ($shapes as $s) {
@@ -70,9 +100,16 @@ class ChartRenderer
      *
      * @param  array<string, mixed>  $spec
      */
-    public function png(array $spec, int $scale = 3): string
+    public function png(array $spec, int $scale = 3, bool $mono = false): string
     {
-        $shapes = $this->layout($spec);
+        $this->mono = $mono;
+
+        try {
+            $shapes = $this->layout($spec);
+        } finally {
+            $this->mono = false;
+        }
+
         $image = imagecreatetruecolor(self::WIDTH * $scale, self::HEIGHT * $scale);
         imageantialias($image, true);
         imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
@@ -166,25 +203,29 @@ class ChartRenderer
         return [array_shift($rows), $rows];
     }
 
-    /** A sentence a screen reader can say in place of the picture. */
-    public function describe(array $spec): string
+    /** A sentence a screen reader can say in place of the picture, in the book's language. */
+    public function describe(array $spec, string $language = 'en'): string
     {
+        $words = self::DESCRIBE[strtolower(substr($language, 0, 2))] ?? self::DESCRIBE['en'];
+
         $type = in_array($spec['type'] ?? 'bar', self::TYPES, true) ? $spec['type'] ?? 'bar' : 'bar';
         $title = trim((string) ($spec['title'] ?? ''));
 
         try {
             [$headers, $rows] = $this->parse((string) ($spec['data'] ?? ''));
         } catch (InvalidArgumentException) {
-            return $title !== '' ? $title : 'Chart';
+            return $title !== '' ? $title : $words['types'][$type];
         }
 
         $names = array_slice($headers, 1);
         $series = count($names) > 1
-            ? implode(', ', array_slice($names, 0, -1)).' and '.end($names)
-            : ($names[0] ?? 'values');
+            ? implode(', ', array_slice($names, 0, -1)).' '.$words['and'].' '.end($names)
+            : ($names[0] ?? $words['values']);
 
-        return ($title !== '' ? $title.'. ' : '').ucfirst($type).' chart of '.$series.' by '
-            .($headers[0] ?? 'category').', '.count($rows).' '.(count($rows) === 1 ? 'row' : 'rows').'.';
+        return ($title !== '' ? $title.'. ' : '').strtr($words['chart'], [
+            ':type' => $words['types'][$type], ':series' => $series, ':x' => $headers[0] ?? $words['category'],
+            ':n' => (string) count($rows), ':rows' => count($rows) === 1 ? $words['row'] : $words['rows'],
+        ]);
     }
 
     /**
@@ -200,9 +241,10 @@ class ChartRenderer
         $shapes = [];
         $title = trim((string) ($spec['title'] ?? ''));
         $top = 22;
+        ['palette' => $palette, 'ink' => $ink, 'muted' => $muted, 'grid' => $grid] = $this->colours();
 
         if ($title !== '') {
-            $shapes[] = ['text', self::WIDTH / 2, 24, $title, 16, 'middle', true, self::INK, 0];
+            $shapes[] = ['text', self::WIDTH / 2, 24, $title, 16, 'middle', true, $ink, 0];
             $top = 44;
         }
 
@@ -237,11 +279,11 @@ class ChartRenderer
 
         // Gridlines and the y axis labels.
         foreach ($yTicks as $tick) {
-            $shapes[] = ['line', $left, $y($tick), $right, $y($tick), self::GRID, 1];
-            $shapes[] = ['text', $left - 8, $y($tick) + 4, $this->label($tick), 11, 'end', false, self::MUTED, 0];
+            $shapes[] = ['line', $left, $y($tick), $right, $y($tick), $grid, $this->mono ? 1.2 : 1];
+            $shapes[] = ['text', $left - 8, $y($tick) + 4, $this->label($tick), 11, 'end', false, $muted, 0];
         }
 
-        $shapes[] = ['line', $left, $bottom, $right, $bottom, self::MUTED, 1];
+        $shapes[] = ['line', $left, $bottom, $right, $bottom, $muted, 1];
 
         $count = max(1, count($rows));
         $slot = ($right - $left) / $count;
@@ -250,13 +292,13 @@ class ChartRenderer
             $x = fn (float $v) => $left + ($v - $xMin) / max(1e-9, $xMax - $xMin) * ($right - $left);
 
             foreach ($xTicks as $tick) {
-                $shapes[] = ['text', $x($tick), $bottom + 18, $this->label($tick), 11, 'middle', false, self::MUTED, 0];
+                $shapes[] = ['text', $x($tick), $bottom + 18, $this->label($tick), 11, 'middle', false, $muted, 0];
             }
 
             foreach ($values as $k => $series) {
                 foreach ($series as $i => $v) {
                     if (is_float($v) && is_float($xs[$i])) {
-                        $shapes[] = ['circle', $x($xs[$i]), $y($v), 4, self::PALETTE[$k % 8]];
+                        $shapes[] = ['circle', $x($xs[$i]), $y($v), 4, $palette[$k % 8]];
                     }
                 }
             }
@@ -265,7 +307,7 @@ class ChartRenderer
             $every = (int) ceil($count / 12);
             foreach ($rows as $i => $row) {
                 if ($i % $every === 0) {
-                    $shapes[] = ['text', $left + $slot * ($i + 0.5), $bottom + 18, $this->shorten((string) ($row[0] ?? ''), $slot * $every), 11, 'middle', false, self::MUTED, 0];
+                    $shapes[] = ['text', $left + $slot * ($i + 0.5), $bottom + 18, $this->shorten((string) ($row[0] ?? ''), $slot * $every), 11, 'middle', false, $muted, 0];
                 }
             }
 
@@ -281,7 +323,7 @@ class ChartRenderer
                         }
 
                         $x0 = $left + $slot * $i + ($slot - $group) / 2 + $bar * $k;
-                        $shapes[] = ['rect', $x0 + 0.5, min($y($v), $zero), max(1, $bar - 1), abs($zero - $y($v)), self::PALETTE[$k % 8]];
+                        $shapes[] = ['rect', $x0 + 0.5, min($y($v), $zero), max(1, $bar - 1), abs($zero - $y($v)), $palette[$k % 8]];
                     }
                 }
             } else {
@@ -293,10 +335,10 @@ class ChartRenderer
                         }
                     }
 
-                    $shapes[] = ['polyline', $points, self::PALETTE[$k % 8], 2.5];
+                    $shapes[] = ['polyline', $points, $palette[$k % 8], 2.5];
 
                     foreach ($points as [$px, $py]) {
-                        $shapes[] = ['circle', $px, $py, 3.5, self::PALETTE[$k % 8]];
+                        $shapes[] = ['circle', $px, $py, 3.5, $palette[$k % 8]];
                     }
                 }
             }
@@ -304,18 +346,18 @@ class ChartRenderer
 
         // Axis titles.
         if ($xLabel = trim((string) ($spec['xLabel'] ?? ($type === 'scatter' ? '' : $headers[0] ?? '')))) {
-            $shapes[] = ['text', ($left + $right) / 2, self::HEIGHT - 16, $xLabel, 12, 'middle', false, self::INK, 0];
+            $shapes[] = ['text', ($left + $right) / 2, self::HEIGHT - 16, $xLabel, 12, 'middle', false, $ink, 0];
         }
 
         if ($yLabel = trim((string) ($spec['yLabel'] ?? ''))) {
-            $shapes[] = ['text', 18, ($plotTop + $bottom) / 2, $yLabel, 12, 'middle', false, self::INK, -90];
+            $shapes[] = ['text', 18, ($plotTop + $bottom) / 2, $yLabel, 12, 'middle', false, $ink, -90];
         }
 
         if ($legend) {
             foreach ($names as $k => $name) {
                 $ly = $plotTop + 8 + $k * 22;
-                $shapes[] = ['rect', $right + 18, $ly - 9, 12, 12, self::PALETTE[$k % 8]];
-                $shapes[] = ['text', $right + 36, $ly + 1, $this->shorten($name, 100), 12, 'start', false, self::INK, 0];
+                $shapes[] = ['rect', $right + 18, $ly - 9, 12, 12, $palette[$k % 8]];
+                $shapes[] = ['text', $right + 36, $ly + 1, $this->shorten($name, 100), 12, 'start', false, $ink, 0];
             }
         }
 
@@ -333,6 +375,7 @@ class ChartRenderer
         }
 
         $shapes = [];
+        ['palette' => $palette, 'ink' => $ink] = $this->colours();
         $r = min(130, (self::HEIGHT - $top - 30) / 2);
         $cx = 210;
         $cy = $top + 10 + $r;
@@ -340,15 +383,15 @@ class ChartRenderer
 
         foreach ($values as $i => $v) {
             $sweep = $v / $total * 360;
-            $shapes[] = ['wedge', $cx, $cy, $r, $angle, $angle + $sweep, self::PALETTE[$i % 8]];
+            $shapes[] = ['wedge', $cx, $cy, $r, $angle, $angle + $sweep, $palette[$i % 8]];
             $angle += $sweep;
         }
 
         foreach ($rows as $i => $row) {
             $ly = $top + 24 + $i * 24;
             $share = round($values[$i] / $total * 100, 1);
-            $shapes[] = ['rect', 390, $ly - 10, 13, 13, self::PALETTE[$i % 8]];
-            $shapes[] = ['text', 410, $ly + 1, $this->shorten((string) ($row[0] ?? ''), 160).' ('.$this->label($share).'%)', 12.5, 'start', false, self::INK, 0];
+            $shapes[] = ['rect', 390, $ly - 10, 13, 13, $palette[$i % 8]];
+            $shapes[] = ['text', 410, $ly + 1, $this->shorten((string) ($row[0] ?? ''), 160).' ('.$this->label($share).'%)', 12.5, 'start', false, $ink, 0];
         }
 
         return $shapes;
