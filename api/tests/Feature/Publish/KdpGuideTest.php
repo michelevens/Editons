@@ -108,15 +108,16 @@ it('suggests seven keywords of at most 50 characters, and saves the author\'s ed
     expect($book->fresh()->updated_at->equalTo($book->updated_at))->toBeTrue();
 });
 
-it('never gives an anonymous house book an author name, at KDP or Google', function () {
+it('gives an anonymous house book only its imprint\'s name, never a person\'s, at KDP or Google', function () {
     $house = app(HouseAccounts::class)->create('ecrivain-prepa', 'Écrivain Prépa', 'Test imprint');
     $book = pfChoose(pfBook($house, ['author_name' => null, 'series_name' => 'Écrivain Prépa', 'series_number' => 3, 'language' => 'French']), 'kdp_ebook', 'google_play');
     pfIsbn($book, '9780306406157');
 
     $author = kdpField(app(KdpGuide::class)->for($book->fresh(), 'ebook'), 'author');
-    expect($author['value'])->toBeNull()
-        ->and($author['status'])->toBe('warn')
-        ->and($author['note'])->toContain('without an author name');
+    // KDP requires a primary author: the imprint fills it (owner decision).
+    expect($author['value'])->toBe('Écrivain Prépa')
+        ->and($author['status'])->toBe('ok')
+        ->and($author['note'])->toContain('without a personal author name');
 
     $row = app(GooglePlayBulk::class)->row($book->fresh(), '9780306406157');
     // Every value the KDP page gives and every cell of Google's row.

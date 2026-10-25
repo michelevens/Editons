@@ -238,9 +238,15 @@ class KdpGuide
                 'note' => 'Exactly as on the cover.'];
         }
 
-        return House::isHouseBook($book)
-            ? ['key' => 'author', 'label' => 'Author (primary author or contributor)', 'value' => null, 'copy' => false, 'status' => 'warn',
-                'note' => 'This imprint publishes the book without an author name, so Écrivain gives none: no personal name, pen name or "Anonymous". KDP\'s form asks for a primary author; how the imprint fills it is the publisher\'s decision.']
+        // A house series publishes without a person's name, and KDP's form
+        // requires a primary author: the imprint's own name fills it (owner
+        // decision, 2026-10-25), as study-guide series are listed. Never a
+        // personal name, pen name or "Anonymous".
+        $imprint = House::isHouseBook($book) ? trim((string) $book->user?->name) : '';
+
+        return $imprint !== ''
+            ? ['key' => 'author', 'label' => 'Author (primary author or contributor)', 'value' => $imprint, 'copy' => true, 'status' => 'ok',
+                'note' => 'The imprint\'s name: this series publishes without a personal author name.']
             : ['key' => 'author', 'label' => 'Author (primary author or contributor)', 'value' => null, 'copy' => false, 'status' => 'fail',
                 'note' => 'The book has no author name.', 'fix' => ['pane' => 'export', 'label' => 'Add it on Export & Publish']];
     }
