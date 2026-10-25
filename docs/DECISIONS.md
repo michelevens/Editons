@@ -2201,3 +2201,95 @@ drawn in greys with black type.
 
 **Not done.** The content side (the 19 books' captions, grids, checklists)
 is the content builder's. A page-list in the EPUB. Mirrored margins (dompdf).
+
+---
+
+## ADR-00XX — Publish in three steps
+
+**Status:** accepted (2026-10-25). Number assigned at merge.
+
+**Context.** Publishing a finished book meant visiting Export & Publish,
+ISBN & Rights, Print & price, Sales & Distribution and, for a house book,
+the console, then typing the same values into each store's own forms. The
+owner asked for "publishing as easy as 1, 2, 3", honest about each
+channel. Checked on 2026-10-25: Amazon KDP has no public publishing API;
+Lulu documents a REST Print API (OpenID Connect client credentials, sandbox
+and production); Google Play Books has no upload API but a Partner Center
+bulk upload (a tab-separated, UTF-16 book list plus files named by ISBN);
+Apple Books delivers through Transporter with a publisher account the
+platform does not have. Every readiness rule already existed
+(`SubmissionCheck`, `StoreReadiness`, `PrintCheck`, `IsbnPlan`,
+`RightsDeclaration`, `AiDisclosure`, `Royalties`, `Commerce\Listing`,
+`Exporter`, `CoverWrap`, the House catalog).
+
+**Decisions.**
+
+- *One pane, three steps* (`PublishFlow.jsx`, `PublishFlowController`):
+  Check · Choose channels · Publish. Reading it, choosing channels,
+  regenerating files, editing KDP values and marking a store submitted need
+  `update` (an editor may); putting on sale and sending files to Lulu need
+  `manage` (the owner's money). A house book is the platform owner's on
+  both counts (BookPolicy); support reads nothing here.
+- *Step 1 adds no rule* (`PublishCheck`): it runs the existing checks for
+  the chosen channels and maps each problem to the pane that fixes it, plus
+  a freshness rule (`Freshness`): a file is stale when made before the last
+  section change, and a print file also when the `PrintPages` fingerprint
+  moved. "Regenerate files" queues the EPUB and interior at once and chains
+  the cover wraps after the interior (`MakeCoverWrap`) so the spine uses its
+  typeset count. A cover change has no timestamp and is not detected (said
+  on screen).
+- *An anonymous house book is not asked for an author name*:
+  `SubmissionCheck` skips `author_name` for a house book, the KDP page
+  gives none (a warning saying the imprint decides how KDP's required
+  field is filled — never a personal name, pen name or "Anonymous"), and
+  Google's contributor column is empty.
+- *Choices per book*: KDP and Google cards are the book's `book_channels`
+  rows (so KDP's AI questions and print rules apply); the store and Lulu
+  choices and the KDP values the author edits (keywords, categories,
+  audience) are `books.publish_plan`, written without touching
+  `updated_at` so editing them never makes the files stale.
+- *KDP is guided, never automated*: no browser automation, no scraping, no
+  stored Amazon credentials. `KdpGuide` mirrors KDP's three pages per
+  format with each value and a Copy button, KDP's verified limits (title +
+  subtitle under 200, description 4000 with its HTML, 7 keywords, 3
+  categories, its language list) and the 50-character keyword box flagged
+  as unverified. "I've submitted it" takes an ASIN in its documented shape
+  and a date; the channel is `in_review` or `live` with `external_id`,
+  shown on Overview, Sales & Distribution and the House catalog. No weekly
+  title limit is encoded; the bulk checklist shows a note without a number.
+- *Google Play is a spreadsheet*: the help page's 33 columns in order,
+  UTF-16LE with BOM, tab-separated; files `ISBN.epub` and
+  `ISBN_frontcover.jpg`. A book without an ebook ISBN is left out with the
+  reason (Google refuses spreadsheet rows without identifiers).
+- *Lulu prints for our storefront* (`App\Commerce\Print`): `LuluClient`
+  (token cached, every call through Laravel's HTTP client so tests fake
+  it), `LuluPackage` (dotted `pod_package_id` from trim, ink, paper,
+  finish), `LuluPrinting` (validation of the interior and the Lulu cover
+  from signed 7-day links, a one-copy quote, offering the paperback),
+  `PrintJobs` (a print job per paid paperback item, sent once under a lock,
+  polled every 30 minutes, tracking emailed once). Paperbacks sell in USD
+  with a flat shipping charge the owner sets (none by default, so none is
+  sold until then); Stripe collects the address and phone; the address is
+  encrypted on the order; the royalty is net of Lulu's quoted printing
+  cost.
+- *Bulk*: the shelf (an author's own books) and the console's House catalog
+  (owner, audited per book) run step 1 and regeneration for many books and
+  return one Google Play zip and one KDP checklist (one guided page per
+  book, printable).
+
+**Not done.** Apple Books (no account), automatic submission anywhere but
+our store and Lulu, cancelling a Lulu job on refund, live shipping quotes,
+Lulu webhooks, non-USD paperbacks, BISAC subject codes for Google (our
+categories are not BISAC; the column is left empty).
+
+**Tests.** `tests/Feature/Publish/PublishFlowTest.php` (aggregation and
+fixes, freshness, regenerate chain, KDP language, paperback price floor,
+channel memory, Apple refused, store listing, ASIN validation and status,
+editor/reviewer/stranger permissions, house book from the studio and the
+console, shelf bulk), `KdpGuideTest.php` (fields, description and title
+limits, keyword suggestions and saving, anonymous house book, Google book
+list and zip), `LuluTest.php` (package ids, auth and token reuse, wrong
+keys, validation from signed links, offer, paid order to print job with
+address, idempotent retry, polling and tracking email, refusal and retry,
+no keys or shipping, permissions). `tests/Browser/publish.spec.js` at 390
+px and desktop.

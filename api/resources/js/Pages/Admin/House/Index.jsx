@@ -221,7 +221,10 @@ function Bulk({ selected, allIds, setSelected, options }) {
             ...(d.action === 'export' ? { format: d.format, options: d.format === 'cover_wrap' ? { service: d.service } : {} } : {}),
             ...(d.action === 'price' ? { price: d.price, currency: d.currency } : {}),
         }));
-        form.post(route('admin.house.bulk'), { preserveScroll: true, onSuccess: () => form.setData('reason', '') });
+        // "Prepare for publishing" is its own action: step 1 of Publish for
+        // each book, stale files regenerated, one Google Play zip and one
+        // KDP checklist for them all.
+        form.post(route(form.data.action === 'prepare' ? 'admin.house.prepare' : 'admin.house.bulk'), { preserveScroll: true, onSuccess: () => form.setData('reason', '') });
     };
 
     return (
@@ -237,6 +240,7 @@ function Bulk({ selected, allIds, setSelected, options }) {
                         <option value="price">Set the price</option>
                         <option value="publish">Put on sale</option>
                         <option value="unpublish">Take off sale</option>
+                        <option value="prepare">Prepare for publishing (check, regenerate, Google + KDP)</option>
                     </select>
                     {form.data.action === 'export' && (
                         <>
@@ -286,20 +290,49 @@ function Bulk({ selected, allIds, setSelected, options }) {
     );
 }
 
+const READY_TONE = { green: 'success', amber: 'warning', red: 'danger' };
+const READY_LABEL = { green: 'ready', amber: 'ready, check', red: 'not ready' };
+
 function Results({ results }) {
+    const prepare = results.action === 'prepare';
+
     return (
-        <Panel title="Last bulk action" detail={results.action} className="mt-4" data-a="admin:house:results">
+        <Panel title="Last bulk action" detail={prepare ? 'prepare for publishing' : results.action} className="mt-4" data-a="admin:house:results">
+            {prepare && results.links && (
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                    <a href={results.links.google_play} data-a="admin:house:google-play" className={`${buttonClass} bg-brand-fill text-white hover:bg-brand-primary-hover`}>
+                        Google Play bulk upload (.zip)
+                    </a>
+                    <a href={results.links.kdp_checklist} data-a="admin:house:kdp-checklist" target="_blank" rel="noopener noreferrer" className={`${buttonClass} border border-border-default text-text-primary hover:bg-bg-subtle`}>
+                        KDP checklist (one page per book)
+                    </a>
+                </div>
+            )}
             <ul className="space-y-1 text-[12.5px]">
                 {results.rows.map((r) => (
                     <li key={r.id} data-a={`admin:house:result:${r.id}`}>
-                        <Badge tone={r.ok ? 'success' : 'danger'}>{r.ok ? 'done' : 'not done'}</Badge>{' '}
+                        {prepare ? (
+                            <Badge tone={READY_TONE[r.status] ?? 'danger'}>{READY_LABEL[r.status] ?? 'error'}</Badge>
+                        ) : (
+                            <Badge tone={r.ok ? 'success' : 'danger'}>{r.ok ? 'done' : 'not done'}</Badge>
+                        )}{' '}
                         <span className="font-semibold text-text-primary">#{r.id} {r.title}</span> <span className="text-text-secondary">{r.message}</span>
+                        {prepare && r.problems?.length > 0 && (
+                            <ul className="ml-5 list-disc text-[12px] text-status-danger">
+                                {r.problems.map((p) => (
+                                    <li key={p}>{p}</li>
+                                ))}
+                            </ul>
+                        )}
                     </li>
                 ))}
             </ul>
         </Panel>
     );
 }
+
+const CHANNEL_TONE = { live: 'success', in_review: 'info', ready_to_submit: 'warning', not_submitted: 'neutral', unpublished: 'neutral' };
+const CHANNEL_LABEL = { live: 'live', in_review: 'submitted', ready_to_submit: 'to upload', not_submitted: 'chosen', unpublished: 'unpublished' };
 
 function BookRow({ book, options, can, selected, onToggle }) {
     const product = book.product;
@@ -342,6 +375,12 @@ function BookRow({ book, options, can, selected, onToggle }) {
                                 </Badge>
                             );
                         })}
+                        {(book.channels ?? []).map((c) => (
+                            <Badge key={c.channel} tone={CHANNEL_TONE[c.status] ?? 'neutral'}>
+                                {c.label}: {CHANNEL_LABEL[c.status] ?? c.status}
+                                {c.external_id ? ` · ${c.external_id}` : ''}
+                            </Badge>
+                        ))}
                         {book.print.map((p) => (
                             <Badge key={p.service} tone={PRINT_TONE[p.status] ?? 'neutral'}>
                                 {p.label}: {p.status === 'pass' ? 'print ready' : p.status === 'warn' ? 'warnings' : `${p.failing} to fix`}
@@ -352,6 +391,9 @@ function BookRow({ book, options, can, selected, onToggle }) {
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                         <a href={book.studio.edit} data-a={`admin:house:open:${book.id}`} className={`${buttonClass} bg-brand-fill text-white hover:bg-brand-primary-hover`}>
                             Open in the studio
+                        </a>
+                        <a href={book.studio.publish} data-a={`admin:house:publish:${book.id}`} className={`${buttonClass} border border-border-default text-text-primary hover:bg-bg-subtle`}>
+                            Publish (3 steps)
                         </a>
                         <a href={book.studio.publishing} className={`${buttonClass} border border-border-default text-text-primary hover:bg-bg-subtle`}>
                             Export &amp; declarations

@@ -25,6 +25,10 @@ export default function Index({
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
     const [importing, setImporting] = useState(false);
+    // "Prepare for publishing" across several books (Publish in 3 steps).
+    const [selecting, setSelecting] = useState(false);
+    const [selected, setSelected] = useState([]);
+    const toggle = (id) => setSelected((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
     const totalWords = books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
 
@@ -162,12 +166,30 @@ export default function Index({
                         </p>
                     )}
 
+                    {books.length > 1 && (
+                        <PrepareBar
+                            selecting={selecting}
+                            selected={selected}
+                            onStart={() => setSelecting(true)}
+                            onStop={() => {
+                                setSelecting(false);
+                                setSelected([]);
+                            }}
+                        />
+                    )}
+
                     {books.length === 0 ? (
                         <EmptyShelf filter={filter} />
                     ) : (
                         <ul className="mt-5 grid grid-cols-1 gap-[14px] sm:grid-cols-2">
                             {books.map((book) => (
-                                <BookCard key={book.id} book={book} />
+                                <BookCard
+                                    key={book.id}
+                                    book={book}
+                                    selecting={selecting}
+                                    selected={selected.includes(book.id)}
+                                    onToggle={() => toggle(book.id)}
+                                />
                             ))}
                         </ul>
                     )}
@@ -179,7 +201,103 @@ export default function Index({
     );
 }
 
-function BookCard({ book }) {
+const READY = {
+    green: ['bg-status-success-bg text-status-success', 'Ready'],
+    amber: ['bg-status-warning-bg text-status-warning', 'Ready, check'],
+    red: ['bg-status-danger-bg text-status-danger', 'Not ready'],
+};
+
+/**
+ * "Prepare for publishing" for the selected books: step 1 of Publish for
+ * each, the stale files regenerated, then one Google Play bulk upload and
+ * one KDP checklist for them all (PublishFlowController::prepareMany).
+ */
+function PrepareBar({ selecting, selected, onStart, onStop }) {
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    const run = async () => {
+        setBusy(true);
+        setError(null);
+
+        try {
+            setResult((await window.axios.post(route('publish.prepare'), { books: selected })).data);
+        } catch (e) {
+            setError(e.response?.status === 403 ? 'You can only prepare books you may edit.' : (e.response?.data?.message ?? 'That did not work.'));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    if (!selecting) {
+        return (
+            <div className="mt-4">
+                <button
+                    type="button"
+                    data-a="books:prepare:start"
+                    onClick={onStart}
+                    className="rounded-control border border-border-input bg-bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-text-body transition hover:border-brand-primary/40"
+                >
+                    Prepare several for publishing…
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <section data-a="books:prepare" className="mt-4 rounded-panel border border-border-default bg-bg-surface p-3" aria-live="polite">
+            <div className="flex flex-wrap items-center gap-2">
+                <p className="min-w-0 flex-1 text-[12.5px] text-text-body">
+                    {selected.length === 0 ? 'Tick the books to prepare.' : `${selected.length} selected.`} Each is checked, its stale files are
+                    regenerated, and you get one Google Play upload and one KDP checklist.
+                </p>
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        data-a="books:prepare:run"
+                        disabled={selected.length === 0 || busy}
+                        onClick={run}
+                        className="rounded-control bg-brand-fill px-3 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                    >
+                        {busy ? 'Preparing…' : 'Prepare for publishing'}
+                    </button>
+                    <button type="button" onClick={onStop} className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-medium text-text-body">
+                        Done
+                    </button>
+                </div>
+            </div>
+            {error && <p className="mt-2 text-[12px] text-status-danger">{error}</p>}
+            {result && (
+                <div className="mt-3 space-y-2" data-a="books:prepare:result">
+                    <div className="flex flex-wrap gap-2">
+                        <a href={result.google_play} className="rounded-control bg-brand-fill px-3 py-1.5 text-[12.5px] font-semibold text-white">
+                            Google Play bulk upload (.zip)
+                        </a>
+                        <a href={result.kdp_checklist} target="_blank" rel="noopener noreferrer" className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-semibold text-text-body">
+                            KDP checklist
+                        </a>
+                    </div>
+                    <ul className="space-y-1 text-[12.5px]">
+                        {result.rows.map((row) => {
+                            const [tone, label] = READY[row.status] ?? READY.red;
+
+                            return (
+                                <li key={row.id}>
+                                    <span className={`mr-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{label}</span>
+                                    <span className="font-semibold text-text-primary">{row.title}</span>{' '}
+                                    <span className="text-text-secondary">{row.message}</span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            )}
+        </section>
+    );
+}
+
+function BookCard({ book, selecting = false, selected = false, onToggle }) {
     const archived = book.status === 'archived';
     const pct = book.target_words
         ? Math.min(100, Math.round((book.word_count / book.target_words) * 100))
@@ -193,6 +311,16 @@ function BookCard({ book }) {
                 archived ? 'bg-bg-subtle [&_img]:grayscale' : 'bg-bg-surface'
             }`}
         >
+            {selecting && (
+                <input
+                    type="checkbox"
+                    aria-label={`Select ${book.title}`}
+                    data-a={`books:select:${book.id}`}
+                    checked={selected}
+                    onChange={onToggle}
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-border-input"
+                />
+            )}
             {/* The cover carries the card, as it does on a shelf. A list of
                 titles with no artwork is a list of filenames. */}
             <Link

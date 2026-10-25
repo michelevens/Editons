@@ -124,6 +124,11 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                                             </td>
                                             <td className="py-2 pr-3">
                                                 <Status status={channel.status} />
+                                                {channel.external_id && (
+                                                    <p data-a={`sales:asin:${channel.channel}`} className="text-[10.5px] text-text-secondary">
+                                                        {channel.channel.startsWith('amazon') || channel.channel.startsWith('kdp') ? 'ASIN' : 'ID'} {channel.external_id}
+                                                    </p>
+                                                )}
                                             </td>
 
                                             {royalties ? (

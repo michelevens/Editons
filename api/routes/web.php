@@ -32,9 +32,11 @@ use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\PartnerPageController;
 use App\Http\Controllers\PlatformStatusController;
 use App\Http\Controllers\PreviewController;
+use App\Http\Controllers\PrintFileController;
 use App\Http\Controllers\PrintKitController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublishFlowController;
 use App\Http\Controllers\PublishingController;
 use App\Http\Controllers\ReferencesController;
 use App\Http\Controllers\ResearchController;
@@ -448,6 +450,29 @@ Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/exports/{export}/download', [PublishingController::class, 'download'])
         ->name('publishing.download');
 
+    // Publish in three steps: Check, Choose channels, Publish
+    // (App\Http\Controllers\PublishFlowController for who may do what).
+    Route::get('/books/{book}/publish-flow', [PublishFlowController::class, 'show'])->name('publish.show');
+    Route::post('/books/{book}/publish-flow/regenerate', [PublishFlowController::class, 'regenerate'])
+        ->middleware('throttle:20,1')->name('publish.regenerate');
+    Route::post('/books/{book}/publish-flow/channels', [PublishFlowController::class, 'channel'])->name('publish.channel');
+    Route::patch('/books/{book}/publish-flow/kdp', [PublishFlowController::class, 'kdp'])->name('publish.kdp');
+    Route::post('/books/{book}/publish-flow/store', [PublishFlowController::class, 'store'])->name('publish.store');
+    Route::post('/books/{book}/publish-flow/lulu', [PublishFlowController::class, 'lulu'])
+        ->middleware('throttle:10,1')->name('publish.lulu');
+    Route::post('/books/{book}/publish-flow/lulu/refresh', [PublishFlowController::class, 'luluRefresh'])
+        ->middleware('throttle:30,1')->name('publish.lulu.refresh');
+    Route::post('/books/{book}/publish-flow/lulu/offer', [PublishFlowController::class, 'luluOffer'])->name('publish.lulu.offer');
+    Route::post('/books/{book}/publish-flow/submitted', [PublishFlowController::class, 'submitted'])->name('publish.submitted');
+    Route::get('/books/{book}/publish-flow/google-play', [PublishFlowController::class, 'googlePlay'])
+        ->middleware('throttle:10,1')->name('publish.google-play');
+    // Several books at once, from the shelf.
+    Route::post('/publish/prepare', [PublishFlowController::class, 'prepareMany'])
+        ->middleware('throttle:10,1')->name('publish.prepare');
+    Route::get('/publish/google-play', [PublishFlowController::class, 'googlePlayMany'])
+        ->middleware('throttle:10,1')->name('publish.google-play.many');
+    Route::get('/publish/kdp-checklist', [PublishFlowController::class, 'checklist'])->name('publish.checklist');
+
     // The print kit: print settings, checks, prices and the cover preview.
     Route::get('/books/{book}/print-kit', [PrintKitController::class, 'show'])
         ->name('print-kit.show');
@@ -779,6 +804,16 @@ Route::get('/status.json', PlatformStatusController::class)
  | App\Platform\Trust\AccountExporter). No sign-in: the account may be
  | suspended while it is offboarded.
  */
+/*
+ | A print interior or cover wrap for Lulu to fetch (signed, expiring;
+ | App\Commerce\Print\LuluPrinting::link). No sign-in: Lulu has none.
+ */
+Route::get('/print-files/{export}/{name}', PrintFileController::class)
+    ->whereNumber('export')
+    ->where('name', '(interior|cover)\.pdf')
+    ->middleware(['signed', 'throttle:60,1'])
+    ->name('print-files.show');
+
 Route::get('/account-exports/{export}/download', AccountExportDownloadController::class)
     ->whereNumber('export')
     ->middleware(['signed', 'throttle:10,1'])

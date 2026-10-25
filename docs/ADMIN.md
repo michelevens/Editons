@@ -32,7 +32,7 @@ design decisions are in `docs/DECISIONS.md` (ADR — super-admin console).
 | Partners: read every tab, approve or decline an application, export the commissions CSV | ✓ | ✓ |
 | Partners: suspend / reinstate, release or forfeit a balance, record a partner payout, attach a discount code, mark a tax form, open an invited partner to the whole catalogue, program settings | ✓ | — |
 | House catalog: read it, open house books in the studio read-only | ✓ | ✓ |
-| House catalog: edit house books in the studio, move books in, exports, prices, on/off sale, ISBN plans, bulk actions | ✓ | — |
+| House catalog: edit house books in the studio, move books in, exports, prices, on/off sale, ISBN plans, bulk actions, prepare for publishing | ✓ | — |
 | Create a house publisher account | shell only | shell only |
 | Make or demote an **owner** | shell only | shell only |
 
@@ -329,6 +329,15 @@ price and store status, and sales. Totals per currency are platform revenue.
 - **Bulk** (owner): select books, then queue an export (e.g. regenerate
   every print wrap), set one price, put on sale or take off sale. Each book
   succeeds or fails on its own; the result per book is shown.
+- **Prepare for publishing** (owner, bulk, with a reason): step 1 of
+  *Publish in three steps* for each selected book (one green / amber / red
+  verdict and its problems), every stale file regenerated, one
+  `house.publish_prepared` audit row per book, and two links: one **Google
+  Play bulk upload** zip (book list + files named by ISBN) and one **KDP
+  checklist** with a guided page per book, in order (`docs/PUBLISHING-FLOW.md`).
+  Each row shows the book's store channels with their status and ASIN; *Publish
+  (3 steps)* opens the book's Publish pane in the studio, where the owner
+  marks KDP submitted (audited as `house.channel_submitted`).
 - **Move books into a house account** (owner): book ids or ranges, *Preview*
   (the dry run: what moves, what would stop it, warnings), then a reason and
   *Move*. All or none, audited per book. The product, its price and partner

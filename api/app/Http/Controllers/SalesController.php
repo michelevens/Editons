@@ -72,6 +72,9 @@ class SalesController extends Controller
                         'format' => $channel->format,
                         'status' => $channel->status,
                         'went_live_at' => $channel->went_live_at?->toFormattedDateString(),
+                        // The store's own id (an ASIN), once the author gave it.
+                        'external_id' => $channel->external_id,
+                        'submitted_at' => $channel->submitted_at?->toFormattedDateString(),
                         'rate' => $terms['rate'],
                         'note' => $terms['note'],
                         // Per copy at the current list price: arithmetic on
