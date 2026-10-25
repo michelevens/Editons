@@ -266,11 +266,14 @@ it('hyphenates each passage in its own language and never a capitalised word or 
     $french = $hyphenate('<p>Le candidat utilise une calculatrice programmable : il est exclu (39 %).</p>');
     $names = $hyphenate('<p>Marlène et Mackenson travaillent ensemble.</p>');
     $cell = $hyphenate('<table><tr><td>indispensable</td></tr></table>');
+    $address = $hyphenate('<p>Corrections et mises à jour : écrivez-nous à hello@ecrivainprepa.ai ou consultez ecrivainprepa.ai/corrections.</p>');
 
     expect($english)->toContain('fol'.$shy.'low'.$shy.'ing')->not->toContain('che'.$shy.'cklist')
         ->and($french)->toContain("mable\u{00A0}:")->toContain("39\u{00A0}%")->toContain($shy)
         ->and($names)->toContain('Marlène')->toContain('Mackenson')
-        ->and($cell)->toContain('indispensable');
+        ->and($cell)->toContain('indispensable')
+        // Addresses are never broken.
+        ->and($address)->toContain('hello@ecrivainprepa.ai')->toContain('ecrivainprepa.ai/corrections');
 });
 
 it('names no author on the title page when the author is the house, and breaks a title at its dash', function () {

@@ -1554,11 +1554,13 @@ class PrintBook
                 return $text;
             }
 
-            return preg_replace_callback('/\p{L}[\p{L}\p{M}]{5,}/u', function (array $w) use ($syllable) {
+            // Addresses (hello@ecrivain.ai, ecrivain.ai/prepa) are matched
+            // first and left whole: "hello@ecri-vain.ai" is a wrong address.
+            return preg_replace_callback('/\S*(?:@|:\/\/|www\.)\S*|[\w-]+(?:\.[a-z]{2,})+(?:\/\S*)?|\p{L}[\p{L}\p{M}]{5,}/u', function (array $w) use ($syllable) {
                 $word = $w[0];
 
                 // A capital first: a name, an acronym, a title word.
-                if (mb_strtolower(mb_substr($word, 0, 1)) !== mb_substr($word, 0, 1)) {
+                if (preg_match('/[@.\/]/', $word) || mb_strtolower(mb_substr($word, 0, 1)) !== mb_substr($word, 0, 1)) {
                     return $word;
                 }
 
