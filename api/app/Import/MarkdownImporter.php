@@ -163,6 +163,11 @@ class MarkdownImporter
             return "\n\n".self::CODE.(count($code) - 1).self::CODE."\n\n";
         }, str_replace(["\r\n", "\r"], "\n", $body)) ?? $body;
 
+        // An HTML comment is a note to the editors ("<!-- HT: à relire -->"),
+        // never text: Markdown renderers hide it, so the book must too. Code
+        // was lifted out first, where a comment is part of the code.
+        $body = preg_replace('/[ \t]*<!--.*?-->/s', '', $body) ?? $body;
+
         // $$ … $$ in the middle of a line ("tels que : $$a = bq + r$$", a
         // list item, "$$V = …$$ (25 pts)") is set inline in display style,
         // which keeps the sentence, list or paragraph it belongs to whole.
