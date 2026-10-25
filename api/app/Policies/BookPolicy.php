@@ -3,14 +3,16 @@
 namespace App\Policies;
 
 use App\Models\Book;
+use App\Models\BookMember;
 use App\Models\User;
+use App\Platform\House\House;
 
 /**
  * Authorisation for books.
  *
- * One rule today: you may act on a book you own. There are no collaborators,
- * no roles and no organisations yet (ADR-0006), so anything more elaborate
- * would be guessing at a shape Milestone 4 will define.
+ * You may act on a book you own; members act by role; and a house book
+ * (owned by a platform house account, which nobody signs in to) is edited
+ * by the platform owner and read by all staff (ADR — house catalog).
  *
  * Every method routes through owns() rather than repeating the comparison, so
  * when sharing arrives there is exactly one place to widen.
@@ -30,7 +32,9 @@ class BookPolicy
      */
     public function view(User $user, Book $book): bool
     {
-        return $this->owns($user, $book) || $this->membership($user, $book) !== null;
+        return $this->owns($user, $book)
+            || $this->membership($user, $book) !== null
+            || House::canView($user, $book);
     }
 
     public function create(User $user): bool
@@ -48,15 +52,24 @@ class BookPolicy
     public function update(User $user, Book $book): bool
     {
         return $this->owns($user, $book)
-            || $this->membership($user, $book)?->role === 'editor';
+            || $this->membership($user, $book)?->role === 'editor'
+            || House::canEdit($user, $book);
     }
 
-    /** Settings, archiving and the team itself stay with the owner. */
+    /**
+     * Settings, archiving and the team itself stay with the owner. For a
+     * house book the platform owner stands in for the house account, as
+     * themselves.
+     */
     public function manage(User $user, Book $book): bool
     {
-        return $this->owns($user, $book);
+        return $this->owns($user, $book) || House::canEdit($user, $book);
     }
 
+    /**
+     * Never a house book from the studio: an imprint's catalogue is not one
+     * click from the bin. Move the book out of the house account first.
+     */
     public function delete(User $user, Book $book): bool
     {
         return $this->owns($user, $book);
@@ -68,7 +81,7 @@ class BookPolicy
     }
 
     /** An accepted membership, or null. Invited-but-not-accepted is not access. */
-    private function membership(User $user, Book $book): ?\App\Models\BookMember
+    private function membership(User $user, Book $book): ?BookMember
     {
         return $book->members()
             ->where('user_id', $user->id)

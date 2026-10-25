@@ -20,6 +20,7 @@ export default function Index({
     plan,
     book_types: bookTypes = [],
     default_book_type: defaultBookType = null,
+    house = null,
 }) {
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
@@ -33,6 +34,8 @@ export default function Index({
         { key: 'active', label: 'Drafts', count: counts.active },
         { key: 'published', label: 'Published', count: counts.published },
         { key: 'archived', label: 'Archived', count: counts.archived },
+        // Staff only: the platform's own imprints (ADR — house catalog).
+        ...(house ? [{ key: 'house', label: 'House catalog', count: counts.house }] : []),
     ];
 
     return (
@@ -151,6 +154,13 @@ export default function Index({
                             </button>
                         ))}
                     </nav>
+
+                    {filter === 'house' && house && (
+                        <p className="mt-4 rounded-control bg-status-warning-bg px-3.5 py-2.5 text-[12.5px] text-status-warning" data-a="books:house-note">
+                            House books belong to the platform&rsquo;s imprints. Anything you change is saved as you.{' '}
+                            <a href={house.console} className="font-semibold underline">Open the House catalog</a>
+                        </p>
+                    )}
 
                     {books.length === 0 ? (
                         <EmptyShelf filter={filter} />
@@ -357,6 +367,7 @@ function EmptyShelf({ filter }) {
         published: 'Nothing published yet.',
         active: 'No active books. Start one above.',
         all: 'No books yet. Start one above.',
+        house: 'No house books yet.',
     }[filter];
 
     return (
