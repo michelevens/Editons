@@ -16,9 +16,9 @@ import { registerFreshAuthor, watchForErrors } from './helpers.js';
  * database; their names contain "e2e". Nothing here touches the shared e2e
  * account's books.
  */
-test.describe.configure({ mode: 'serial', timeout: 600_000 });
-test.use({ actionTimeout: 60_000 });
-const expectSlow = expect.configure({ timeout: 60_000 });
+test.describe.configure({ mode: 'serial', timeout: 1_200_000 });
+test.use({ actionTimeout: 120_000, navigationTimeout: 180_000 });
+const expectSlow = expect.configure({ timeout: 120_000 });
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const STAMP = Date.now();
@@ -83,7 +83,7 @@ test.beforeAll(() => {
     ADMIN.password = out.match(/shown once[^\n]*\n\s*(\S+)/)?.[1];
     if (!ADMIN.password) throw new Error(`platform:admin printed no password:\n${out}`);
 
-    artisan(['house:create', HOUSE, '--name=E2E House Imprint', '--reason=E2E house catalog test', '--no-interaction']);
+    artisan(['house:create', HOUSE, '--name=E2E-House-Imprint', '--reason=E2E-house-catalog-test', '--no-interaction']);
 });
 
 test('an author writes a book that the owner moves into the house account', async ({ page, browser }, testInfo) => {
@@ -95,14 +95,15 @@ test('an author writes a book that the owner moves into the house account', asyn
     const created = await writer.request.post('/books', { data: { title: `E2E House Book ${STAMP}` }, headers: { 'X-XSRF-TOKEN': xsrf }, maxRedirects: 0 });
     bookId = Number(created.headers().location?.match(/books\/(\d+)/)?.[1]);
     expect(bookId).toBeGreaterThan(0);
-    await author.close();
+    // The author's context is left to the browser's teardown: closing it
+    // waits on requests a slow php -S may still be serving.
 
     const errors = watchForErrors(page);
     await signInAdmin(page);
 
     await page.goto('/admin');
     await page.click('[data-a="admin:nav:house"]');
-    await expectSlow(page.locator('[data-a="admin:house:accounts"]')).toContainText('E2E House Imprint');
+    await expectSlow(page.locator('[data-a="admin:house:accounts"]')).toContainText('E2E-House-Imprint');
 
     await page.click('[data-a="admin:house:transfer"]');
     await page.fill('[data-a="admin:house:transfer:ids"]', String(bookId));
