@@ -22,6 +22,10 @@ return [
     // Node typesets equations for the exports (resources/node/math.cjs).
     'node_binary' => env('NODE_BINARY', 'node'),
 
+    // Seconds one MathJax run may take (a chapter's equations at once). A
+    // loaded machine starts Node slowly; past this, equations print as LaTeX.
+    'math_timeout' => (int) env('MATH_TIMEOUT', 60),
+
     // Word (.docx) import, App\Import\DocxImporter. On by default; the flag
     // is there to switch it off without a deploy if a file type misbehaves.
     'docx_import' => (bool) env('DOCX_IMPORT', true),
