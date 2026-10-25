@@ -20,9 +20,9 @@ import Icon from './Icon';
  * App\Http\Controllers\PublishFlowController; docs/PUBLISHING-FLOW.md.
  */
 const STEPS = [
-    ['check', 'Check'],
-    ['channels', 'Choose channels'],
-    ['publish', 'Publish'],
+    ['check', 'Check', 'Check'],
+    ['channels', 'Choose channels', 'Channels'],
+    ['publish', 'Publish', 'Publish'],
 ];
 
 export default function PublishFlow({ bookId, onNotify, onNavigate }) {
@@ -126,7 +126,7 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
                 </div>
                 <nav aria-label="Publishing steps" className="mt-2.5">
                     <ol className="grid grid-cols-3 gap-1.5">
-                        {STEPS.map(([key, label], index) => (
+                        {STEPS.map(([key, label, short], index) => (
                             <li key={key}>
                                 <button
                                     type="button"
@@ -143,7 +143,10 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
                                     >
                                         {index + 1}
                                     </span>
-                                    <span className="min-w-0 truncate">{label}</span>
+                                    <span className="min-w-0 truncate">
+                                        <span className="sm:hidden">{short}</span>
+                                        <span className="max-sm:hidden">{label}</span>
+                                    </span>
                                 </button>
                             </li>
                         ))}
