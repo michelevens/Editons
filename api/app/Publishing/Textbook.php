@@ -476,7 +476,9 @@ class Textbook
                 }
             }
 
-            if ($named || ($empty && $name !== '')) {
+            // An empty column under a word ("Date", "Chapitres à revoir"),
+            // not under a value: a sign table leaves its "−∞" column blank.
+            if ($named || ($empty && preg_match('/[a-z]{3,}/', $name) && ! str_contains($name, '$'))) {
                 $columns[$c] = true;
             }
         }
