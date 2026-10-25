@@ -142,8 +142,9 @@ empty. Leave the cells empty (`| |`).
   Ma note, Points obtenus, Note obtenue, Mon temps, Date, Temps, Score, Mes
   réponses, Ma réponse, ✔, ✓, Correct, My points, My score, My answer, Pwen
   mwen, Pwen pa m, Nòt mwen, Nòt pa m, Mis puntos.
-- Any column whose body cells are all empty is a write-in column whatever
-  its name: a "Suivi de mes scores" / "Swivi nòt mwen" tracker with `| Épreuve
+- Any column whose body cells are all empty is a write-in column when its
+  header is a word (not a value such as "−∞" in a sign table), whatever
+  the word: a "Suivi de mes scores" / "Swivi nòt mwen" tracker with `| Épreuve
   | Date | Temps | Score /100 | Chapitres à revoir |` and empty rows works.
 - Rows whose first cell starts with `Total`, `Sous-total`, `Subtotal` are
   set bold with a heavy rule above.
@@ -180,6 +181,7 @@ is left as typed.
   a French book (detected from its common words) gets English patterns.
 - Words starting with a capital (names, acronyms) are never hyphenated;
   nothing in headings, table cells or code; at least 3 letters each side.
+- Addresses (e-mail, web) are never hyphenated.
 - French and Kreyòl: the space before `: ; ! ? » %` and after `«` becomes
   non-breaking, so the mark never starts a line. Typing a normal space is
   fine.
