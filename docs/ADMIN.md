@@ -31,6 +31,9 @@ design decisions are in `docs/DECISIONS.md` (ADR — super-admin console).
 | Invite authors (one, or a list); resend, revoke | ✓ (with a complimentary plan, credits up to 100,000) | ✓ (no plan; credits up to 500) |
 | Partners: read every tab, approve or decline an application, export the commissions CSV | ✓ | ✓ |
 | Partners: suspend / reinstate, release or forfeit a balance, record a partner payout, attach a discount code, mark a tax form, open an invited partner to the whole catalogue, program settings | ✓ | — |
+| House catalog: read it, open house books in the studio read-only | ✓ | ✓ |
+| House catalog: edit house books in the studio, move books in, exports, prices, on/off sale, ISBN plans, bulk actions | ✓ | — |
+| Create a house publisher account | shell only | shell only |
 | Make or demote an **owner** | shell only | shell only |
 
 Limits are in `config/platform.php` (environment variables, so changing them
@@ -288,6 +291,57 @@ authors over 30 days, and gross per day.
   can never be more than is owed.
 - Refund an order (all or part) from its row. A full refund revokes the
   buyer's download links.
+
+### House catalog (`/admin/house`)
+
+Design decisions: `docs/DECISIONS.md` (ADR — house catalog and house
+publisher accounts). Production transfer of the Écrivain Prépa books:
+`docs/RUNBOOK-house-transfer.md`.
+
+A **house publisher account** is the platform's own imprint (the first is
+*Écrivain Prépa*): an account nobody signs in to, that receives no email
+(not even a password reset), is never in an audience, a broadcast, lifecycle
+mail or the dashboard's account counts, cannot be viewed as or made staff,
+and cannot be offboarded while it holds books. It shows as **House** in the
+account list (filter *House*). Its name is the imprint's; its address is on
+the reserved `house.ecrivain.invalid` domain and is never shown publicly.
+Made only from the shell:
+
+```sh
+php artisan house:create ecrivain-prepa --name="Écrivain Prépa" --reason="…"
+```
+
+The page lists every house book: cover, status, words, the latest PDF,
+print interior, print cover wrap and EPUB, print readiness per service,
+price and store status, and sales. Totals per currency are platform revenue.
+
+- **Open in the studio.** The owner edits a house book in the normal studio
+  *as themselves* — no "View as". A banner says *House book — edits are
+  saved as you, {name}*; every version, export and comment is recorded under
+  the staff member's account. Support opens it read-only. Staff also find
+  house books under *House catalog* on their own shelf.
+- **Per book** (owner, with a reason, audited): export (PDF, print interior,
+  print cover wrap for a service, EPUB — queued on the worker), price and
+  formats, put on / take off sale (held to the storefront's rule: a price
+  Stripe accepts and a ready export of every format sold), ISBN plan per
+  edition. Rights and AI declarations are made in the studio's Export &
+  Publish screen (linked), under the staff member's name.
+- **Bulk** (owner): select books, then queue an export (e.g. regenerate
+  every print wrap), set one price, put on sale or take off sale. Each book
+  succeeds or fails on its own; the result per book is shown.
+- **Move books into a house account** (owner): book ids or ranges, *Preview*
+  (the dry run: what moves, what would stop it, warnings), then a reason and
+  *Move*. All or none, audited per book. The product, its price and partner
+  opt-in, and the book's ISBNs move with it; the previous owner stays an
+  editor of the book unless you tick otherwise. Sales made before the move
+  stay the previous owner's royalty. From the shell:
+  `php artisan house:transfer 199-217 --to=ecrivain-prepa --reason="…"`
+  (dry run), then the same with `--force`.
+- **Money.** A house book's royalty share is platform revenue: Book sales
+  shows it inside *Platform revenue*, it is never in *Royalties owed*, no
+  payout can be recorded for a house account and no royalty statement is
+  sent. Partners still earn their commission on house books; platform staff
+  never do.
 
 ### Growth (`/admin/growth`)
 

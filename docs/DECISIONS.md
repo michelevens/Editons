@@ -1997,3 +1997,96 @@ partner to accept a new agreement version (the version is stored; the
 prompt is not built). A partner closing their own account from the
 dashboard (done through support for now). Per-book click attribution in
 reports beyond the click's product id.
+
+## ADR-00XX — House catalog and house publisher accounts
+
+**Status:** accepted (2026-10-24). Number assigned at merge.
+
+**Context.** The platform publishes books of its own — first the 19 Écrivain
+Prépa exam-prep books (production ids 199–217), anonymous by design, today
+owned by an ordinary author account. The owner decided they move into a
+platform-owned publisher account that nobody signs in to, run by staff from
+the console, with their sales and royalties belonging to the platform. Any
+future house series must work the same way. The console's roles, audit log
+and "View as" (ADR-0029), commerce and royalties (ADR-0021/0031), the
+partner program (ADR-0034), the print kit, ISBN plan and declarations
+(ADR-0028) and book members (roles on a book) were there to reuse.
+
+**Decisions.**
+
+- *A house account is an ordinary `users` row* with
+  `account_kind = 'house'` (default `'author'`) and a stable `house_slug`.
+  Books, products, ISBNs, exports and orders therefore work unchanged, and
+  a new imprint is a row, not code: `php artisan house:create <slug>
+  --name=…` (shell only, like `platform:admin`; idempotent; audited). Its
+  name and byline are the imprint's, never a person's; its address is
+  `<slug>@house.ecrivain.invalid`, a reserved domain that cannot deliver;
+  its password is random and never shown; its plan is Studio, so the
+  imprint's limits are not a staff member's.
+- *What a house account cannot do, and where that is enforced.* Sign in:
+  `LoginRequest` refuses it like a wrong password, and `EnsureAccountActive`
+  ends any session that is one. Receive email: `Notify::send` refuses it,
+  and a `MessageSending` listener (`HouseMailGuard`) cancels any message with
+  a house address among its recipients, whatever sent it (notifications,
+  the mail log's resend). Be viewed as (`Impersonation::refusal`), sent a
+  password reset or made staff (`AccountAdmin`), or offboarded while it
+  holds books (`Offboarding`). Be counted or targeted as a "real" author:
+  audiences/broadcasts, lifecycle mail, the acquisition funnel, onboarding
+  and the dashboard's account counts all exclude it (`User::exceptHouse`).
+- *Staff edit house books through a permission, not impersonation.*
+  `BookPolicy` asks `App\Platform\House\House`: on a house book the platform
+  owner may view, update and manage, all staff may view (read-only), nobody
+  may delete from the studio; a "View as" session never qualifies, and the
+  platform's two-factor rule for staff applies. Because the staff member is
+  the signed-in user, every version, export and comment is written under
+  their own id by the existing code — no attribution plumbing. Where the
+  studio used the signed-in account's plan or ISBN pool for a book (export
+  entitlements, the rights screen's pool), it now uses `House::accountFor`:
+  the house account for a house book, the person acting otherwise. The
+  editor shows "House book — edits are saved as you, {name}"; the shelf has
+  a *House catalog* filter for staff; authors see house books only as
+  members.
+- *Roles.* There is no separate "admin" platform role (owner and support,
+  ADR-0029). The owner role is the one with edit rights and every House
+  catalog action; support reads the catalog and opens house books
+  read-only.
+- *Transfer* (`App\Platform\House\HouseTransfer`, the console's *Move books*
+  form and `php artisan house:transfer`, dry run unless `--force`). One
+  transaction, all or none, books locked first; an audit row per book with
+  before/after owner, product and ISBNs. What carries the account id moves:
+  `books.user_id`, the product (`products.user_id`, keeping price, on-sale
+  state and partner opt-in) and the book's assigned ISBNs. Everything else
+  hangs off the book id and moves by itself; storage keys are per book, so
+  no file moves. The previous owner becomes an active `editor` member
+  (option to drop). Refused for a book in the bin, already in a house
+  account, or whose ISBN the house already holds; warned for editions left
+  behind and for restricted partners of the previous owner.
+- *History is never rewritten.* `order_items.seller_id` is who owned the
+  book when it sold, so sales before a transfer stay the author's royalty
+  and are still owed and paid to them; sales after it are the house
+  account's.
+- *House money is platform revenue.* `PlatformSales` flags items whose
+  seller is a house account: their royalty share is reported as
+  `house_cents` inside `platform_cents` (the console's *Platform revenue*
+  tile), never as authors' royalties, never owed; `Payouts::record` refuses
+  a house account and `commerce:royalty-statements` skips it. A partner's
+  commission on a house book is a commission like any other (seller = the
+  house account); platform staff never earn one on a house book
+  (`Attribution` refuses it as `seller`).
+- *The House catalog* (`/admin/house`, Business group) lists each house
+  book with cover, status, words, the latest PDF/interior/cover
+  wrap/EPUB, print readiness per service (`PrintCheck`), price, store
+  status and sales — never manuscript text. Per-book and bulk actions run
+  the studio's own services (`Exporter` + `GenerateExport`, the
+  storefront's `Commerce\Listing` rule, extracted from `ProductController`
+  so both use it, the book's ISBN plan) with the staff member as actor,
+  each audited with a reason. A bulk action reports each book's result on
+  its own: one book without an EPUB does not stop the others going on sale.
+
+**Not done.** A console form to create a house account (shell only, on
+purpose). Editing the rights and AI declarations from the console: they are
+statements made by a person, so staff make them in the studio's Export &
+Publish screen (linked from each row), where they are recorded under the
+staff member's name. AI reviews on house books are charged to the staff
+member's own credits (unchanged). Moving a book *out* of a house account
+(do it with the same service once needed; not exposed).
