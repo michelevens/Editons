@@ -1998,7 +1998,7 @@ prompt is not built). A partner closing their own account from the
 dashboard (done through support for now). Per-book click attribution in
 reports beyond the click's product id.
 
-## ADR-00XX — House catalog and house publisher accounts
+## ADR-0035 — House catalog and house publisher accounts
 
 **Status:** accepted (2026-10-24). Number assigned at merge.
 
