@@ -8,6 +8,7 @@ use App\Commerce\Downloads;
 use App\Commerce\Fulfilment;
 use App\Commerce\Partners\Attribution;
 use App\Commerce\Partners\PartnerPages;
+use App\Commerce\Print\LuluPrinting;
 use App\Growth\Discounts;
 use App\Jobs\GenerateExport;
 use App\Models\BookExport;
@@ -83,6 +84,12 @@ class StoreController extends Controller
                 'language' => $book->language,
                 'license' => $product->licenseTerms(),
                 'checkout_url' => route('store.checkout', $product->slug),
+                // A paperback printed and posted by Lulu, when it is on sale.
+                'paperback' => app(LuluPrinting::class)->sellable($product) ? [
+                    'price_cents' => $product->paperback_price_cents,
+                    'shipping_cents' => (int) config('commerce.paperback.shipping_cents'),
+                    'countries' => config('commerce.paperback.countries'),
+                ] : null,
                 // "Report this book": to the console's moderation queue.
                 'report_url' => route('store.report', $product->slug),
                 // Only a named book links to its author's shelf: linking an
@@ -148,7 +155,18 @@ class StoreController extends Controller
         $data = $request->validate([
             'email' => ['nullable', 'email:rfc', 'max:255'],
             'code' => ['nullable', 'string', 'max:40'],
+            'edition' => ['nullable', 'string', 'in:digital,paperback'],
         ]);
+
+        $paperback = ($data['edition'] ?? null) === 'paperback';
+
+        if ($paperback && ! app(LuluPrinting::class)->sellable($product)) {
+            return back()->withErrors(['checkout' => 'The paperback is not available right now.']);
+        }
+
+        if ($paperback && filled($data['code'] ?? null)) {
+            return back()->withErrors(['code' => 'Codes apply to the ebook only.']);
+        }
 
         // Checked before anything is created; a code that does not apply is
         // a message under the field, not a failed checkout.
@@ -162,7 +180,7 @@ class StoreController extends Controller
             + ['ip_hash' => Attribution::hash((string) $request->ip())];
 
         try {
-            $session = $checkout->start($product, $request->user(), $data['email'] ?? null, $discount, $partner);
+            $session = $checkout->start($product, $request->user(), $data['email'] ?? null, $discount, $partner, $paperback);
         } catch (Throwable $e) {
             report($e);
 
@@ -223,6 +241,7 @@ class StoreController extends Controller
             'order' => $this->orderView($order, withDownloads: false),
             'session' => $session,
             'email' => $order->buyer_email,
+            'shipping' => $order->shipping_cents > 0 ? ['cents' => $order->shipping_cents, 'countries' => config('commerce.paperback.countries')] : null,
         ]);
     }
 
@@ -232,9 +251,19 @@ class StoreController extends Controller
 
         $order = Order::where('stripe_session_id', $session)->firstOrFail();
 
+        // A paperback asks for the address and phone Stripe would collect.
+        $posted = $order->shipping_cents > 0;
+
         $data = $request->validate([
             'email' => ['required', 'email:rfc', 'max:255'],
-            'name' => ['nullable', 'string', 'max:120'],
+            'name' => [$posted ? 'required' : 'nullable', 'string', 'max:120'],
+            'line1' => [$posted ? 'required' : 'nullable', 'string', 'max:200'],
+            'line2' => ['nullable', 'string', 'max:200'],
+            'city' => [$posted ? 'required' : 'nullable', 'string', 'max:120'],
+            'state' => ['nullable', 'string', 'max:40'],
+            'postal_code' => [$posted ? 'required' : 'nullable', 'string', 'max:20'],
+            'country' => [$posted ? 'required' : 'nullable', 'string', 'size:2'],
+            'phone' => [$posted ? 'required' : 'nullable', 'string', 'max:40'],
         ]);
 
         // The shape of a Stripe Checkout Session, as the webhook carries it.
@@ -244,7 +273,11 @@ class StoreController extends Controller
             'amount_total' => $order->total_cents,
             'currency' => $order->currency,
             'payment_intent' => 'pi_fake_'.Str::random(16),
-            'customer_details' => ['email' => $data['email'], 'name' => $data['name'] ?? null],
+            'customer_details' => ['email' => $data['email'], 'name' => $data['name'] ?? null, 'phone' => $data['phone'] ?? null],
+            'shipping_details' => $posted ? ['name' => $data['name'], 'address' => [
+                'line1' => $data['line1'], 'line2' => $data['line2'] ?? null, 'city' => $data['city'],
+                'state' => $data['state'] ?? null, 'postal_code' => $data['postal_code'], 'country' => strtoupper($data['country']),
+            ]] : null,
             'metadata' => ['order_id' => (string) $order->id],
         ], paymentMethod: 'Test payment (no card charged)');
 
@@ -356,6 +389,7 @@ class StoreController extends Controller
             'number' => $order->number,
             'status' => $order->status,
             'total_cents' => $order->total_cents,
+            'shipping_cents' => $order->shipping_cents,
             'refunded_cents' => $order->refunded_cents,
             'currency' => $order->currency,
             'paid_at' => $order->paid_at?->toFormattedDateString(),
@@ -364,7 +398,12 @@ class StoreController extends Controller
             'items' => $order->items->map(fn (OrderItem $item) => [
                 'title' => $item->title,
                 'price_cents' => $item->price_cents,
-                'formats' => array_map(fn (string $f) => BookExport::FORMATS[$f][0] ?? strtoupper($f), $item->formats),
+                'formats' => array_map(fn (string $f) => $f === 'paperback' ? 'Paperback' : (BookExport::FORMATS[$f][0] ?? strtoupper($f)), $item->formats),
+                // A paperback: where its print job stands, never the address.
+                'shipment' => $item->isPaperback() ? [
+                    'status' => $item->printJob?->status,
+                    'tracking_url' => $withDownloads ? ($item->printJob?->tracking['urls'][0] ?? null) : null,
+                ] : null,
                 'license_key' => $withDownloads ? $item->license?->key : null,
                 'license_terms' => $withDownloads ? $item->license?->terms : null,
                 'downloads' => $withDownloads && $active && $item->license?->isActive()

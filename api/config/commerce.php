@@ -67,4 +67,15 @@ return [
         ],
     ],
 
+    // Paperbacks printed and shipped by Lulu (App\Commerce\Print). Lulu bills
+    // in US dollars, so a paperback sells in USD only, to the countries
+    // listed, for its own price plus this flat shipping charge. The charge is
+    // the owner's decision and has no default: with none set, no paperback is
+    // offered. Lulu's real shipping cost depends on the address and level.
+    'paperback' => [
+        'currency' => 'usd',
+        'shipping_cents' => filled(env('COMMERCE_PAPERBACK_SHIPPING_CENTS')) ? (int) env('COMMERCE_PAPERBACK_SHIPPING_CENTS') : null,
+        'countries' => array_values(array_filter(array_map('trim', explode(',', (string) env('COMMERCE_PAPERBACK_COUNTRIES', 'US'))))),
+    ],
+
 ];

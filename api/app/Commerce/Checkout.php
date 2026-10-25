@@ -4,12 +4,14 @@ namespace App\Commerce;
 
 use App\Commerce\Gateway\CheckoutSession;
 use App\Commerce\Gateway\PaymentGateway;
+use App\Commerce\Print\LuluPrinting;
 use App\Models\DiscountCode;
 use App\Models\Order;
 use App\Models\Partner;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -39,13 +41,26 @@ final class Checkout
      * @param  array{discount: DiscountCode, discount_cents: int, total_cents: int}|null  $discount
      * @param  array{partner: ?Partner, source: ?string, refusal: ?string, rate_bps: ?int, ip_hash?: ?string}|null  $partner
      */
-    public function start(Product $product, ?User $buyer = null, ?string $email = null, ?array $discount = null, ?array $partner = null): CheckoutSession
+    public function start(Product $product, ?User $buyer = null, ?string $email = null, ?array $discount = null, ?array $partner = null, bool $paperback = false): CheckoutSession
     {
         $product->loadMissing('book');
-        // What the buyer pays: the product's price, less a discount code.
-        $price = $discount['total_cents'] ?? $product->price_cents;
 
-        $order = DB::transaction(function () use ($product, $buyer, $email, $discount, $price, $partner) {
+        // A paperback (printed by Lulu, App\Commerce\Print) has its own
+        // price and a flat shipping charge; discount codes are for the
+        // digital edition only.
+        if ($paperback) {
+            if (! app(LuluPrinting::class)->sellable($product)) {
+                throw new RuntimeException('This paperback is not on sale.');
+            }
+
+            $discount = null;
+        }
+
+        // What the buyer pays: the product's price, less a discount code.
+        $price = $paperback ? $product->paperback_price_cents : ($discount['total_cents'] ?? $product->price_cents);
+        $shipping = $paperback ? (int) config('commerce.paperback.shipping_cents') : 0;
+
+        $order = DB::transaction(function () use ($product, $buyer, $email, $discount, $price, $partner, $paperback, $shipping) {
             $order = new Order;
             $order->forceFill([
                 'number' => Order::newNumber(),
@@ -53,7 +68,8 @@ final class Checkout
                 'buyer_user_id' => $buyer?->id,
                 'buyer_email' => $email ?? $buyer?->email,
                 'currency' => $product->currency,
-                'total_cents' => $price,
+                'total_cents' => $price + $shipping,
+                'shipping_cents' => $shipping,
                 'discount_code_id' => $discount ? $discount['discount']->id : null,
                 'discount_cents' => $discount['discount_cents'] ?? 0,
                 'partner_id' => ($partner['partner'] ?? null)?->id,
@@ -67,7 +83,7 @@ final class Checkout
                 'book_id' => $product->book_id,
                 'seller_id' => $product->user_id,
                 'title' => $product->displayTitle(),
-                'formats' => array_values($product->formats),
+                'formats' => $paperback ? ['paperback'] : array_values($product->formats),
                 'license_type' => $product->license,
                 'price_cents' => $price,
                 'partner_rate_bps' => isset($partner['partner']) && ! $partner['refusal'] ? $partner['rate_bps'] : null,
@@ -77,7 +93,7 @@ final class Checkout
         });
 
         try {
-            $session = $this->createSession($order, $product);
+            $session = $this->createSession($order, $product, $paperback);
         } catch (Throwable $e) {
             // No session, no way to pay: close the order rather than leave
             // it pending forever.
@@ -91,7 +107,7 @@ final class Checkout
         return $session;
     }
 
-    private function createSession(Order $order, Product $product): CheckoutSession
+    private function createSession(Order $order, Product $product, bool $paperback = false): CheckoutSession
     {
         $formats = implode(' + ', array_map('strtoupper', $product->formats));
 
@@ -104,11 +120,20 @@ final class Checkout
                 // Formats and license, so the buyer sees what they are paying
                 // for on Stripe's page. Never an author name: it may be an
                 // anonymous book.
-                'description' => $formats.' · '.$product->licenseTerms()['label'].' license'
-                    .($order->discount_cents > 0 ? ' · discount applied' : ''),
-                'amount_cents' => $order->total_cents,
+                'description' => $paperback
+                    ? 'Paperback, printed on demand and posted to you'
+                    : $formats.' · '.$product->licenseTerms()['label'].' license'
+                        .($order->discount_cents > 0 ? ' · discount applied' : ''),
+                'amount_cents' => $order->total_cents - $order->shipping_cents,
                 'quantity' => 1,
             ]],
+            // A paperback is posted: Stripe collects the address and the
+            // phone number the printer needs, and adds the shipping charge.
+            'shipping' => $paperback ? [
+                'countries' => config('commerce.paperback.countries'),
+                'amount_cents' => $order->shipping_cents,
+                'label' => 'Printed and posted',
+            ] : null,
             'customer_email' => $order->buyer_email,
             // Stripe substitutes the session id into {CHECKOUT_SESSION_ID}.
             'success_url' => route('store.checkout.success').'?session_id={CHECKOUT_SESSION_ID}',

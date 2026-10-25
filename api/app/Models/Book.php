@@ -231,6 +231,8 @@ class Book extends Model
             'isbn_plan' => 'array',
             'rights_declaration' => 'array',
             'ai_disclosure' => 'array',
+            // The Publish screen's choices (App\Publishing\Publish\PublishPlan).
+            'publish_plan' => 'array',
             'cover' => 'array',
             'meta' => 'array',
             'rights' => 'array',

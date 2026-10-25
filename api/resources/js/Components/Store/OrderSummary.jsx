@@ -14,6 +14,7 @@ export default function OrderSummary({ order }) {
                 <p className="text-[13px] font-semibold text-text-primary">Order {order.number}</p>
                 <p className="text-[12px] text-text-secondary">
                     {order.paid_at ?? 'Awaiting payment'} · {money(order.total_cents, order.currency)}
+                    {order.shipping_cents > 0 && ` incl. ${money(order.shipping_cents, order.currency)} shipping`}
                     {order.refunded_cents > 0 && ` · ${money(order.refunded_cents, order.currency)} refunded`}
                 </p>
             </div>
@@ -25,6 +26,20 @@ export default function OrderSummary({ order }) {
                         <p className="text-[12px] text-text-secondary">
                             {item.formats.join(' + ')} · {money(item.price_cents, order.currency)}
                         </p>
+
+                        {item.shipment && (
+                            <p data-a="store:shipment" className="mt-1 text-[12px] text-text-body">
+                                {SHIPMENT[item.shipment.status] ?? 'Being printed'}
+                                {item.shipment.tracking_url && (
+                                    <>
+                                        {' · '}
+                                        <a href={item.shipment.tracking_url} className="font-semibold text-brand-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                                            Track it
+                                        </a>
+                                    </>
+                                )}
+                            </p>
+                        )}
 
                         {item.downloads.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -59,3 +74,20 @@ export default function OrderSummary({ order }) {
         </section>
     );
 }
+
+/** A paperback's print job, in a buyer's words (Lulu's status names). */
+const SHIPMENT = {
+    pending: 'Sent to the printer soon',
+    failed: 'Waiting for the printer',
+    CREATED: 'At the printer',
+    UNPAID: 'At the printer',
+    PAYMENT_IN_PROGRESS: 'At the printer',
+    PRODUCTION_DELAYED: 'At the printer',
+    PRODUCTION_READY: 'Being printed',
+    IN_PRODUCTION: 'Being printed',
+    SHIPPED: 'Shipped',
+    DELIVERED: 'Delivered',
+    REJECTED: 'The printer could not print it: we will be in touch',
+    CANCELED: 'Cancelled at the printer: we will be in touch',
+    ERROR: 'The printer could not print it: we will be in touch',
+};

@@ -25,6 +25,7 @@ class OrderItem extends Model
             'fee_cents' => 'integer',
             'royalty_cents' => 'integer',
             'refunded_cents' => 'integer',
+            'print_cost_cents' => 'integer',
         ];
     }
 
@@ -51,5 +52,16 @@ class OrderItem extends Model
     public function license(): HasOne
     {
         return $this->hasOne(License::class);
+    }
+
+    /** A paperback's print job at Lulu; none for a digital item. */
+    public function printJob(): HasOne
+    {
+        return $this->hasOne(PrintJob::class);
+    }
+
+    public function isPaperback(): bool
+    {
+        return in_array('paperback', $this->formats ?? [], true);
     }
 }
