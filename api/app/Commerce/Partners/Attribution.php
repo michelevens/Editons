@@ -25,7 +25,8 @@ use Illuminate\Support\Facades\DB;
  * reason when no commission is due:
  *
  *   self_purchase   the buyer is the partner (account or email)
- *   seller          the partner is the book's own seller
+ *   seller          the partner is the book's own seller — or, for a house
+ *                   book, platform staff (the platform is its seller)
  *   suspended       the partner is suspended (or no longer approved)
  *   not_opted_in    the seller has not let partners sell this book
  *   blocked         the seller blocked this partner
@@ -148,6 +149,12 @@ final class Attribution
         }
 
         if ($partner->user_id === $product->user_id) {
+            return 'seller';
+        }
+
+        // A house book's seller is the platform: staff earning a commission
+        // on it would be paying themselves out of the platform's revenue.
+        if ($partner->user?->isPlatformAdmin() && $product->user()->where('account_kind', 'house')->exists()) {
             return 'seller';
         }
 
