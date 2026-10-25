@@ -2204,7 +2204,7 @@ is the content builder's. A page-list in the EPUB. Mirrored margins (dompdf).
 
 ---
 
-## ADR-00XX — Publish in three steps
+## ADR-0037 — Publish in three steps
 
 **Status:** accepted (2026-10-25). Number assigned at merge.
 
