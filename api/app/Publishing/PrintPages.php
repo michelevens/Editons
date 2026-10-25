@@ -54,7 +54,8 @@ class PrintPages
             ->get()
             ->first(fn (BookExport $e) => ($e->options['fingerprint'] ?? null) === $fingerprint);
 
-        return $export ? ['pages' => $export->pages, 'at' => $export->created_at, 'export_id' => $export->id] : null;
+        return $export ? ['pages' => $export->pages, 'at' => $export->created_at, 'export_id' => $export->id,
+            'layout' => $export->options['layout'] ?? [], 'margin' => $export->options['margin'] ?? null] : null;
     }
 
     /**
@@ -89,7 +90,8 @@ class PrintPages
     public static function for(Book $book): array
     {
         if ($known = self::known($book)) {
-            return ['pages' => $known['pages'], 'exact' => true, 'at' => $known['at']->diffForHumans()];
+            return ['pages' => $known['pages'], 'exact' => true, 'at' => $known['at']->diffForHumans(),
+                'layout' => $known['layout'], 'margin' => $known['margin']];
         }
 
         return ['pages' => self::estimate($book), 'exact' => false, 'at' => null];

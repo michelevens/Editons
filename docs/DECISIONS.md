@@ -2090,3 +2090,114 @@ Publish screen (linked from each row), where they are recorded under the
 staff member's name. AI reviews on house books are charged to the staff
 member's own credits (unchanged). Moving a book *out* of a house account
 (do it with the same service once needed; not exposed).
+
+---
+
+## ADR-0036 — Print and EPUB quality for exam-prep and textbooks
+
+The Écrivain Prépa books (19 exam-prep titles, 400–540 pages each) were set
+beside US exam-prep books page by page (Princeton Review, Kaplan). The
+template and renderer defects that showed are platform defects: every
+textbook on Écrivain had them. Fixed in `App\Publishing` (PrintBook,
+DocumentRenderer, Numbering, the EPUB in Exporter, ChartRenderer, Anatomy,
+PrintCheck) and a new `App\Publishing\Textbook`, which reads a textbook's
+furniture out of plain content. The Markdown an author writes for it is in
+`docs/MARKDOWN-CONVENTIONS.md`.
+
+**No new syntax, no new node types.** A box is a quotation opening with a
+bold label (`> **Piège.** …`), an exam paper is a header paragraph that
+states its duration (or an `> **Épreuve.**` box, or a "Le sujet" heading), a
+score grid is a table with a "Mes points" (or empty) column, a checklist is
+`- [ ] …`. The importer already reads all of these into blockquotes,
+paragraphs, tables and lists, which the editor keeps and every export
+round-trips. A node type the editor did not know would be dropped on load
+(ADR-0004). The renderers recognise the patterns; anything not recognised
+prints exactly as before.
+
+**Math in print (G1).** dompdf hangs an image whose vertical-align is a
+length from the top of its line box; the text baseline sits at 80% of the
+line box. A formula seated by length was right only while it was the
+tallest thing on its line: next to an inline `\dfrac` the line grew, the
+text moved down and the small formulas stayed up ("En , et , donc"). Inline
+formulas now use `vertical-align: baseline` (dompdf puts the margin box on
+the 80% line), a negative bottom margin of the formula's depth, and a top
+margin that makes the line tall enough to clear the lines around it — every
+formula follows the text however tall the line becomes. A display equation
+too wide for the measure at 85% of its size is broken before its relations
+(else before + and −) into `aligned` lines, instead of being shrunk to 5–6
+pt; one that cannot be broken is still scaled. Punctuation after a formula
+or a fallback glyph run is glued to it (also in italic or bold), and a
+paragraph thick with tall formulas is set ragged rather than stretched. A
+regression test reads the PDF with PyMuPDF (`tests/Support/pdfprobe.py`,
+skipped where PyMuPDF is not installed) and checks that formulas stand on
+the text baseline (±1 pt) next to a taller one.
+
+**Numbering (G2).** In a book numbered by chapter, a caption in a section
+that is not a numbered chapter (front matter, diagnostic test, annales,
+mock exams) prints unnumbered ("**Tableau.** …"). Trusting a prefix the
+author typed printed "Tableau 73.1" (a file's number) and "Tableau 0.1" in
+three front-matter sections. The editor (CrossRef.jsx) applies the same
+rule. Typed numbers that do not match their chapter are a print-check
+warning (`Numbering::typedMismatches`).
+
+**Exams, grids, checklists (G3).** A paper gets a boxed banner, its
+directions in a heavy-ruled box, its part headings and bold run-in labels
+kept with what follows, each short exercise kept on one page, "Suite ▸" at
+the foot of each page it continues on (drawn in `decorate()` from the
+banner's and end marker's pages) and "— FIN DE L'ÉPREUVE —" at its end, in
+the book's language. A grid's blank write-in cells are ruled boxes; totals
+are bold over a heavy rule. A checklist prints empty squares. All black and
+white.
+
+**References with pages (G5).** "voir 1.3" (a heading numbered 1.3), "voir
+chapitre 4" and an exercise's corrigé print "p. N". The two-pass render
+already measured where blocks land; every anchor now carries a
+`data-block="ref-<section>-<anchor>"` mark, pass one sets "000" where the
+page goes (three figures, so lines hardly move), and pass two fills in the
+page from where the mark landed. Headings without a label get an anchor
+from their place (`Textbook::headingAnchor`). The print-ready HTML and the
+preview, which have no pages, leave the page out.
+
+**EPUB (G4).** The contents go down to each chapter's H1/H2 headings; a
+part is no longer a near-empty document but opens its first chapter's file;
+references and exercise↔corrigé pairs are links; boxes are `<aside
+role="note">` with upright text (quotations stay italic); MathML carries its
+LaTeX as `alttext`; chart descriptions are in the book's language; titles
+carry `title-type` refinements; the identifier without an ISBN is a UUID
+derived from the book (stable across exports); accessibility metadata lists
+the features actually present (MathML, described math, alternative text,
+table of contents) with a hazard statement and a summary. A page-list from
+the print pagination was not added: it would need the PDF typeset at every
+EPUB export.
+
+**Hyphenation and French typography (G8).** Each paragraph is hyphenated in
+its own language (an English passage in a French book is detected from its
+common words), never a capitalised word, never in a table cell, with three
+letters at least each side. French and Kreyòl get non-breaking spaces
+before `: ; ! ? » %` and after `«`. A line broken at a soft hyphen is drawn
+with a real hyphen: dompdf drew the face's U+00AD glyph, which some styles
+leave empty ("calcula / trice").
+
+**Pages (G9).** Small tables (≤ 14 rows) are not split; run-in labels and
+paragraphs ending in a colon never end a page; boxes are kept whole. The
+interior records sections whose last page holds fewer than four lines, and
+the print checks list them.
+
+**Title and copyright pages (G12).** An "author" that is the house itself
+(the imprint, publisher, series or platform name) is not printed as the
+author: the Prépa title page printed "ECRIVAIN" over "ÉCRIVAIN PRÉPA". A
+two-part title breaks after its dash or colon. The ISBN line was already
+printed when the ISBN plan has a number.
+
+**Glyphs, gutter, charts (G13, G14, G15).** Running heads and "Suite" fall
+back to DejaVu Sans for characters the face lacks, as the text does. The
+margin widens with the page count to the strictest checked service's
+gutter band (KDP: 0.625 in from 301 pages, 0.75 in from 501, 0.875 in from
+701); dompdf cannot mirror margins, so both sides widen, and pass one is
+rerun when the count crosses a band. The interior records the margin it was
+set at, and PrintCheck holds the book to that (or, for an interior typeset
+before this, to the setting, which fails below the band). Print charts are
+drawn in greys with black type.
+
+**Not done.** The content side (the 19 books' captions, grids, checklists)
+is the content builder's. A page-list in the EPUB. Mirrored margins (dompdf).

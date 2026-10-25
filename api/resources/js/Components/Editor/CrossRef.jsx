@@ -20,7 +20,7 @@ import Dialog from '../Dialog';
  * unsaved; they ride along with the author's next real edit, and the server
  * labels anything saved without one (Numbering::label).
  */
-export const CAPTION = /^(Table|Tableau|Tabla|Tablo|Figure|Figura|Figi)\s+((?:[A-Z]\.?)?\d+(?:[.-]\d+)*|\?)\.?$/;
+export const CAPTION = /^(Table|Tableau|Tabla|Tablo|Figure|Figura|Figi)(?:\s+((?:[A-Z]\.?)?\d+(?:[.-]\d+)*|\?))?\.?$/;
 const AUTO_TAG = /^(?:(?:[A-Z]\.?)?\d+(?:\.\d+)?|\?)$/;
 const TAG = /\\tag\{([^{}]*)\}/;
 const PREFIX = { table: 'tbl', figure: 'fig', equation: 'eq', section: 'sec' };
@@ -41,7 +41,7 @@ function captionKind(node) {
 
     const match = first.text.trim().match(CAPTION);
 
-    return match ? [match[1], match[2], CAPTION_KINDS[match[1]]] : null;
+    return match ? [match[1], match[2] ?? '', CAPTION_KINDS[match[1]]] : null;
 }
 
 /** Labelled things in this chapter, as a reference would read them. */
@@ -56,7 +56,7 @@ export function localTargets(doc) {
         const caption = captionKind(node);
 
         if (caption) {
-            targets.push({ label, kind: caption[2], text: `${caption[0]} ${caption[1]}` });
+            targets.push({ label, kind: caption[2], text: `${caption[0]} ${caption[1]}`.trim() });
         } else if (node.type.name === 'blockMath' && TAG.test(node.attrs.latex ?? '')) {
             targets.push({ label, kind: 'equation', text: `Equation (${node.attrs.latex.match(TAG)[1]})` });
         } else if (node.type.name === 'heading') {
@@ -123,7 +123,6 @@ function corrections(doc, place, schema) {
     const numbering = place ? numberingFor(doc, place) : null;
     const prefix = numbering?.prefix;
     const counts = { table: 0, figure: 0, equation: 0 };
-    const own = { table: {}, figure: {} };
     const changes = [];
 
     doc.forEach((node, offset) => {
@@ -134,15 +133,14 @@ function corrections(doc, place, schema) {
             if (!node.attrs.label) attrs = { ...node.attrs, label: newLabel(caption[2]) };
         } else if (caption) {
             const kind = caption[2];
-            // An unnumbered section keeps its author's prefix ("Tableau 0.2",
-            // "Table D.1"); only the count after it follows position.
-            const authored = prefix === '' ? caption[1].match(/^((?:[A-Z]|\d+)(?:\.\d+)*)\.\d+$/) : null;
-            const number = authored
-                ? `${authored[1]}.${(own[kind][authored[1]] = (own[kind][authored[1]] ?? 0) + 1)}`
-                : `${prefix}${(numbering.offsets[kind] ?? 0) + ++counts[kind]}`;
+            // In a book numbered by chapter, a section that is not a
+            // numbered chapter prints its captions unnumbered, as
+            // Numbering::apply does ("Tableau.").
+            const unnumbered = numbering.scheme === 'chapter' && prefix === '';
+            const number = unnumbered ? '' : `${prefix}${(numbering.offsets[kind] ?? 0) + ++counts[kind]}`;
             const first = node.firstChild;
-            const stop = first.text.trim().endsWith('.') ? '.' : '';
-            const wanted = `${caption[0]} ${number}${stop}`;
+            const stop = unnumbered || first.text.trim().endsWith('.') ? '.' : '';
+            const wanted = unnumbered ? `${caption[0]}.` : `${caption[0]} ${number}${stop}`;
 
             if (first.text !== wanted) {
                 changes.push({ from: offset + 1, to: offset + 1 + first.nodeSize, text: schema.text(wanted, first.marks) });

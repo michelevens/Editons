@@ -74,7 +74,16 @@ class PrintCheck
 
         // Inside margin.
         $required = PrintSpecs::requiredGutter($service, $count);
-        $margin = PrintBook::marginInches($layout['margins']);
+        // The margin the interior is set at: the one the typeset interior
+        // recorded, else what PrintBook will use for this length (the
+        // setting, widened to the strictest service's band). An interior
+        // typeset before margins tracked the length recorded none, and is
+        // held to its setting.
+        $margin = match (true) {
+            $pages['exact'] && isset($pages['margin']) => (float) $pages['margin'],
+            $pages['exact'] => PrintBook::marginInches($layout['margins']),
+            default => PrintBook::insideMargin($layout, $count),
+        };
 
         if ($margin + 1e-9 < $required) {
             $better = collect(PrintBook::MARGINS)->filter(fn ($inches) => $inches + 1e-9 >= $required)->keys()->first();
@@ -99,6 +108,22 @@ class PrintCheck
             $add('suggestions', 'warn', "{$pending} pending suggestion".($pending === 1 ? '' : 's').': the print files leave '.($pending === 1 ? 'it' : 'them').' out.', 'Accept or reject them in the manuscript.');
         }
 
+        // Caption numbers typed by hand that are not the ones that print.
+        $typed = Numbering::typedMismatches($book->sections()->orderBy('position')->get());
+
+        if ($typed !== []) {
+            $first = $typed[0];
+            $add('captions', 'warn',
+                sprintf('%d caption%s typed with a number that does not match %s chapter (first: “%s” in “%s”, which prints as “%s”).',
+                    count($typed), count($typed) === 1 ? ' is' : 's are', count($typed) === 1 ? 'its' : 'their', $first['typed'], $first['section'], $first['prints']),
+                'Write captions as “Tableau ?” or “Figure ?” and let the book number them.');
+        }
+
+        // Pages the last typeset interior left nearly empty.
+        foreach ($pages['layout'] ?? [] as $note) {
+            $add('layout', 'warn', $note, 'Shorten or lengthen the section slightly, or accept the short page.');
+        }
+
         // ISBN.
         foreach (IsbnPlan::printIssues($book, $service) as $issue) {
             $add('isbn', ...$issue);
@@ -113,7 +138,7 @@ class PrintCheck
             'service' => $service,
             'label' => $label,
             'status' => in_array('fail', $statuses, true) ? 'fail' : (in_array('warn', $statuses, true) ? 'warn' : 'pass'),
-            'pages' => $pages + ['count' => $count],
+            'pages' => array_diff_key($pages, ['layout' => 1, 'margin' => 1]) + ['count' => $count],
             'items' => $items,
         ];
     }

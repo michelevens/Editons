@@ -77,7 +77,7 @@ class MathRenderer
             base_path(),
             null,
             json_encode($items),
-            60,
+            (int) config('publishing.math_timeout', 60),
         );
 
         try {
@@ -123,7 +123,11 @@ class MathRenderer
     {
         $path = $this->path($key);
 
-        return is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+        // A cache file another process is still writing is a miss, not a
+        // failed export.
+        $json = is_file($path) ? @file_get_contents($path) : false;
+
+        return $json === false ? null : json_decode($json, true);
     }
 
     /** @param array<string, mixed> $result */

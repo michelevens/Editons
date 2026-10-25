@@ -135,7 +135,8 @@ it('typesets a table in the PDF', function () {
 
     $html = app(PrintBook::class)->html($book->fresh(), $book->sections()->get(), 'en');
 
-    expect($html)->toContain('<table>')
+    // A table this short is kept on one page.
+    expect($html)->toContain('<table class="keep">')
         ->and($html)->toContain('.text table');
 });
 

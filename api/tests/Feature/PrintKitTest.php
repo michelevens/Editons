@@ -303,12 +303,19 @@ it('sends a very long book to Wide margins, and only warns on an estimate', func
     $margins = collect(app(PrintCheck::class)->for($book, 'kdp')['items'])->firstWhere('key', 'margins');
     expect($margins['status'])->toBe('fail')->and($margins['fix'])->toBe('Switch margins to Wide in Design.');
 
-    // An estimate is not a fact: the same rule only warns.
+    // Not yet typeset, it will be set at the margin its length needs
+    // (PrintBook::insideMargin), so the estimate passes; an interior that
+    // recorded the margin it was set at is held to that one.
     $estimated = podBook(attributes: ['layout' => ['margins' => 'Narrow']]);
     $estimated->forceFill(['word_count' => 160_000])->save();
     $result = app(PrintCheck::class)->for($estimated->fresh(), 'kdp');
     expect($result['pages']['exact'])->toBeFalse()
-        ->and(collect($result['items'])->firstWhere('key', 'margins')['status'])->toBe('warn');
+        ->and(collect($result['items'])->firstWhere('key', 'margins')['status'])->toBe('pass');
+
+    $widened = podBook();
+    $widened->exports()->create(['format' => 'pdf_interior', 'status' => 'ready', 'path' => 'exports/x.pdf'])
+        ->forceFill(['pages' => 760, 'options' => ['fingerprint' => PrintPages::fingerprint($widened), 'margin' => 0.875]])->save();
+    expect(collect(app(PrintCheck::class)->for($widened->fresh(), 'kdp')['items'])->firstWhere('key', 'margins')['status'])->toBe('pass');
 });
 
 it('checks page limits by paper and trim', function () {

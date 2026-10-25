@@ -296,7 +296,7 @@ it('hyphenates running text and leaves headings whole', function () {
 
     $html = printHtml($book->fresh());
 
-    preg_match('/<h2>(.*?)<\/h2>/s', $html, $heading);
+    preg_match('/<h2[^>]*>(.*?)<\/h2>/s', $html, $heading);
 
     expect($html)->toContain("\u{00AD}")
         ->and($heading[1])->toBe('Extraordinary Responsibilities')

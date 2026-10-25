@@ -14,7 +14,7 @@ it('sets characters the book face lacks in a fallback face', function () {
     ManuscriptSection::factory()->for($book)->create(['title' => 'Chapitre 1 : Bases', 'type' => 'chapter', 'position' => 10,
         'content' => ['type' => 'doc', 'content' => [[
             'type' => 'paragraph',
-            'content' => [['type' => 'text', 'text' => 'Exercice 1.1 (★★☆, 6 min) : la note fa♯ et l’ensemble ℝ, café.']],
+            'content' => [['type' => 'text', 'text' => 'Exercice 1.1 (★★☆, 6 min) : la note fa♯ et l’ensemble ℝ, café, calculatrice.']],
         ]]]]);
 
     $html = app(PrintBook::class)->html($book, $book->sections()->get(), 'fr');
@@ -23,9 +23,11 @@ it('sets characters the book face lacks in a fallback face', function () {
         ->toContain('fa<span class="glyph">♯</span>')
         ->toContain('<span class="glyph">ℝ</span>')
         // Accented letters, typographic quotes and the hyphenator's soft
-        // hyphens are in the face: left alone.
-        ->toContain("l’en\u{00AD}semble")
-        ->toContain('café.')
+        // hyphens are in the face: left alone. (No break leaves fewer than
+        // three letters on a line, so "en-semble" is not one.)
+        ->toContain('l’ensemble')
+        ->toContain("\u{00AD}")
+        ->toContain('café,')
         ->not->toContain('<span class="glyph">é');
 });
 
@@ -44,7 +46,7 @@ it('checks the character map of the face actually drawing', function () {
 
     $html = app(PrintBook::class)->html($book, $book->sections()->get(), 'fr');
 
-    expect($html)->toContain('Lettre <span class="glyph">Ƃ</span>')
+    expect($html)->toContain('Lettre <span style="white-space:nowrap"><span class="glyph">Ƃ</span>,</span>')
         ->toContain('<code>Pour i ← 1 à N ★</code>')
         ->toContain("code, kbd, samp { font-family: 'DejaVu Sans Mono'");
 });

@@ -111,7 +111,7 @@ it('resolves cross-references in every export, and flags a missing one', functio
     expect($pdf)->toContain('<a class="xref" href="#tbl-results">Table 2.2</a>')
         // Print hyphenates link text like any other, so match the link itself.
         ->and($pdf)->toContain('<a class="xref" href="#eq-model">')
-        ->and($pdf)->toContain('<table class="math-display" id="eq-model">')
+        ->and($pdf)->toContain('<table class="math-display" id="eq-model" data-block="ref-')
         ->and($pdf)->toContain('<span class="xref-missing">');
 
     $exporter = app(Exporter::class);
@@ -167,15 +167,19 @@ it('numbers captions written in French, Spanish and Kreyòl', function () {
         ->and(Numbering::captionKind($nodes[3]))->toBe(['Figura', '3.2', 'figure']);
 });
 
-it('keeps the prefix an author gave captions in an unnumbered section', function () {
-    $nodes = Numbering::apply([
+it('prints captions of an unnumbered section unnumbered, whatever prefix was typed', function () {
+    // A typed prefix ("Tableau 73.1", a file's number; "Tableau 0.1" in three
+    // front-matter sections) printed as if it were a chapter's number.
+    $captions = [
         nbCaption('Tableau', '0.1', 'Fréquences'),
-        nbCaption('Tableau', '0.7', 'Plan sur 8 semaines'),
         nbCaption('Table', 'D.4', 'Grille'),
-        nbCaption('Figure', '3', 'Sans préfixe'),
+        nbCaption('Figure', '?', 'Sans préfixe'),
         nbCaption('Tableau', '70.5.4', 'Barème'),
-    ], '');
+    ];
+    $text = fn (array $nodes) => collect($nodes)->map(fn ($n) => $n['content'][0]['text'])->all();
+    $counts = [];
 
-    expect(collect($nodes)->map(fn ($n) => $n['content'][0]['text'])->all())
-        ->toBe(['Tableau 0.1', 'Tableau 0.2', 'Table D.1', 'Figure 1', 'Tableau 70.5.1']);
+    expect($text(Numbering::apply($captions, '', [], $counts, byChapter: true)))->toBe(['Tableau.', 'Table.', 'Figure.', 'Tableau.'])
+        // A book numbered continuously numbers them in its sequence.
+        ->and($text(Numbering::apply($captions, '', ['table' => 4])))->toBe(['Tableau 5', 'Table 6', 'Figure 1', 'Tableau 7']);
 });

@@ -210,6 +210,34 @@ class Anatomy
         ];
     }
 
+    /**
+     * The author the title page names: none when the "author" is the house
+     * itself. A series published anonymously under its imprint ("Écrivain
+     * Prépa") had the platform's name in the author field, and its title
+     * page printed "ECRIVAIN" over "ÉCRIVAIN PRÉPA": the same house twice,
+     * once without its accent.
+     */
+    public static function titlePageAuthor(Book $book): ?string
+    {
+        $author = trim((string) $book->author_name);
+
+        if ($author === '') {
+            return null;
+        }
+
+        $fold = fn (?string $s) => mb_strtolower(trim(\Illuminate\Support\Str::ascii((string) $s)));
+        $p = $book->publication();
+        $houses = array_filter([$p['imprint'] ?? null, $p['publisher'] ?? null, $book->series_name, config('app.name')]);
+
+        foreach ($houses as $house) {
+            if ($fold($house) === $fold($author) || str_starts_with($fold($house), $fold($author).' ')) {
+                return null;
+            }
+        }
+
+        return $author;
+    }
+
     /** Who the copyright belongs to: the stated holder, the author, else the publisher. */
     public static function copyrightHolder(Book $book): ?string
     {
@@ -467,7 +495,7 @@ class Anatomy
                 'title' => $book->title,
                 'subtitle' => $book->subtitle,
                 // Null for an anonymous book: nothing is put in its place.
-                'author' => $book->author_name ?: null,
+                'author' => self::titlePageAuthor($book),
                 'publisher' => $p['publisher'],
                 'imprint' => $p['imprint'],
                 'place' => $p['place'],

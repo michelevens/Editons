@@ -77,7 +77,8 @@ it('typesets LaTeX to SVG and MathML, chemistry included', function () {
 it('renders MathML for readers and numbers display equations beside them', function () {
     $html = app(DocumentRenderer::class)->html(mathSection(EQUATIONS));
 
-    expect($html)->toContain('<math xmlns="http://www.w3.org/1998/Math/MathML">')
+    // Each formula carries its LaTeX as the text alternative.
+    expect($html)->toContain('<math alttext="n" xmlns="http://www.w3.org/1998/Math/MathML">')
         ->and($html)->toContain('<div class="math-display">')
         ->and($html)->toContain('<span class="math-number">(3.1)</span>')
         // The tag is set beside the equation, not inside it.
