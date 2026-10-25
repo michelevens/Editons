@@ -8,6 +8,7 @@ const FILTERS = [
     ['suspended', 'Suspended'],
     ['complimentary', 'Complimentary'],
     ['staff', 'Staff'],
+    ['house', 'House'],
 ];
 
 /** Find an account by email, name or id. */
@@ -77,6 +78,7 @@ export default function Index({ accounts, q, filter }) {
                                         <Badge>{account.plan}{account.complimentary ? ' · comp' : ''}</Badge>
                                         <Badge>{account.books} book{account.books === 1 ? '' : 's'}</Badge>
                                         {account.platform_role && <Badge tone="info">{account.platform_role}</Badge>}
+                                        {account.house && <Badge tone="warning">House</Badge>}
                                         {account.suspended && <Badge tone="danger">Suspended</Badge>}
                                     </div>
                                     <p className="text-[11.5px] text-text-muted sm:w-[170px] sm:text-right">

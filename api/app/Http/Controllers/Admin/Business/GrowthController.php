@@ -47,7 +47,7 @@ class GrowthController extends Controller
         return Inertia::render('Admin/Business/Growth/Acquisition', [
             'funnel' => $funnel->report($weeks),
             'weeks' => $weeks,
-            'recent' => User::whereNull('platform_role')
+            'recent' => User::whereNull('platform_role')->exceptHouse()
                 ->latest('id')
                 ->limit(20)
                 ->get(['id', 'name', 'created_at', 'signup_source', 'signup_medium', 'signup_campaign', 'signup_referrer', 'signup_landing'])

@@ -31,7 +31,11 @@ class EnsureAccountActive
 
         $message = null;
 
-        if ($user->isSuspended()) {
+        if ($user->isHouse()) {
+            // No session may ever be a house publisher account's, however it
+            // began (a remember-me cookie, a session written by hand).
+            $message = 'This account cannot be signed in to.';
+        } elseif ($user->isSuspended()) {
             $message = 'This account is suspended. If you think this is a mistake, write to support.';
         } elseif ($user->sessions_revoked_at !== null) {
             $signedInAt = (int) $request->session()->get(self::SIGNED_IN_AT, 0);

@@ -35,9 +35,9 @@ final class PlatformMetrics
             ->all();
 
         return [
-            'accounts_total' => User::count(),
-            'accounts_new_7d' => User::where('created_at', '>=', $now->copy()->subDays(7))->count(),
-            'accounts_new_30d' => User::where('created_at', '>=', $now->copy()->subDays(30))->count(),
+            'accounts_total' => User::exceptHouse()->count(),
+            'accounts_new_7d' => User::exceptHouse()->where('created_at', '>=', $now->copy()->subDays(7))->count(),
+            'accounts_new_30d' => User::exceptHouse()->where('created_at', '>=', $now->copy()->subDays(30))->count(),
             'active_writers_7d' => $this->activeWriters($now->copy()->subDays(7)),
             'active_writers_30d' => $this->activeWriters($now->copy()->subDays(30)),
             'books' => (int) DB::table('books')->where('status', '!=', 'archived')->count(),

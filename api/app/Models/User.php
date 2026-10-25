@@ -74,6 +74,28 @@ class User extends Authenticatable
         return $this->suspended_at !== null;
     }
 
+    /** account_kind: every account is an author's, except the platform's own publishers. */
+    public const KINDS = ['author', 'house'];
+
+    /**
+     * A house publisher account (ADR — house catalog): the platform's own
+     * imprint, e.g. "Écrivain Prépa". Nobody signs in to it and no email
+     * goes to it; staff run its books from the console's House catalog.
+     */
+    public function isHouse(): bool
+    {
+        return $this->account_kind === 'house';
+    }
+
+    /**
+     * Everybody but the house accounts: what growth, broadcasts, lifecycle
+     * mail and the "real author" figures count.
+     */
+    public function scopeExceptHouse($query)
+    {
+        return $query->where('users.account_kind', '!=', 'house');
+    }
+
     /**
      * The plan the limits come from.
      *

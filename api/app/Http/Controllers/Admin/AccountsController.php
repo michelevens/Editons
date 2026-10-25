@@ -54,6 +54,7 @@ class AccountsController extends Controller
             ->when($filter === 'suspended', fn ($query) => $query->whereNotNull('suspended_at'))
             ->when($filter === 'staff', fn ($query) => $query->whereNotNull('platform_role'))
             ->when($filter === 'complimentary', fn ($query) => $query->whereNotNull('complimentary_since'))
+            ->when($filter === 'house', fn ($query) => $query->where('account_kind', 'house'))
             ->withCount(['books' => fn ($b) => $b->where('status', '!=', 'archived')])
             ->orderByDesc('id')
             ->paginate(25)
@@ -76,6 +77,8 @@ class AccountsController extends Controller
                 'complimentary' => $user->complimentary_since !== null,
                 'suspended' => $user->isSuspended(),
                 'platform_role' => $user->platform_role,
+                // A platform-owned publisher (ADR — house catalog), shown as "House".
+                'house' => $user->isHouse(),
                 'books' => $user->books_count,
                 'created_at' => $user->created_at?->toIso8601String(),
                 'last_sign_in' => isset($lastLogins[$user->id]) ? (string) $lastLogins[$user->id] : null,
@@ -135,6 +138,8 @@ class AccountsController extends Controller
                 'suspended_at' => $user->suspended_at?->toIso8601String(),
                 'suspended_reason' => $user->suspended_reason,
                 'platform_role' => $user->platform_role,
+                'house' => $user->isHouse(),
+                'house_slug' => $user->house_slug,
                 'two_factor' => $user->hasTwoFactor(),
                 'sessions_revoked_at' => $user->sessions_revoked_at?->toIso8601String(),
             ],

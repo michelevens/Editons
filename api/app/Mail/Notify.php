@@ -38,6 +38,7 @@ use App\Models\Comment;
 use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
 use App\Models\User;
+use App\Platform\House\House;
 use App\Platform\Ops\MailLogger;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Log;
@@ -70,6 +71,12 @@ final class Notify
     public static function send(User|string $to, EcrivainMail $mail): bool
     {
         $account = $to instanceof User ? $to : $mail->account();
+
+        // A house publisher account is the platform's own imprint: nobody
+        // reads its mail (HouseMailGuard repeats this on the mailer).
+        if ($account?->isHouse() || House::isHouseAddress($to instanceof User ? $to->email : $to)) {
+            return false;
+        }
 
         if (! EmailPreferences::allows($account, $mail->category())) {
             return false;

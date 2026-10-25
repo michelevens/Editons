@@ -53,6 +53,7 @@ export default function Show({
                         )}
                         {account.stripe_subscription && <Badge tone="info">Stripe subscription</Badge>}
                         {account.platform_role && <Badge tone="info">Staff: {account.platform_role}</Badge>}
+                        {account.house && <Badge tone="warning">House publisher · nobody signs in</Badge>}
                         <Badge tone={account.two_factor ? 'success' : 'neutral'}>
                             Two-factor {account.two_factor ? 'on' : 'off'}
                         </Badge>

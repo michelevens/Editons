@@ -42,7 +42,9 @@ use Throwable;
  *
  * Refused for platform staff (demote first, from the shell), for an account
  * with an active Stripe subscription (cancel it in Stripe first: a
- * subscription nobody can see would go on charging), and twice.
+ * subscription nobody can see would go on charging), for a house publisher
+ * account that still holds books (the imprint's catalogue is not deleted by
+ * offboarding; move the books out first), and twice.
  */
 final class Offboarding
 {
@@ -118,6 +120,10 @@ final class Offboarding
 
         if ($user->isPlatformAdmin()) {
             $refusals[] = 'This is a platform staff account. Remove the role from the shell (php artisan platform:demote) first.';
+        }
+
+        if ($user->isHouse() && DB::table('books')->where('user_id', $user->id)->exists()) {
+            $refusals[] = 'This is a house publisher account and it still holds books. Move them to another account first: offboarding never deletes the imprint\'s catalogue.';
         }
 
         if ($this->accounts->hasActiveSubscription($user)) {
