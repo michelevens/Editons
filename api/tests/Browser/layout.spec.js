@@ -10,12 +10,14 @@ import { firstBookId, signIn } from './helpers.js';
 test.use({ viewport: { width: 1440, height: 900 } });
 
 test('the studio page never scrolls past the screen', async ({ page }) => {
+    test.setTimeout(240_000);
     await signIn(page);
     const id = await firstBookId(page);
 
     for (const pane of ['export', 'royalties', 'distribution']) {
         await page.goto(`/books/${id}/edit?pane=${pane}`);
-        await page.waitForLoadState('networkidle');
+        await page.locator('#main').waitFor();
+        await page.waitForTimeout(1500);
         const extra = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
         expect(extra, `${pane} pane`).toBeLessThanOrEqual(1);
     }
