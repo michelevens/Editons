@@ -320,7 +320,8 @@ it('preserves marks and structure rather than flattening to text', function () {
 
     $html = app(DocumentRenderer::class)->html($section);
 
-    expect($html)->toContain('<h2>A Heading</h2>')
+    // Every heading has an anchor references can point at.
+    expect($html)->toMatch('#<h2 id="[a-z0-9-]+">A Heading</h2>#')
         ->and($html)->toContain('<strong>bold</strong>')
         ->and($html)->toContain('<em>italic</em>')
         ->and($html)->toContain('<li>First</li>');
@@ -353,7 +354,7 @@ it('clamps a heading level to something valid', function () {
             'content' => [['type' => 'text', 'text' => 'Deep']],
         ]]]]);
 
-    expect(app(DocumentRenderer::class)->html($section))->toContain('<h6>Deep</h6>');
+    expect(app(DocumentRenderer::class)->html($section))->toMatch('#<h6 id="[a-z0-9-]+">Deep</h6>#');
 });
 
 it('always emits an alt attribute on an image', function () {

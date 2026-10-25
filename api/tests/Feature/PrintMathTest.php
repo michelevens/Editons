@@ -41,7 +41,9 @@ it('draws accented letters in formulas instead of dropping them', function () {
 });
 
 it('scales a formula wider than the measure in both directions', function () {
-    $long = 'P(x) = (5x+3)(5x-3) - (5x+3)(x-2) = (5x+3)\left[(5x-3)-(x-2)\right] = (5x+3)(4x-1) = 20x^2 + 7x - 3';
+    // One group, with nothing outside it to break at: scaled. (A display
+    // with relations is broken into lines instead: TextbookRenderTest.)
+    $long = '\left[(5x+3)(5x-3) - (5x+3)(x-2) = (5x+3)\left[(5x-3)-(x-2)\right] = (5x+3)(4x-1) = 20x^2 + 7x - 3\right]';
     $section = printMathSection([['type' => 'blockMath', 'attrs' => ['latex' => $long]]]);
     $size = function (string $html) {
         preg_match('#<img class="math"[^>]*style="width:([\d.]+)pt;height:([\d.]+)pt#', $html, $m);
@@ -75,20 +77,21 @@ it('seats inline formulas on the baseline and opens the line for tall ones', fun
     $seat = fn (string $style) => (new ReflectionMethod($print, 'seatInlineMath'))
         ->invoke($print, '<img class="math" alt="x" style="'.$style.'" src="x" />', $book, 1.3);
 
-    // A plain formula: no extra room, aligned by its own depth.
+    // A plain formula, and an inline \dfrac taller than the line and deep
+    // below the baseline.
     $small = $seat('width:20pt;height:10pt;vertical-align:-2pt');
-    // An inline \dfrac, taller than the line and deep below the baseline.
     $tall = $seat('width:40pt;height:30pt;vertical-align:-12pt');
 
-    preg_match('#vertical-align:(-?[\d.]+)pt;margin:(-?[\d.]+)pt 0#', $small, $s);
-    preg_match('#vertical-align:(-?[\d.]+)pt;margin:(-?[\d.]+)pt 0#', $tall, $t);
+    preg_match('#vertical-align:baseline;margin:([\d.]+)pt 0 (-?[\d.]+)pt 0#', $small, $s);
+    preg_match('#vertical-align:baseline;margin:([\d.]+)pt 0 (-?[\d.]+)pt 0#', $tall, $t);
 
-    // The small one keeps the line as it is: its box is no taller than the
-    // line, so only its own depth moves it. The tall one gets a taller box,
-    // and drops by the share of it that goes above the baseline.
-    expect((float) $s[1])->toBe(-2.0)
-        ->and((float) $t[2] + 30)->toBeGreaterThan(2 * ((float) $s[2] + 10))
-        ->and((float) $t[1])->toBeLessThan(-12.0);
+    // Both sit on the text's baseline, wherever dompdf puts it on a line
+    // made taller by a neighbour: the margin box ends at the baseline and
+    // the depth hangs below it. The tall one opens the line above it, and
+    // enough that its foot clears the next line's ascenders.
+    expect((float) $s[2])->toBe(-2.0)
+        ->and((float) $t[2])->toBe(-12.0)
+        ->and((float) $t[1])->toBeGreaterThan((float) $s[1] + 10);
 });
 
 it('breaks a run too long for the measure rather than overflowing', function () {

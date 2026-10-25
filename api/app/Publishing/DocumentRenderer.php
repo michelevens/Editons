@@ -3,6 +3,7 @@
 namespace App\Publishing;
 
 use App\Models\ManuscriptSection;
+use Illuminate\Support\Str;
 
 /**
  * Turns ProseMirror JSON into the markup an export format needs.
@@ -106,10 +107,13 @@ class DocumentRenderer
             return $nodes;
         }
 
+        $counts = [];
         $nodes = Numbering::apply(
             $nodes,
             $this->numbering['scheme'] === 'continuous' ? '' : $place['prefix'],
             $place['offsets'],
+            $counts,
+            $this->numbering['scheme'] === 'chapter',
         );
 
         // Each caption's key, as Numbering lists it, so print can record the
@@ -139,7 +143,7 @@ class DocumentRenderer
         $rows = '';
 
         foreach ($this->listEntries($kind) as $entry) {
-            $name = ucfirst($kind).' '.$entry['number'];
+            $name = trim(($entry['word'] ?? ucfirst($kind)).' '.$entry['number']);
             $file = $this->sectionFiles[$entry['section_id']] ?? '';
             $name = $entry['label'] ? '<a href="'.e($file.'#'.$entry['label']).'">'.e($name).'</a>' : e($name);
             $rows .= '<tr><td class="cl-number">'.$name.'</td><td class="cl-text">'.e($entry['text']).'</td></tr>';
@@ -187,13 +191,42 @@ class DocumentRenderer
         return '<a class="xref" href="'.e($file.'#'.$anchor).'">'.e($text).'</a>';
     }
 
-    /** ' id="…"' for a node carrying a cross-reference label. */
-    private function anchor(array $node): string
+    /**
+     * ' id="…"' for a node carrying a cross-reference label (or, given, a
+     * heading's or an exercise's own anchor). In print the element is also
+     * marked for PrintBook, which records the page it lands on so a
+     * reference to it can print "p. N"; a caption is marked by its key.
+     */
+    private function anchor(array $node, ?string $id = null): string
     {
         $label = $node['attrs']['label'] ?? null;
+        $id ??= is_string($label) && preg_match('/^[a-z]+-[a-z0-9]+$/', $label) ? $label : null;
 
-        return is_string($label) && preg_match('/^[a-z]+-[a-z0-9]+$/', $label) ? ' id="'.$label.'"' : '';
+        if ($id === null) {
+            return '';
+        }
+
+        return ' id="'.e($id).'"'.($this->mathMode === 'svg' && $this->sectionId !== null && ! isset($node['attrs']['captionKey'])
+            ? ' data-block="ref-'.$this->sectionId.'-'.e($id).'"'
+            : '');
     }
+
+    /** The book's language, for the words an exam's furniture prints. */
+    private string $language = 'en';
+
+    /** A copy that labels exam furniture ("Fin de l'épreuve") in this language. */
+    public function withLanguage(string $language): static
+    {
+        $copy = clone $this;
+        $copy->language = $language;
+
+        return $copy;
+    }
+
+    /** The section being rendered, and the top-level node being set, if any. */
+    private ?int $sectionId = null;
+
+    private ?int $top = null;
 
     public function html(ManuscriptSection $section): string
     {
@@ -203,7 +236,8 @@ class DocumentRenderer
         }
 
         $this->bookId = $section->book_id;
-        $nodes = $this->numbered($section);
+        $this->sectionId = $section->id;
+        $nodes = array_values($this->numbered($section));
 
         // One typesetting call per section, not one per equation.
         $this->math->render($this->collectMath($nodes));
@@ -213,7 +247,237 @@ class DocumentRenderer
         $this->notes = [];
         $this->notePrefix = 's'.($section->id ?? 'x');
 
-        return $this->nodesToHtml($nodes).$this->notesHtml();
+        try {
+            return $this->sectionHtml($nodes).$this->notesHtml();
+        } finally {
+            $this->sectionId = $this->top = null;
+        }
+    }
+
+    /**
+     * A section's top-level nodes, with each exam paper in it set as one
+     * (Textbook::exams): a banner for its header, its directions boxed,
+     * each short exercise kept on one page and an end marker.
+     *
+     * @param  list<mixed>  $nodes
+     */
+    private function sectionHtml(array $nodes): string
+    {
+        $out = '';
+        $at = 0;
+
+        foreach (Textbook::exams($nodes) as $k => $exam) {
+            $out .= $this->topHtml($nodes, $at, $exam['start']);
+            $out .= $this->examHtml($nodes, $exam, $k);
+            $at = $exam['end'] + ($exam['closed'] ? 1 : 0);
+        }
+
+        return $out.$this->topHtml($nodes, $at, count($nodes));
+    }
+
+    /** Top-level nodes from $from to $to, each knowing its index. @param list<mixed> $nodes */
+    private function topHtml(array $nodes, int $from, int $to): string
+    {
+        $out = '';
+
+        for ($i = $from; $i < $to; $i++) {
+            $this->top = $i;
+            $out .= $this->nodesToHtml([$nodes[$i]]);
+        }
+
+        $this->top = null;
+
+        return $out;
+    }
+
+    /**
+     * One exam paper.
+     *
+     * @param  list<mixed>  $nodes
+     * @param  array{start: int, end: int, closed: bool, header: list<int>, directions: list<int>, drop: list<int>, box: bool}  $exam
+     */
+    private function examHtml(array $nodes, array $exam, int $k): string
+    {
+        $print = $this->mathMode === 'svg';
+        $words = Textbook::words($this->language);
+        $marker = $this->sectionId !== null ? 'exam-'.$this->sectionId.'-'.$k : null;
+        $out = $print ? '<div class="exam">' : '<section class="exam" role="region" aria-label="'.e($this->examName($nodes, $exam)).'">';
+
+        // Nodes before the header (a heading such as "Le sujet" is outside
+        // the range; a fencing rule is dropped).
+        $first = $exam['header'][0] ?? $exam['directions'][0] ?? null;
+
+        if ($first !== null) {
+            $out .= $this->topHtml(array_replace($nodes, array_fill_keys($exam['drop'], null)), $exam['start'], $first);
+        }
+
+        // The banner: the paper's own header lines, boxed.
+        $banner = '';
+        foreach ($exam['header'] as $i) {
+            $this->top = $i;
+            $banner .= $exam['box'] ? $this->examBoxHeader($nodes[$i]) : '<p>'.$this->inlineHtml($nodes[$i]['content'] ?? []).'</p>';
+        }
+
+        $out .= '<div class="exam-banner"'.($print && $marker ? ' data-block="'.$marker.'"' : '').'>'
+            .($banner !== '' ? $banner : '<p>'.e($this->examName($nodes, $exam)).'</p>').'</div>'."\n";
+
+        if ($exam['directions'] !== []) {
+            $out .= '<div class="exam-directions">';
+            foreach ($exam['directions'] as $i) {
+                $this->top = $i;
+                $node = $nodes[$i];
+                $out .= Textbook::callout($node) ? $this->nodesToHtml(array_slice($node['content'] ?? [], 0)) : $this->nodesToHtml([$node]);
+            }
+            $out .= "</div>\n";
+        }
+
+        // The body, in items: each exercise or part opener with what follows
+        // it, kept on one page when it is short.
+        $lead = array_merge($exam['header'], $exam['directions']);
+        $from = $lead !== [] ? max($lead) + 1 : $exam['start'];
+        $item = [];
+        $flush = function () use (&$item, &$out, $nodes): void {
+            if ($item === []) {
+                return;
+            }
+
+            $html = '';
+            foreach ($item as $i) {
+                $this->top = $i;
+                $html .= $this->nodesToHtml([$nodes[$i]]);
+            }
+
+            $out .= ($this->mathMode === 'svg' && $this->shortEnough(array_map(fn ($i) => $nodes[$i], $item)))
+                ? '<div class="exam-item">'.$html."</div>\n"
+                : $html;
+            $item = [];
+        };
+
+        for ($i = $from; $i < $exam['end']; $i++) {
+            if (in_array($i, $exam['drop'], true) || $nodes[$i] === null) {
+                continue;
+            }
+
+            $node = $nodes[$i];
+
+            if (($node['type'] ?? '') === 'heading' || Textbook::exerciseNumber($node) !== null) {
+                $flush();
+            }
+
+            $item[] = $i;
+        }
+
+        $flush();
+        $this->top = null;
+
+        $end = mb_strtoupper($words['end']);
+
+        return $out.'<p class="exam-end"'.($print && $marker ? ' data-block="'.$marker.'-end"' : '').'>'
+            .($print ? '&#8212;&#160;'.e($end).'&#160;&#8212;' : e($end)).'</p>'
+            .($print ? '</div>' : '</section>')."\n";
+    }
+
+    /** What a paper is called, for the screen reader's region name. */
+    private function examName(array $nodes, array $exam): string
+    {
+        $i = $exam['header'][0] ?? null;
+
+        if ($i !== null && $exam['box']) {
+            return Textbook::examHeader($nodes[$i])['title'] ?: Str::limit(Textbook::plain($nodes[$i]['content'] ?? []), 80);
+        }
+
+        return $i !== null ? Str::limit(trim(Textbook::plain($nodes[$i]['content'] ?? [])), 80) : Textbook::words($this->language)['question'];
+    }
+
+    /** An "Épreuve." box as a banner: the paper's name, then its terms in cells. */
+    private function examBoxHeader(array $node): string
+    {
+        $header = Textbook::examHeader($node);
+        $label = rtrim((string) (Textbook::callout($node)['label'] ?? ''), '.: ');
+        $fields = '';
+
+        foreach ($header['fields'] as [$name, $value]) {
+            $fields .= $this->mathMode === 'svg'
+                ? '<td>'.($name !== '' ? '<span class="exam-field">'.e($name).'</span><br />' : '').e($value).'</td>'
+                : '<li>'.($name !== '' ? '<span class="exam-field">'.e($name).'&#160;:</span> ' : '').e($value).'</li>';
+        }
+
+        $title = '<p class="exam-title"><span class="exam-kind">'.e($label).'</span>'
+            .($header['title'] !== '' ? ' '.e($header['title']) : '').'</p>';
+
+        if ($fields === '') {
+            return $title.$this->nodesToHtml($header['rest']);
+        }
+
+        return $title.($this->mathMode === 'svg'
+            ? '<table class="exam-fields"><tr>'.$fields.'</tr></table>'
+            : '<ul class="exam-fields">'.$fields.'</ul>').$this->nodesToHtml($header['rest']);
+    }
+
+    /**
+     * Short enough to keep on one page: dompdf moves a block it may not
+     * split to the next page, so only one well under a page is asked to.
+     *
+     * @param  list<mixed>  $nodes
+     */
+    private function shortEnough(array $nodes): bool
+    {
+        $text = 0;
+        $tall = 0;
+
+        foreach ($nodes as $node) {
+            $text += mb_strlen(Textbook::plain([$node]));
+            $json = json_encode($node);
+            $tall += substr_count($json, '"blockMath"') + substr_count($json, '"tableRow"') + 2 * substr_count($json, '"chart"');
+        }
+
+        return $text < 900 && $tall <= 10 && count($nodes) <= 12;
+    }
+
+    /**
+     * A box (Textbook::callout): a labelled aside, not a quotation. Its text
+     * is upright, its label set apart, and in print it is drawn as a ruled
+     * or tinted box with the type's glyph, black and white throughout.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  array{type: string, label: string}  $callout
+     */
+    private function calloutHtml(array $node, array $callout): string
+    {
+        $children = $node['content'] ?? [];
+        $first = array_shift($children);
+        $rest = array_slice($first['content'] ?? [], 1);
+        $glyph = Textbook::GLYPHS[$callout['type']] ?? null;
+
+        // A label run straight into its text ("Piège." then the warning),
+        // as the author wrote it, with its glyph before it.
+        $label = '<strong class="callout-label">'
+            .($glyph ? '<span class="callout-glyph" aria-hidden="true">'.$glyph.'</span>&#160;' : '')
+            .e($callout['label']).'</strong>';
+        $lead = '<p class="callout-first">'.$label.($rest !== [] ? $this->inlineHtml($rest) : '')."</p>\n";
+        $class = 'callout callout-'.$callout['type'];
+
+        return $this->mathMode === 'svg'
+            ? '<div class="'.$class.'">'.$lead.$this->nodesToHtml($children)."</div>\n"
+            : '<aside class="'.$class.'" role="note" aria-label="'.e(rtrim($callout['label'], '.: ')).'">'.$lead.$this->nodesToHtml($children)."</aside>\n";
+    }
+
+    /** A checklist (Textbook::isChecklist): boxes to tick, not bullets. */
+    private function checklistHtml(array $node): string
+    {
+        $items = '';
+
+        foreach ($node['content'] ?? [] as $item) {
+            [$item, $ticked] = Textbook::checkItem($item);
+            // Print draws an empty square with a border; readers get the
+            // character, which no reading system turns into a control.
+            $box = $this->mathMode === 'svg'
+                ? '<span class="check-box">'.($ticked ? '&#10003;' : '&#160;').'</span>'
+                : '<span class="check-box" aria-hidden="true">'.($ticked ? '&#9745;' : '&#9744;').'</span>';
+            $items .= '<li>'.$box.' '.trim($this->listItemHtml($item['content'] ?? []))."</li>\n";
+        }
+
+        return "<ul class=\"checklist\">\n".$items."</ul>\n";
     }
 
     /** @param array<string, mixed> $node */
@@ -462,11 +726,12 @@ class DocumentRenderer
 
         try {
             if ($this->mathMode === 'svg') {
-                return '<div class="chart"><img class="chart" alt="'.e($charts->describe($spec)).'" '
-                    .'src="data:image/png;base64,'.base64_encode($charts->png($spec, 4)).'" /></div>'."\n";
+                // Black and white: the interior prints in grey scale.
+                return '<div class="chart"><img class="chart" alt="'.e($charts->describe($spec, $this->language)).'" '
+                    .'src="data:image/png;base64,'.base64_encode($charts->png($spec, 4, mono: true)).'" /></div>'."\n";
             }
 
-            return '<figure class="chart">'.$charts->svg($spec)."</figure>\n";
+            return '<figure class="chart">'.$charts->svg($spec, $this->language)."</figure>\n";
         } catch (\InvalidArgumentException $e) {
             return '<p class="chart-error"><code>'.e('Chart: '.$e->getMessage())."</code></p>\n";
         }
@@ -493,6 +758,16 @@ class DocumentRenderer
             // the stylesheet's max-width, only its width shrank and the
             // letters came out condensed.
             $room = $this->measure === null ? null : $this->measure[0] - ($display ? 6 * $this->measure[1] : 0);
+
+            // A display too wide to set at 85% of its size is broken at its
+            // relations (or, failing those, its + and −) and set as aligned
+            // lines: shrunk to the measure, a long equation came out at five
+            // or six points, which nobody can read.
+            if ($display && $room !== null && (float) $result['width'] * 4.8 * self::MATH_FLOOR > $room
+                && ($broken = $this->breakDisplay($latex, $room)) !== null) {
+                $result = $broken;
+            }
+
             $scale = $room !== null && (float) $result['width'] * 4.8 > $room ? $room / ((float) $result['width'] * 4.8) : 1.0;
             $pt = fn (string $ex) => round(((float) $ex) * 4.8 * $scale, 2);
             $svg = $this->printableSvg($result['svg'], $pt($result['width']), $pt($result['height']));
@@ -503,6 +778,12 @@ class DocumentRenderer
         } else {
             // Indentation inside MathML is noise in a reflowable book.
             $body = preg_replace('/>\s+</', '><', trim($result['mathml']));
+
+            // The LaTeX as the formula's text alternative, for a reading
+            // system or screen reader that does not speak MathML.
+            if (! str_contains((string) strstr((string) $body, '>', true), 'alttext=')) {
+                $body = preg_replace('/^<math\b/', '<math alttext="'.e($latex).'"', (string) $body, 1);
+            }
         }
 
         if (! $display) {
@@ -519,6 +800,157 @@ class DocumentRenderer
 
         return '<div class="math-display"'.$this->anchor($node).'>'.$body
             .($tag !== null ? '<span class="math-number">('.e($tag).')</span>' : '')."</div>\n";
+    }
+
+    /** The smallest a display equation is set, as a share of its size. */
+    public const MATH_FLOOR = 0.85;
+
+    /** Relations a long display breaks before, outside any group. */
+    private const RELATIONS = ['=', '<', '>', '\le', '\leq', '\ge', '\geq', '\leqslant', '\geqslant', '\approx', '\neq', '\ne',
+        '\equiv', '\iff', '\Leftrightarrow', '\Rightarrow', '\implies', '\simeq', '\sim'];
+
+    /**
+     * A display equation set on as many aligned lines as it takes to fit
+     * $room points at no less than MATH_FLOOR of its size, as a typeset
+     * result with the LaTeX it was made from; null when it cannot be broken
+     * (no relation or sign outside a group, or already laid out in lines).
+     *
+     * Lines break before a relation, which starts the next line aligned
+     * under the first one ("= …" under "= …"), the way a textbook sets a
+     * derivation; an equation with one relation breaks before a + or −
+     * instead, indented.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function breakDisplay(string $latex, float $room): ?array
+    {
+        if (preg_match('/\\\\begin\{|\\\\\\\\/', $latex)) {
+            return null;
+        }
+
+        $pieces = $this->splitAtTop($latex, true);
+        $relations = count($pieces) > 2;
+
+        if (! $relations) {
+            $pieces = $this->splitAtTop($latex, false);
+        }
+
+        if (count($pieces) < 2) {
+            return null;
+        }
+
+        // Each piece's width, typeset alone: one call for all of them.
+        $widths = array_map(
+            fn ($r) => is_array($r) && ! isset($r['error']) ? (float) $r['width'] * 4.8 : null,
+            $this->math->render(array_map(fn ($p) => ['latex' => $p, 'display' => true], $pieces)),
+        );
+
+        if (in_array(null, $widths, true)) {
+            return null;
+        }
+
+        // Greedy: as much on each line as fits. The first line keeps the
+        // left-hand side with its first relation.
+        $lines = [[$pieces[0]]];
+        $width = $widths[0];
+
+        foreach (array_slice($pieces, 1, null, true) as $i => $piece) {
+            $last = count($lines) - 1;
+
+            if ($width + $widths[$i] <= $room || ($relations && $last === 0 && count($lines[0]) === 1)) {
+                $lines[$last][] = $piece;
+                $width += $widths[$i];
+
+                continue;
+            }
+
+            $lines[] = [$piece];
+            $width = $widths[$i];
+        }
+
+        if (count($lines) < 2) {
+            return null;
+        }
+
+        $rows = [];
+
+        foreach ($lines as $n => $line) {
+            if ($relations) {
+                // "&" before the first relation of the first line, and at the
+                // start of every other: the relations align.
+                $rows[] = $n === 0 ? $line[0].' &'.implode(' ', array_slice($line, 1)) : '&'.implode(' ', $line);
+            } else {
+                $rows[] = $n === 0 ? '&'.implode(' ', $line) : '&\quad '.implode(' ', $line);
+            }
+        }
+
+        $aligned = '\begin{aligned}'.implode(' \\\\ ', $rows).'\end{aligned}';
+        $result = $this->math->one($aligned, true);
+
+        return is_array($result) && ! isset($result['error']) && isset($result['svg'])
+            ? $result + ['latex' => $aligned]
+            : null;
+    }
+
+    /**
+     * The LaTeX cut before each relation (or each + and −) that sits outside
+     * every brace, \left…\right and environment: the first piece is what
+     * comes before the first cut.
+     *
+     * @return list<string>
+     */
+    private function splitAtTop(string $latex, bool $relations): array
+    {
+        $pieces = [];
+        $start = 0;
+        $depth = 0;
+        $length = strlen($latex);
+
+        for ($i = 0; $i < $length; $i++) {
+            $c = $latex[$i];
+
+            if ($c === '\\' && preg_match('/\G\\\\([a-zA-Z]+|.)/', $latex, $m, 0, $i)) {
+                $command = '\\'.$m[1];
+                $depth += match ($m[1]) {
+                    'left', 'begin' => 1,
+                    'right', 'end' => -1,
+                    default => 0,
+                };
+
+                // \left( and \right) carry their delimiter with them.
+                $skip = strlen($m[0]) - 1;
+
+                if ($depth === 0 && $relations && in_array($command, self::RELATIONS, true) && $i > $start) {
+                    $pieces[] = substr($latex, $start, $i - $start);
+                    $start = $i;
+                }
+
+                $i += $skip;
+
+                continue;
+            }
+
+            if ($c === '{') {
+                $depth++;
+            } elseif ($c === '}') {
+                $depth--;
+            } elseif ($depth === 0 && $i > $start && trim(substr($latex, $start, $i - $start)) !== '') {
+                $cut = $relations
+                    ? in_array($c, ['=', '<', '>'], true)
+                    // A sign after an operator or an exponent is not a break:
+                    // "= -3", "^-1".
+                    : in_array($c, ['+', '-'], true) && ! preg_match('/[=+\-*\/(^_,&]\s*$|\\\\[a-zA-Z]+\s*$/', substr($latex, $start, $i - $start));
+
+                if ($cut) {
+                    $pieces[] = substr($latex, $start, $i - $start);
+                    $start = $i;
+                }
+            }
+        }
+
+        $pieces[] = substr($latex, $start);
+
+        return array_values(array_filter(array_map('trim', $pieces), fn ($p) => $p !== ''));
     }
 
     public function markdown(ManuscriptSection $section): string
@@ -690,7 +1122,7 @@ class DocumentRenderer
             // Rendered at 3×, then set at the 640 px layout width.
             return $this->docxPicture(
                 ['name' => 'chart.png', 'mime' => 'image/png', 'data' => $charts->png($spec, 3)],
-                $charts->describe($spec),
+                $charts->describe($spec, $this->language),
                 640,
             );
         } catch (\InvalidArgumentException $e) {
@@ -974,17 +1406,34 @@ class DocumentRenderer
 
             $children = $node['content'] ?? [];
 
+            // Inside a box, a list or a table, nothing is a top-level node:
+            // the anchors and exercise links made from that place are not
+            // the inner paragraph's.
+            if (in_array($node['type'] ?? '', ['bulletList', 'orderedList', 'listItem', 'blockquote', 'table'], true) && $this->top !== null) {
+                $top = $this->top;
+                $this->top = null;
+
+                try {
+                    $out .= $this->nodesToHtml([$node]);
+                } finally {
+                    $this->top = $top;
+                }
+
+                continue;
+            }
+
             $out .= match ($node['type'] ?? '') {
-                'paragraph' => '<p'.$this->paragraphClass($children).$this->anchor($node)
-                    .($this->mathMode === 'svg' && isset($node['attrs']['captionKey']) ? ' data-block="'.e($node['attrs']['captionKey']).'"' : '').'>'.$this->inlineHtml($children)."</p>\n",
+                'paragraph' => $this->paragraphHtml($node),
                 'heading' => $this->headingHtml($node),
-                'bulletList' => "<ul>\n".$this->nodesToHtml($children)."</ul>\n",
+                'bulletList' => Textbook::isChecklist($node) ? $this->checklistHtml($node) : "<ul>\n".$this->nodesToHtml($children)."</ul>\n",
                 // A list that continues a numbering ("15. …" in an exam
                 // paper) keeps its first number.
                 'orderedList' => '<ol'.((int) ($node['attrs']['start'] ?? 1) !== 1 ? ' start="'.(int) $node['attrs']['start'].'"' : '').">\n"
                     .$this->nodesToHtml($children)."</ol>\n",
                 'listItem' => '<li>'.trim($this->listItemHtml($children))."</li>\n",
-                'blockquote' => "<blockquote>\n".$this->nodesToHtml($children)."</blockquote>\n",
+                'blockquote' => ($callout = Textbook::callout($node))
+                    ? $this->calloutHtml($node, $callout)
+                    : "<blockquote>\n".$this->nodesToHtml($children)."</blockquote>\n",
                 'codeBlock' => '<pre><code>'.e($this->plain($children))."</code></pre>\n",
                 'horizontalRule' => "<hr />\n",
                 'image' => $this->imageHtml($node),
@@ -999,10 +1448,130 @@ class DocumentRenderer
     }
 
     /**
+     * Text, escaped, with the references typed in it resolved: "voir 1.3"
+     * (a heading numbered 1.3), "voir chapitre 4", "(voir 1.3, 1.4)", "see
+     * 2.1", "gade 3.2". Print adds the page ("voir 1.3, p. 42"), a reader
+     * gets a link. A number that names no heading, or two, stays as typed.
+     */
+    private function textRefs(string $text): string
+    {
+        if ($this->numbering === null || ! preg_match('/(?:voir|voyez|cf\.|see|gade|ver|siehe)\s/iu', $text)) {
+            return e($text);
+        }
+
+        $words = '(?:voir|voyez|cf\.|see|gade|ver|siehe)';
+        $chapter = '(?:chapitres?|chapters?|chapit|cap[ií]tulos?|kapitel)';
+        $joint = '(?:\s*,\s*|\s+(?:et|and|ak|y|ou|or)\s+)';
+        $pattern = '/((?<![\p{L}\p{N}])'.$words.'\s+(?:(?:la|le|les|the|section|sections|§)\s*)*)'
+            .'((?:'.$chapter.'\s+)?\d+(?:\.\d+)*(?:'.$joint.'\d+(?:\.\d+)*)*)(?=[\s),;.:!?]|$)/iu';
+
+        $out = '';
+        $at = 0;
+
+        preg_match_all($pattern, $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+
+        foreach ($matches as $m) {
+            $chapters = (bool) preg_match('/^'.$chapter.'/iu', $m[2][0]);
+            preg_match_all('/\d+(?:\.\d+)*/', $m[2][0], $numbers, PREG_OFFSET_CAPTURE);
+            $targets = [];
+
+            foreach ($numbers[0] as [$number, $offset]) {
+                // "voir 6" is chapter 6 only when the number ends the
+                // reference: "voir 6 exercices" is not a reference.
+                $after = substr($text, $m[2][1] + $offset + strlen($number), 1);
+                $chapterId = $chapters || in_array($after, ['', ')', ',', ';', '.', ':'], true)
+                    ? ($this->numbering['chapters'][$number] ?? null)
+                    : null;
+                $target = match (true) {
+                    str_contains($number, '.') => $chapters ? null : ($this->numbering['headings'][$number] ?? null),
+                    // "voir 6" alone, or "voir chapitre 6": a chapter.
+                    $chapterId !== null => ['section_id' => $chapterId, 'anchor' => 'section-'.$chapterId],
+                    default => null,
+                };
+
+                if ($target) {
+                    $targets[] = [$number, $offset, $target];
+                }
+            }
+
+            if ($targets === []) {
+                continue;
+            }
+
+            $start = $m[2][1];
+            $out .= e(substr($text, $at, $start - $at));
+            $cursor = 0;
+            $single = count($numbers[0]) === 1;
+
+            foreach ($targets as [$number, $offset, $target]) {
+                $out .= e(substr($m[2][0], $cursor, $offset - $cursor));
+
+                if ($this->mathMode === 'svg') {
+                    $page = '<span class="pref" data-ref="ref-'.$target['section_id'].'-'.e($target['anchor']).'">000</span>';
+                    $out .= e($number).($single ? ', p.&#160;'.$page : '&#160;(p.&#160;'.$page.')');
+                } else {
+                    $file = $this->sectionFiles[$target['section_id']] ?? '';
+                    $out .= '<a class="xref" href="'.e($file.'#'.$target['anchor']).'">'.e($number).'</a>';
+                }
+
+                $cursor = $offset + strlen($number);
+            }
+
+            $out .= e(substr($m[2][0], $cursor));
+            $at = $start + strlen($m[2][0]);
+        }
+
+        return $out.e(substr($text, $at));
+    }
+
+    /** @param array<string, mixed> $node */
+    private function paragraphHtml(array $node): string
+    {
+        $children = $node['content'] ?? [];
+        [$id, $link] = $this->exerciseLink();
+
+        return '<p'.$this->paragraphClass($children).$this->anchor($node, $id)
+            .($this->mathMode === 'svg' && isset($node['attrs']['captionKey']) ? ' data-block="'.e($node['attrs']['captionKey']).'"' : '').'>'
+            .$this->inlineHtml($children).$link."</p>\n";
+    }
+
+    /**
+     * The anchor and the link of an exercise that has its other half in the
+     * book (Textbook::exerciseLinks): a paper's "Exercice 3" points at its
+     * worked answer and back. In print the link is the page, "(Corrigé
+     * p. 214)"; in a reader it is a link.
+     *
+     * @return array{0: ?string, 1: string}
+     */
+    private function exerciseLink(): array
+    {
+        $link = $this->top === null || $this->sectionId === null ? null
+            : ($this->numbering['exercises'][$this->sectionId.':'.$this->top] ?? null);
+
+        if ($link === null) {
+            return [null, ''];
+        }
+
+        $words = Textbook::words($this->language);
+        $name = $link['kind'] === 'question' ? $words['answers'] : $words['question'];
+
+        if ($this->mathMode === 'svg') {
+            return [$link['id'], ' <span class="ex-link">('.e($name).' p.&#160;<span class="pref" data-ref="ref-'
+                .$link['section_id'].'-'.e($link['target']).'">000</span>)</span>'];
+        }
+
+        $file = $this->sectionFiles[$link['section_id']] ?? '';
+
+        return [$link['id'], ' <a class="ex-link" href="'.e($file.'#'.$link['target']).'">'.e($name).'</a>'];
+    }
+
+    /**
      * Captions and table notes, recognised the way an academic writer types
      * them: a bold "Table 4.2" or "Figure 3.1" leading the paragraph, or an
      * italic "Note." under a table. Typeset as captions rather than as
-     * indented body text, which is how a reader finds them.
+     * indented body text, which is how a reader finds them. A paragraph that
+     * is only a bold label ("**Partie B (60 points)**") is a run-in head, and
+     * one ending in a colon introduces what follows: neither may end a page.
      *
      * @param  array<int, mixed>  $children
      */
@@ -1010,19 +1579,35 @@ class DocumentRenderer
     {
         $first = $children[0] ?? null;
 
-        if (! is_array($first) || ($first['type'] ?? '') !== 'text') {
+        if (! is_array($first)) {
             return '';
         }
 
         $marks = array_column($first['marks'] ?? [], 'type');
         $text = trim((string) ($first['text'] ?? ''));
+        $last = $children[count($children) - 1] ?? null;
 
         return match (true) {
-            (in_array('bold', $marks, true) || in_array('strong', $marks, true))
-                && (bool) preg_match('/^(Table|Figure|Tableau|Tabla|Tablo|Figura|Figi|Exhibit)\s+(?:[A-Z]\.?)?\d+([.\-]\d+)*\.?$/u', $text) => ' class="caption"',
-            in_array('italic', $marks, true) && (bool) preg_match('/^(Note|Notes|Source|Sources)\.?$/u', $text) => ' class="table-note"',
+            ($first['type'] ?? '') === 'text' && (in_array('bold', $marks, true) || in_array('strong', $marks, true))
+                && (bool) preg_match('/^(Table|Figure|Tableau|Tabla|Tablo|Figura|Figi|Exhibit)(?:\s+(?:[A-Z]\.?)?\d+([.\-]\d+)*)?\.?$/u', $text) => ' class="caption"',
+            ($first['type'] ?? '') === 'text' && in_array('italic', $marks, true) && (bool) preg_match('/^(Note|Notes|Source|Sources)\.?$/u', $text) => ' class="table-note"',
+            Textbook::isRunInHead($children) => ' class="run-in"',
+            is_array($last) && ($last['type'] ?? '') === 'text' && preg_match('/:\s*$/u', (string) ($last['text'] ?? '')) && mb_strlen(Textbook::plain($children)) < 400 => ' class="lead-in"',
+            // Justified, a paragraph thick with formulas (tall fractions,
+            // limits, or many of them) stretched its spaces to gaps of a
+            // centimetre; it is set ragged instead.
+            $this->mathMode === 'svg' && $this->mathRich($children) => ' class="math-rich"',
             default => '',
         };
+    }
+
+    /** @param array<int, mixed> $children */
+    private function mathRich(array $children): bool
+    {
+        $formulas = array_values(array_filter($children, fn ($c) => is_array($c) && ($c['type'] ?? '') === 'inlineMath'));
+        $tall = array_filter($formulas, fn ($c) => preg_match('/\\\\(d?frac|displaystyle|sum|int|lim|prod|sqrt\{[^}]*\\\\frac)/', (string) ($c['attrs']['latex'] ?? '')));
+
+        return count($formulas) >= 5 || ($tall !== [] && count($formulas) >= 2);
     }
 
     /**
@@ -1056,20 +1641,28 @@ class DocumentRenderer
      * A table, with header cells in a <thead> so a reader repeats them and a
      * screen reader announces them.
      *
+     * A score grid (Textbook::writeInColumns: a "Mes points" column, or one
+     * left empty) is ruled all round, its blank cells tall enough to write
+     * in, its totals set apart; a short table is kept on one page in print.
+     *
      * @param  array<int, mixed>  $rows
      */
     private function tableHtml(array $rows): string
     {
         $head = '';
         $body = '';
+        $writeIn = Textbook::writeInColumns($rows);
+        $count = 0;
 
         foreach ($rows as $row) {
             if (! is_array($row)) {
                 continue;
             }
 
+            $count++;
             $cells = '';
             $header = true;
+            $column = 0;
 
             foreach ($row['content'] ?? [] as $cell) {
                 if (! is_array($cell)) {
@@ -1085,10 +1678,15 @@ class DocumentRenderer
                     $span .= $value > 1 ? " {$attribute}=\"{$value}\"" : '';
                 }
 
-                $cells .= "<{$tag}{$span}>".trim($this->listItemHtml($cell['content'] ?? []))."</{$tag}>";
+                $inner = trim($this->listItemHtml($cell['content'] ?? []));
+                $blank = $tag === 'td' && isset($writeIn[$column]) && $inner === '';
+
+                // An empty cell to write in: a space keeps it from collapsing.
+                $cells .= "<{$tag}{$span}".($blank ? ' class="write-in"' : '').'>'.($blank ? '&#160;' : $inner)."</{$tag}>";
+                $column += max(1, (int) ($cell['attrs']['colspan'] ?? 1));
             }
 
-            $line = "<tr>{$cells}</tr>\n";
+            $line = '<tr'.($writeIn && ! $header && Textbook::isTotalRow($row) ? ' class="total"' : '').">{$cells}</tr>\n";
 
             // Only leading all-header rows belong to the head.
             if ($header && $body === '') {
@@ -1098,7 +1696,15 @@ class DocumentRenderer
             }
         }
 
-        return "<table>\n".($head ? "<thead>\n{$head}</thead>\n" : '')."<tbody>\n{$body}</tbody>\n</table>\n";
+        $classes = array_filter([
+            $writeIn ? 'grid' : null,
+            // Small enough that splitting it helps nobody: a sign table, a
+            // short scale.
+            $this->mathMode === 'svg' && $count <= 14 && mb_strlen(Textbook::plain($rows)) < 1400 ? 'keep' : null,
+        ]);
+
+        return '<table'.($classes ? ' class="'.implode(' ', $classes).'"' : '').">\n"
+            .($head ? "<thead>\n{$head}</thead>\n" : '')."<tbody>\n{$body}</tbody>\n</table>\n";
     }
 
     /** @param array<string, mixed> $node */
@@ -1107,8 +1713,10 @@ class DocumentRenderer
         // Clamped to h1-h6: a level outside that range is not valid HTML, and
         // an EPUB containing an <h7> fails store validation.
         $level = max(1, min(6, (int) ($node['attrs']['level'] ?? 2)));
+        [$id, $link] = $this->exerciseLink();
+        $id ??= $this->sectionId !== null && $this->top !== null ? Textbook::headingAnchor($node, $this->sectionId, $this->top) : null;
 
-        return "<h{$level}".$this->anchor($node).'>'.$this->inlineHtml($node['content'] ?? [])."</h{$level}>\n";
+        return "<h{$level}".$this->anchor($node, $id).'>'.$this->inlineHtml($node['content'] ?? []).$link."</h{$level}>\n";
     }
 
     /** @param array<string, mixed> $node */
@@ -1157,9 +1765,13 @@ class DocumentRenderer
 
                 // Punctuation after a formula stays on its line: a full stop
                 // wrapped to the start of the next line reads as a stray mark.
-                if (is_array($next) && ($next['type'] ?? '') === 'text' && empty($next['marks'])
-                    && preg_match('/^[\x{00A0}\x{202F}]?[.,;:!?…)\]»]+/u', (string) ($next['text'] ?? ''), $punctuation)) {
-                    $math = '<span style="white-space:nowrap">'.$math.e($punctuation[0]).'</span>';
+                // In italic or bold too (a question quoted in italics ends
+                // "$U_{10} = 34$. »"), with its marks.
+                if (is_array($next) && ($next['type'] ?? '') === 'text'
+                    && ! in_array('code', array_column($next['marks'] ?? [], 'type'), true)
+                    && preg_match('/^(?:[\x{00A0}\x{202F} ]?[.,;:!?…)\]»])+/u', (string) ($next['text'] ?? ''), $punctuation)) {
+                    $math = '<span style="white-space:nowrap">'.$math
+                        .$this->inlineHtml([['text' => $punctuation[0]] + $next]).'</span>';
                     $nodes[$i + 1]['text'] = mb_substr((string) $next['text'], mb_strlen($punctuation[0]));
                 }
 
@@ -1186,7 +1798,12 @@ class DocumentRenderer
                 continue;
             }
 
-            $text = e($node['text'] ?? '');
+            // An editor's note imported before the importer dropped them
+            // ("<!-- HT: à relire -->") is never printed.
+            $raw = str_contains((string) ($node['text'] ?? ''), '<!--')
+                ? (string) preg_replace('/\s*<!--.*?-->/s', '', (string) $node['text'])
+                : (string) ($node['text'] ?? '');
+            $text = in_array('code', array_column($node['marks'] ?? [], 'type'), true) ? e($raw) : $this->textRefs($raw);
 
             foreach ($node['marks'] ?? [] as $mark) {
                 $markType = $mark['type'] ?? '';

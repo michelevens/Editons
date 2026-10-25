@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Ramsey\Uuid\Uuid;
 use RuntimeException;
 use ZipArchive;
 
@@ -222,8 +223,8 @@ class Exporter
             $structure = $this->structure($book);
             $this->renderer = $base->withNumbering(
                 Numbering::forBook($structure),
-                $format === 'epub' ? $structure->values()->mapWithKeys(fn ($s, $i) => [$s->id => 'ch'.($i + 1).'.xhtml'])->all() : [],
-            );
+                $format === 'epub' ? array_map(fn ($name) => $name.'.xhtml', $this->epubNames($structure)) : [],
+            )->withLanguage(self::languageCode($book->language));
 
             $path = match ($format) {
                 'epub' => $this->epub($book, $sections, $export),
@@ -696,7 +697,9 @@ class Exporter
 
         BookExport::whereKey($export->id)->update([
             'pages' => $set['pages'],
-            'options' => json_encode(['fingerprint' => $fingerprint]),
+            // The margin it was set at and the near-empty pages it has, for
+            // the print checks (PrintCheck).
+            'options' => json_encode(['fingerprint' => $fingerprint, 'margin' => $set['margin'], 'layout' => $set['layout']]),
         ]);
 
         return $this->put($book, $export, $set['pdf']);
@@ -1142,7 +1145,9 @@ class Exporter
         // The EPUB's own ISBN; books set up before formats had their own
         // numbers keep the identifier they had.
         $isbn = Anatomy::isbns($book)['epub'] ?? ($book->isbn ?: null);
-        $identifier = $isbn ? 'urn:isbn:'.$isbn : 'urn:uuid:'.Str::uuid()->toString();
+        // Without an ISBN, a UUID made from the book, so every export of it
+        // is the same publication to a reading app rather than a new one.
+        $identifier = $isbn ? 'urn:isbn:'.$isbn : 'urn:uuid:'.Uuid::uuid5(Uuid::NAMESPACE_URL, 'https://ecrivain.ai/books/'.$book->id)->toString();
         $language = self::languageCode($book->language);
         $modified = now()->utc()->format('Y-m-d\TH:i:s\Z');
         $plan = Anatomy::plan($book);
@@ -1160,7 +1165,7 @@ class Exporter
         // named by place in structure(), as run() named them for the
         // cross-reference links.
         $structure = $this->structure($book)->values();
-        $names = $structure->mapWithKeys(fn ($s, $i) => [$s->id => 'ch'.($i + 1)])->all();
+        $names = $this->epubNames($structure);
         $byId = $structure->keyBy('id');
 
         $declare = function (string $id, string $name) use (&$files, &$manifest, &$spine): void {
@@ -1177,6 +1182,7 @@ class Exporter
 
         $navInSpine = false;
         $bodymatter = null;
+        $parts = [];
 
         foreach ($plan['pages'] as $page) {
             $part = $page['part'];
@@ -1224,7 +1230,25 @@ class Exporter
             $id = $names[$section->id];
             $name = "OEBPS/{$id}.xhtml";
 
-            $files[$name] = $this->xhtml($section->title, $this->epubSectionBody($section, $part), $language, $matter);
+            // A part is a title, not a document: it opens the file of its
+            // first chapter, where a reader lands from the contents, rather
+            // than being a near-empty page of its own.
+            if ($section->type === 'part' && $id !== 'ch'.($structure->search(fn ($s) => $s->id === $section->id) + 1)) {
+                $parts[] = $section;
+                $entries[] = ['depth' => $page['depth'], 'href' => $id.'.xhtml#section-'.$section->id, 'title' => $section->title];
+
+                if ($bodymatter === null && $page['folio'] === 'arabic') {
+                    $bodymatter = [$id.'.xhtml', $section->title];
+                }
+
+                continue;
+            }
+
+            $opening = collect($parts)->map(fn ($p) => '<section class="part" epub:type="part" id="section-'.$p->id.'">'
+                .'<h1 class="part-title">'.e($p->title).'</h1></section>')->implode('');
+            $parts = [];
+
+            $files[$name] = $this->xhtml($section->title, $opening.$this->epubSectionBody($section, $part), $language, $matter);
 
             // Pictures go into the package, each declared once.
             $files[$name] = $this->images->rewrite($files[$name], $book->id, function ($image) use (&$files, &$pictures) {
@@ -1236,6 +1260,12 @@ class Exporter
 
             $declare($id, $name);
             $entries[] = ['depth' => $page['depth'], 'href' => $id.'.xhtml', 'title' => $section->title];
+
+            // The chapter's own sections, one level down: a reader of a
+            // textbook goes to "1.4 Méthodes", not just to chapter 1.
+            if ($section->type !== 'part') {
+                array_push($entries, ...$this->headingEntries($section, $id.'.xhtml', (int) $page['depth'] + 1));
+            }
 
             // Where the text begins: the first arabic page.
             if ($bodymatter === null && $page['folio'] === 'arabic') {
@@ -1270,10 +1300,26 @@ class Exporter
         // The accessibility metadata stores check for. Claimed only where it
         // is true: textual content is accurate for a text manuscript, and
         // nothing here asserts tested conformance.
+        $all = implode('', $files);
+        $math = str_contains($all, '<math');
+        $visual = $pictures !== [] || str_contains($all, '<figure class="chart">');
+        $features = array_filter([
+            'structuralNavigation', 'readingOrder', 'tableOfContents', 'displayTransformability',
+            $math ? 'MathML' : null,
+            $math ? 'describedMath' : null,
+            $visual ? 'alternativeText' : null,
+        ]);
         $accessibility = '<meta property="schema:accessMode">textual</meta>'
-            .'<meta property="schema:accessibilityFeature">structuralNavigation</meta>'
-            .'<meta property="schema:accessibilityFeature">readingOrder</meta>'
-            .'<meta property="schema:accessModeSufficient">textual</meta>';
+            .($visual ? '<meta property="schema:accessMode">visual</meta>' : '')
+            .collect($features)->map(fn ($f) => '<meta property="schema:accessibilityFeature">'.$f.'</meta>')->implode('')
+            .'<meta property="schema:accessibilityHazard">none</meta>'
+            .'<meta property="schema:accessModeSufficient">textual</meta>'
+            .($visual ? '<meta property="schema:accessModeSufficient">textual,visual</meta>' : '')
+            .'<meta property="schema:accessibilitySummary">'.e(
+                'Structured with headings and a navigable table of contents down to sections; reading order follows the printed book.'
+                .($math ? ' Equations are MathML, each with its LaTeX source as alternative text.' : '')
+                .($visual ? ' Pictures and charts carry text descriptions.' : '')
+            ).'</meta>';
 
         $description = trim((string) (($book->meta ?? [])['description'] ?? ''));
         $publisher = trim((string) ($publication['imprint'] ?: $publication['publisher']));
@@ -1283,8 +1329,9 @@ class Exporter
             .'<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" prefix="schema: http://schema.org/">'
             .'<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
             .'<dc:identifier id="pub-id">'.e($identifier).'</dc:identifier>'
-            .'<dc:title>'.e($book->title).'</dc:title>'
-            .($book->subtitle ? '<dc:title id="sub">'.e($book->subtitle).'</dc:title>' : '')
+            .'<dc:title id="title">'.e($book->title).'</dc:title>'
+            .'<meta refines="#title" property="title-type">main</meta>'
+            .($book->subtitle ? '<dc:title id="sub">'.e($book->subtitle).'</dc:title><meta refines="#sub" property="title-type">subtitle</meta>' : '')
             .'<dc:language>'.e($language).'</dc:language>'
             .($book->author_name ? '<dc:creator>'.e($book->author_name).'</dc:creator>' : '')
             .($publisher !== '' ? '<dc:publisher>'.e($publisher).'</dc:publisher>' : '')
@@ -1361,6 +1408,73 @@ class Exporter
         }
 
         return [$id, $body];
+    }
+
+    /**
+     * Each section's EPUB file name, in structure() order: "ch3" for the
+     * third. A part opens the file of the chapter after it, so its name is
+     * that chapter's; a part with no chapter after it keeps its own.
+     *
+     * @param  Collection<int, ManuscriptSection>  $structure
+     * @return array<int, string> section id => name
+     */
+    private function epubNames(Collection $structure): array
+    {
+        $names = [];
+        $waiting = [];
+
+        foreach ($structure->values() as $i => $section) {
+            $names[$section->id] = 'ch'.($i + 1);
+
+            if ($section->type === 'part') {
+                $waiting[] = $section->id;
+
+                continue;
+            }
+
+            foreach ($waiting as $part) {
+                $names[$part] = 'ch'.($i + 1);
+            }
+
+            $waiting = [];
+        }
+
+        return $names;
+    }
+
+    /**
+     * Contents entries for a chapter's own headings (levels 1 and 2), each
+     * linked to its anchor, the first left out when it repeats the title.
+     *
+     * @return list<array{depth: int, href: string, title: string}>
+     */
+    private function headingEntries(ManuscriptSection $section, string $href, int $depth): array
+    {
+        $entries = [];
+        $first = true;
+
+        foreach (array_values(Suggestions::published($section->content)['content'] ?? []) as $i => $node) {
+            if (! is_array($node) || ($node['type'] ?? '') !== 'heading' || (int) ($node['attrs']['level'] ?? 2) > 2) {
+                if (is_array($node) && trim($this->plainOf($node)) !== '') {
+                    $first = false;
+                }
+
+                continue;
+            }
+
+            $title = trim($this->plainOf($node));
+
+            if ($title === '' || ($first && mb_strtolower($title) === mb_strtolower(trim($section->title)))) {
+                $first = false;
+
+                continue;
+            }
+
+            $first = false;
+            $entries[] = ['depth' => $depth, 'href' => $href.'#'.Textbook::headingAnchor($node, $section->id, $i), 'title' => $title];
+        }
+
+        return $entries;
     }
 
     /** One section's EPUB body: a part's title page, or a chapter's text. */
@@ -1460,7 +1574,30 @@ class Exporter
             .".copyright p { margin: 0 0 .7em; }\n"
             .".series-page { text-align: center; }\n"
             .".series-page ul { list-style: none; padding: 0; }\n"
-            .'img { max-width: 100%; height: auto; }'."\n";
+            .'img { max-width: 100%; height: auto; }'."\n"
+            // Boxes (Textbook): upright text, a label, a rule or a tint,
+            // readable in black and white on an e-ink screen.
+            ."aside.callout { margin: 1em 0; padding: .5em .8em; border: 1px solid #555; font-style: normal; }\n"
+            ."aside.callout p { text-indent: 0; margin: 0 0 .4em; }\n"
+            .".callout-label { font-variant: small-caps; letter-spacing: .04em; }\n"
+            .".callout-pitfall { border-left: 4px solid #000; }\n"
+            .".callout-key { background: #ececec; border-color: #ececec; }\n"
+            .".callout-tip { border-style: dashed; }\n"
+            .".callout-example { border-width: 1px 0; }\n"
+            .".callout-note { border-width: 0 0 0 2px; }\n"
+            ."ul.checklist { list-style: none; padding-left: 0; }\n"
+            ."ul.checklist li { margin: .3em 0; }\n"
+            .".check-box { margin-right: .4em; }\n"
+            .".exam-banner { border: 2px solid #000; padding: .6em .8em; text-align: center; margin: 1em 0; }\n"
+            .".exam-banner p, .exam-directions p, p.exam-end { text-indent: 0; }\n"
+            .".exam-title { font-weight: bold; }\n"
+            ."ul.exam-fields { list-style: none; padding: 0; margin: .3em 0 0; }\n"
+            .".exam-directions { border: 1px solid #000; border-left-width: 4px; padding: .5em .8em; margin: 0 0 1em; }\n"
+            ."p.exam-end { text-align: center; font-weight: bold; letter-spacing: .1em; margin: 1.5em 0; }\n"
+            .".ex-link { font-size: .85em; font-style: italic; margin-left: .3em; }\n"
+            ."table.grid th, table.grid td { border: 1px solid #000; padding: .3em .4em; }\n"
+            ."table.grid td.write-in { height: 1.8em; min-width: 3em; }\n"
+            ."table.grid tr.total td { font-weight: bold; }\n";
     }
 
     /** One content document; $matter is the body's epub:type (frontmatter, bodymatter, backmatter). */

@@ -9,6 +9,7 @@ use Dompdf\Canvas;
 use Dompdf\Dompdf;
 use Dompdf\FontMetrics;
 use Dompdf\Frame;
+use Dompdf\FrameDecorator\Text as TextFrame;
 use Dompdf\Options;
 use FontLib\Font;
 use Illuminate\Support\Collection;
@@ -148,10 +149,29 @@ class PrintBook
         try {
             $plan = $this->plan($book, $sections, $language, $cover ? $this->coverFiles($book) : []);
 
-            // Pass one: where does every page-starting block land?
-            [, $starts, $total] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor, dompdf: true));
+            // Pass one: where does every page-starting block land? Run again
+            // with wider margins when the length crosses a print service's
+            // gutter band (insideMargin), until the margin holds for the
+            // length it produces.
+            $layout = $book->layout();
+            $this->widened = null;
 
-            $this->paginate($plan, $starts, $total);
+            for ($attempt = 0; $attempt < 3; $attempt++) {
+                $fresh = $plan;
+                [, $starts, $total] = $this->render($book, fn (float $factor) => $this->document($book, $fresh, $factor, dompdf: true));
+                $this->paginate($fresh, $starts, $total);
+
+                $length = $total + count(array_filter(array_column($fresh['blocks'], 'blankBefore')));
+                $needed = self::insideMargin($layout, $length);
+
+                if ($needed <= $this->margin($layout) + 1e-9 || $attempt === 2) {
+                    break;
+                }
+
+                $this->widened = $needed;
+            }
+
+            $plan = $fresh;
 
             // Pass two: blanks inserted, contents numbered, heads and folios on.
             // A fresh closure, since an arrow function captures $plan by value
@@ -165,8 +185,14 @@ class PrintBook
                 'pages' => $pages,
                 'blocks' => $plan['blocks'],
                 'landed' => $landed,
+                // Inches, on every side: what the print checks hold the
+                // interior to.
+                'margin' => $this->margin($layout),
+                'layout' => $this->shortPages($book, $plan, $landed, $pages),
             ];
         } finally {
+            $this->widened = null;
+
             foreach ($this->tempDirs as $dir) {
                 array_map('unlink', glob($dir.'/*') ?: []);
                 @rmdir($dir);
@@ -247,10 +273,10 @@ class PrintBook
         $this->linkImages = true;
 
         try {
-            return $this->fallbackGlyphs(
+            return self::withoutPages($this->fallbackGlyphs(
                 $this->block($book, ['blankBefore' => false] + $block, $plan),
                 $book->layout()['font'] === 'sans' ? 'sans' : 'serif',
-            );
+            ));
         } finally {
             $this->linkImages = false;
         }
@@ -296,6 +322,47 @@ class PrintBook
         }
 
         return $entries;
+    }
+
+    /** Where the text on each page of the last render ends, in points from the top. @var array<int, float> */
+    private array $filled = [];
+
+    /**
+     * Sections whose last page holds less than four lines: a page turned
+     * for a line or two reads as a mistake (layout notes for the print
+     * checks).
+     *
+     * @param  array<string, int>  $starts
+     * @return list<string>
+     */
+    private function shortPages(Book $book, array $plan, array $starts, int $pages): array
+    {
+        $layout = $book->layout();
+        $line = (float) $layout['leading'] * (float) $layout['size'];
+        $top = 0.9 * 72;
+        $notes = [];
+        $blocks = array_values(array_filter($plan['blocks'], fn ($b) => isset($starts[$b['id']])));
+
+        foreach ($blocks as $i => $block) {
+            if (! in_array($block['kind'], ['chapter', 'matter', 'references'], true) || ! $block['section']) {
+                continue;
+            }
+
+            $next = isset($blocks[$i + 1]) ? $starts[$blocks[$i + 1]['id']] - ($blocks[$i + 1]['blankBefore'] ? 1 : 0) : $pages + 1;
+            $last = $next - 1;
+
+            if ($last <= $starts[$block['id']] || ! isset($this->filled[$last])) {
+                continue;
+            }
+
+            $lines = (int) round(($this->filled[$last] - $top) / $line);
+
+            if ($lines < 4) {
+                $notes[] = sprintf('“%s” ends with %d line%s on page %s.', $block['section']->title, max(1, $lines), $lines === 1 ? '' : 's', $this->folio($plan, $last));
+            }
+        }
+
+        return $notes;
     }
 
     /** The image folders made by render() for the book being typeset. @var array<int, string> */
@@ -566,13 +633,54 @@ class PrintBook
             }
         }
 
+        // The same for every place a reference points at ("voir 1.3", an
+        // exercise's corrigé): ref-<section>-<anchor> keys.
         $plan['captionPages'] = [];
+        $plan['refPages'] = [];
         foreach ($starts as $key => $page) {
-            if (preg_match('/^cap-(\d+)-\d+$/', $key, $m) && isset($bySection[(int) $m[1]])) {
-                $block = $bySection[(int) $m[1]];
-                $plan['captionPages'][$key] = $this->folio($plan, $block['physical'] + ($page - ($starts[$block['id']] ?? $page)));
+            if (preg_match('/^(cap|ref)-(\d+)-/', $key, $m) && isset($bySection[(int) $m[2]])) {
+                $block = $bySection[(int) $m[2]];
+                $plan[$m[1] === 'cap' ? 'captionPages' : 'refPages'][$key] = $this->folio($plan, $block['physical'] + ($page - ($starts[$block['id']] ?? $page)));
             }
         }
+
+        // A chapter as a whole, and labelled captions by their label.
+        foreach ($bySection as $id => $block) {
+            $plan['refPages']['ref-'.$id.'-section-'.$id] = $block['page'];
+        }
+
+        foreach ($this->numbering['captions'] ?? [] as $caption) {
+            if ($caption['label'] && isset($plan['captionPages'][$caption['key']])) {
+                $plan['refPages']['ref-'.$caption['section_id'].'-'.$caption['label']] = $plan['captionPages'][$caption['key']];
+            }
+        }
+    }
+
+    /** HTML with no pages to give (the print-ready HTML, the preview): references without them. */
+    public static function withoutPages(string $html): string
+    {
+        return preg_replace([
+            '#<span class="ex-link">\([^<]*?\s*p\.&\#160;<span class="pref" data-ref="[^"]+">000</span>\)</span>#u',
+            '#(?:,\s*|&\#160;\()p\.&\#160;<span class="pref" data-ref="[^"]+">000</span>\)?#u',
+        ], '', $html) ?? $html;
+    }
+
+    /**
+     * The pages references print, filled in once pass one has measured
+     * them. Pass one sets "000" in their place, three figures wide like
+     * most of the pages they become, so the lines barely move.
+     */
+    private function pageReferences(string $html, array $plan): string
+    {
+        if (! isset($plan['refPages'])) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '#<span class="pref" data-ref="([^"]+)">000</span>#',
+            fn (array $m) => '<span class="pref">'.e((string) ($plan['refPages'][$m[1]] ?? '?')).'</span>',
+            $html,
+        ) ?? $html;
     }
 
     /**
@@ -596,7 +704,7 @@ class PrintBook
 
         foreach (array_filter($this->numbering['captions'] ?? [], fn ($c) => $c['kind'] === $kind) as $entry) {
             $page = $plan['captionPages'][$entry['key']] ?? '';
-            $rows .= '<tr class="toc-chapter"><td class="toc-cap">'.e(ucfirst($kind).' '.$entry['number']).'</td>'
+            $rows .= '<tr class="toc-chapter"><td class="toc-cap">'.e(trim(($entry['word'] ?? ucfirst($kind)).' '.$entry['number'])).'</td>'
                 .'<td class="toc-title">'.e($entry['text']).'</td><td class="toc-page">'.e((string) $page).'</td></tr>';
         }
 
@@ -660,6 +768,7 @@ class PrintBook
         $factor = $metrics->getFontHeight($metrics->getFont($family, 'normal'), 1.0);
 
         $starts = [];
+        $this->filled = [];
 
         $callbacks = [[
             'event' => 'begin_frame',
@@ -668,6 +777,20 @@ class PrintBook
 
                 if ($node instanceof DOMElement && $node->hasAttribute('data-block')) {
                     $starts[$node->getAttribute('data-block')] ??= $canvas->get_page_number();
+                }
+
+                if ($frame instanceof TextFrame) {
+                    // How far down each page the text reaches.
+                    $page = $canvas->get_page_number();
+                    $this->filled[$page] = max($this->filled[$page] ?? 0.0, (float) $frame->get_position('y') + (float) $frame->get_margin_height());
+
+                    // A line broken at a soft hyphen ends with it, and dompdf
+                    // draws the face's glyph for U+00AD, which some faces and
+                    // styles leave empty: "calcula / trice". A real hyphen is
+                    // drawn instead, in the width dompdf allowed for it.
+                    if (str_ends_with($text = $frame->get_text(), self::SHY)) {
+                        $frame->set_text(substr($text, 0, -strlen(self::SHY)).'-');
+                    }
                 }
             },
         ]];
@@ -742,6 +865,8 @@ class PrintBook
             return;
         }
 
+        $this->continues($page, $canvas, $metrics, $starts, $book, $plan['language']);
+
         $family = $layout['font'] === 'sans' ? self::SANS : self::SERIF;
         $font = $metrics->getFont($family, 'normal');
         $italic = $metrics->getFont($family, 'italic');
@@ -771,8 +896,79 @@ class PrintBook
         }
 
         $text = $this->fit($text, $metrics, $face, $size, $spacing, $w - 2 * $this->margin($layout) * 72);
-        $x = ($w - $metrics->getTextWidth($text, $face, $size, 0, $spacing)) / 2;
-        $canvas->text($x, 0.5 * 72, $text, $face, $size, $grey, 0, $spacing);
+        $runs = $this->glyphRuns($text, $face, $metrics, $layout['font'] === 'sans' ? 'sans' : 'serif');
+        $width = array_sum(array_map(fn ($r) => $metrics->getTextWidth($r[0], $r[1], $size, 0, $spacing), $runs));
+        $x = ($w - $width) / 2;
+
+        foreach ($runs as [$run, $runFace]) {
+            $canvas->text($x, 0.5 * 72, $run, $runFace, $size, $grey, 0, $spacing);
+            $x += $metrics->getTextWidth($run, $runFace, $size, 0, $spacing);
+        }
+    }
+
+    /**
+     * "Suite ▸" at the foot of every page an exam paper runs on from, the
+     * way a printed paper tells a candidate to turn over (Textbook; the
+     * paper's banner and end marker are the exam-N and exam-N-end marks).
+     *
+     * @param  array<string, int>  $starts
+     */
+    private function continues(int $page, Canvas $canvas, FontMetrics $metrics, array $starts, Book $book, string $language): void
+    {
+        foreach ($starts as $key => $first) {
+            if (! str_starts_with($key, 'exam-') || str_ends_with($key, '-end')) {
+                continue;
+            }
+
+            $last = $starts[$key.'-end'] ?? null;
+
+            if ($last === null || $page < $first || $page >= $last) {
+                continue;
+            }
+
+            $layout = $book->layout();
+            [$width, $height] = $this->trim($layout['trim']);
+            $font = $metrics->getFont($layout['font'] === 'sans' ? self::SANS : self::SERIF, 'italic');
+            $text = Textbook::words($language)['continue'].' ▸';
+            $runs = $this->glyphRuns($text, $font, $metrics, $layout['font'] === 'sans' ? 'sans' : 'serif');
+            $size = 8.5;
+            $x = $width * 72 - $this->margin($layout) * 72
+                - array_sum(array_map(fn ($r) => $metrics->getTextWidth($r[0], $r[1], $size), $runs));
+
+            foreach ($runs as [$run, $face]) {
+                $canvas->text($x, $height * 72 - 0.62 * 72, $run, $face, $size, [0.1, 0.1, 0.1]);
+                $x += $metrics->getTextWidth($run, $face, $size);
+            }
+
+            return;
+        }
+    }
+
+    /**
+     * A running head cut into runs the face can draw and runs it cannot,
+     * the latter in DejaVu Sans, as fallbackGlyphs() does for the text: a
+     * chapter on ℂ printed a box in every running head of the chapter.
+     *
+     * @return list<array{0: string, 1: string}> text and font
+     */
+    private function glyphRuns(string $text, string $font, FontMetrics $metrics, string $face): array
+    {
+        $has = self::charMap($face);
+        $fallback = $metrics->getFont('DejaVu Sans', 'normal') ?? $font;
+        $runs = [];
+
+        foreach (mb_str_split($text) as $ch) {
+            $use = mb_ord($ch) < 0x80 || isset($has[mb_ord($ch)]) ? $font : $fallback;
+            $last = count($runs) - 1;
+
+            if ($last >= 0 && $runs[$last][1] === $use) {
+                $runs[$last][0] .= $ch;
+            } else {
+                $runs[] = [$ch, $use];
+            }
+        }
+
+        return $runs;
     }
 
     /** @param array<string, int> $starts */
@@ -919,6 +1115,7 @@ class PrintBook
         }
 
         $body = $this->fallbackGlyphs($body, $book->layout()['font'] === 'sans' ? 'sans' : 'serif');
+        $body = $dompdf ? $this->pageReferences($body, $plan) : self::withoutPages($body);
 
         if ($dompdf) {
             $body = $this->seatInlineMath($body, $book, $factor);
@@ -986,52 +1183,61 @@ class PrintBook
             }, $part);
         }
 
-        return implode('', $parts);
+        // Punctuation right after a fallback run stays with it: dompdf
+        // breaks between two inline boxes, and "★★★" ended one line with
+        // the comma after it starting the next.
+        return preg_replace(
+            '#(<span class="glyph">[^<]*</span>)([\x{00A0}\x{202F}]?[.,;:!?…)\]»]+)#u',
+            '<span style="white-space:nowrap">$1$2</span>',
+            implode('', $parts),
+        ) ?? implode('', $parts);
     }
 
     /**
      * Inline formulas placed on the text's baseline, with room above and
      * below, the way dompdf actually lays a line out.
      *
-     * dompdf sets a line's text baseline at 80% of the line box and hangs an
-     * inline image from the line's top by the font's baseline less its
-     * vertical-align, whatever the image's height. A formula given the
-     * vertical-align a browser wants sat a little high, and a tall one (an
-     * inline \dfrac) rose into the line above and hung into the line below.
-     * Here each formula gets the offset that puts its own baseline on the
-     * text's, and, when it is tall, a top margin that opens the line box just
-     * enough to clear the descenders above and the ascenders below. The
-     * margin under it is in em, so it holds at the smaller size of a table
-     * or a note.
+     * dompdf sets a line's text baseline at 80% of the line box. An image
+     * with a length for vertical-align is hung from the line's top instead,
+     * by that length, whatever else is on the line: a formula seated that way
+     * sat right only while it was the tallest thing on its line, and next to
+     * a taller one (an inline \dfrac) the line box grew, the text moved down
+     * and the formula stayed up ("En , et , donc" with the formulas floating
+     * above). With vertical-align: baseline dompdf puts the image's margin
+     * box on that same 80% line, so every formula follows the text however
+     * tall the line becomes. A negative bottom margin of the formula's depth
+     * lets its descending part (a denominator, a subscript) hang below the
+     * baseline the way the text's descenders do, and a top margin makes the
+     * line box tall enough that the formula clears the line above and its
+     * foot clears the ascenders of the line below.
      */
     private function seatInlineMath(string $html, Book $book, float $factor): string
     {
         $layout = $book->layout();
         $size = (float) $layout['size'];
-        $leading = (float) $layout['leading'];
-        $line = $leading * $size;
-        // The face's baseline, as dompdf reckons it (font height over its
-        // default font-height ratio of 1.1), less where the text's falls.
-        $under = $factor / 1.1 - 0.8 * $leading;
+        $line = (float) $layout['leading'] * $size;
+        // White kept between a formula and the lines around it.
+        $gap = 0.12 * $size;
+        // How far the next line's ascenders sit below its top.
+        $free = 0.8 * $line - 0.74 * $size;
 
         return preg_replace_callback(
             '/(<img class="math" alt="[^"]*" style=")width:([\d.]+)pt;height:([\d.]+)pt;vertical-align:(-?[\d.]+)pt"/',
-            function (array $m) use ($size, $line, $under) {
-                [$width, $height, $depth] = [(float) $m[2], (float) $m[3], -(float) $m[4]];
+            function (array $m) use ($gap, $free) {
+                [$width, $height, $depth] = [(float) $m[2], (float) $m[3], max(0.0, -(float) $m[4])];
+                $above = $height - $depth;
 
-                $box = max(
-                    $line,
-                    $height + $under * $size,
-                    // Its top below the descenders of the line above…
-                    ($height - $depth - 0.2 * $line + 0.3 * $size) / 0.8,
-                    // …and its foot above the ascenders of the line below.
-                    ($depth - (0.8 * $line - 0.8 * $size)) / 0.2,
+                // The line box is the tallest margin box on it, and dompdf
+                // sets the baseline at 80% of it: enough room above the
+                // baseline for the formula, and enough below for its depth.
+                $top = max(
+                    0.0,
+                    ($above + $gap) / 0.8 - $above,
+                    5 * ($depth + $gap - $free) - $above,
                 );
-                $top = $box - $height - $under * $size;
-                $align = -$depth - 0.8 * ($box - $line);
 
-                return $m[1].'width:'.$width.'pt;height:'.$height.'pt;vertical-align:'.round($align, 2).'pt;'
-                    .'margin:'.round($top, 2).'pt 0 '.round($under, 3).'em 0"';
+                return $m[1].'width:'.$width.'pt;height:'.$height.'pt;vertical-align:baseline;'
+                    .'margin:'.round($top, 2).'pt 0 '.round(-$depth, 2).'pt 0"';
             },
             $html,
         ) ?? $html;
@@ -1189,9 +1395,11 @@ class PrintBook
                 continue;
             }
 
+            // Left in place as nothing, so every node keeps its index: the
+            // anchors that references point at are made from it.
             if (($node['type'] ?? '') === 'heading' && (int) ($node['attrs']['level'] ?? 2) <= 2
                 && $this->sameTitle($this->plainOf($node), $section->title)) {
-                unset($nodes[$i]);
+                $nodes[$i] = ['type' => 'dropped'];
             }
 
             break;
@@ -1203,7 +1411,7 @@ class PrintBook
         // SVG equations: dompdf has no math engine, but draws SVG paths.
         // Fitted to the measure, so a long one is scaled rather than squeezed.
         $layout = $book->layout();
-        $html = $this->renderer->withMath('svg')->withNumbering($this->numbering)
+        $html = $this->renderer->withMath('svg')->withNumbering($this->numbering)->withLanguage($language)
             ->withMeasure(($this->trim($layout['trim'])[0] - 2 * $this->margin($layout)) * 72, (float) $layout['size'])
             ->html($copy);
         // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
@@ -1222,7 +1430,7 @@ class PrintBook
         // list or a quote at the head of a chapter is left as the author set
         // it.
         $html = preg_replace_callback(
-            '/^(\s*(?:<h[1-6]>.*?<\/h[1-6]>\s*)*)<p>((?:&[#\w]+;|[^<\s&])+)((?:\s+(?:&[#\w]+;|[^<\s&])+){0,3})/su',
+            '/^(\s*(?:<h[1-6][^>]*>.*?<\/h[1-6]>\s*)*)<p>((?:&[#\w]+;|[^<\s&])+)((?:\s+(?:&[#\w]+;|[^<\s&])+){0,3})/su',
             function (array $m) use ($dropcap) {
                 $first = $m[2];
                 $rest = $m[3];
@@ -1243,16 +1451,50 @@ class PrintBook
     }
 
     /**
-     * Soft hyphens in running text, from TeX's hyphenation patterns.
+     * Soft hyphens in running text, from TeX's hyphenation patterns, and
+     * French spacing.
      *
      * Justified type without hyphenation opens rivers of white between the
      * words, and that is most of the difference between a document and a
-     * book. Headings and code stay whole, tags and entities are untouched,
-     * and nothing shorter than six letters is broken.
+     * book. Each paragraph or list item is hyphenated in its own language:
+     * an English passage in a French book (the texts and answers of an
+     * English exam) broke as "follo-wing" and "che-cklist" with French
+     * patterns. Words that start with a capital (names, acronyms, "Mar-lène")
+     * are never broken, nor is anything in a heading, code or a table cell,
+     * and every break leaves at least three letters each side.
+     *
+     * In French and Kreyòl the space before « : ; ! ? % » and after « is
+     * made non-breaking, so the mark never starts a line alone.
      */
     private function hyphenate(string $html, string $language): string
     {
-        $patterns = match (true) {
+        $base = $this->patternsFor($language);
+        $french = in_array(strtolower(substr($language, 0, 2)), ['fr', 'ht'], true);
+
+        return preg_replace_callback(
+            '/<(h[1-6]|pre|th|td|code)\b[^>]*>.*?<\/\1>|<(p|li)\b[^>]*>.*?<\/\2>|<[^>]+>|&[#\w]+;|[^<&]+/su',
+            function (array $m) use ($base, $french) {
+                if (($m[1] ?? '') !== '') {
+                    // Whole, but spaced: "(39 %)" in a table cell too.
+                    return $french && $m[1] !== 'pre' && $m[1] !== 'code' ? $this->runs($m[0], null, true) : $m[0];
+                }
+
+                if (($m[2] ?? '') !== '') {
+                    $own = $this->passageLanguage($m[0], $base);
+
+                    return $this->runs($m[0], $own, $french && ! str_starts_with((string) $own, 'en'));
+                }
+
+                return $m[0][0] === '<' || $m[0][0] === '&' ? $m[0] : $this->runs($m[0], $base, $french);
+            },
+            $html,
+        ) ?? $html;
+    }
+
+    /** Hyphenation patterns for a language code, or null where there are none. */
+    private function patternsFor(string $language): ?string
+    {
+        return match (true) {
             str_starts_with($language, 'en-GB') => 'en-gb',
             str_starts_with($language, 'en') => 'en-us',
             str_starts_with($language, 'fr') => 'fr',
@@ -1261,11 +1503,84 @@ class PrintBook
             str_starts_with($language, 'pt') => 'pt',
             default => null,
         };
+    }
 
-        if ($patterns === null) {
-            return $html;
+    /**
+     * The patterns for one paragraph: the book's, unless the paragraph is
+     * plainly in English in a book that is not, or the other way round.
+     * Counted from the commonest small words, which every sentence has.
+     */
+    private function passageLanguage(string $html, ?string $base): ?string
+    {
+        $words = preg_split('/[^\p{L}\']+/u', mb_strtolower(strip_tags($html)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $count = fn (array $list) => count(array_intersect($words, $list));
+
+        $english = $count(['the', 'and', 'of', 'to', 'is', 'are', 'you', 'your', 'with', 'for', 'this', 'that', 'it', 'was', 'were',
+            'have', 'has', 'what', 'which', 'he', 'she', 'they', 'from', 'his', 'her', 'at', 'on', 'my', 'we', 'did', 'does']);
+        $romance = $count(['le', 'la', 'les', 'des', 'du', 'de', 'et', 'est', 'un', 'une', 'que', 'qui', 'pour', 'dans', 'sur',
+            'avec', 'vous', 'il', 'elle', 'ce', 'pas', 'au', 'aux', 'nous', 'sont', 'mwen', 'nan', 'yo', 'ak', 'pou', 'el', 'los', 'por', 'con']);
+
+        if ($base !== null && ! str_starts_with($base, 'en') && $english >= 3 && $english > 2 * $romance) {
+            return 'en-us';
         }
 
+        if ($base !== null && str_starts_with($base, 'en') && $romance >= 3 && $romance > 2 * $english) {
+            return null;
+        }
+
+        return $base;
+    }
+
+    /**
+     * The text runs of some HTML, hyphenated with $patterns (none when
+     * null) and, for French, spaced; tags and entities untouched.
+     */
+    private function runs(string $html, ?string $patterns, bool $french): string
+    {
+        $syllable = $patterns === null ? null : $this->syllable($patterns);
+
+        return preg_replace_callback('/<[^>]+>|&[#\w]+;|[^<&]+/u', function (array $m) use ($syllable, $french) {
+            if ($m[0][0] === '<' || $m[0][0] === '&') {
+                return $m[0];
+            }
+
+            $text = $m[0];
+
+            if ($french) {
+                $text = preg_replace(['/(?<=\S)[ \t]+(?=[:;!?»%])/u', '/«[ \t]+/u', '/(?<=\d)[ \t]+(?=%)/u'], ["\u{00A0}", "«\u{00A0}", "\u{00A0}"], $text) ?? $text;
+            }
+
+            if ($syllable === null) {
+                return $text;
+            }
+
+            return preg_replace_callback('/\p{L}[\p{L}\p{M}]{5,}/u', function (array $w) use ($syllable) {
+                $word = $w[0];
+
+                // A capital first: a name, an acronym, a title word.
+                if (mb_strtolower(mb_substr($word, 0, 1)) !== mb_substr($word, 0, 1)) {
+                    return $word;
+                }
+
+                $parts = $syllable->splitWord($word);
+
+                // At least three letters before the first break and after the last.
+                while (count($parts) > 1 && mb_strlen($parts[0]) < 3) {
+                    array_splice($parts, 0, 2, [$parts[0].$parts[1]]);
+                }
+
+                while (count($parts) > 1 && mb_strlen($parts[count($parts) - 1]) < 3) {
+                    $last = array_pop($parts);
+                    $parts[count($parts) - 1] .= $last;
+                }
+
+                return implode(self::SHY, $parts);
+            }, $text) ?? $text;
+        }, $html) ?? $html;
+    }
+
+    private function syllable(string $patterns): Syllable
+    {
         if (! isset($this->syllables[$patterns])) {
             $cache = storage_path('framework/cache/syllable');
 
@@ -1278,17 +1593,7 @@ class PrintBook
             $this->syllables[$patterns]->setMinWordLength(6);
         }
 
-        $syllable = $this->syllables[$patterns];
-
-        return preg_replace_callback(
-            // Headings, code and table heads are left whole: a hyphen in
-            // "Priori-ty" over a narrow column reads as a typo.
-            '/<(h[1-6]|pre|th)\b[^>]*>.*?<\/\1>|<[^>]+>|&[#\w]+;|[^<&]+/su',
-            fn (array $m) => ($m[1] ?? '') !== '' || $m[0][0] === '<' || $m[0][0] === '&'
-                ? $m[0]
-                : $syllable->hyphenateText($m[0]),
-            $html,
-        ) ?? $html;
+        return $this->syllables[$patterns];
     }
 
     /**
@@ -1364,6 +1669,7 @@ class PrintBook
 
         // The copyright notice sits low on its page, as it does in print.
         $low = round(($height - 1.8) * 0.62, 2);
+        $boxLeading = $lh($leading * 0.96);
 
         return <<<CSS
         @page { size: {$width}in {$height}in; margin: 0.9in {$side}in 0.95in {$side}in; }
@@ -1435,6 +1741,51 @@ class PrintBook
 
         blockquote { margin: .95em 1.7em; font-size: .94em; }
         blockquote p { text-indent: 0; margin: 0 0 .45em; }
+
+        /* Boxes (Textbook::callout), black and white: a ruled box, a heavy
+           left rule for a pitfall, a 10% tint for what to remember, dashes
+           for a tip, rules above and below an example. Upright text, a
+           spaced capital label with its glyph, kept on one page. */
+        .callout { margin: .9em 0; padding: .5em .75em .3em; border: .5pt solid #1a1a1a; font-size: .93em;
+            line-height: {$boxLeading}; page-break-inside: avoid; }
+        .callout p { text-indent: 0; margin: 0 0 .4em; text-align: left; }
+        .callout ul, .callout ol { margin: .3em 0 .45em 1.3em; }
+        .callout-label { font-size: .8em; letter-spacing: .1em; text-transform: uppercase; font-weight: bold; padding-right: .3em; }
+        .callout-label .glyph { font-size: 1.05em; letter-spacing: 0; }
+        .callout-pitfall { border-left: 2.6pt solid #1a1a1a; }
+        .callout-key, .callout-directions { border: 0; background-color: #e6e6e6; }
+        .callout-tip { border-style: dashed; }
+        .callout-example { border: 0; border-top: .6pt solid #1a1a1a; border-bottom: .6pt solid #1a1a1a; padding-left: 0; padding-right: 0; }
+        .callout-note { border: 0; border-left: 1pt solid #555555; padding-top: .1em; padding-bottom: .1em; }
+
+        /* A paragraph that is only a bold label, or that ends in a colon,
+           never ends a page. */
+        p.run-in, p.lead-in { page-break-after: avoid; }
+        p.math-rich { text-align: left; }
+        p.run-in { text-indent: 0; margin-top: .45em; }
+
+        /* Checklists: an empty square to tick, no bullet. */
+        ul.checklist { list-style: none; margin-left: .2em; }
+        ul.checklist li { padding-left: 0; margin: 0 0 .45em; }
+        .check-box { display: inline-block; width: .82em; height: .82em; border: .7pt solid #1a1a1a;
+            margin-right: .55em; text-indent: 0; font-size: .9em; line-height: .82em; text-align: center; vertical-align: -.08em; }
+
+        /* Exam papers: a boxed banner, boxed directions, the end marked. */
+        .exam-banner { border: 1.2pt solid #1a1a1a; padding: .55em .8em .45em; margin: .4em 0 .9em; text-align: center; page-break-inside: avoid; page-break-after: avoid; }
+        .exam-banner p { text-align: center; text-indent: 0; margin: 0 0 .25em; }
+        .exam-title { font-weight: bold; }
+        .exam-kind { font-size: .78em; letter-spacing: .14em; text-transform: uppercase; }
+        .text table.exam-fields { width: 100%; margin: .35em 0 0; font-size: .82em; page-break-inside: avoid; }
+        .text table.exam-fields td { border: 0; border-left: .5pt solid #1a1a1a; text-align: center; padding: .15em .4em; vertical-align: top; }
+        .text table.exam-fields td:first-child { border-left: 0; }
+        .text table.exam-fields tr:last-child td { border-bottom: 0; }
+        .exam-field { font-size: .85em; letter-spacing: .1em; text-transform: uppercase; color: #333333; }
+        .exam-directions { border: .5pt solid #1a1a1a; border-left: 2.6pt solid #1a1a1a; padding: .45em .75em .25em; margin: 0 0 1em;
+            font-size: .92em; page-break-inside: avoid; }
+        .exam-directions p { text-indent: 0; margin: 0 0 .35em; text-align: left; }
+        .exam-item { page-break-inside: avoid; }
+        p.exam-end { text-align: center; text-indent: 0; margin: 1.4em 0 .6em; font-size: .82em; letter-spacing: .16em; font-weight: bold; }
+        .ex-link { font-size: .82em; font-style: italic; font-weight: normal; white-space: nowrap; }
         ul, ol { margin: .65em 0 .85em 1.5em; padding: 0; }
         li { margin: 0 0 .3em; padding-left: .2em; text-align: left; }
         pre { font-family: 'DejaVu Sans Mono', monospace; font-size: .76em; line-height: {$lh(1.4)};
@@ -1454,6 +1805,13 @@ class PrintBook
             border-bottom: .25pt solid #c9c9c9; }
         .text tbody tr:last-child td { border-bottom: .9pt solid #1a1a1a; }
         .text th p, .text td p { margin: 0; text-indent: 0; text-align: left; }
+        .text table.keep { page-break-inside: avoid; }
+        /* A score grid: every cell ruled, blank cells tall enough to write
+           in, totals set apart. */
+        .text table.grid th, .text table.grid td { border: .5pt solid #1a1a1a; padding: .3em .4em .25em; }
+        .text table.grid td.write-in { height: 1.9em; min-width: 3.4em; }
+        .text table.grid tr.total td { font-weight: bold; border-top: 1.2pt solid #1a1a1a; }
+        .text table.grid tbody tr:last-child td { border-bottom: .5pt solid #1a1a1a; }
         table + p { text-indent: 0; }
         p.caption { text-indent: 0; text-align: left; font-size: .88em; margin: 1.1em 0 .3em;
             page-break-after: avoid; }
@@ -1518,7 +1876,18 @@ class PrintBook
         $words = preg_split('/\s+/u', trim($title));
         $length = mb_strlen($title);
 
-        if ($length < 22 || $length > 60 || count($words) < 2) {
+        if ($length < 22 || count($words) < 2) {
+            return e($title);
+        }
+
+        // A title in two parts breaks between them, the dash or colon
+        // ending the first line: "Réussir le Bac (NS4) —" over
+        // "Mathématiques", never a line opening on the dash.
+        if (preg_match('/^(.{8,}?)\s*(\s[—–]|:)\s+(.{4,})$/u', $title, $m)) {
+            return e($m[1].($m[2] === ':' ? ':' : ' '.trim($m[2]))).'<br />'.e($m[3]);
+        }
+
+        if ($length > 60) {
             return e($title);
         }
 
@@ -1609,9 +1978,28 @@ class PrintBook
         return $out;
     }
 
+    /** The margin the PDF being typeset widened to, for its page count; null for the setting. */
+    private ?float $widened = null;
+
     private function margin(array $layout): float
     {
-        return self::marginInches($layout['margins'] ?? 'Standard');
+        return max(self::marginInches($layout['margins'] ?? 'Standard'), $this->widened ?? 0.0);
+    }
+
+    /**
+     * The margin the interior is set at for this many pages: the Margins
+     * setting, widened when the book is long enough that a print service
+     * requires more inside (KDP: 0.625 in from 301 pages, 0.75 in from 501,
+     * 0.875 in from 701). dompdf cannot mirror margins, so both sides widen
+     * with the gutter.
+     */
+    public static function insideMargin(array $layout, int $pages): float
+    {
+        $required = collect(PrintSpecs::checkedServices())
+            ->map(fn (string $service) => (float) PrintSpecs::requiredGutter($service, PrintSpecs::evenPages($pages)))
+            ->max() ?? 0.0;
+
+        return max(self::marginInches($layout['margins'] ?? 'Standard'), $required);
     }
 
     /**
