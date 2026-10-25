@@ -1235,7 +1235,11 @@ class Exporter
             // than being a near-empty page of its own.
             if ($section->type === 'part' && $id !== 'ch'.($structure->search(fn ($s) => $s->id === $section->id) + 1)) {
                 $parts[] = $section;
-                $entries[] = ['depth' => $page['depth'], 'href' => $id.'.xhtml#section-'.$section->id, 'title' => $section->title];
+                // The file itself, not its #section-N: the part heading opens
+                // the file, and the chapter's own entry that follows points at
+                // the file too. A fragment here put the part after the chapter
+                // in reading order (epubcheck NAV-011).
+                $entries[] = ['depth' => $page['depth'], 'href' => $id.'.xhtml', 'title' => $section->title];
 
                 if ($bodymatter === null && $page['folio'] === 'arabic') {
                     $bodymatter = [$id.'.xhtml', $section->title];

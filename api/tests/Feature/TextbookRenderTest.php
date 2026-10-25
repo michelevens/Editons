@@ -339,8 +339,10 @@ it('builds an EPUB with nested contents, no empty part files, MathML alt text an
     $chapter = $zip->getFromName($files->first(fn ($f) => str_starts_with($f, 'OEBPS/ch') && str_contains((string) $zip->getFromName($f), 'Objectifs')));
 
     expect($nav)->toContain('>1.1 Objectifs</a>')->toContain('>1.2 Cours</a>')
-        // The part opens its first chapter's file: no file of its own.
-        ->toMatch('#<li><a href="(ch\d+)\.xhtml\#section-\d+">Partie I — Bases</a>(?:<ol>)?(?:</li>)?<li><a href="\1\.xhtml">Chapitre 1#u')
+        // The part opens its first chapter's file: no file of its own, and
+        // its entry is that file, so the contents stay in reading order
+        // (epubcheck NAV-011 when the part pointed past the file's top).
+        ->toMatch('#<li><a href="(ch\d+)\.xhtml">Partie I — Bases</a>(?:<ol>)?(?:</li>)?<li><a href="\1\.xhtml">Chapitre 1#u')
         ->and($chapter)->toContain('<section class="part" epub:type="part" id="section-')
         ->toContain('<math alttext="x^2"')
         ->toContain('<aside class="callout callout-pitfall"')
