@@ -21,6 +21,7 @@ use App\Mail\Collaboration\InvitationAcceptedMail;
 use App\Mail\Collaboration\ReviewerAssignedMail;
 use App\Mail\Commerce\NewSaleMail;
 use App\Mail\Commerce\OrderReceiptMail;
+use App\Mail\Commerce\PaperbackShippedMail;
 use App\Mail\Commerce\RefundProcessedMail;
 use App\Mail\Commerce\RoyaltyStatementMail;
 use App\Mail\Publishing\BookLiveMail;
@@ -307,6 +308,12 @@ final class Notify
     public static function refundProcessed(string $buyerEmail, mixed ...$details): bool
     {
         return self::send($buyerEmail, new RefundProcessedMail($buyerEmail, ...$details));
+    }
+
+    /** A storefront paperback left the printer (App\Commerce\Print\PrintJobs). */
+    public static function paperbackShipped(string $buyerEmail, mixed ...$details): bool
+    {
+        return self::send($buyerEmail, new PaperbackShippedMail($buyerEmail, ...$details));
     }
 
     public static function royaltyStatement(User $author, mixed ...$details): bool

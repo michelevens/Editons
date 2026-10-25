@@ -4,7 +4,9 @@ namespace App\Commerce;
 
 use App\Commerce\Partners\Commissions;
 use App\Commerce\Partners\PartnerNotices;
+use App\Commerce\Print\PrintJobs;
 use App\Growth\Discounts;
+use App\Jobs\SubmitPrintJob;
 use App\Mail\Notify;
 use App\Models\License;
 use App\Models\Order;
@@ -85,13 +87,26 @@ final class Fulfilment
                     : null,
                 'stripe_payment_intent' => is_string($session['payment_intent'] ?? null) ? $session['payment_intent'] : null,
                 'payment_method' => $paymentMethod,
+                // A paperback's address, for the printer (encrypted).
+                'shipping_address' => $order->shipping_cents > 0 || $items->contains(fn (OrderItem $i) => $i->isPaperback())
+                    ? self::shippingAddress($session) : null,
             ])->save();
 
             foreach ($items->values() as $i => $item) {
+                // A paperback's printing comes out of its royalty, at the
+                // cost Lulu quoted for one copy when it was offered.
+                $printCost = $item->isPaperback() ? (int) ($item->product?->print['unit_cost_cents'] ?? 0) : null;
+
                 $item->forceFill([
                     'fee_cents' => $fees[$i],
-                    'royalty_cents' => Revenue::royalty($item->price_cents, $fees[$i]),
+                    'royalty_cents' => max(0, Revenue::royalty($item->price_cents, $fees[$i]) - (int) $printCost),
+                    'print_cost_cents' => $printCost,
                 ])->save();
+
+                // A paperback is posted, not downloaded: no licence or links.
+                if ($item->isPaperback()) {
+                    continue;
+                }
 
                 $license = new License;
                 $license->forceFill([
@@ -110,11 +125,19 @@ final class Fulfilment
             // it is taken before anybody is told what they earned.
             $commissions = app(Commissions::class)->accrue($order, $items);
 
-            return [$order, $commissions];
+            // Each paperback becomes a print job, sent once this commits.
+            $printJobs = app(PrintJobs::class)->open($order);
+
+            return [$order, $commissions, $printJobs];
         });
 
         if ($fulfilled) {
-            [$fulfilled, $commissions] = $fulfilled;
+            [$fulfilled, $commissions, $printJobs] = $fulfilled;
+
+            foreach ($printJobs as $job) {
+                SubmitPrintJob::dispatch($job->id);
+            }
+
             $this->announceSale($fulfilled->fresh(['items.license', 'items.product.book', 'items.book', 'items.seller']));
             PartnerNotices::earned($commissions);
         }
@@ -221,6 +244,36 @@ final class Fulfilment
     }
 
     // ── Internals ───────────────────────────────────────────────────────
+
+    /**
+     * The shipping address Stripe collected, in Lulu's field names. Stripe
+     * puts it in `shipping_details` (older API versions) or
+     * `collected_information.shipping_details`; the phone, which Lulu
+     * requires, is on `customer_details`.
+     *
+     * @param  array<string, mixed>  $session
+     * @return array<string, ?string>|null
+     */
+    private static function shippingAddress(array $session): ?array
+    {
+        $details = $session['collected_information']['shipping_details'] ?? $session['shipping_details'] ?? null;
+        $address = $details['address'] ?? null;
+
+        if (! is_array($address) || empty($address['line1'])) {
+            return null;
+        }
+
+        return [
+            'name' => $details['name'] ?? ($session['customer_details']['name'] ?? null),
+            'street1' => $address['line1'],
+            'street2' => $address['line2'] ?? null,
+            'city' => $address['city'] ?? null,
+            'state_code' => $address['state'] ?? null,
+            'postcode' => $address['postal_code'] ?? null,
+            'country_code' => isset($address['country']) ? strtoupper((string) $address['country']) : null,
+            'phone_number' => $session['customer_details']['phone'] ?? null,
+        ];
+    }
 
     private function findOrder(mixed $sessionId, mixed $orderId): ?Order
     {

@@ -32,6 +32,9 @@ class Product extends Model
             'price_cents' => 'integer',
             'published_at' => 'datetime',
             'taken_down_at' => 'datetime',
+            'paperback_price_cents' => 'integer',
+            // The Lulu files a paperback prints from (App\Commerce\Print\LuluPrinting).
+            'print' => 'array',
         ];
     }
 

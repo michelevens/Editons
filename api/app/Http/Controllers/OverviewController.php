@@ -63,6 +63,18 @@ class OverviewController extends Controller
             // The checklist is derived, never stored. A stored flag drifts from
             // the thing it claims about the moment anything else changes.
             'checklist' => $this->checklist($book, $chapters, $openFindings, $citations),
+            // Where the book stands at each store (Publish in three steps).
+            'channels' => $book->channels()->orderBy('id')->get()->map(fn ($c) => [
+                'channel' => $c->channel,
+                'label' => $c->label(),
+                'status' => $c->status,
+                'external_id' => $c->external_id,
+                'submitted_at' => $c->submitted_at?->toFormattedDateString(),
+            ])->all(),
+            'store' => ($product = $book->product()->first()) ? [
+                'state' => $product->isTakenDown() ? 'taken_down' : ($product->isPublished() ? 'live' : 'draft'),
+                'paperback' => $product->paperback_price_cents !== null,
+            ] : null,
         ]);
     }
 

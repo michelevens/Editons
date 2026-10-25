@@ -40,6 +40,7 @@ export const SIDEBAR_GROUPS = [
         items: [
             { key: 'layout', label: 'Design & Layout', icon: 'layout', ready: true },
             { key: 'cover', label: 'Cover Studio', icon: 'cover', ready: true },
+            { key: 'publish', label: 'Publish (3 steps)', icon: 'rocket', ready: true },
             { key: 'export', label: 'Export & Publish', icon: 'exp', ready: true },
             { key: 'rights', label: 'ISBN & Rights', icon: 'hash', ready: true },
             { key: 'editions', label: 'Editions', icon: 'copies', ready: true },

@@ -24,6 +24,7 @@ use App\Mail\Collaboration\InvitationAcceptedMail;
 use App\Mail\Collaboration\ReviewerAssignedMail;
 use App\Mail\Commerce\NewSaleMail;
 use App\Mail\Commerce\OrderReceiptMail;
+use App\Mail\Commerce\PaperbackShippedMail;
 use App\Mail\Commerce\RefundProcessedMail;
 use App\Mail\Commerce\RoyaltyStatementMail;
 use App\Mail\EcrivainMail;
@@ -189,6 +190,8 @@ final class EmailCatalog
                 fn (array $s) => new NewSaleMail($s['author'], $s['book'], 'EPUB', 1299, 909, 'usd', Carbon::parse('2026-10-21 14:03'), null, 'Canada', 17)],
             [RefundProcessedMail::class, 'Commerce', 'Refund processed', 'Helper: Notify::refundProcessed — wire on charge.refunded',
                 fn (array $s) => new RefundProcessedMail('reader@example.com', 'Jonas Pierre', 'ECR-48213', 1299, 'usd', Carbon::parse('2026-10-22'), [$s['book']->title], 'Visa ending 4242', null, 'Amélie Laurent')],
+            [PaperbackShippedMail::class, 'Commerce', 'Paperback shipped (buyer)', 'Wired: App\Commerce\Print\PrintJobs::apply when Lulu says SHIPPED (lulu:poll)',
+                fn (array $s) => new PaperbackShippedMail('reader@example.com', 'Jonas Pierre', 'EC-7KQ2M9XA', $s['book']->title, 'USPS', '9400111899223197428490', 'https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223197428490')],
             [RoyaltyStatementMail::class, 'Commerce', 'Monthly royalty statement', 'Helper: Notify::royaltyStatement — wire in the statement job',
                 fn (array $s) => new RoyaltyStatementMail($s['author'], Carbon::parse('2026-09-01'), [
                     ['title' => $s['book']->title, 'channel' => 'Écrivain store', 'units' => 31, 'royalty_cents' => 28179],

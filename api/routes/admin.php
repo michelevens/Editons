@@ -128,6 +128,10 @@ Route::prefix('admin')->name('admin.')->middleware('platform.admin')->group(func
             Route::post('/transfer/preview', [HouseController::class, 'preview'])->name('transfer.preview');
             Route::post('/transfer', [HouseController::class, 'transfer'])->name('transfer');
             Route::post('/bulk', [HouseController::class, 'bulk'])->name('bulk');
+            // Publish in three steps, for many books (ADR — publish in three steps).
+            Route::post('/prepare', [HouseController::class, 'prepare'])->name('prepare');
+            Route::get('/google-play', [HouseController::class, 'googlePlay'])->name('google-play');
+            Route::get('/kdp-checklist', [HouseController::class, 'kdpChecklist'])->name('kdp-checklist');
             Route::post('/books/{book}/export', [HouseController::class, 'export'])->whereNumber('book')->name('export');
             Route::post('/books/{book}/price', [HouseController::class, 'price'])->whereNumber('book')->name('price');
             Route::post('/books/{book}/publish', [HouseController::class, 'publish'])->whereNumber('book')->name('publish');

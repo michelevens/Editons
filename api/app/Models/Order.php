@@ -35,6 +35,9 @@ class Order extends Model
             'refunded_cents' => 'integer',
             'paid_at' => 'datetime',
             'refunded_at' => 'datetime',
+            'shipping_cents' => 'integer',
+            // A paperback buyer's address and phone, for the printer only.
+            'shipping_address' => 'encrypted:array',
         ];
     }
 
@@ -56,6 +59,11 @@ class Order extends Model
     public function licenses(): HasManyThrough
     {
         return $this->hasManyThrough(License::class, OrderItem::class);
+    }
+
+    public function printJobs(): HasMany
+    {
+        return $this->hasMany(PrintJob::class);
     }
 
     public function buyer(): BelongsTo

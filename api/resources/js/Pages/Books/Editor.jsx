@@ -18,6 +18,7 @@ import LaunchPanel from '@/Components/Studio/LaunchPanel';
 import LockedPanel from '@/Components/Studio/LockedPanel';
 import MarketingPanel from '@/Components/Studio/MarketingPanel';
 import LayoutPanel from '@/Components/Studio/LayoutPanel';
+import PublishFlow from '@/Components/Studio/PublishFlow';
 import PublishPanel from '@/Components/Studio/PublishPanel';
 import BookPreview from '@/Components/Studio/BookPreview';
 import RightsPanel from '@/Components/Studio/RightsPanel';
@@ -648,6 +649,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         <Panel>
                             <CoverPanel bookId={book.id} onNotify={notify} />
                         </Panel>
+                    ) : effectivePane === 'publish' ? (
+                        <Panel>
+                            {/* Publish in three steps; a Fix link opens the pane that fixes it. */}
+                            <PublishFlow bookId={book.id} onNotify={notify} onNavigate={navigate} />
+                        </Panel>
                     ) : effectivePane === 'export' ? (
                         <Panel>
                             <PublishPanel bookId={book.id} onNotify={notify} onPreview={() => go('preview')} />
@@ -1028,6 +1034,7 @@ const PANE_LABELS = {
     cover: 'Cover Studio',
     export: 'Export & Publish',
     rights: 'ISBN & Rights',
+    publish: 'Publish',
     editions: 'Editions',
     a11y: 'Accessibility',
     royalties: 'Royalties',

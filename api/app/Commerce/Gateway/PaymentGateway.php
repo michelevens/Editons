@@ -31,6 +31,7 @@ interface PaymentGateway
      *     customer_email: ?string,
      *     success_url: string,
      *     cancel_url: string,
+     *     shipping?: array{countries: list<string>, amount_cents: int, label: string}|null,
      * }  $params
      */
     public function createCheckoutSession(array $params): CheckoutSession;

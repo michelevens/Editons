@@ -42,6 +42,7 @@ const T = {
     layout: { label: 'Design', icon: 'layout' },
     cover: { label: 'Cover', icon: 'cover' },
     export: { label: 'Export', icon: 'exp' },
+    publish: { label: 'Publish', icon: 'rocket' },
     distribution: { label: 'Sales', icon: 'sales' },
     launch: { label: 'Launch', icon: 'rocket' },
     analytics: { label: 'Analytics', icon: 'chart' },
@@ -68,7 +69,7 @@ export function tabSet(current, hasBook) {
     if (!hasBook) return 'library';
 
     if (['ai', 'suggestions', 'comments', 'workflow', 'team'].includes(current)) return 'review';
-    if (['layout', 'cover', 'export', 'preview', 'rights', 'editions', 'a11y', 'design', 'publishing'].includes(current)) return 'publish';
+    if (['layout', 'cover', 'export', 'publish', 'preview', 'rights', 'editions', 'a11y', 'design', 'publishing'].includes(current)) return 'publish';
     if (['distribution', 'royalties', 'launch', 'marketing', 'analytics', 'sales'].includes(current)) return 'sell';
     if (['books', 'inbox', 'billing', 'store-sales', 'purchases', 'account'].includes(current)) return 'library';
 
@@ -224,6 +225,7 @@ const BOOK_GROUPS = [
         items: [
             { key: 'layout', label: 'Design', icon: 'layout' },
             { key: 'cover', label: 'Cover', icon: 'cover' },
+            { key: 'publish', label: 'Publish', icon: 'rocket' },
             { key: 'export', label: 'Export', icon: 'exp' },
             { key: 'preview', label: 'Preview', icon: 'eye' },
             { key: 'rights', label: 'ISBN & Rights', icon: 'hash' },

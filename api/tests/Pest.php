@@ -10,6 +10,8 @@ use App\Editorial\Drivers\FakeDriver;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewResult;
 use App\Models\Book;
+use App\Models\Isbn;
+use App\Models\ManuscriptSection;
 use App\Models\Order;
 use App\Models\Partner;
 use App\Models\Plan;
@@ -17,9 +19,12 @@ use App\Models\Product;
 use App\Models\User;
 use App\Platform\Features;
 use App\Platform\TwoFactor;
+use App\Publishing\PrintPages;
+use App\Publishing\Publish\PublishPlan;
 use Illuminate\Cookie\CookieValuePrefix;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -333,4 +338,65 @@ function partnerRefund(Order $order, int $cumulativeCents): void
         'amount_refunded' => $cumulativeCents,
         'metadata' => ['order_id' => (string) $order->id],
     ]);
+}
+
+/*
+| Publish in three steps (tests/Feature/Publish).
+*/
+
+/** A book that passes the shared checks, declared, with prose. */
+function pfBook(?User $owner = null, array $attributes = []): Book
+{
+    $owner ??= User::factory()->create();
+    $book = $owner->books()->create(array_merge([
+        'title' => 'Lakou',
+        'subtitle' => 'Stories from the yard',
+        'author_name' => 'A Writer',
+        'language' => 'English',
+        'list_price' => 4.99,
+        'meta' => [
+            'description' => str_repeat('A clear and useful description of the book. ', 5),
+            'category' => 'Fiction / Literary',
+            'keywords' => 'yard stories, haiti',
+            'print_price' => 14.99,
+        ],
+    ], $attributes));
+
+    ManuscriptSection::factory()->for($book)->create([
+        'type' => 'chapter', 'title' => 'One', 'position' => 0,
+        'content' => platformDoc(str_repeat('Prose that belongs in a book. ', 80)),
+    ]);
+    $book->forceFill(['word_count' => 20_000])->save();
+
+    return declared($book->fresh());
+}
+
+/** A ready file of the book as it is now (fresh), for one format. */
+function pfFile(Book $book, string $format, array $options = [], int $pages = 120): void
+{
+    $path = "exports/{$book->id}/{$format}-".count($options).'-'.uniqid().'.bin';
+    Storage::disk('files')->put($path, "{$format} bytes");
+    $export = $book->exports()->create(['format' => $format, 'status' => 'ready', 'path' => $path, 'byte_size' => 2048]);
+
+    if (in_array($format, PrintPages::RECORDING, true)) {
+        $export->forceFill(['pages' => $pages, 'options' => $options + ['fingerprint' => PrintPages::fingerprint($book)]])->save();
+    }
+}
+
+function pfChoose(Book $book, string ...$cards): Book
+{
+    foreach ($cards as $card) {
+        app(PublishPlan::class)->choose($book->fresh(), $card, true);
+    }
+
+    return $book->fresh();
+}
+
+/** Assign an ISBN to one of the book's editions, as the ISBN pool does. */
+function pfIsbn(Book $book, string $isbn, string $edition = 'ebook'): void
+{
+    $row = new Isbn(['isbn' => $isbn, 'edition_format' => $edition, 'source' => 'own']);
+    $row->user_id = $book->user_id;
+    $row->book_id = $book->id;
+    $row->save();
 }

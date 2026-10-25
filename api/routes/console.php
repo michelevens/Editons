@@ -59,3 +59,10 @@ Schedule::command('platform:purge-account-exports')->dailyAt('04:40')->withoutOv
  */
 Schedule::command('partners:release-commissions')->dailyAt('05:10')->withoutOverlapping();
 Schedule::command('partners:statements')->monthlyOn(1, '09:30')->withoutOverlapping();
+
+/*
+ | Paperbacks sold in the storefront and printed by Lulu: waiting jobs are
+ | sent and open ones read every half hour (tracking goes to the buyer on
+ | SHIPPED). Does nothing until Lulu's keys are set.
+ */
+Schedule::command('lulu:poll')->everyThirtyMinutes()->withoutOverlapping();

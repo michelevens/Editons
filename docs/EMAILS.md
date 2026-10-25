@@ -12,7 +12,7 @@ Every email Écrivain sends: what each one says, what triggers it, how preferenc
 | Partials: button, callout, facts, status badge, stat card, stats row, divider, book card, items, table, quote | `api/resources/views/emails/partials/` |
 | What an email says, slot by slot | `App\Mail\Support\Letter` |
 | Base Mailable (sender, views, footer, unsubscribe headers) | `App\Mail\EcrivainMail` |
-| One Mailable per occasion (45) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce,Trust,Growth,Partners}\*` |
+| One Mailable per occasion (46) | `App\Mail\{Account,Collaboration,Writing,Publishing,Billing,Commerce,Trust,Growth,Partners}\*` |
 | Dispatch helper: the only way to send | `App\Mail\Notify` |
 | Preferences | `App\Mail\EmailPreferences`, `users.email_preferences` |
 | Sample data for every email | `App\Mail\Support\EmailCatalog` |
@@ -100,6 +100,7 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Order receipt (buyer) | `Commerce\OrderReceiptMail` | receipts | queued | **Wired**: order fulfilled (`App\Commerce\Fulfilment::checkoutCompleted`) |
 | New sale (author) | `Commerce\NewSaleMail` | sales | queued | **Wired**: order fulfilled, to each seller |
 | Refund processed | `Commerce\RefundProcessedMail` | receipts | queued | **Wired**: `charge.refunded` (`Fulfilment::chargeRefunded`), once per refunded amount |
+| Paperback shipped (buyer) | `Commerce\PaperbackShippedMail` | receipts | queued | **Wired**: `lulu:poll` → `App\Commerce\Print\PrintJobs::apply` when Lulu says SHIPPED, once per print job, with the carrier's tracking |
 | Royalty statement | `Commerce\RoyaltyStatementMail` | billing | queued | **Command**: `commerce:royalty-statements` (not scheduled; one per author, month and currency, ever). Partner commissions are their own negative line |
 | Partner application received | `Partners\PartnerApplicationReceivedMail` | account | queued | **Wired**: `Commerce\Partners\Applications::apply` (+ inbox) |
 | Partner approved | `Partners\PartnerApprovedMail` | account | queued | **Wired**: `Applications::approve` (console), `Partners\Invitations::accept` (+ inbox) |

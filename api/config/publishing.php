@@ -313,4 +313,105 @@ return [
         'categories' => ['text', 'images', 'translations'],
         'answers' => ['none', 'assisted', 'generated'],
     ],
+
+    /*
+    | Publish in three steps (docs/PUBLISHING-FLOW.md). What each channel's
+    | own form asks for, read on 2026-10-25 from the pages beside each value.
+    */
+    'publish' => [
+        'checked' => '2026-10-25',
+
+        // Amazon KDP has no public publishing API: the guided page mirrors its
+        // forms and the author pastes each value in.
+        'kdp' => [
+            // Opens the author's Bookshelf once signed in.
+            'url' => 'https://kdp.amazon.com/',
+            // G201097560: "Your title and subtitle together must be fewer than
+            // 200 characters."
+            'title_subtitle_max' => 199,
+            // G201189630: "a limit of 4000 characters for the description",
+            // HTML tags included; <h1>-<h3> are not supported.
+            'description_max' => 4000,
+            'description_tags' => ['p', 'br', 'b', 'em', 'i', 'u', 'h4', 'h5', 'h6', 'ol', 'ul', 'li'],
+            // G201298500: "Use up to seven keywords or short phrases. Keep an eye
+            // on the character limit in the text field." The page does not give
+            // the number; 50 is what the form's boxes take according to
+            // third-party guides (UNVERIFIED on an Amazon page).
+            'keywords' => 7,
+            'keyword_chars' => 50,
+            'keyword_chars_verified' => false,
+            // G200652170: "you can select 3 categories when creating a book in KDP."
+            'categories' => 3,
+            // G200673300, the languages KDP supports. Haitian Creole is not one.
+            'languages' => ['en' => 'English', 'fr' => 'French', 'es' => 'Spanish', 'de' => 'German', 'it' => 'Italian', 'pt' => 'Portuguese', 'nl' => 'Dutch'],
+            // An ASIN is ten capital letters and digits; a Kindle ASIN starts
+            // with B, and a paperback with an ISBN has its ISBN-10 as ASIN.
+            'asin' => '/^(B[0-9A-Z]{9}|[0-9]{9}[0-9X])$/',
+            'sources' => [
+                'title' => 'https://kdp.amazon.com/en_US/help/topic/G201097560',
+                'description' => 'https://kdp.amazon.com/en_US/help/topic/G201189630',
+                'keywords' => 'https://kdp.amazon.com/en_US/help/topic/G201298500',
+                'categories' => 'https://kdp.amazon.com/en_US/help/topic/G200652170',
+                'languages' => 'https://kdp.amazon.com/en_US/help/topic/G200673300',
+                'ai' => 'https://kdp.amazon.com/en_US/help/topic/G200672390',
+            ],
+        ],
+
+        // Google Play Books has no upload API: Partner Center takes a book list
+        // (one book per row, "Separated by tabs", "UTF-16 encoding") and the
+        // files, named by ISBN. support.google.com/books/partner/answer/3289689
+        // (Add multiple books), 3058975 (the columns), 3424254 (file names).
+        // "If your books don't have unique identifiers (such as ISBNs), you
+        // cannot add them to your book catalogue using a spreadsheet."
+        'google_play' => [
+            'url' => 'https://play.google.com/books/publish/',
+            // The column headers, in the order the help page lists them.
+            'columns' => [
+                'Identifier', 'Status (Do Not Modify)', 'Label (Do Not Modify)', 'Play Store Link (Do Not Modify)',
+                'Enable for Sale?', 'Title', 'Subtitle', 'Book Format',
+                'Related Identifier [Format, Relationship], Semicolon-Separated',
+                'Contributor [Role], Semicolon-Separated', 'Biographical Note', 'Language',
+                'Subject Code [Schema], Semicolon-Separated', 'Age Group, Comma-Separated', 'Description',
+                'Publication Date', 'Page Count', 'Series Name', 'Volume in Series', 'Preview Type',
+                'Preview Territories', 'Buy Link Text', 'Buy Link', 'Publisher Name', 'Publisher Website',
+                'Show Photos in Preview?', 'PDF Download Allowed?', 'On Sale Date', 'DRM Enabled?',
+                'Show Photos in eBook?', 'Include Scanned Pages?', 'For Mature Audiences?', 'Copy-Paste Percentage',
+            ],
+            // "Three-letter ISO 639-2/B code".
+            'languages' => ['en' => 'eng', 'fr' => 'fre', 'ht' => 'hat', 'es' => 'spa', 'de' => 'ger', 'pt' => 'por'],
+            'sources' => [
+                'bulk' => 'https://support.google.com/books/partner/answer/3289689',
+                'columns' => 'https://support.google.com/books/partner/answer/3058975',
+                'files' => 'https://support.google.com/books/partner/answer/3424254',
+            ],
+        ],
+
+        // Apple Books delivers through Transporter with a publisher account,
+        // which the platform does not have yet: shown as coming soon.
+        'apple_books' => ['available' => false],
+    ],
+
+    /*
+    | Lulu Print API product codes (pod_package_id), from the API reference
+    | (https://api.lulu.com/api-docs/openapi-specs/openapi_public.yml, read
+    | 2026-10-25): "[Trim].[Ink].[Quality].[Binding].[Paper].[Finish]", e.g.
+    | 0600X0900.BW.STD.PB.060UW444.MXX, a 6 x 9 in black-and-white standard
+    | quality paperback on 60# white paper with a matte cover. The dotted form
+    | is live since 31 March 2026; the 27-character form ends 1 February 2027.
+    | Lulu's own file validation is the final word on whether a code fits.
+    */
+    'lulu_packages' => [
+        'trims' => [
+            '5 x 8 in' => '0500X0800', '5.5 x 8.5 in' => '0550X0850', '6 x 9 in' => '0600X0900',
+            '7 x 10 in' => '0700X1000', '8.5 x 11 in' => '0850X1100',
+        ],
+        // ink => [colour, quality]
+        'ink' => ['bw' => ['BW', 'STD'], 'standard_color' => ['FC', 'STD'], 'premium_color' => ['FC', 'PRE']],
+        // Paper by ink and paper: 60# uncoated white or cream (444 ppi), and
+        // 80# coated white for premium colour, as in the reference's examples.
+        'paper' => ['bw' => ['white' => '060UW444', 'cream' => '060UC444'], 'standard_color' => ['white' => '060UW444'], 'premium_color' => ['white' => '080CW444']],
+        'binding' => 'PB',
+        // Cover coating, then no linen and no foil.
+        'finish' => ['matte' => 'MXX', 'glossy' => 'GXX'],
+    ],
 ];

@@ -11,11 +11,17 @@ import { Head, useForm } from '@inertiajs/react';
  * line appears only when the book carries an author name.
  */
 export default function Product({ product, series, partner = null }) {
-    const { data, setData, post, processing, errors } = useForm({ email: '', code: '' });
+    const { data, setData, post, transform, processing, errors } = useForm({ email: '', code: '', edition: 'digital' });
 
     const buy = (event) => {
         event.preventDefault();
         post(product.checkout_url);
+    };
+
+    // The paperback (printed and posted by Lulu): same email, no code.
+    const buyPaperback = () => {
+        transform((form) => ({ email: form.email, edition: 'paperback' }));
+        post(product.checkout_url, { onFinish: () => transform((form) => form) });
     };
 
     return (
@@ -136,6 +142,32 @@ export default function Product({ product, series, partner = null }) {
                         <p className="mt-2 text-[11.5px] leading-relaxed text-text-secondary">
                             {product.license.terms}
                         </p>
+
+                        {product.paperback && (
+                            <div data-a="store:paperback" className="mt-4 border-t border-border-default pt-4">
+                                <p className="flex flex-wrap items-baseline gap-2">
+                                    <span className="font-display text-[22px] font-extrabold tabular-nums text-text-primary">
+                                        {money(product.paperback.price_cents, product.currency)}
+                                    </span>
+                                    <span className="text-[12.5px] text-text-secondary">
+                                        Paperback · + {money(product.paperback.shipping_cents, product.currency)} shipping
+                                        {' '}to {product.paperback.countries.join(', ')}
+                                    </span>
+                                </p>
+                                <button
+                                    type="button"
+                                    data-a="store:buy-paperback"
+                                    disabled={processing}
+                                    onClick={buyPaperback}
+                                    className="mt-2 rounded-button border border-brand-primary px-5 py-2.5 text-[14px] font-semibold text-brand-primary hover:bg-brand-primary/5 disabled:opacity-60"
+                                >
+                                    Buy the paperback
+                                </button>
+                                <p className="mt-2 text-[11.5px] leading-relaxed text-text-secondary">
+                                    Printed on demand and posted to you. You give your address and phone on the payment page.
+                                </p>
+                            </div>
+                        )}
                     </form>
 
                     {product.description && (

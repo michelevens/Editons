@@ -13,7 +13,7 @@ import { Head, useForm } from '@inertiajs/react';
  *   test       The fake gateway's stand-in for Stripe (local development
  *              and tests only — the server refuses it in production).
  */
-export default function Checkout({ state, order = null, product = null, session = null, email = '' }) {
+export default function Checkout({ state, order = null, product = null, session = null, email = '', shipping = null }) {
     if (state === 'cancelled') {
         return (
             <StoreLayout>
@@ -33,7 +33,7 @@ export default function Checkout({ state, order = null, product = null, session 
     }
 
     if (state === 'test') {
-        return <TestCheckout order={order} session={session} email={email} />;
+        return <TestCheckout order={order} session={session} email={email} shipping={shipping} />;
     }
 
     const paid = order.status === 'paid' || order.status === 'partially_refunded';
@@ -63,8 +63,19 @@ export default function Checkout({ state, order = null, product = null, session 
     );
 }
 
-function TestCheckout({ order, session, email }) {
-    const { data, setData, post, processing, errors } = useForm({ email: email ?? '', name: '' });
+function TestCheckout({ order, session, email, shipping }) {
+    const { data, setData, post, processing, errors } = useForm({
+        email: email ?? '',
+        name: '',
+        // A paperback: the address and phone Stripe would collect.
+        line1: '',
+        line2: '',
+        city: '',
+        state: '',
+        postal_code: '',
+        country: shipping?.countries?.[0] ?? '',
+        phone: '',
+    });
 
     const pay = (event) => {
         event.preventDefault();
@@ -104,7 +115,7 @@ function TestCheckout({ order, session, email }) {
                 </div>
                 <div>
                     <label htmlFor="test-name" className="block text-[12px] text-text-secondary">
-                        Name (optional)
+                        {shipping ? 'Name' : 'Name (optional)'}
                     </label>
                     <input
                         id="test-name"
@@ -114,6 +125,46 @@ function TestCheckout({ order, session, email }) {
                         className="mt-1 w-full rounded-input border border-border-input bg-bg-surface px-3 py-2 text-[14px] text-text-primary"
                     />
                 </div>
+                {shipping && (
+                    <fieldset className="space-y-3" data-a="store:test-shipping">
+                        <legend className="text-[12px] font-semibold text-text-primary">
+                            Shipping address ({money(shipping.cents, order.currency)} shipping)
+                        </legend>
+                        {[
+                            ['line1', 'Address', 'address-line1'],
+                            ['line2', 'Address line 2 (optional)', 'address-line2'],
+                            ['city', 'City', 'address-level2'],
+                            ['state', 'State or region', 'address-level1'],
+                            ['postal_code', 'Postal code', 'postal-code'],
+                            ['phone', 'Phone (the printer needs it)', 'tel'],
+                        ].map(([key, label, autoComplete]) => (
+                            <div key={key}>
+                                <label htmlFor={`test-${key}`} className="block text-[12px] text-text-secondary">{label}</label>
+                                <input
+                                    id={`test-${key}`}
+                                    autoComplete={autoComplete}
+                                    value={data[key]}
+                                    onChange={(e) => setData(key, e.target.value)}
+                                    className="mt-1 w-full rounded-input border border-border-input bg-bg-surface px-3 py-2 text-[14px] text-text-primary"
+                                />
+                                {errors[key] && <p className="mt-1 text-[12px] text-status-danger">{errors[key]}</p>}
+                            </div>
+                        ))}
+                        <div>
+                            <label htmlFor="test-country" className="block text-[12px] text-text-secondary">Country</label>
+                            <select
+                                id="test-country"
+                                value={data.country}
+                                onChange={(e) => setData('country', e.target.value)}
+                                className="mt-1 w-full rounded-input border border-border-input bg-bg-surface px-3 py-2 text-[14px] text-text-primary"
+                            >
+                                {shipping.countries.map((code) => (
+                                    <option key={code} value={code}>{code}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </fieldset>
+                )}
                 <button
                     data-a="store:test-pay"
                     type="submit"

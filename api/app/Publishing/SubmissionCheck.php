@@ -5,6 +5,7 @@ namespace App\Publishing;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\Isbn;
+use App\Platform\House\House;
 
 /**
  * What must be true before a book can go to a store.
@@ -35,7 +36,10 @@ class SubmissionCheck
             $errors['title'] = 'Stores list a book by its title.';
         }
 
-        if (trim((string) $book->author_name) === '') {
+        // A house book with no author name is published that way on purpose
+        // (an imprint's anonymous series, ADR — house catalog): its covers,
+        // files and listings carry no name, so none is asked for.
+        if (trim((string) $book->author_name) === '' && ! House::isHouseBook($book)) {
             $errors['author_name'] = 'Add the author name as it appears on the cover.';
         }
 

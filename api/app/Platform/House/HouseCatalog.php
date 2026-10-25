@@ -102,9 +102,18 @@ final class HouseCatalog
                 'url' => route('store.product', $product->slug),
             ] : null,
             'sales' => $this->sales($book),
+            // Where the book stands at each store it is going to (Publish).
+            'channels' => $book->channels()->orderBy('id')->get()->map(fn ($c) => [
+                'channel' => $c->channel,
+                'label' => $c->label(),
+                'status' => $c->status,
+                'external_id' => $c->external_id,
+                'submitted_at' => $c->submitted_at?->toDateString(),
+            ])->all(),
             'studio' => [
                 'edit' => route('books.edit', $book->id),
                 'publishing' => route('books.edit', ['book' => $book->id, 'pane' => 'publishing']),
+                'publish' => route('books.edit', ['book' => $book->id, 'pane' => 'publish']),
                 'sales' => route('books.edit', ['book' => $book->id, 'pane' => 'sales']),
             ],
         ];

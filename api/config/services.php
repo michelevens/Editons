@@ -35,4 +35,37 @@ return [
         ],
     ],
 
+    /*
+    | Lulu Print API (App\Commerce\Print\LuluClient): print-on-demand for
+    | paperbacks sold in the storefront. Keys from developers.lulu.com (or
+    | developers.sandbox.lulu.com for the sandbox, a separate account). With
+    | no keys Lulu is "not connected" and nothing is ever sent.
+    */
+    'lulu' => [
+        'client_key' => env('LULU_CLIENT_KEY'),
+        'client_secret' => env('LULU_CLIENT_SECRET'),
+        // sandbox | production. Sandbox jobs are never printed.
+        'env' => env('LULU_ENV', 'sandbox'),
+        'urls' => [
+            'sandbox' => 'https://api.sandbox.lulu.com',
+            'production' => 'https://api.lulu.com',
+        ],
+        // Lulu's "contact_email" on each print job: whoever answers questions
+        // about a job (the owner), never the buyer.
+        'contact_email' => env('LULU_CONTACT_EMAIL'),
+        // MAIL, PRIORITY_MAIL, GROUND, EXPEDITED or EXPRESS.
+        'shipping_level' => env('LULU_SHIPPING_LEVEL', 'MAIL'),
+        // Where the one-copy cost quote is priced to (Lulu needs an address
+        // for tax and shipping): the example address of Lulu's own API
+        // reference. Only the line item and fulfilment cost are kept.
+        'quote_address' => [
+            'street1' => '101 Independence Ave SE',
+            'city' => 'Washington',
+            'state_code' => 'DC',
+            'postcode' => '20540',
+            'country_code' => 'US',
+            'phone_number' => '+1 206 555 0100',
+        ],
+    ],
+
 ];

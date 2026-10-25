@@ -13,7 +13,7 @@ import { useCallback, useState } from 'react';
  * checklist an author cannot trust is worse than no checklist, so nothing
  * here is estimated and nothing is stored — see OverviewController.
  */
-export default function Overview({ book, stats, checklist }) {
+export default function Overview({ book, stats, checklist, channels = [], store = null }) {
     const { auth } = usePage().props;
 
     const open = (key) => goTo(book.id, key);
@@ -97,12 +97,69 @@ export default function Overview({ book, stats, checklist }) {
                             <WordTarget book={book} stats={stats} />
                             <Checklist items={checklist} onOpen={open} />
                         </div>
+
+                        <Published channels={channels} store={store} onOpen={open} />
                     </div>
                 </main>
             </div>
 
             <MobileNav current="overview" bookId={book.id} bookTitle={book.title} />
         </div>
+    );
+}
+
+const CHANNEL_STATUS = {
+    live: ['Live', 'text-status-success'],
+    in_review: ['Submitted', 'text-status-warning'],
+    ready_to_submit: ['Ready to upload', 'text-status-warning'],
+    not_submitted: ['Chosen', 'text-text-secondary'],
+    unpublished: ['Taken off sale', 'text-text-secondary'],
+};
+
+/** Where the book is published: each store's status, the ASIN once known. */
+function Published({ channels, store, onOpen }) {
+    return (
+        <section data-a="overview:published" className="mt-[18px] rounded-panel border border-border-default bg-bg-surface p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[15px] font-semibold text-text-primary">Where it&rsquo;s published</h2>
+                <button
+                    type="button"
+                    data-a="overview:publish"
+                    onClick={() => onOpen('publish')}
+                    className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-semibold text-brand-primary transition hover:border-brand-primary/40"
+                >
+                    Publish in 3 steps
+                </button>
+            </div>
+            {channels.length === 0 && !store ? (
+                <p className="mt-2 text-[12.5px] text-text-secondary">Not published anywhere yet.</p>
+            ) : (
+                <ul className="mt-2 divide-y divide-border-default text-[12.5px]">
+                    {store && (
+                        <li className="flex flex-wrap justify-between gap-2 py-1.5">
+                            <span className="text-text-primary">Écrivain store{store.paperback ? ' (ebook and paperback)' : ''}</span>
+                            <span className={store.state === 'live' ? 'text-status-success' : 'text-text-secondary'}>
+                                {store.state === 'live' ? 'On sale' : store.state === 'taken_down' ? 'Taken down' : 'Draft'}
+                            </span>
+                        </li>
+                    )}
+                    {channels.map((c) => {
+                        const [label, tone] = CHANNEL_STATUS[c.status] ?? [c.status, 'text-text-secondary'];
+
+                        return (
+                            <li key={c.channel} data-a={`overview:channel:${c.channel}`} className="flex flex-wrap justify-between gap-2 py-1.5">
+                                <span className="text-text-primary">{c.label}</span>
+                                <span className={tone}>
+                                    {label}
+                                    {c.external_id ? ` · ${c.external_id}` : ''}
+                                    {c.submitted_at && c.status !== 'not_submitted' ? ` · ${c.submitted_at}` : ''}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </section>
     );
 }
 

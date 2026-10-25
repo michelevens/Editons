@@ -8,12 +8,17 @@ use App\Platform\House\HouseAccounts;
 use App\Platform\House\HouseCatalog;
 use App\Platform\House\HouseTransfer;
 use App\Publishing\PrintSpecs;
+use App\Publishing\Publish\BulkPrepare;
+use App\Publishing\Publish\GooglePlayBulk;
+use App\Publishing\Publish\KdpGuide;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * The House catalog (ADR — house catalog and house publisher accounts).
@@ -159,7 +164,73 @@ class HouseController extends Controller
             ->with('platform_notice', "{$ok} of ".count($results).' book(s) done.');
     }
 
+    /**
+     * "Prepare for publishing" across the selected house books: step 1 of
+     * Publish for each, stale files regenerated, and links to one Google
+     * Play book list and zip and one KDP checklist. Audited per book.
+     */
+    public function prepare(Request $request, HouseCatalog $catalog, BulkPrepare $bulk): RedirectResponse
+    {
+        $data = $request->validate([
+            'books' => ['required', 'array', 'min:1', 'max:200'],
+            'books.*' => ['integer'],
+            'reason' => ['required', 'string', 'min:4', 'max:1000'],
+        ]);
+
+        $books = $this->houseBooks($catalog, $data['books']);
+        $rows = $bulk->run($books, $request->user(), $data['reason']);
+        $query = ['books' => $books->pluck('id')->all()];
+
+        return back()
+            ->with('house_results', [
+                'action' => 'prepare',
+                'rows' => $rows,
+                'links' => [
+                    'google_play' => route('admin.house.google-play', $query),
+                    'kdp_checklist' => route('admin.house.kdp-checklist', $query),
+                ],
+            ])
+            ->with('platform_notice', collect($rows)->where('status', 'green')->count().' of '.count($rows).' book(s) ready; files regenerating where stale.');
+    }
+
+    /** One Google Play book list and zip for the selected house books. */
+    public function googlePlay(Request $request, HouseCatalog $catalog, GooglePlayBulk $bulk): BinaryFileResponse
+    {
+        $books = $this->houseBooks($catalog, (array) $request->query('books', []));
+
+        return response()->download($bulk->zip($books), 'google-play-house-'.now()->format('Y-m-d').'.zip', ['Content-Type' => 'application/zip'])
+            ->deleteFileAfterSend();
+    }
+
+    /** One KDP guided page per selected house book, in catalog order. */
+    public function kdpChecklist(Request $request, HouseCatalog $catalog, KdpGuide $kdp): Response
+    {
+        $books = $this->houseBooks($catalog, (array) $request->query('books', []));
+
+        return Inertia::render('Publish/KdpChecklist', $kdp->checklist($books, route('admin.house.index')));
+    }
+
     // ── Internals ───────────────────────────────────────────────────────
+
+    /**
+     * The selected books, every one a house book, in the order asked.
+     *
+     * @param  list<mixed>  $ids
+     * @return Collection<int, Book>
+     */
+    private function houseBooks(HouseCatalog $catalog, array $ids)
+    {
+        $ids = array_values(array_unique(array_slice(array_map('intval', $ids), 0, 200)));
+        abort_if($ids === [], 404);
+
+        $books = Book::with('user', 'product')->whereIn('id', $ids)->get()
+            ->sortBy(fn (Book $b) => array_search($b->id, $ids, true))->values();
+
+        abort_if($books->count() !== count($ids), 404);
+        $books->each(fn (Book $book) => $catalog->assertHouseBook($book));
+
+        return $books;
+    }
 
     /** @return array{books: list<int>, to: string, drop_previous: bool, reason?: string} */
     private function transferInput(Request $request, bool $reason = false): array

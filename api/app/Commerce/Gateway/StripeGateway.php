@@ -49,6 +49,20 @@ class StripeGateway implements PaymentGateway
             'expires_at' => now()->addHour()->getTimestamp(),
         ];
 
+        // A paperback: the address and phone the printer needs, and one
+        // fixed shipping rate.
+        if (! empty($params['shipping'])) {
+            $payload['shipping_address_collection'] = ['allowed_countries' => array_values($params['shipping']['countries'])];
+            $payload['phone_number_collection'] = ['enabled' => true];
+            $payload['shipping_options'] = [[
+                'shipping_rate_data' => [
+                    'type' => 'fixed_amount',
+                    'display_name' => $params['shipping']['label'],
+                    'fixed_amount' => ['amount' => $params['shipping']['amount_cents'], 'currency' => $params['currency']],
+                ],
+            ]];
+        }
+
         if ($params['customer_email']) {
             $payload['customer_email'] = $params['customer_email'];
         }
