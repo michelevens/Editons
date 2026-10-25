@@ -26,7 +26,7 @@ use Illuminate\Support\Str;
 class Numbering
 {
     /** A caption's opening: the kind and the number as typed. */
-    public const CAPTION = '/^(Table|Tableau|Tabla|Tablo|Figure|Figura|Figi)\s+((?:[A-Z]\.?)?\d+(?:[.\-]\d+)*|\?)\.?$/u';
+    public const CAPTION = '/^(Table|Tableau|Tabla|Tablo|Figure|Figura|Figi)(?:\s+((?:[A-Z]\.?)?\d+(?:[.\-]\d+)*|\?))?\.?$/u';
 
     /** The caption word in English, French, Spanish or Kreyòl, by what it numbers. */
     private const CAPTION_KINDS = ['Table' => 'table', 'Tableau' => 'table', 'Tabla' => 'table', 'Tablo' => 'table',
@@ -61,7 +61,7 @@ class Numbering
             $result['sections'][$section->id] = ['prefix' => $prefix, 'offsets' => $offsets, 'running' => $running];
 
             $counts = ['table' => 0, 'figure' => 0, 'equation' => 0];
-            $nodes = self::apply($section->content['content'] ?? [], $scheme === 'continuous' ? '' : $prefix, $offsets, $counts);
+            $nodes = self::apply($section->content['content'] ?? [], $scheme === 'continuous' ? '' : $prefix, $offsets, $counts, $scheme === 'chapter');
 
             foreach (self::targetsIn($nodes) as $label => $target) {
                 $result['targets'][$label] = $target + ['section_id' => $section->id];
@@ -82,6 +82,7 @@ class Numbering
                     $result['captions'][] = [
                         'key' => 'cap-'.$section->id.'-'.(++$n),
                         'kind' => $kind[2],
+                        'word' => $kind[0],
                         'number' => $kind[1],
                         'text' => self::captionText($node),
                         'label' => $node['attrs']['label'] ?? null,
@@ -95,7 +96,58 @@ class Numbering
             }
         }
 
+        // What a reference typed as text can point at: "voir 1.3" (a
+        // heading numbered 1.3), "voir chapitre 4", and each exercise's
+        // worked answer (Textbook).
+        $result['headings'] = Textbook::numberedHeadings($sections);
+        $result['chapters'] = collect($prefixes)
+            ->filter(fn (string $prefix) => preg_match('/^\d+\.$/', $prefix))
+            ->mapWithKeys(fn (string $prefix, int $id) => [rtrim($prefix, '.') => $id])
+            ->all();
+        $result['exercises'] = Textbook::exerciseLinks($sections);
+
         return $result;
+    }
+
+    /**
+     * Captions whose typed number names a chapter they are not in ("Tableau
+     * 73.1" in an exam paper, "Table 3.2" in chapter 5): the export numbers
+     * them from position, so the print checks say the typed numbers are
+     * not what will print, and where to look.
+     *
+     * @param  Collection<int, ManuscriptSection>  $sections  in reading order
+     * @return list<array{section: string, typed: string, prints: string}>
+     */
+    public static function typedMismatches(Collection $sections): array
+    {
+        $book = self::forBook($sections);
+        $issues = [];
+
+        foreach ($sections as $section) {
+            $place = $book['sections'][$section->id] ?? null;
+
+            if ($place === null || $book['scheme'] !== 'chapter') {
+                continue;
+            }
+
+            foreach ($section->content['content'] ?? [] as $node) {
+                $kind = self::captionKind($node);
+
+                if (! $kind || ! preg_match('/^((?:[A-Z]|\d+)(?:\.\d+)*)\.\d+$/', $kind[1], $m)) {
+                    continue;
+                }
+
+                if ($m[1].'.' !== $place['prefix']) {
+                    $issues[] = [
+                        'section' => $section->title,
+                        'typed' => $kind[0].' '.$kind[1],
+                        'prints' => $place['prefix'] === '' ? $kind[0].'.' : $kind[0].' '.$place['prefix'].'…',
+                    ];
+                }
+            }
+        }
+
+        return $issues;
     }
 
     /** A caption's words after its "Table 4.2" label. */
@@ -241,24 +293,27 @@ class Numbering
      * @param  array<string, int>  $counts  filled with how many of each were numbered
      * @return array<int, mixed>
      */
-    public static function apply(array $nodes, string $prefix, array $offsets = [], array &$counts = []): array
+    public static function apply(array $nodes, string $prefix, array $offsets = [], array &$counts = [], bool $byChapter = false): array
     {
         $counts = ['table' => 0, 'figure' => 0, 'equation' => 0];
-        $own = [];
 
         foreach ($nodes as $i => $node) {
             if ($kind = self::captionKind($node)) {
                 $key = $kind[2];
 
-                // An unnumbered section (front matter, a diagnostic test)
-                // keeps the prefix its author chose, "Tableau 0.2" or
-                // "Table D.1", and only the count after it follows position.
-                if ($prefix === '' && preg_match('/^((?:[A-Z]|\d+)(?:\.\d+)*)\.\d+$/', $kind[1], $m)) {
-                    $own[$key][$m[1]] = ($own[$key][$m[1]] ?? 0) + 1;
-                    $number = $m[1].'.'.$own[$key][$m[1]];
-                } else {
-                    $number = $prefix.(($offsets[$key] ?? 0) + ++$counts[$key]);
+                // In a book numbered by chapter, a section that is not a
+                // numbered chapter (front matter, a diagnostic test, an
+                // exam paper) has no number to give its captions, and they
+                // print unnumbered: "Tableau." Trusting the prefix an author
+                // typed there printed "Tableau 73.1" (a file's number) and
+                // "Tableau 0.1" in three front-matter sections at once.
+                if ($byChapter && $prefix === '') {
+                    $nodes[$i]['content'][0]['text'] = $kind[0].'.';
+
+                    continue;
                 }
+
+                $number = $prefix.(($offsets[$key] ?? 0) + ++$counts[$key]);
                 // A full stop typed after the number is kept: "Table 4.2." is a
                 // house style, not a mistake.
                 $stop = str_ends_with(trim((string) $node['content'][0]['text']), '.') ? '.' : '';
@@ -299,7 +354,7 @@ class Numbering
             return null;
         }
 
-        return preg_match(self::CAPTION, trim((string) ($first['text'] ?? '')), $m) ? [$m[1], $m[2], self::CAPTION_KINDS[$m[1]]] : null;
+        return preg_match(self::CAPTION, trim((string) ($first['text'] ?? '')), $m) ? [$m[1], $m[2] ?? '', self::CAPTION_KINDS[$m[1]]] : null;
     }
 
     /**
@@ -320,7 +375,7 @@ class Numbering
             }
 
             if ($kind = self::captionKind($node)) {
-                $targets[$label] = ['kind' => $kind[2], 'text' => $kind[0].' '.$kind[1]];
+                $targets[$label] = ['kind' => $kind[2], 'text' => trim($kind[0].' '.$kind[1])];
             } elseif (($node['type'] ?? '') === 'blockMath'
                 && preg_match('/\\\\tag\{([^{}]*)\}/u', (string) ($node['attrs']['latex'] ?? ''), $m)) {
                 $targets[$label] = ['kind' => 'equation', 'text' => 'Equation ('.$m[1].')'];
