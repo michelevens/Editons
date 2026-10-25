@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Écrivain Prépa — corrections et mises à jour</title>
+<meta name="description" content="Écrivain Prépa : dix-neuf livres de préparation aux examens d'État haïtiens (9e AF et Bac NS4). Corrections, mises à jour et contact.">
+
+<meta property="og:title" content="Écrivain Prépa — corrections et mises à jour">
+<meta property="og:description" content="Les dix-neuf livres de la collection, leurs corrections et le contact de l'éditeur.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ecrivain.ai/prepa/">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:image" content="https://ecrivain.ai/brand/open-graph.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- Brand marks from ecrivain-brand-assets. -->
+<link rel="icon" href="/brand/symbol.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<meta name="theme-color" content="#2166F5">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* Brand colours from ecrivain-brand-assets/brand/tokens.json — the site, the
+   app and the logo are the same blue. Mobile first: the phone layout is the
+   base, wider screens add columns. Everything shown as working is in the
+   product today; what is not is listed as coming, with the same honesty the
+   app itself uses ("Sample" reviews, "not built yet"). */
+:root{
+  --bg:#F8FAFC; --surface:#FFFFFF; --ink:#10223D; --body:#475569;
+  --muted:#64748B; --faint:#94A3B8; --line:#E2E8F0; --line-soft:#EEF2F7;
+  --brand:#2166F5; --brand-deep:#1748C4; --brand-tint:#F5F8FF; --brand-pale:#A9C4FB;
+  --dark:#0F172A; --dark-2:#1E293B;
+  --ok:#22AD7B; --ok-tint:#ECFDF5; --warn:#B45309; --warn-tint:#FFFBEB;
+  --r:10px; --r-lg:14px; --r-xl:20px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.06);
+  --shadow:0 18px 40px -22px rgba(15,23,42,.35);
+  --shadow-cta:0 10px 24px -12px rgba(33,102,245,.7);
+  --pad:64px;
+}
+@media(min-width:900px){:root{--pad:100px}}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--body);
+  font:400 16px/1.65 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+h1,h2,h3,h4{
+  font-family:"Bricolage Grotesque",Inter,system-ui,sans-serif;
+  color:var(--ink);margin:0;font-weight:800;letter-spacing:-.03em;line-height:1.08;
+}
+h1{font-size:clamp(36px,7.4vw,64px)}
+h2{font-size:clamp(28px,5vw,42px)}
+h3{font-size:18px;font-weight:700;letter-spacing:-.015em;line-height:1.3}
+p{margin:0}
+a{color:inherit;text-decoration:none}
+/* height:auto, or the width/height attributes (there to reserve space while
+   loading) fix the height and the image is stretched or cropped. */
+img{max-width:100%;height:auto;display:block}
+ul{margin:0;padding:0;list-style:none}
+.wrap{max-width:1160px;margin:0 auto;padding:0 20px}
+@media(min-width:640px){.wrap{padding:0 28px}}
+section{padding:var(--pad) 0}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-deep);margin-bottom:12px}
+.center{text-align:center}
+.lede{font-size:17px;line-height:1.65;color:var(--muted);max-width:62ch}
+@media(min-width:900px){.lede{font-size:18px}}
+.center .lede{margin-left:auto;margin-right:auto}
+.mt-s{margin-top:14px}.mt{margin-top:24px}.mt-l{margin-top:40px}
+.alt{background:var(--surface);border-block:1px solid var(--line)}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:16px;top:16px;z-index:100;background:var(--surface);color:var(--ink);padding:10px 16px;border-radius:var(--r);box-shadow:var(--shadow)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:6px}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;
+  font:600 15px Inter,sans-serif;padding:11px 20px;border-radius:var(--r);border:1px solid transparent;cursor:pointer;transition:.16s ease}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:var(--shadow-cta)}
+.btn-primary:hover{background:var(--brand-deep)}
+.btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow-sm)}
+.btn-ghost:hover{border-color:var(--brand-pale);color:var(--brand-deep)}
+.btn-white{background:#fff;color:var(--brand-deep)}
+.btn-dark{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.24)}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.cta-row .btn{flex:1 1 200px}
+@media(min-width:640px){.cta-row .btn{flex:0 0 auto}}
+
+/* ---------- nav ---------- */
+header.nav{position:sticky;top:0;z-index:50;background:rgba(248,250,252,.9);
+  backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:24px;height:62px}
+.logo{display:flex;align-items:center;gap:9px;font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.02em}
+.logo img{width:30px;height:30px}
+.nav-links{display:none;gap:24px;font-size:14.5px}
+.nav-links a:hover{color:var(--ink)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.nav-right .signin{font-size:15px;font-weight:600;color:var(--ink);padding:10px 6px}
+.nav-right .btn{min-height:40px;padding:8px 16px;font-size:14.5px}
+@media(min-width:1240px){.nav-links{display:flex}}
+.nav-links a{white-space:nowrap}
+/* The phone menu: a <details> sheet, so it works without JavaScript. */
+.menu{position:relative}
+.menu summary{list-style:none;display:grid;place-items:center;width:44px;height:44px;border-radius:var(--r);cursor:pointer;color:var(--ink)}
+.menu summary::-webkit-details-marker{display:none}
+.menu[open] summary{background:var(--brand-tint)}
+.menu-sheet{position:fixed;left:0;right:0;top:62px;background:var(--surface);border-bottom:1px solid var(--line);
+  box-shadow:var(--shadow);padding:8px 20px 20px}
+.menu-sheet a{display:flex;align-items:center;min-height:48px;font-size:17px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line-soft)}
+.menu-sheet .btn{margin-top:16px;width:100%;color:#fff;border:0}
+@media(min-width:1240px){.menu{display:none}}
+@media(max-width:999px){.nav-right .btn.desk{display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:44px 0 var(--pad)}
+.hero-grid{display:grid;gap:44px;align-items:center}
+@media(min-width:1000px){.hero{padding:76px 0 var(--pad)}.hero-grid{grid-template-columns:1fr 1.05fr;gap:52px}}
+.hero h1{margin-bottom:18px}
+.trust{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:22px;font-size:14px;color:var(--muted)}
+.trust span{display:flex;align-items:center;gap:7px}
+.tick{color:var(--ok);flex:none}
+.stage{position:relative;padding-bottom:0}
+.browser{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(15,23,42,.35)}
+.browser-bar{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line-soft);background:#FCFDFE}
+.browser-bar i{width:9px;height:9px;border-radius:99px;background:#E2E8F0}
+.browser-bar span{margin-left:8px;font-size:11.5px;color:var(--faint)}
+.phone{width:min(64vw,250px);border-radius:34px;padding:9px;background:#0B1322;box-shadow:0 30px 60px -24px rgba(15,23,42,.55)}
+.phone img{border-radius:26px;width:100%;aspect-ratio:390/844;object-fit:cover;object-position:top}
+.stage .phone{position:absolute;right:-18px;bottom:-44px;width:min(24vw,158px);padding:7px;border-radius:28px}
+.stage .phone img{border-radius:22px}
+@media(max-width:999px){.stage .browser{display:none}.stage{display:flex;justify-content:center}.stage .phone{position:static;width:min(70vw,270px)}}
+
+/* ---------- shelf (the books made in Ecrivain) ---------- */
+.shelf-band{background:linear-gradient(180deg,var(--surface),var(--bg));border-block:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:28px}
+@media(min-width:800px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 18px}
+.stat b{display:block;font:800 30px "Bricolage Grotesque",sans-serif;color:var(--ink);letter-spacing:-.03em;line-height:1.1}
+.stat span{font-size:13.5px;color:var(--muted)}
+.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:8px 20px 26px;margin:28px -20px 0;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.shelf::-webkit-scrollbar{display:none}
+.shelf figure{margin:0;flex:0 0 auto;width:150px;scroll-snap-align:start}
+@media(min-width:640px){.shelf{margin:28px -28px 0;padding:8px 28px 26px}.shelf figure{width:176px}}
+.shelf img{width:100%;aspect-ratio:400/640;object-fit:cover;border-radius:4px 10px 10px 4px;
+  box-shadow:-3px 0 0 #0B1322 inset,0 18px 30px -16px rgba(15,23,42,.55);background:#E2E8F0}
+.shelf figcaption{margin-top:9px;font-size:12.5px;line-height:1.35;color:var(--muted)}
+.shelf figcaption b{display:block;color:var(--ink);font-size:13px}
+.hint{font-size:13px;color:var(--faint);display:flex;align-items:center;gap:6px}
+@media(min-width:1000px){.hint{display:none}}
+
+/* ---------- cards / pillars ---------- */
+.grid{display:grid;gap:16px}
+@media(min-width:700px){.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1000px){.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:700px) and (max-width:999px){.g4{grid-template-columns:repeat(2,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-sm)}
+.card h3{margin-bottom:8px}
+.card p{font-size:15px;color:var(--muted);line-height:1.6}
+.ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--brand-tint);color:var(--brand-deep);margin-bottom:14px}
+.ico svg{width:20px;height:20px}
+.checks{margin-top:12px}
+.checks li{display:flex;gap:9px;padding:5px 0;font-size:14.5px;line-height:1.5;color:var(--body)}
+.checks li::before{content:"";flex:none;width:16px;height:16px;margin-top:3px;border-radius:99px;background:var(--ok-tint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322AD7B' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/10px no-repeat}
+
+/* ---------- phone section ---------- */
+.split{display:grid;gap:36px;align-items:center}
+@media(min-width:1000px){.split{grid-template-columns:1fr 1.1fr;gap:56px}.split.rev > :first-child{order:2}}
+.phones{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 20px 30px;margin:0 -20px;scrollbar-width:none}
+.phones::-webkit-scrollbar{display:none}
+.phones figure{margin:0;flex:0 0 auto;scroll-snap-align:center}
+.phones .phone{width:220px}
+.phones figcaption{text-align:center;margin-top:12px;font-size:13.5px;color:var(--muted);font-weight:500}
+@media(min-width:1000px){.phones{overflow:visible;margin:0;padding:0;justify-content:center}.phones figure{flex:0 1 205px;min-width:0}.phones .phone{width:100%;border-radius:clamp(22px,2.4vw,34px)}.phones figure:nth-child(2){transform:translateY(-22px)}}
+.feature-list{display:grid;gap:14px;margin-top:26px}
+.feature-list li{display:flex;gap:14px;align-items:flex-start}
+.feature-list .ico{margin:0;flex:none}
+.feature-list b{display:block;color:var(--ink);font-size:16px}
+.feature-list span{font-size:15px;color:var(--muted)}
+
+/* ---------- dark band ---------- */
+.band{background:var(--dark);color:#CBD5E1}
+.band h2,.band h3{color:#fff}
+.band .eyebrow{color:var(--brand-pale)}
+.band .lede{color:#94A3B8}
+.band .card{background:var(--dark-2);border-color:#2B3954;box-shadow:none}
+.band .card p,.band .checks li{color:#A6B3C6}
+.band .ico{background:rgba(99,140,255,.16);color:var(--brand-pale)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+.chips span{font-size:13.5px;padding:7px 12px;border-radius:99px;background:var(--brand-tint);color:var(--brand-deep);font-weight:600;border:1px solid #DCE6FD}
+.band .chips span{background:rgba(255,255,255,.06);color:#DCE5F5;border-color:rgba(255,255,255,.12)}
+.formats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:22px}
+@media(min-width:640px){.formats{grid-template-columns:repeat(3,1fr)}}
+.formats div{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--surface)}
+.formats b{display:block;color:var(--ink);font-size:15px}
+.formats span{font-size:13px;color:var(--muted);line-height:1.4;display:block;margin-top:2px}
+
+/* ---------- print section ---------- */
+.wrap-shot{border-radius:12px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(15,23,42,.45);border:1px solid var(--line);background:#fff}
+.numbers{width:100%;border-collapse:collapse;margin-top:18px;font-size:14.5px}
+.numbers th,.numbers td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+.numbers th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.numbers td b{color:var(--ink)}
+.split > *{min-width:0}
+@media(max-width:640px){.numbers thead{display:none}.numbers,.numbers tbody,.numbers tr{display:block}.numbers td{display:flex;justify-content:space-between;gap:12px;padding:9px 2px}.numbers td::before{content:attr(data-label);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}}
+.source{font-size:12.5px;color:var(--faint);margin-top:10px}
+
+/* ---------- comparison ---------- */
+.cmp{width:100%;border-collapse:separate;border-spacing:0;font-size:14.5px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.cmp th,.cmp td{padding:12px 14px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+.cmp thead th{background:#FCFDFE;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.cmp thead th:last-child{color:var(--brand-deep)}
+.cmp td:last-child{color:var(--ink);font-weight:500}
+.cmp tr:last-child td{border-bottom:0}
+.cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:32px}
+@media(max-width:640px){.cmp{min-width:560px}}
+
+/* ---------- language switch ---------- */
+.lang{font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:6px 10px;min-height:32px;display:inline-flex;align-items:center}
+.lang:hover{color:var(--brand-deep);border-color:var(--brand-pale)}
+
+/* ---------- steps ---------- */
+.step-n{width:32px;height:32px;border-radius:99px;display:grid;place-items:center;background:var(--ink);color:#fff;font:700 13px Inter,sans-serif;margin-bottom:12px}
+
+/* ---------- status chips ---------- */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:99px}
+.chip-now{background:var(--ok-tint);color:var(--ok)}
+.chip-soon{background:var(--warn-tint);color:var(--warn)}
+.soon li{display:flex;gap:10px;padding:6px 0;font-size:14.5px;color:var(--muted)}
+.soon li::before{content:"○";color:var(--faint);flex:none}
+
+/* ---------- pricing ---------- */
+.prices{display:grid;gap:18px;align-items:start}
+@media(min-width:1000px){.prices{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:999px){.prices{max-width:460px;margin-left:auto;margin-right:auto}}
+.price{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:26px;box-shadow:var(--shadow-sm)}
+.price.featured{background:var(--dark);border-color:var(--dark);color:#CBD5E1;box-shadow:0 26px 50px -26px rgba(15,23,42,.6)}
+.price.featured h3,.price.featured .amount{color:#fff}
+.price.featured .checks li{color:#CBD5E1}
+.badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;font:700 10.5px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:99px;white-space:nowrap}
+.amount{font:800 42px "Bricolage Grotesque",sans-serif;color:var(--ink);letter-spacing:-.04em;line-height:1}
+.per{font-size:14px;color:var(--muted);font-weight:500}
+.price .btn{width:100%;margin-top:20px}
+
+/* ---------- faq ---------- */
+.faq{max-width:800px;margin:0 auto}
+details.q{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:0 18px;margin-bottom:10px}
+details.q[open]{border-color:var(--brand-pale)}
+details.q summary{font:600 16px Inter,sans-serif;color:var(--ink);cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px;align-items:center;min-height:58px;padding:12px 0}
+details.q summary::-webkit-details-marker{display:none}
+details.q summary::after{content:"+";color:var(--brand);font-size:22px;line-height:1;flex:none}
+details.q[open] summary::after{content:"\2212"}
+details.q p{padding:0 0 18px;font-size:15px;color:var(--muted);line-height:1.65}
+
+/* ---------- final cta / footer ---------- */
+.final{background:linear-gradient(135deg,#10223D,#2166F5 58%,#5B8DF8);border-radius:var(--r-xl);padding:44px 24px;text-align:center;color:#fff}
+@media(min-width:700px){.final{padding:60px 40px}}
+.final h2{color:#fff}
+.final p{color:#DCE6FF;margin:14px auto 0;max-width:52ch;font-size:17px}
+.final .cta-row{justify-content:center}
+footer{background:var(--dark);color:#94A3B8;padding:56px 0 32px;font-size:14.5px}
+.foot-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px}
+@media(min-width:820px){.foot-grid{grid-template-columns:1.6fr repeat(3,1fr)}}
+.foot-grid > :first-child{grid-column:1/-1}
+@media(min-width:820px){.foot-grid > :first-child{grid-column:auto}}
+footer h4{color:#fff;font:700 12px Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;margin:0 0 12px}
+footer li a{display:inline-block;padding:6px 0}
+footer a:hover{color:#fff}
+.foot-bottom{border-top:1px solid #1E293B;margin-top:36px;padding-top:22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:#64748B}
+
+/* ---------- phone CTA bar ---------- */
+/* What the app's tab bar is to the studio: the one action, under the thumb. */
+.mobile-cta{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  background:rgba(255,255,255,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line)}
+.mobile-cta .btn{flex:1}
+@media(min-width:1000px){.mobile-cta{display:none}}
+@media(max-width:999px){body{padding-bottom:calc(70px + env(safe-area-inset-bottom))}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Aller au contenu</a>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="/fr/"><img src="/brand/symbol.svg" alt="" width="30" height="30"> Ecrivain</a>
+    <div class="nav-right">
+      <a class="signin" href="/fr/">Le studio Ecrivain</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Écrivain Prépa · Haïti</p>
+    <h1>Corrections et mises à jour</h1>
+    <p class="lede">
+      Dix-neuf livres de préparation aux examens d’État haïtiens&nbsp;: sept pour la
+      9e Année Fondamentale, douze pour le Baccalauréat (NS4), en français et en
+      kreyòl. Cette page publie les corrections apportées aux livres après leur
+      parution. Si vous trouvez une erreur — dans un cours, un exercice, un
+      corrigé ou la transcription d’une épreuve officielle —, écrivez-nous.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:hello@ecrivain.ai?subject=%C3%89crivain%20Pr%C3%A9pa%20%E2%80%94%20correction">Signaler une erreur</a>
+      <a class="btn btn-ghost" href="#corrections">Voir les corrections</a>
+    </div>
+    <p class="source">Indiquez le titre du livre, la page et ce qui vous semble faux. Nous répondons à hello@ecrivain.ai.</p>
+  </div>
+</section>
+
+<section id="corrections" class="alt">
+  <div class="wrap">
+    <p class="eyebrow">Édition 2026</p>
+    <h2>Corrections publiées</h2>
+    <p class="lede mt-s">Chaque correction est datée et indique la page concernée. Les épreuves officielles sont reproduites telles qu’elles ont été publiées&nbsp;; quand une épreuve contient elle-même une erreur, le livre la signale dans une note de l’éditeur sans la modifier.</p>
+    <div class="cmp-wrap">
+      <table class="cmp" style="min-width:0">
+        <thead><tr><th scope="col">Livre</th><th scope="col">Corrections</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Anglais — 9e AF</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Kreyòl — 9e AF</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Espagnol — 9e AF</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Français — 9e AF</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Mathématiques — 9e AF</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Sciences expérimentales — 9e AF</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Sciences sociales — 9e AF</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Anglais — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Arts et Musique — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Chimie — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Kreyòl — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Économie — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Espagnol — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Informatique — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Mathématiques — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Philosophie — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Physique — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">Histoire et Géographie — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+          <tr><th scope="row">SVT — Bac NS4</th><td>Aucune pour l’instant.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="source">Dernière mise à jour&nbsp;: 25 octobre 2026.</p>
+  </div>
+</section>
+
+<section id="books" class="shelf-band">
+  <div class="wrap">
+    <p class="eyebrow">La collection</p>
+    <h2>Les dix-neuf livres</h2>
+    <div class="shelf" role="list" aria-label="Livres de la collection Écrivain Prépa">
+      <figure role="listitem"><img src="/books/9e-anglais.jpg?v=haiti" width="400" height="640" alt="Couverture : Anglais — 9e AF" loading="lazy"><figcaption><b>Anglais</b>9e AF</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-creole.jpg?v=haiti" width="400" height="640" alt="Couverture : Kreyòl — 9e AF" loading="lazy"><figcaption><b>Kreyòl</b>9e AF</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-espagnol.jpg?v=haiti" width="400" height="640" alt="Couverture : Espagnol — 9e AF" loading="lazy"><figcaption><b>Espagnol</b>9e AF</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-francais.jpg?v=haiti" width="400" height="640" alt="Couverture : Français — 9e AF" loading="lazy"><figcaption><b>Français</b>9e AF</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-math.jpg?v=haiti" width="400" height="640" alt="Couverture : Mathématiques — 9e AF" loading="lazy"><figcaption><b>Mathématiques</b>9e AF</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-sciences-exp.jpg?v=haiti" width="400" height="640" alt="Couverture : Sciences expérimentales — 9e AF" loading="lazy"><figcaption><b>Sciences expérimentales</b>9e AF</figcaption></figure>
+      <figure role="listitem"><img src="/books/9e-sciences-sociales.jpg?v=haiti" width="400" height="640" alt="Couverture : Sciences sociales — 9e AF" loading="lazy"><figcaption><b>Sciences sociales</b>9e AF</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-anglais.jpg?v=haiti" width="400" height="640" alt="Couverture : Anglais — Bac NS4" loading="lazy"><figcaption><b>Anglais</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-art-musique.jpg?v=haiti" width="400" height="640" alt="Couverture : Arts et Musique — Bac NS4" loading="lazy"><figcaption><b>Arts et Musique</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-chimie.jpg?v=haiti" width="400" height="640" alt="Couverture : Chimie — Bac NS4" loading="lazy"><figcaption><b>Chimie</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-creole.jpg?v=haiti" width="400" height="640" alt="Couverture : Kreyòl — Bac NS4" loading="lazy"><figcaption><b>Kreyòl</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-economie.jpg?v=haiti" width="400" height="640" alt="Couverture : Économie — Bac NS4" loading="lazy"><figcaption><b>Économie</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-espagnol.jpg?v=haiti" width="400" height="640" alt="Couverture : Espagnol — Bac NS4" loading="lazy"><figcaption><b>Espagnol</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-informatique.jpg?v=haiti" width="400" height="640" alt="Couverture : Informatique — Bac NS4" loading="lazy"><figcaption><b>Informatique</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-math.jpg?v=haiti" width="400" height="640" alt="Couverture : Mathématiques — Bac NS4" loading="lazy"><figcaption><b>Mathématiques</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-philosophie.jpg?v=haiti" width="400" height="640" alt="Couverture : Philosophie — Bac NS4" loading="lazy"><figcaption><b>Philosophie</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-physique.jpg?v=haiti" width="400" height="640" alt="Couverture : Physique — Bac NS4" loading="lazy"><figcaption><b>Physique</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-sciences-sociales.jpg?v=haiti" width="400" height="640" alt="Couverture : Histoire et Géographie — Bac NS4" loading="lazy"><figcaption><b>Histoire et Géographie</b>Bac NS4</figcaption></figure>
+      <figure role="listitem"><img src="/books/ns4-svt.jpg?v=haiti" width="400" height="640" alt="Couverture : SVT — Bac NS4" loading="lazy"><figcaption><b>SVT</b>Bac NS4</figcaption></figure>
+    </div>
+    <p class="hint">Faites défiler pour voir les dix-neuf <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></p>
+    <p class="source">Ouvrage indépendant, sans lien officiel avec le MENFP. Les épreuves officielles sont reproduites avec mention de la source.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom">
+      <span>© <span id="yr">2026</span> Écrivain Prépa · réalisé avec <a href="/fr/" style="color:inherit">Ecrivain</a></span>
+      <span><a href="mailto:hello@ecrivain.ai" style="color:inherit">hello@ecrivain.ai</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
