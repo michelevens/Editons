@@ -58,7 +58,7 @@ export default function AdminLayout({ title, active, children, actions = null, s
     const [open, setOpen] = useState(false);
 
     return (
-        <div className="flex h-dvh overflow-hidden bg-bg-app font-ui text-text-body" data-a="admin:shell">
+        <div className="relative flex h-dvh overflow-hidden bg-bg-app font-ui text-text-body" data-a="admin:shell">
             <Head title={`${title} · Admin`} />
 
             <a

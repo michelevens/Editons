@@ -547,7 +547,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     };
 
     return (
-        <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
+        <div className="relative flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title={book.title} />
 
             {!focused && (
@@ -935,8 +935,12 @@ function Panel({ children }) {
     // min-h-0 flex-1 rather than h-full: main is a flex column now that the
     // credit strip sits above the panes, and h-full in a flex child measures
     // against the wrong box. Focusable so a keyboard can scroll it.
+    // Relative, so an absolutely positioned descendant (an sr-only label, a
+    // hidden file input) is laid out and clipped in here: without it, one deep
+    // in a long panel escapes to the page and makes the whole page scroll on
+    // into blank space below the studio.
     return (
-        <div tabIndex={0} className="min-h-0 flex-1 overflow-y-auto border-border-default bg-bg-surface sm:rounded-panel sm:border">
+        <div tabIndex={0} className="relative min-h-0 flex-1 overflow-y-auto border-border-default bg-bg-surface sm:rounded-panel sm:border">
             {children}
         </div>
     );
