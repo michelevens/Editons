@@ -757,7 +757,9 @@ class DocumentRenderer
             // A formula wider than the measure is scaled down whole. Left to
             // the stylesheet's max-width, only its width shrank and the
             // letters came out condensed.
-            $room = $this->measure === null ? null : $this->measure[0] - ($display ? 6 * $this->measure[1] : 0);
+            // An inline one leaves an em for the punctuation glued after it,
+            // which otherwise went to the next line alone.
+            $room = $this->measure === null ? null : $this->measure[0] - ($display ? 6 : 1) * $this->measure[1];
 
             // A display too wide to set at 85% of its size is broken at its
             // relations (or, failing those, its + and −) and set as aligned
@@ -1597,6 +1599,9 @@ class DocumentRenderer
             // limits, or many of them) stretched its spaces to gaps of a
             // centimetre; it is set ragged instead.
             $this->mathMode === 'svg' && $this->mathRich($children) => ' class="math-rich"',
+            // Lines the author broke by hand (steps of a calculation, an
+            // address) are not justified: dompdf stretched each one.
+            $this->mathMode === 'svg' && in_array('hardBreak', array_column(array_filter($children, 'is_array'), 'type'), true) => ' class="math-rich"',
             default => '',
         };
     }
@@ -1607,7 +1612,11 @@ class DocumentRenderer
         $formulas = array_values(array_filter($children, fn ($c) => is_array($c) && ($c['type'] ?? '') === 'inlineMath'));
         $tall = array_filter($formulas, fn ($c) => preg_match('/\\\\(d?frac|displaystyle|sum|int|lim|prod|sqrt\{[^}]*\\\\frac)/', (string) ($c['attrs']['latex'] ?? '')));
 
-        return count($formulas) >= 5 || ($tall !== [] && count($formulas) >= 2);
+        // A formula of half a line or more cannot sit inside a justified
+        // line either: the words before it were stretched across the measure.
+        $long = array_filter($formulas, fn ($c) => mb_strlen((string) ($c['attrs']['latex'] ?? '')) > 60);
+
+        return count($formulas) >= 5 || ($tall !== [] && count($formulas) >= 2) || $long !== [];
     }
 
     /**

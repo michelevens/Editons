@@ -1762,7 +1762,7 @@ class PrintBook
            never ends a page. */
         p.run-in, p.lead-in { page-break-after: avoid; }
         p.math-rich { text-align: left; }
-        p.run-in { text-indent: 0; margin-top: .45em; }
+        p.run-in { text-indent: 0; margin-top: .45em; text-align: left; }
 
         /* Checklists: an empty square to tick, no bullet. */
         ul.checklist { list-style: none; margin-left: .2em; }
