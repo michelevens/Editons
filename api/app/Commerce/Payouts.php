@@ -26,6 +26,14 @@ final class Payouts
      */
     public function record(User $seller, array $data, string $reason, User $actor): Payout
     {
+        // A house account's sales are the platform's revenue (ADR — house
+        // catalog): there is nobody to pay.
+        if ($seller->isHouse()) {
+            throw ValidationException::withMessages([
+                'amount' => 'This is a house publisher account: its sales are platform revenue, and no royalty is paid out.',
+            ]);
+        }
+
         return AdminAudit::transaction(function () use ($seller, $data, $reason, $actor) {
             // Under the seller's row lock, so two payouts recorded at once
             // cannot both fit under the same balance.

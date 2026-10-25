@@ -91,7 +91,8 @@ final class AudienceRules
 
         $query = User::query()
             ->whereNull('suspended_at')
-            ->whereNull('platform_role');
+            ->whereNull('platform_role')
+            ->exceptHouse();
 
         if ($r['plans'] !== []) {
             $query->whereIn('plan', $r['plans']);

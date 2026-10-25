@@ -63,6 +63,7 @@ final class Funnel
     {
         return DB::table('users')
             ->whereNull('platform_role')
+            ->where('account_kind', '!=', 'house')
             ->where('created_at', '>=', $since)
             ->select(['id', 'created_at', 'signup_source'])
             ->selectRaw('exists (select 1 from books where books.user_id = users.id) as first_book')

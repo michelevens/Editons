@@ -63,7 +63,9 @@ class SendRoyaltyStatements extends Command
         $sent = 0;
         $skipped = 0;
 
-        foreach (User::whereIn('id', $sellerIds)->orderBy('id')->get() as $seller) {
+        // House accounts' sales are the platform's revenue: no statement,
+        // and nobody to send one to (ADR — house catalog).
+        foreach (User::whereIn('id', $sellerIds)->exceptHouse()->orderBy('id')->get() as $seller) {
             foreach (SalesReport::month($seller, $month) as $currency => $statement) {
                 $already = RoyaltyStatement::where('user_id', $seller->id)
                     ->whereDate('month', $month->toDateString())

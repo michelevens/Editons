@@ -8,6 +8,9 @@ use App\Journey\Scaffolder;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
+use App\Models\User;
+use App\Platform\House\House;
+use App\Platform\Impersonation;
 use App\Platform\Trust\MasterData;
 use App\Publishing\Anatomy;
 use App\Publishing\BookPart;
@@ -16,6 +19,7 @@ use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -47,9 +51,15 @@ class BookController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
+        // The House catalog shelf (ADR — house catalog): staff see the
+        // platform's own imprints' books here, as themselves. Never part of
+        // "All": they are not this person's books.
+        $house = $this->houseShelf($request);
+
         $visible = match ($filter) {
             'archived' => $all->where('status', 'archived'),
             'published' => $all->where('status', 'published'),
+            'house' => $house ?? collect(),
             'all' => $all,
             default => $all->where('status', '!=', 'archived'),
         };
@@ -61,7 +71,9 @@ class BookController extends Controller
                 'published' => $all->where('status', 'published')->count(),
                 'archived' => $all->where('status', 'archived')->count(),
                 'all' => $all->count(),
+                'house' => $house?->count(),
             ],
+            'house' => $house !== null ? ['console' => route('admin.house.index')] : null,
             'books' => $visible->values()->map(fn (Book $b) => [
                 'id' => $b->id,
                 'title' => $b->title,
@@ -73,6 +85,7 @@ class BookController extends Controller
                 'sections_count' => $b->sections_count,
                 'updated_at' => $b->updated_at->diffForHumans(),
                 'cover' => $b->coverFor(),
+                'house' => $house !== null && $b->user_id !== $request->user()->id && $house->contains('id', $b->id),
             ]),
             // The guided flow's options. Sent with the shelf so choosing a
             // type needs no extra request.
@@ -86,6 +99,31 @@ class BookController extends Controller
             'can_create' => $request->user()->canCreateBook(),
             'plan' => $request->user()->planLimits(),
         ]);
+    }
+
+    /**
+     * House books this person may open, or null when they are not staff.
+     *
+     * Read through the policy (App\Platform\House\House), so the shelf
+     * shows exactly what the studio would let them open.
+     */
+    private function houseShelf(Request $request): ?Collection
+    {
+        $user = $request->user();
+
+        if (! $user->isPlatformAdmin() || Impersonation::active($request)) {
+            return null;
+        }
+
+        return Book::whereIn('user_id', User::where('account_kind', 'house')->select('id'))
+            ->with('user:id,account_kind')
+            ->withCount('sections')
+            ->orderBy('series_name')
+            ->orderBy('series_number')
+            ->orderBy('title')
+            ->get()
+            ->filter(fn (Book $book) => $user->can('view', $book))
+            ->values();
     }
 
     /**
@@ -251,6 +289,14 @@ class BookController extends Controller
             // a section of the studio rather than always landing on the
             // manuscript.
             'pane' => $request->string('pane')->toString() ?: null,
+            // A house book (ADR — house catalog): the studio says so, and
+            // whose name its versions are saved under — the staff member's.
+            'house' => House::isHouseBook($book) ? [
+                'imprint' => $book->user->name,
+                'editor' => $request->user()->name,
+                'can_edit' => $request->user()->can('update', $book),
+                'console' => route('admin.house.index'),
+            ] : null,
             // The bottom-row Research card needs the library on first paint;
             // fetching it after mount would flash an empty card on every
             // chapter change.

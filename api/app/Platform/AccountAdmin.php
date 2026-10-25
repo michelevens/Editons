@@ -93,6 +93,8 @@ final class AccountAdmin
     /** Send the ordinary reset link, to the address on the account. */
     public function sendPasswordReset(User $target, User $actor): void
     {
+        $this->refuseHouse($target, 'A house publisher account has no password and receives no email.');
+
         AdminAudit::transaction(function () use ($target, $actor) {
             AdminAudit::record('account.password_reset_sent', $target, null, ['email' => $target->email], null, $actor);
 
@@ -238,6 +240,8 @@ final class AccountAdmin
             throw ValidationException::withMessages(['role' => 'An owner is demoted from the shell: php artisan platform:demote.']);
         }
 
+        $this->refuseHouse($target, 'A house publisher account cannot be staff: nobody signs in to it.', 'role');
+
         if ($target->platform_role === $role) {
             return;
         }
@@ -293,6 +297,14 @@ final class AccountAdmin
 
         if ($target->isPlatformOwner()) {
             throw ValidationException::withMessages(['reason' => 'Not on an owner account: owners are managed from the shell.']);
+        }
+    }
+
+    /** House publisher accounts (App\Platform\House) have no sign-in, mail or role. */
+    private function refuseHouse(User $target, string $message, string $field = 'reason'): void
+    {
+        if ($target->isHouse()) {
+            throw ValidationException::withMessages([$field => $message]);
         }
     }
 }

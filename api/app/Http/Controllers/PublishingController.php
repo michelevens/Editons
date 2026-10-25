@@ -8,6 +8,7 @@ use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
+use App\Platform\House\House;
 use App\Platform\Trust\MasterData;
 use App\Publishing\Exporter;
 use App\Publishing\SubmissionCheck;
@@ -230,7 +231,9 @@ class PublishingController extends Controller
 
         // The plan decides which formats are available. The method existed
         // and nothing called it, so every plan could export everything.
-        $this->entitlements->assertCanExport($request->user(), $this->planFormat($data['format']));
+        // A house book is held to the imprint's plan, not to the staff
+        // member's own (App\Platform\House\House::accountFor).
+        $this->entitlements->assertCanExport(House::accountFor($book, $request->user()), $this->planFormat($data['format']));
 
         // PDF and EPUB take minutes for a long book, so they render on a
         // worker and the screen polls; the small formats stay immediate.
@@ -300,7 +303,7 @@ class PublishingController extends Controller
             $user = $request->user();
 
             abort_unless(
-                $user->can('update', $book) && $user->canExportFormat($this->planFormat($export->format)),
+                $user->can('update', $book) && House::accountFor($book, $user)->canExportFormat($this->planFormat($export->format)),
                 410,
                 'That file is no longer stored. Ask the book\'s author to generate it again.',
             );

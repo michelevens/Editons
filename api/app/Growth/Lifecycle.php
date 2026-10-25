@@ -65,6 +65,7 @@ final class Lifecycle
         $query = User::query()
             ->whereNull('suspended_at')
             ->whereNull('platform_role')
+            ->exceptHouse()
             ->whereNotExists(fn ($q) => $q->select(DB::raw(1))->from('lifecycle_sends')
                 ->whereColumn('lifecycle_sends.user_id', 'users.id')
                 ->where('lifecycle_sends.lifecycle_campaign_id', $campaign->id));

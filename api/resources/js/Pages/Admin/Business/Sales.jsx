@@ -34,6 +34,11 @@ export default function Sales({ enabled, totals, totals_30d: totals30, daily, to
                             <Tile label="Refunded" value={money(t.refunded_cents, t.currency)} />
                             <Tile label="Payment fees (est.)" value={money(t.fee_cents, t.currency)} detail={`${fee.percent}% + ${fee.fixed_cents}¢ a charge`} />
                             <Tile label="Authors’ royalties" value={money(t.royalty_cents, t.currency)} detail={`Platform share ${Math.round(platformRate * 100)}% of net`} />
+                            <Tile
+                                label="Platform revenue"
+                                value={money(t.platform_cents, t.currency)}
+                                detail={t.house_cents > 0 ? `Includes ${money(t.house_cents, t.currency)} from house books` : 'After fees, royalties and partners'}
+                            />
                         </Tiles>
                     </div>
                 ))

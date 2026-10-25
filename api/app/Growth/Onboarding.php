@@ -53,6 +53,7 @@ final class Onboarding
     {
         $rows = $this->query()
             ->whereNull('users.platform_role')
+            ->where('users.account_kind', '!=', 'house')
             ->when($days, fn ($q) => $q->where('users.created_at', '>=', now()->subDays($days)))
             ->get();
 
@@ -106,6 +107,7 @@ final class Onboarding
 
         $query = $this->query()
             ->whereNull('users.platform_role')
+            ->where('users.account_kind', '!=', 'house')
             ->when($days, fn ($q) => $q->where('users.created_at', '>=', now()->subDays($days)));
 
         // Done everything before $step, not $step itself.

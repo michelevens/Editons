@@ -12,6 +12,7 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Models\User;
 use App\Platform\Ai\AiControls;
 use App\Platform\Features;
+use App\Platform\House\HouseMailGuard;
 use App\Platform\Ops\Heartbeats;
 use App\Platform\Ops\MailLogger;
 use App\Platform\PlatformSettings;
@@ -19,6 +20,7 @@ use App\Platform\TwoFactor;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -116,6 +118,10 @@ class AppServiceProvider extends ServiceProvider
                 request()->session()->put(EnsureAccountActive::SIGNED_IN_AT, now()->getTimestamp());
             }
         });
+
+        // House publisher accounts receive no email, whichever path a
+        // message took (Notify, a notification, a resend from the log).
+        Event::listen(MessageSending::class, fn (MessageSending $event) => HouseMailGuard::allows($event));
 
         // Owner-only console actions: plans, deductions, suspension, 2FA
         // resets, roles and settings. Support reads, takes notes, adds small

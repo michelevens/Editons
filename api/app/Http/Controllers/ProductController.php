@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Commerce\Commerce;
+use App\Commerce\Listing;
 use App\Commerce\Partners\Commissions;
 use App\Commerce\Partners\Program;
 use App\Commerce\Revenue;
@@ -28,9 +29,6 @@ use Illuminate\Validation\ValidationException;
  */
 class ProductController extends Controller
 {
-    /** Stripe's minimum charge in each supported currency, in minor units. */
-    private const MINIMUM_CENTS = ['usd' => 50, 'eur' => 50, 'cad' => 50, 'gbp' => 30];
-
     public function show(Request $request, Book $book): JsonResponse
     {
         $this->authorize('manage', $book);
@@ -120,33 +118,7 @@ class ProductController extends Controller
     /** @param  list<string>  $formats */
     private function assertSellable(Book $book, int $cents, string $currency, array $formats): void
     {
-        $errors = [];
-
-        if ($cents < (self::MINIMUM_CENTS[$currency] ?? 50)) {
-            $errors['price'] = 'Card payments need a price of at least '
-                .number_format((self::MINIMUM_CENTS[$currency] ?? 50) / 100, 2).' '.strtoupper($currency).'.';
-        }
-
-        if ($book->status === 'archived') {
-            $errors['published'] = 'Restore the book from the archive before selling it.';
-        }
-
-        if ($book->product?->isTakenDown()) {
-            $errors['published'] = 'Ecrivain has taken this store page down: '.$book->product->taken_down_reason.' Write to support from Help if you think it is a mistake.';
-        }
-
-        $missing = array_values(array_filter($formats, fn (string $format) => ! $this->readyExport($book, $format)));
-
-        if ($missing !== []) {
-            $errors['formats'] = 'Export '.implode(' and ', array_map(
-                fn (string $f) => BookExport::FORMATS[$f][0] ?? strtoupper($f),
-                $missing,
-            )).' on Export & Publish first: buyers download the latest export of each format.';
-        }
-
-        if ($errors !== []) {
-            throw ValidationException::withMessages($errors);
-        }
+        Listing::assertSellable($book, $cents, $currency, $formats);
     }
 
     /** @return array{price_cents: int, without: int, with: int, commission: int, fee: int} */
@@ -166,7 +138,7 @@ class ProductController extends Controller
 
     private function readyExport(Book $book, string $format): ?BookExport
     {
-        return $book->exports()->where('format', $format)->where('status', 'ready')->first();
+        return Listing::readyExport($book, $format);
     }
 
     /** @return array<string, mixed> */

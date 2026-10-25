@@ -119,6 +119,9 @@ final class Impersonation
             ! $admin->hasTwoFactor() => 'Turn on two-factor sign-in for your own account before viewing as anybody.',
             $admin->is($target) => 'That is your own account.',
             $target->isPlatformAdmin() => 'Platform staff accounts cannot be viewed as.',
+            // Nobody signs in to a house account, so there is no "as them" to
+            // see: the owner edits its books directly, as themselves.
+            $target->isHouse() => 'This is a house publisher account. Open its books from the House catalog instead.',
             $target->isSuspended() => 'This account is suspended. Reactivate it first if you need to see it.',
             default => null,
         };

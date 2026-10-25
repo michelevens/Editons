@@ -30,6 +30,7 @@ export const ADMIN_BUSINESS_NAV = [
     { key: 'billing', label: 'Billing', icon: 'card', route: 'admin.billing.index' },
     { key: 'plans', label: 'Plans', icon: 'layout', route: 'admin.plans.index' },
     { key: 'sales', label: 'Book sales', icon: 'sales', route: 'admin.sales.index' },
+    { key: 'house', label: 'House catalog', icon: 'lib', route: 'admin.house.index' },
     { key: 'partners', label: 'Partners', icon: 'coin', route: 'admin.partners.index' },
     { key: 'growth', label: 'Growth', icon: 'rocket', route: 'admin.growth.acquisition' },
     { key: 'invitations', label: 'Invitations', icon: 'mega', route: 'admin.invitations.index' },

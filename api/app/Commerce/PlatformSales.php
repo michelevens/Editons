@@ -24,6 +24,15 @@ use Illuminate\Support\Facades\DB;
  *
  * Money is never added across currencies: every total is per currency.
  * Buyers' addresses are masked.
+ *
+ * House books (ADR — house catalog): an item whose seller at the time of the
+ * sale was a house publisher account earned no royalty for anybody. Its
+ * royalty share is the platform's revenue (`house_cents`, inside
+ * `platform_cents`), it is never "owed", and no payout can be recorded for
+ * it. A partner's commission on it is a commission like any other. Which
+ * account sold an item is fixed on the item (order_items.seller_id), so
+ * moving a book into a house account later does not rewrite who earned
+ * what before.
  */
 final class PlatformSales
 {
@@ -84,7 +93,9 @@ final class PlatformSales
      */
     public function royalties(): array
     {
+        // House sellers are the platform itself: nothing to pay out.
         $earned = $this->soldItems(null)
+            ->reject(fn ($item) => (bool) $item->house)
             ->groupBy(fn ($item) => $item->seller_id.'|'.$item->currency)
             ->map(fn (Collection $rows) => [
                 'seller_id' => (int) $rows->first()->seller_id,
@@ -93,7 +104,9 @@ final class PlatformSales
                 'earned_cents' => (int) $rows->sum(fn ($item) => self::earned($item)),
             ]);
 
-        $paid = Payout::where('kind', 'royalty')->select('user_id', 'currency', DB::raw('sum(amount_cents) as paid'), DB::raw('max(paid_on) as last_paid'))
+        $paid = Payout::where('kind', 'royalty')
+            ->whereNotIn('user_id', User::where('account_kind', 'house')->select('id'))
+            ->select('user_id', 'currency', DB::raw('sum(amount_cents) as paid'), DB::raw('max(paid_on) as last_paid'))
             ->groupBy('user_id', 'currency')
             ->get()
             ->keyBy(fn ($row) => $row->user_id.'|'.$row->currency);
@@ -207,6 +220,10 @@ final class PlatformSales
     /** What $seller is owed in $currency now. */
     public function owed(User $seller, string $currency): int
     {
+        if ($seller->isHouse()) {
+            return 0;
+        }
+
         $earned = (int) $this->soldItems(null, $seller->id)
             ->where('currency', $currency)
             ->sum(fn ($item) => self::earned($item));
@@ -221,11 +238,15 @@ final class PlatformSales
     {
         return DB::table('order_items as i')
             ->join('orders as o', 'o.id', '=', 'i.order_id')
+            ->leftJoin('users as u', 'u.id', '=', 'i.seller_id')
             ->whereIn('o.status', self::SOLD)
             ->whereNotNull('o.paid_at')
             ->when($days, fn ($q) => $q->where('o.paid_at', '>=', now()->subDays($days - 1)->startOfDay()))
             ->when($sellerId, fn ($q) => $q->where('i.seller_id', $sellerId))
-            ->get(['i.id', 'i.order_id', 'i.book_id', 'i.seller_id', 'i.title', 'i.price_cents', 'i.fee_cents', 'i.royalty_cents', 'i.refunded_cents', 'i.partner_commission_cents', 'o.currency', 'o.paid_at']);
+            ->select(['i.id', 'i.order_id', 'i.book_id', 'i.seller_id', 'i.title', 'i.price_cents', 'i.fee_cents', 'i.royalty_cents', 'i.refunded_cents', 'i.partner_commission_cents', 'o.currency', 'o.paid_at'])
+            // Was the seller a house account? The platform's own sale.
+            ->selectRaw("coalesce(u.account_kind, 'author') = 'house' as house")
+            ->get();
     }
 
     /** Revenue::earned on a plain row. */
@@ -257,7 +278,9 @@ final class PlatformSales
         $gross = (int) $rows->sum('price_cents');
         $refunded = (int) $rows->sum('refunded_cents');
         $fee = (int) $rows->sum('fee_cents');
-        $royalty = (int) $rows->sum(fn ($item) => self::earned($item));
+        // A house book's royalty is nobody's: it stays with the platform.
+        $royalty = (int) $rows->reject(fn ($item) => (bool) ($item->house ?? false))->sum(fn ($item) => self::earned($item));
+        $house = (int) $rows->filter(fn ($item) => (bool) ($item->house ?? false))->sum(fn ($item) => self::earned($item));
         // Partners' commissions come out of the royalty, never the
         // platform's share: what is left to the platform is net of both.
         $partners = (int) $rows->sum(fn ($item) => self::commission($item));
@@ -272,6 +295,7 @@ final class PlatformSales
             'net_cents' => $net,
             'royalty_cents' => $royalty,
             'partner_cents' => $partners,
+            'house_cents' => $house,
             'platform_cents' => $net - $royalty - $partners,
         ];
     }

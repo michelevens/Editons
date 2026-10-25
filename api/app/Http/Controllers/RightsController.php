@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
+use App\Models\User;
+use App\Platform\House\House;
 use App\Publishing\AiDisclosure;
 use App\Publishing\IsbnPlan;
 use App\Publishing\LegalDeposit;
@@ -48,9 +50,10 @@ class RightsController extends Controller
         $this->assertFormatFree($book, $data['edition_format']);
 
         if ($id = $data['isbn_id'] ?? null) {
-            // Scoped to the author's own pool: an id from the request must
-            // not reach another account's numbers.
-            $isbn = $request->user()->isbns()->whereKey($id)->whereNull('book_id')->firstOrFail();
+            // Scoped to the account's own pool: an id from the request must
+            // not reach another account's numbers. For a house book, the
+            // imprint's pool, never the staff member's.
+            $isbn = House::accountFor($book, $request->user())->isbns()->whereKey($id)->whereNull('book_id')->firstOrFail();
         } else {
             $number = Isbn::normalise((string) ($data['isbn'] ?? ''));
 
@@ -60,13 +63,15 @@ class RightsController extends Controller
                 ]);
             }
 
-            if ($request->user()->isbns()->where('isbn', $number)->exists()) {
+            $account = House::accountFor($book, $request->user());
+
+            if ($account->isbns()->where('isbn', $number)->exists()) {
                 throw ValidationException::withMessages([
                     'isbn' => 'That number is already in your account.',
                 ]);
             }
 
-            $isbn = $request->user()->isbns()->create([
+            $isbn = $account->isbns()->create([
                 'isbn' => $number,
                 'source' => 'own',
             ]);
@@ -139,7 +144,7 @@ class RightsController extends Controller
         return response()->json([
             'added' => $added,
             'rejected' => $rejected,
-            'pool' => $this->pool($request),
+            'pool' => $this->pool($request->user()),
         ]);
     }
 
@@ -289,9 +294,9 @@ class RightsController extends Controller
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function pool(Request $request): array
+    private function pool(User $account): array
     {
-        return $request->user()->isbns()
+        return $account->isbns()
             ->whereNull('book_id')
             ->orderBy('isbn')
             ->get()
@@ -331,7 +336,7 @@ class RightsController extends Controller
                     ];
                 })
                 ->all(),
-            'pool' => $this->pool($request),
+            'pool' => $this->pool(House::accountFor($book, $request->user())),
             'checklist' => [
                 [
                     'key' => 'copyright_page',

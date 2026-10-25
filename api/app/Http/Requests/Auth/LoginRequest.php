@@ -55,7 +55,10 @@ class LoginRequest extends FormRequest
         $provider = Auth::guard('web')->getProvider();
         $user = $provider->retrieveByCredentials($credentials);
 
-        if (! $user instanceof User || ! $provider->validateCredentials($user, $credentials)) {
+        // A house publisher account has no sign-in at all, whatever password
+        // is typed: refused exactly like a wrong password, so the page says
+        // nothing about which addresses are house accounts.
+        if (! $user instanceof User || $user->isHouse() || ! $provider->validateCredentials($user, $credentials)) {
             RateLimiter::hit($this->throttleKey());
             event(new Failed('web', $user, $credentials));
             SignInEvents::failed('password', (string) $this->input('email'), $user instanceof User ? $user : null, $this);

@@ -48,7 +48,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
  * explicit empty state. Hiding them would make the product impossible to
  * evaluate; faking them would misrepresent it.
  */
-export default function Editor({ book, binder, activeSection, agents, sources, pane: initialPane }) {
+/**
+ * A house book (ADR — house catalog): owned by one of the platform's own
+ * imprints, opened by staff as themselves. Says so on every pane, and whose
+ * name the versions are saved under.
+ */
+function HouseBanner({ house }) {
+    return (
+        <div
+            role="note"
+            data-a="editor:house-banner"
+            className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-status-warning-badge bg-status-warning-bg px-4 py-2 text-[12.5px] text-text-primary sm:rounded-tile sm:border"
+        >
+            <span className="font-semibold">
+                {house.can_edit ? `House book — edits are saved as you, ${house.editor}` : 'House book — read only'}
+            </span>
+            <span className="text-text-secondary">{house.imprint}</span>
+            <a href={house.console} className="ml-auto font-semibold text-brand-primary hover:underline">
+                House catalog
+            </a>
+        </div>
+    );
+}
+
+export default function Editor({ book, binder, activeSection, agents, sources, pane: initialPane, house = null }) {
     const { auth } = usePage().props;
 
     const [section, setSection] = useState(activeSection);
@@ -583,6 +606,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 )}
 
                 <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none sm:p-[11px]">
+                    {house && <HouseBanner house={house} />}
                     {/* Above the panes: this is where credits are spent, so
                         this is where the balance belongs. */}
                     {/* Not on a phone: forty pixels of a 390px screen, on
