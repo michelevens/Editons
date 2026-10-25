@@ -41,18 +41,20 @@ return [
     | developers.sandbox.lulu.com for the sandbox, a separate account). With
     | no keys Lulu is "not connected" and nothing is ever sent.
     */
+    // Trimmed: a key pasted into a dashboard with a stray space or newline
+    // is refused by Lulu's token endpoint as an invalid client.
     'lulu' => [
-        'client_key' => env('LULU_CLIENT_KEY'),
-        'client_secret' => env('LULU_CLIENT_SECRET'),
+        'client_key' => trim((string) env('LULU_CLIENT_KEY')),
+        'client_secret' => trim((string) env('LULU_CLIENT_SECRET')),
         // sandbox | production. Sandbox jobs are never printed.
-        'env' => env('LULU_ENV', 'sandbox'),
+        'env' => trim((string) env('LULU_ENV', 'sandbox')),
         'urls' => [
             'sandbox' => 'https://api.sandbox.lulu.com',
             'production' => 'https://api.lulu.com',
         ],
         // Lulu's "contact_email" on each print job: whoever answers questions
         // about a job (the owner), never the buyer.
-        'contact_email' => env('LULU_CONTACT_EMAIL'),
+        'contact_email' => trim((string) env('LULU_CONTACT_EMAIL')) ?: null,
         // MAIL, PRIORITY_MAIL, GROUND, EXPEDITED or EXPRESS.
         'shipping_level' => env('LULU_SHIPPING_LEVEL', 'MAIL'),
         // Where the one-copy cost quote is priced to (Lulu needs an address
