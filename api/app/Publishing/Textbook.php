@@ -339,7 +339,7 @@ class Textbook
                 }
 
                 // Under "L'épreuve", a short first line is the paper's name.
-                if ($header === [] && $first !== $i && $type($nodes[$k] ?? null) === 'paragraph'
+                if ($header === [] && $type($node) === 'heading' && $type($nodes[$k] ?? null) === 'paragraph'
                     && mb_strlen(self::plain($nodes[$k]['content'] ?? [])) <= 300 && ! preg_match(self::DIRECTIONS, $text($nodes[$k]))) {
                     $header[] = $k++;
                 }
