@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ErrorsController;
 use App\Http\Controllers\Admin\FeatureFlagsController;
+use App\Http\Controllers\Admin\HouseController;
 use App\Http\Controllers\Admin\ImpersonationController;
 use App\Http\Controllers\Admin\MailLogController;
 use App\Http\Controllers\Admin\OperationsController;
@@ -113,6 +114,26 @@ Route::prefix('admin')->name('admin.')->middleware('platform.admin')->group(func
         // In their own file (routes/admin-business.php), required here so
         // this group's gates cover every one of them.
         require __DIR__.'/admin-business.php';
+
+        /*
+         | ── House catalog (ADR — house catalog and house publisher accounts)
+         |
+         | Books owned by the platform's house publisher accounts. All staff
+         | read; moving books in, exports, prices, store status and ISBN plans
+         | are the owner's, with a reason, audited.
+         */
+        Route::get('/house', [HouseController::class, 'index'])->name('house.index');
+
+        Route::middleware(['can:platform.owner', 'throttle:admin-actions'])->prefix('house')->name('house.')->group(function () {
+            Route::post('/transfer/preview', [HouseController::class, 'preview'])->name('transfer.preview');
+            Route::post('/transfer', [HouseController::class, 'transfer'])->name('transfer');
+            Route::post('/bulk', [HouseController::class, 'bulk'])->name('bulk');
+            Route::post('/books/{book}/export', [HouseController::class, 'export'])->whereNumber('book')->name('export');
+            Route::post('/books/{book}/price', [HouseController::class, 'price'])->whereNumber('book')->name('price');
+            Route::post('/books/{book}/publish', [HouseController::class, 'publish'])->whereNumber('book')->name('publish');
+            Route::post('/books/{book}/unpublish', [HouseController::class, 'unpublish'])->whereNumber('book')->name('unpublish');
+            Route::post('/books/{book}/isbn-plan', [HouseController::class, 'isbnPlan'])->whereNumber('book')->name('isbn-plan');
+        });
 
         /*
          | ── Trust & operations (ADR — console trust and operations) ──────
