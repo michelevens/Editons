@@ -10,6 +10,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\MaintenanceGate;
 use App\Http\Middleware\RequirePlatformTwoFactor;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\ValidateSignatureAtPublicUrl;
 use App\Http\TrustedProxies;
 use App\Platform\Ops\ErrorGroups;
 use Illuminate\Foundation\Application;
@@ -53,6 +54,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'platform.2fa' => RequirePlatformTwoFactor::class,
             // feature:inbox — 404 when a module is switched off (App\Platform\Features).
             'feature' => EnsureFeature::class,
+            // Signed links are also accepted as signed for APP_URL: behind
+            // Railway's edge the request carries the service's own hostname.
+            'signed' => ValidateSignatureAtPublicUrl::class,
         ]);
 
         // app.ecrivain.ai renders the studio and api.ecrivain.ai answers its
