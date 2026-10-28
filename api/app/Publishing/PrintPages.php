@@ -58,7 +58,8 @@ class PrintPages
             ->first(fn (BookExport $e) => ($e->options['fingerprint'] ?? null) === $fingerprint);
 
         return $export ? ['pages' => $export->pages, 'at' => $export->created_at, 'export_id' => $export->id,
-            'layout' => $export->options['layout'] ?? [], 'margin' => $export->options['margin'] ?? null] : null;
+            'layout' => $export->options['layout'] ?? [], 'margin' => $export->options['margin'] ?? null,
+            'outside' => $export->options['outside'] ?? null] : null;
     }
 
     /**
@@ -72,14 +73,17 @@ class PrintPages
     public static function estimate(Book $book): int
     {
         $layout = $book->layout();
-        [$w, $h] = PrintBook::trimInches($layout['trim']);
-        $margin = PrintBook::marginInches($layout['margins']);
+        [$w, $h] = PageSetup::trimInches($layout['trim']);
+        $margins = PageSetup::margins($layout);
+        // The vertical sum as it always was (the side margin twice), so an
+        // estimate for a book on a preset does not move.
+        $margin = PageSetup::preset($layout['margins'])['side'];
         $size = max(8.0, (float) $layout['size']);
         $leading = max(1.0, (float) $layout['leading']);
 
         // An average character is about half the type size wide; a word
         // is about six characters with its space; pages run about 85% full.
-        $charsPerLine = ($w - 2 * $margin) * 72 / ($size * 0.5);
+        $charsPerLine = ($w - $margins['inside'] - $margins['outside']) * 72 / ($size * 0.5);
         $lines = ($h - 2 * $margin) * 72 / ($size * $leading);
         $wordsPerPage = max(50, $charsPerLine * $lines / 6 * 0.85);
 
@@ -94,7 +98,7 @@ class PrintPages
     {
         if ($known = self::known($book)) {
             return ['pages' => $known['pages'], 'exact' => true, 'at' => $known['at']->diffForHumans(),
-                'layout' => $known['layout'], 'margin' => $known['margin']];
+                'layout' => $known['layout'], 'margin' => $known['margin'], 'outside' => $known['outside']];
         }
 
         return ['pages' => self::estimate($book), 'exact' => false, 'at' => null];

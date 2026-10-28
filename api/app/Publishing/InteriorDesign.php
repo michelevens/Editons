@@ -21,6 +21,20 @@ use Illuminate\Validation\ValidationException;
  *            epub (the EPUB's navigation, same scale)
  *   callouts preset, and types: {note: {border, tint, icon, label}, …}
  *
+ * and, with ADR-00XX (Mirrored margins, trims, typography and house
+ * styles):
+ *
+ *   page     top, bottom, inside, outside (inches; null: the margin
+ *            preset's, PageSetup) and unit (in | mm, how the screen shows
+ *            them)
+ *   text     paragraph (indent | block), indent and spacing (em), align
+ *            (justify | left), hyphenate, widows, orphans
+ *   headings h1, h2, h3, h4 (h4 also sets h5 and h6): each size (em),
+ *            weight, italic, case, above and below (em), align, face
+ *            (body | heading)
+ *   heading_font  an InteriorFonts key for titles and headings, or null
+ *            for the body face
+ *
  * The defaults reproduce the interior as it was set before these controls
  * existed, so a book nobody touches prints the same. The one deliberate
  * exception is the English chapter label, which spelled numbers to Twenty
@@ -33,7 +47,7 @@ use Illuminate\Validation\ValidationException;
 class InteriorDesign
 {
     /** Part of every print fingerprint: bumped when the same settings set differently. */
-    public const VERSION = 2;
+    public const VERSION = 3;
 
     public const OPENER_STYLES = [
         'classic' => 'Classic: label, title, short rule, centred',
@@ -141,6 +155,33 @@ class InteriorDesign
         'folio' => 'bottom-center',
         'toc' => ['depth' => 1, 'epub' => 2],
         'callouts' => ['preset' => 'classic', 'types' => []],
+        'page' => ['top' => null, 'bottom' => null, 'inside' => null, 'outside' => null, 'unit' => 'in'],
+        // The paragraph and heading styles PrintBook::css() always set.
+        'text' => ['paragraph' => 'indent', 'indent' => 1.35, 'spacing' => 0.6, 'align' => 'justify', 'hyphenate' => true, 'widows' => 2, 'orphans' => 2],
+        'headings' => [
+            'h1' => ['size' => 1.16, 'weight' => 'bold', 'italic' => false, 'case' => 'none', 'above' => 1.75, 'below' => 0.6, 'align' => 'left', 'face' => 'heading'],
+            'h2' => ['size' => 1.16, 'weight' => 'bold', 'italic' => false, 'case' => 'none', 'above' => 1.75, 'below' => 0.6, 'align' => 'left', 'face' => 'heading'],
+            'h3' => ['size' => 1.02, 'weight' => 'normal', 'italic' => true, 'case' => 'none', 'above' => 1.4, 'below' => 0.35, 'align' => 'left', 'face' => 'heading'],
+            'h4' => ['size' => 0.8, 'weight' => 'normal', 'italic' => false, 'case' => 'upper', 'above' => 1.3, 'below' => 0.35, 'align' => 'left', 'face' => 'heading'],
+        ],
+        'heading_font' => null,
+    ];
+
+    public const HEADING_LEVELS = ['h1', 'h2', 'h3', 'h4'];
+
+    public const HEADING_CASES = ['none', 'upper', 'smallcaps'];
+
+    public const ALIGNS = ['left', 'center', 'right'];
+
+    /** Ranges for the numeric text and heading settings: [min, max]. */
+    public const RANGES = [
+        'page' => [0.25, 2.0],
+        'indent' => [0.5, 3.0],
+        'spacing' => [0.0, 2.0],
+        'lines' => [1, 5],
+        'size' => [0.7, 2.5],
+        'above' => [0.0, 4.0],
+        'below' => [0.0, 3.0],
     ];
 
     /** The words a box chosen in the editor is labelled with when it has no label of its own. */
@@ -226,7 +267,10 @@ class InteriorDesign
                 } elseif (! self::valid($key, $sub, $v)) {
                     $errors["{$key}.{$sub}"] = self::message($key, $sub);
                 } else {
-                    $group[$sub] = self::cast($key, $sub, $v);
+                    // A heading level sent in part keeps its other values.
+                    $group[$sub] = $key === 'headings'
+                        ? array_merge($group[$sub], self::castHeading($sub, $v, false))
+                        : self::cast($key, $sub, $v);
                 }
             }
 
@@ -257,8 +301,51 @@ class InteriorDesign
             'toc.depth', 'toc.epub' => is_int($v) || (is_string($v) && ctype_digit($v)) ? in_array((int) $v, [1, 2, 3], true) : false,
             'callouts.preset' => is_string($v) && isset(self::CALLOUT_PRESETS[$v]),
             'callouts.types' => self::validTypes($v),
+            'page.top', 'page.bottom', 'page.inside', 'page.outside' => $v === null || self::number($v, self::RANGES['page']),
+            'page.unit' => in_array($v, ['in', 'mm'], true),
+            'text.paragraph' => in_array($v, ['indent', 'block'], true),
+            'text.indent' => self::number($v, self::RANGES['indent']),
+            'text.spacing' => self::number($v, self::RANGES['spacing']),
+            'text.align' => in_array($v, ['justify', 'left'], true),
+            'text.hyphenate' => is_bool($v),
+            'text.widows', 'text.orphans' => is_int($v) && $v >= self::RANGES['lines'][0] && $v <= self::RANGES['lines'][1],
+            'headings.h1', 'headings.h2', 'headings.h3', 'headings.h4' => self::validHeading($v),
+            'heading_font.' => $v === null || (is_string($v) && isset(InteriorFonts::FAMILIES[$v])),
             default => false,
         };
+    }
+
+    private static function number(mixed $v, array $range): bool
+    {
+        return (is_int($v) || is_float($v)) && $v >= $range[0] - 1e-9 && $v <= $range[1] + 1e-9;
+    }
+
+    /** One heading level's style, whole or in part. */
+    private static function validHeading(mixed $style): bool
+    {
+        if (! is_array($style) || ($style !== [] && array_is_list($style))) {
+            return false;
+        }
+
+        foreach ($style as $k => $v) {
+            $ok = match ($k) {
+                'size' => self::number($v, self::RANGES['size']),
+                'above' => self::number($v, self::RANGES['above']),
+                'below' => self::number($v, self::RANGES['below']),
+                'weight' => in_array($v, ['normal', 'bold'], true),
+                'italic' => is_bool($v),
+                'case' => in_array($v, self::HEADING_CASES, true),
+                'align' => in_array($v, self::ALIGNS, true),
+                'face' => in_array($v, ['body', 'heading'], true),
+                default => false,
+            };
+
+            if (! $ok) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function cast(string $key, ?string $sub, mixed $v): mixed
@@ -267,6 +354,9 @@ class InteriorDesign
             'toc.depth', 'toc.epub' => (int) $v,
             'opener.custom' => trim((string) $v),
             'callouts.types' => self::castTypes($v),
+            'page.top', 'page.bottom', 'page.inside', 'page.outside' => $v === null ? null : round((float) $v, 4),
+            'text.indent', 'text.spacing' => round((float) $v, 3),
+            'headings.h1', 'headings.h2', 'headings.h3', 'headings.h4' => self::castHeading($sub, $v),
             default => $v,
         };
     }
@@ -302,6 +392,18 @@ class InteriorDesign
         return true;
     }
 
+    /** A level's style, numbers as floats; over its default unless $whole is false. */
+    private static function castHeading(string $level, array $style, bool $whole = true): array
+    {
+        foreach (['size', 'above', 'below'] as $k) {
+            if (isset($style[$k])) {
+                $style[$k] = round((float) $style[$k], 3);
+            }
+        }
+
+        return $whole ? array_merge(self::DEFAULTS['headings'][$level], $style) : $style;
+    }
+
     private static function castTypes(array $types): array
     {
         return array_map(fn (array $style) => array_key_exists('label', $style) && is_string($style['label'])
@@ -323,6 +425,16 @@ class InteriorDesign
             'toc.depth', 'toc.epub' => 'Contents depth is 1 (parts and chapters), 2 (and their sections) or 3 (and subsections).',
             'callouts.preset' => 'Box style preset is one of: '.implode(', ', array_keys(self::CALLOUT_PRESETS)).'.',
             'callouts.types' => 'Each box type takes a border ('.implode(', ', self::BORDERS).'), a tint ('.implode(', ', self::TINTS).'), an icon on or off, and a label.',
+            'page.top', 'page.bottom', 'page.inside', 'page.outside' => 'A margin is between 0.25 and 2 inches (6.35–50.8 mm).',
+            'page.unit' => 'Margins are shown in inches (in) or millimetres (mm).',
+            'text.paragraph' => 'Paragraphs are indented (indent) or spaced (block).',
+            'text.indent' => 'The first-line indent is between 0.5 and 3 em.',
+            'text.spacing' => 'The space between block paragraphs is between 0 and 2 em.',
+            'text.align' => 'Text is justified or ragged right (left).',
+            'text.hyphenate' => 'Hyphenation is on or off.',
+            'text.widows', 'text.orphans' => 'Keep between 1 and 5 lines together.',
+            'headings.h1', 'headings.h2', 'headings.h3', 'headings.h4' => 'A heading style takes size (0.7–2.5 em), weight (normal or bold), italic, case ('.implode(', ', self::HEADING_CASES).'), above (0–4 em), below (0–3 em), align ('.implode(', ', self::ALIGNS).') and face (body or heading).',
+            'heading_font.' => 'The heading face is one of: '.implode(', ', InteriorFonts::keys()).', or none for the body face.',
             default => 'That value is not allowed.',
         };
     }

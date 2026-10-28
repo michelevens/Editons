@@ -114,15 +114,44 @@ class PrintSpecs
         return $range;
     }
 
-    public static function trimSupported(string $service, string $trim): bool
+    /** Whether the service lists this trim as a standard size (on this paper, where it says). */
+    public static function trimSupported(string $service, string $trim, ?string $paper = null): bool
     {
-        return in_array($trim, self::spec($service)['trims'] ?? [], true);
+        $spec = self::spec($service);
+        $list = $paper !== null && isset($spec['trims_by_paper'][$paper]) ? $spec['trims_by_paper'][$paper] : ($spec['trims'] ?? []);
+
+        return in_array($trim, $list, true);
+    }
+
+    /**
+     * Whether the service prints this size as a custom trim on this paper
+     * (paperback), from its published width and height range; null where
+     * it publishes none.
+     */
+    public static function customTrimSupported(string $service, string $trim, string $paper = 'white'): ?bool
+    {
+        $range = self::spec($service)['custom'][$paper] ?? self::spec($service)['custom']['white'] ?? null;
+
+        if ($range === null) {
+            return null;
+        }
+
+        [$w, $h] = PageSetup::trimInches($trim);
+
+        return $w >= $range['width'][0] - 1e-9 && $w <= $range['width'][1] + 1e-9
+            && $h >= $range['height'][0] - 1e-9 && $h <= $range['height'][1] + 1e-9;
+    }
+
+    /** Whether the service lists this trim for its hardcover. */
+    public static function hardcoverTrim(string $service, string $trim): bool
+    {
+        return in_array($trim, self::spec($service)['hardcover_trims'] ?? [], true);
     }
 
     /** KDP's large-trim rule. */
     public static function isLargeTrim(string $trim): bool
     {
-        [$w, $h] = PrintBook::trimInches($trim);
+        [$w, $h] = PageSetup::trimInches($trim);
         $large = config('publishing.print.kdp.large_trim');
 
         return $w > $large['width'] || $h > $large['height'];

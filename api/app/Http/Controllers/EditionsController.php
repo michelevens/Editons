@@ -189,11 +189,15 @@ class EditionsController extends Controller
         ]);
 
         $edition->update(['layout' => array_merge($book->layout(), [
-            // The accepted threshold for a large-print book, and a trim big
-            // enough to carry it without running to twice the page count.
-            'size' => 14.0,
-            'leading' => 1.8,
-            'margins' => 'Wide',
+            // 18 pt, the size large-print editions are set in (it was
+            // documented as 18 and set at 14, the old cap on the Design
+            // screen's range), on leading that keeps lines apart without
+            // doubling the page count, a trim big enough to carry it and
+            // the large-print margins. Nothing past the design changes:
+            // the edition stays unmirrored unless its author asks.
+            'size' => 18.0,
+            'leading' => 1.5,
+            'margins' => 'Large',
             'trim' => '7 x 10 in',
             'dropcap' => false,
         ])]);

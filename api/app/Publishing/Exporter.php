@@ -711,7 +711,7 @@ class Exporter
             'pages' => $set['pages'],
             // The margin it was set at and the near-empty pages it has, for
             // the print checks (PrintCheck).
-            'options' => json_encode(['fingerprint' => $fingerprint, 'margin' => $set['margin'], 'layout' => $set['layout']]),
+            'options' => json_encode(['fingerprint' => $fingerprint, 'margin' => $set['margin'], 'outside' => $set['outside'], 'layout' => $set['layout']]),
         ]);
 
         return $this->put($book, $export, $set['pdf']);

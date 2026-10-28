@@ -46,17 +46,16 @@ use Vanderlee\Syllable\Syllable;
  * page, so a section's length cannot change between the passes and the
  * arithmetic in between is exact.
  *
- * dompdf applies only the base @page rule, so margins are symmetric rather
- * than mirrored. The type is EB Garamond (or Source Sans 3), both under the
- * SIL Open Font License and shipped in resources/fonts, because dompdf
+ * dompdf applies only the base @page rule. Margins set the same inside and
+ * outside (every preset) need nothing more; set differently, the print
+ * interior is typeset with every page as a recto and its versos are moved
+ * across afterwards (MirroredPages), while the reading PDF centres the same
+ * text block (PageSetup). The type is one of the OFL faces shipped in
+ * resources/fonts (InteriorFonts; EB Garamond by default), because dompdf
  * otherwise falls back to Times whatever the CSS asks for.
  */
 class PrintBook
 {
-    private const SERIF = 'EB Garamond';
-
-    private const SANS = 'Source Sans 3';
-
     /** Front-matter titles that are a page of their own, not a chapter. */
     private const QUIET = ['front matter', 'dedication', 'epigraph'];
 
@@ -91,7 +90,8 @@ class PrintBook
 
     private const SHY = "\u{00AD}";
 
-    private static bool $fontsRegistered = false;
+    /** @var array<string, bool> InteriorFonts keys registered with dompdf in this process */
+    private static array $fontsRegistered = [];
 
     /** @var array<string, Syllable> */
     private array $syllables = [];
@@ -152,6 +152,9 @@ class PrintBook
             // length it produces.
             $layout = $book->layout();
             $this->widened = null;
+            // The print interior (no cover) with inside and outside set
+            // differently is set as rectos and mirrored after.
+            $this->mirroring = ! $cover && PageSetup::mirrored($layout);
 
             for ($attempt = 0; $attempt < 3; $attempt++) {
                 $fresh = $plan;
@@ -174,21 +177,35 @@ class PrintBook
             // A fresh closure, since an arrow function captures $plan by value
             // and the one above still holds the plan from before pagination.
             [$dompdf, $landed, $pages] = $this->render($book, fn (float $factor) => $this->document($book, $plan, $factor, dompdf: true), $plan);
+            [$inside, $outside] = $this->sides($layout);
+            $pdf = (string) $dompdf->output();
+
+            // Each verso moved so its inside margin lies at the spine, on
+            // its right. Verso and recto count from the half title.
+            if ($this->mirroring) {
+                $offset = (int) ($plan['offset'] ?? 0);
+                $pdf = app(MirroredPages::class)->shift($pdf, ($inside - $outside) * 72,
+                    fn (int $page) => ($page - $offset) % 2 === 0,
+                    ['title' => (string) $book->title, 'author' => (string) (Anatomy::titlePageAuthor($book) ?? '')]);
+            }
 
             return [
                 // Bookmarks for the contents, parts and chapters, and the
                 // book's language, which dompdf does not write.
-                'pdf' => app(PdfOutline::class)->add((string) $dompdf->output(), $this->bookmarks($plan, $landed), $plan['language']),
+                'pdf' => app(PdfOutline::class)->add($pdf, $this->bookmarks($plan, $landed), $plan['language']),
                 'pages' => $pages,
                 'blocks' => $plan['blocks'],
                 'landed' => $landed,
-                // Inches, on every side: what the print checks hold the
-                // interior to.
-                'margin' => $this->margin($layout),
+                // Inches: the inside margin the print checks hold the
+                // interior to, and the outside.
+                'margin' => $inside,
+                'outside' => $outside,
+                'mirrored' => $this->mirroring,
                 'layout' => $this->shortPages($book, $plan, $landed, $pages),
             ];
         } finally {
             $this->widened = null;
+            $this->mirroring = false;
 
             foreach ($this->tempDirs as $dir) {
                 array_map('unlink', glob($dir.'/*') ?: []);
@@ -252,22 +269,28 @@ class PrintBook
     {
         $layout = $book->layout();
         [$width, $height] = $this->trim($layout['trim']);
-        $side = $this->margin($layout);
+        $margins = PageSetup::margins($layout);
+        // The margins print sets: mirrored when inside and outside differ
+        // (the inside margin at the spine on both pages of the spread).
+        [$inside, $outside] = PageSetup::sides($layout);
+        [$headAt, $footAt] = self::furniture($layout);
 
         return [
             'width' => $width,
             'height' => $height,
-            'top' => 0.9,
-            'bottom' => 0.95,
-            'inside' => $side,
-            'outside' => $side,
-            'font' => $layout['font'] === 'sans' ? self::SANS : self::SERIF,
+            'top' => $margins['top'],
+            'bottom' => $margins['bottom'],
+            'inside' => $inside,
+            'outside' => $outside,
+            'mirrored' => PageSetup::mirrored($layout),
+            'font' => InteriorFonts::name($layout['font']),
+            'heading_font' => $layout['heading_font'] !== null ? InteriorFonts::name($layout['heading_font']) : null,
             'headers' => (bool) $layout['headers'],
             'title' => $book->title,
             // Baselines in inches from the top: the head's, and the folio's
             // at the foot.
-            'head_at' => 0.5,
-            'foot_at' => $height - 0.62,
+            'head_at' => $headAt,
+            'foot_at' => $footAt,
             'folio' => $layout['folio'],
             'folio_size' => InteriorDesign::folioSize($layout['heads']),
             'align' => $layout['heads']['align'],
@@ -334,7 +357,7 @@ class PrintBook
         try {
             $html = self::withoutPages($this->fallbackGlyphs(
                 $this->block($book, ['blankBefore' => false] + $block, $plan),
-                $book->layout()['font'] === 'sans' ? 'sans' : 'serif',
+                $this->faces($book->layout()),
             ));
         } finally {
             $this->linkImages = false;
@@ -397,7 +420,7 @@ class PrintBook
         try {
             return self::withoutPages($this->fallbackGlyphs(
                 $this->block($book, ['blankBefore' => false] + $block, $plan),
-                $book->layout()['font'] === 'sans' ? 'sans' : 'serif',
+                $this->faces($book->layout()),
             ));
         } finally {
             $this->linkImages = false;
@@ -911,9 +934,9 @@ class PrintBook
         ]));
 
         $metrics = $dompdf->getFontMetrics();
-        $this->registerFonts($metrics);
+        $this->registerFonts($metrics, $this->faces($layout));
 
-        $family = $layout['font'] === 'sans' ? self::SANS : self::SERIF;
+        $family = InteriorFonts::name($layout['font']);
         $factor = $metrics->getFontHeight($metrics->getFont($family, 'normal'), 1.0);
 
         $starts = [];
@@ -1024,12 +1047,15 @@ class PrintBook
 
         $this->continues($page, $canvas, $metrics, $starts, $book, $plan['language']);
 
-        $family = $layout['font'] === 'sans' ? self::SANS : self::SERIF;
+        $family = InteriorFonts::name($layout['font']);
         $font = $metrics->getFont($family, 'normal');
         $italic = $metrics->getFont($family, 'italic');
         $grey = [0.33, 0.33, 0.33];
         $heads = $layout['heads'];
-        $margin = $this->margin($layout) * 72;
+        // The text block's edges, in points, as dompdf set this page: a
+        // mirrored verso is moved across after, heads and folio with it.
+        [$left, $right] = array_map(fn (float $inches) => $inches * 72, $this->leftRight($layout));
+        [$headY, $footY] = array_map(fn (float $inches) => $inches * 72, self::furniture($layout));
 
         // Verso and recto count from the half title, not the cover.
         $verso = ($page - ($plan['offset'] ?? 0)) % 2 === 0;
@@ -1051,12 +1077,13 @@ class PrintBook
 
         // At the outside of the head line, beside an outside head.
         $beside = $place === 'with-head' || ($place === 'top-outside' && $heads['align'] === 'outside');
-        $outside = $verso ? $margin : $w - $margin - $folioWidth;
+        $outside = $verso ? $left : $w - $right - $folioWidth;
+        $measure = $w - $left - $right;
 
         [$fx, $fy] = match ($place) {
-            'bottom-outside' => [$outside, $h - 0.62 * 72],
-            'top-outside', 'with-head' => [$outside, 0.5 * 72],
-            default => [($w - $folioWidth) / 2, $h - 0.62 * 72],
+            'bottom-outside' => [$outside, $footY],
+            'top-outside', 'with-head' => [$outside, $headY],
+            default => [$left + ($measure - $folioWidth) / 2, $footY],
         };
         $canvas->text($fx, $fy, $folio, $font, $size, $grey);
 
@@ -1066,19 +1093,19 @@ class PrintBook
 
         $face = $head['italic'] ? $italic : $font;
         $gap = 1.4 * $size;
-        $room = $w - 2 * $margin - (str_starts_with($place, 'top') || $place === 'with-head' ? 2 * ($folioWidth + $gap) : 0);
+        $room = $measure - (str_starts_with($place, 'top') || $place === 'with-head' ? 2 * ($folioWidth + $gap) : 0);
         $text = $this->fit($head['text'], $metrics, $face, $head['size'], $head['spacing'], $room);
-        $runs = $this->glyphRuns($text, $face, $metrics, $layout['font'] === 'sans' ? 'sans' : 'serif');
+        $runs = $this->glyphRuns($text, $face, $metrics, InteriorFonts::key($layout['font']));
         $width = array_sum(array_map(fn ($r) => $metrics->getTextWidth($r[0], $r[1], $head['size'], 0, $head['spacing']), $runs));
 
         $x = match (true) {
-            $beside => $verso ? $margin + $folioWidth + $gap : $w - $margin - $folioWidth - $gap - $width,
-            $heads['align'] === 'outside' => $verso ? $margin : $w - $margin - $width,
-            default => ($w - $width) / 2,
+            $beside => $verso ? $left + $folioWidth + $gap : $w - $right - $folioWidth - $gap - $width,
+            $heads['align'] === 'outside' => $verso ? $left : $w - $right - $width,
+            default => $left + ($measure - $width) / 2,
         };
 
         foreach ($runs as [$run, $runFace]) {
-            $canvas->text($x, 0.5 * 72, $run, $runFace, $head['size'], $grey, 0, $head['spacing']);
+            $canvas->text($x, $headY, $run, $runFace, $head['size'], $grey, 0, $head['spacing']);
             $x += $metrics->getTextWidth($run, $runFace, $head['size'], 0, $head['spacing']);
         }
     }
@@ -1135,15 +1162,17 @@ class PrintBook
 
             $layout = $book->layout();
             [$width, $height] = $this->trim($layout['trim']);
-            $font = $metrics->getFont($layout['font'] === 'sans' ? self::SANS : self::SERIF, 'italic');
+            $font = $metrics->getFont(InteriorFonts::name($layout['font']), 'italic');
             $text = Textbook::words($language)['continue'].' ▸';
-            $runs = $this->glyphRuns($text, $font, $metrics, $layout['font'] === 'sans' ? 'sans' : 'serif');
+            $runs = $this->glyphRuns($text, $font, $metrics, InteriorFonts::key($layout['font']));
             $size = 8.5;
-            $x = $width * 72 - $this->margin($layout) * 72
+            // At the text block's right edge, as a recto sets it: a mirrored
+            // verso is moved across with its text (MirroredPages).
+            $x = $width * 72 - $this->sides($layout)[1] * 72
                 - array_sum(array_map(fn ($r) => $metrics->getTextWidth($r[0], $r[1], $size), $runs));
 
             foreach ($runs as [$run, $face]) {
-                $canvas->text($x, $height * 72 - 0.62 * 72, $run, $face, $size, [0.1, 0.1, 0.1]);
+                $canvas->text($x, self::furniture($layout)[1] * 72, $run, $face, $size, [0.1, 0.1, 0.1]);
                 $x += $metrics->getTextWidth($run, $face, $size);
             }
 
@@ -1282,30 +1311,47 @@ class PrintBook
         return $text;
     }
 
-    private function registerFonts(FontMetrics $metrics): void
+    /**
+     * The interior faces dompdf may need, registered once per process each:
+     * every book's text faces (the body and any heading face) and the two
+     * the interior always had.
+     *
+     * @param  list<string>  $keys  InteriorFonts keys
+     */
+    private function registerFonts(FontMetrics $metrics, array $keys = []): void
     {
-        if (self::$fontsRegistered && $metrics->getFamily(strtolower(self::SERIF)) !== null) {
-            return;
-        }
+        foreach (array_unique(['serif', 'sans', ...$keys]) as $key) {
+            $family = InteriorFonts::name($key);
 
-        $faces = [
-            self::SERIF => ['EBGaramond-Regular', 'EBGaramond-Italic', 'EBGaramond-SemiBold', 'EBGaramond-SemiBoldItalic'],
-            self::SANS => ['SourceSans3-Regular', 'SourceSans3-It', 'SourceSans3-Semibold', 'SourceSans3-SemiboldIt'],
-        ];
+            if (isset(self::$fontsRegistered[$key]) && $metrics->getFamily(strtolower($family)) !== null) {
+                continue;
+            }
 
-        foreach ($faces as $family => [$regular, $italic, $bold, $boldItalic]) {
+            [$regular, $italic, $bold, $boldItalic] = InteriorFonts::paths($key);
+
             foreach ([
                 ['normal', 'normal', $regular], ['normal', 'italic', $italic],
                 ['bold', 'normal', $bold], ['bold', 'italic', $boldItalic],
             ] as [$weight, $style, $file]) {
-                $metrics->registerFont(
-                    ['family' => $family, 'weight' => $weight, 'style' => $style],
-                    resource_path("fonts/{$file}.ttf"),
-                );
+                $metrics->registerFont(['family' => $family, 'weight' => $weight, 'style' => $style], $file);
             }
-        }
 
-        self::$fontsRegistered = true;
+            self::$fontsRegistered[$key] = true;
+        }
+    }
+
+    /**
+     * The faces the text is drawn in, as InteriorFonts keys: the body, and
+     * the heading face when there is one.
+     *
+     * @return list<string>
+     */
+    private function faces(array $layout): array
+    {
+        return array_values(array_unique(array_filter([
+            InteriorFonts::key($layout['font']),
+            $layout['heading_font'] !== null ? InteriorFonts::key($layout['heading_font']) : null,
+        ])));
     }
 
     /** The whole document, as HTML; $dompdf when it is for the PDF. */
@@ -1321,7 +1367,7 @@ class PrintBook
             $body .= $this->block($book, $block, $plan)."\n";
         }
 
-        $body = $this->fallbackGlyphs($body, $book->layout()['font'] === 'sans' ? 'sans' : 'serif');
+        $body = $this->fallbackGlyphs($body, $this->faces($book->layout()));
         $body = $dompdf ? $this->pageReferences($body, $plan) : self::withoutPages($body);
 
         if ($dompdf) {
@@ -1349,9 +1395,17 @@ class PrintBook
      * face for prose (Source Sans 3 lacks hundreds of characters Garamond
      * has), and DejaVu Sans Mono inside code.
      */
-    private function fallbackGlyphs(string $html, string $face = 'serif'): string
+    private function fallbackGlyphs(string $html, string|array $faces = 'serif'): string
     {
-        $text = self::charMap($face);
+        // Every face the text may be drawn in: a heading face that lacks a
+        // character the body has would print it as a box.
+        $text = null;
+
+        foreach ((array) $faces as $face) {
+            $text = $text === null ? self::charMap($face) : array_intersect_key($text, self::charMap($face));
+        }
+
+        $text ??= [];
         $mono = self::charMap('mono');
         $code = 0;
 
@@ -1463,17 +1517,15 @@ class PrintBook
         static $maps = [];
 
         return $maps[$face] ??= (function () use ($face) {
-            $files = match ($face) {
-                'sans' => ['SourceSans3-Regular', 'SourceSans3-It', 'SourceSans3-Semibold', 'SourceSans3-SemiboldIt'],
-                // The copy dompdf ships and embeds.
-                'mono' => [(new Options)->getRootDir().'/lib/fonts/DejaVuSansMono.ttf'],
-                default => ['EBGaramond-Regular', 'EBGaramond-Italic', 'EBGaramond-SemiBold', 'EBGaramond-SemiBoldItalic'],
-            };
+            // The copy dompdf ships and embeds, for code.
+            $files = $face === 'mono'
+                ? [(new Options)->getRootDir().'/lib/fonts/DejaVuSansMono.ttf']
+                : InteriorFonts::paths($face);
 
             $map = null;
 
             foreach ($files as $file) {
-                $font = Font::load(str_ends_with($file, '.ttf') ? $file : resource_path("fonts/{$file}.ttf"));
+                $font = Font::load($file);
                 // The table directory only, then the cmap alone: a full
                 // parse reads every glyph and took eight seconds a face.
                 $font->parseTableEntries();
@@ -1659,7 +1711,7 @@ class PrintBook
         // Fitted to the measure, so a long one is scaled rather than squeezed.
         $layout = $book->layout();
         $html = $this->renderer->withMath('svg')->withNumbering($this->numbering)->withLanguage($language)
-            ->withMeasure(($this->trim($layout['trim'])[0] - 2 * $this->margin($layout)) * 72, (float) $layout['size'])
+            ->withMeasure(($this->trim($layout['trim'])[0] - array_sum($this->sides($layout))) * 72, (float) $layout['size'])
             ->html($copy);
         // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
         if (! $this->linkImages) {
@@ -1667,8 +1719,11 @@ class PrintBook
         }
         $html = str_replace('<hr />', '<p class="scene-break">&#x2767;</p>', $html);
 
+        // Hyphenation can be turned off; French spacing never is.
+        $hyphens = (bool) $layout['text']['hyphenate'];
+
         if (! $lead) {
-            return $this->hyphenate($html, $language);
+            return $this->hyphenate($html, $language, $hyphens);
         }
 
         $dropcap = (bool) $book->layout()['dropcap'];
@@ -1696,7 +1751,7 @@ class PrintBook
             1,
         ) ?? $html;
 
-        return $this->hyphenate($html, $language);
+        return $this->hyphenate($html, $language, $hyphens);
     }
 
     /**
@@ -1715,14 +1770,14 @@ class PrintBook
      * In French and Kreyòl the space before « : ; ! ? % » and after « is
      * made non-breaking, so the mark never starts a line alone.
      */
-    private function hyphenate(string $html, string $language): string
+    private function hyphenate(string $html, string $language, bool $hyphens = true): string
     {
         $base = $this->patternsFor($language);
         $french = in_array(strtolower(substr($language, 0, 2)), ['fr', 'ht'], true);
 
         return preg_replace_callback(
             '/<(h[1-6]|pre|th|td|code)\b[^>]*>.*?<\/\1>|<(p|li)\b[^>]*>.*?<\/\2>|<[^>]+>|&[#\w]+;|[^<&]+/su',
-            function (array $m) use ($base, $french) {
+            function (array $m) use ($base, $french, $hyphens) {
                 if (($m[1] ?? '') !== '') {
                     // Whole, but spaced: "(39 %)" in a table cell too.
                     return $french && $m[1] !== 'pre' && $m[1] !== 'code' ? $this->runs($m[0], null, true) : $m[0];
@@ -1731,10 +1786,10 @@ class PrintBook
                 if (($m[2] ?? '') !== '') {
                     $own = $this->passageLanguage($m[0], $base);
 
-                    return $this->runs($m[0], $own, $french && ! str_starts_with((string) $own, 'en'));
+                    return $this->runs($m[0], $hyphens ? $own : null, $french && ! str_starts_with((string) $own, 'en'));
                 }
 
-                return $m[0][0] === '<' || $m[0][0] === '&' ? $m[0] : $this->runs($m[0], $base, $french);
+                return $m[0][0] === '<' || $m[0][0] === '&' ? $m[0] : $this->runs($m[0], $hyphens ? $base : null, $french);
             },
             $html,
         ) ?? $html;
@@ -1856,7 +1911,7 @@ class PrintBook
      */
     private function copyright(Book $book, array $lines, array $words): string
     {
-        $family = $book->layout()['font'] === 'sans' ? self::SANS : self::SERIF;
+        $family = InteriorFonts::name($book->layout()['font']);
         $html = '';
 
         foreach ($lines as $line) {
@@ -1956,11 +2011,10 @@ class PrintBook
         $lh = fn (float $leading) => round($leading / $factor, 3);
         $layout = $book->layout();
         [$width, $height] = $this->trim($layout['trim']);
-        $side = $this->margin($layout);
+        [$left, $right] = $this->leftRight($layout);
+        $margins = PageSetup::margins($layout);
 
-        $family = $layout['font'] === 'sans'
-            ? "'".self::SANS."', 'Helvetica Neue', Arial, sans-serif"
-            : "'".self::SERIF."', Garamond, Georgia, serif";
+        $family = InteriorFonts::stack($layout['font']);
 
         $size = (float) $layout['size'];
         $leading = (float) $layout['leading'];
@@ -1970,7 +2024,7 @@ class PrintBook
         $boxLeading = $lh($leading * 0.96);
 
         return <<<CSS
-        @page { size: {$width}in {$height}in; margin: 0.9in {$side}in 0.95in {$side}in; }
+        @page { size: {$width}in {$height}in; margin: {$margins['top']}in {$right}in {$margins['bottom']}in {$left}in; }
         body { margin: 0; padding: 0; font-family: {$family}; font-size: {$size}pt; line-height: {$lh($leading)}; color: #1b1b1b; }
 
         section { page-break-before: always; }
@@ -2230,8 +2284,88 @@ class PrintBook
         }
 
         $css .= InteriorDesign::calloutCss($layout['callouts'], 'print');
+        $css .= $this->typographyCss($layout);
 
         return $css === '' ? '' : "\n".$css;
+    }
+
+    /**
+     * Paragraphs, headings and the heading face, as the design sets them
+     * (InteriorDesign `text`, `headings`, `heading_font`): only what
+     * differs from the stylesheet's own rules, so a book on the defaults
+     * gets nothing.
+     */
+    private function typographyCss(array $layout): string
+    {
+        $text = $layout['text'];
+        $defaults = InteriorDesign::DEFAULTS['text'];
+        $css = '';
+        $num = fn (float $v) => rtrim(rtrim(number_format($v, 3, '.', ''), '0'), '.');
+
+        if ($text['paragraph'] === 'block') {
+            // Spaced paragraphs: no indent anywhere, a gap after each.
+            $css .= "p { text-indent: 0; }\n.text > p { margin: 0 0 {$num($text['spacing'])}em; }\n"
+                .".text > p:first-child, p.opening { text-indent: 0; }\n";
+        } elseif (abs($text['indent'] - $defaults['indent']) > 1e-9) {
+            $css .= "p { text-indent: {$num($text['indent'])}em; }\n";
+
+            if ($layout['opener']['indent_first']) {
+                $css .= ".text > p:first-child, p.opening { text-indent: {$num($text['indent'])}em; }\n";
+            }
+        }
+
+        if ($text['align'] === 'left') {
+            $css .= "p { text-align: left; }\n";
+        }
+
+        if ($text['widows'] !== $defaults['widows'] || $text['orphans'] !== $defaults['orphans']) {
+            // dompdf honours orphans; widows are written for the HTML and
+            // checked after typesetting (the short-page notes).
+            $css .= "p { orphans: {$text['orphans']}; widows: {$text['widows']}; }\n";
+        }
+
+        $headingFace = $layout['heading_font'] !== null ? InteriorFonts::stack($layout['heading_font']) : null;
+
+        foreach (InteriorDesign::HEADING_LEVELS as $level) {
+            $style = $layout['headings'][$level];
+            $default = InteriorDesign::DEFAULTS['headings'][$level];
+            $selector = $level === 'h4' ? '.text h4, .text h5, .text h6' : ".text {$level}";
+            $face = $style['face'] === 'heading' ? $headingFace : ($headingFace !== null ? InteriorFonts::stack($layout['font']) : null);
+
+            if ($style === $default && $face === null) {
+                continue;
+            }
+
+            $rules = [];
+
+            if ($style !== $default) {
+                $size = $style['case'] === 'smallcaps' ? $style['size'] * 0.86 : $style['size'];
+                $rules[] = 'font-size: '.$num($size).'em';
+                $rules[] = 'font-weight: '.$style['weight'];
+                $rules[] = 'font-style: '.($style['italic'] ? 'italic' : 'normal');
+                $rules[] = 'text-transform: '.($style['case'] === 'none' ? 'none' : 'uppercase');
+                $rules[] = 'letter-spacing: '.match ($style['case']) {
+                    'upper' => $level === 'h4' ? '.14em' : '.08em',
+                    'smallcaps' => '.1em',
+                    default => '0',
+                };
+                $rules[] = 'margin: '.$num($style['above']).'em 0 '.$num($style['below']).'em';
+                $rules[] = 'text-align: '.$style['align'];
+            }
+
+            if ($face !== null) {
+                $rules[] = 'font-family: '.$face;
+            }
+
+            $css .= $selector.' { '.implode('; ', $rules)." }\n";
+        }
+
+        if ($headingFace !== null) {
+            // Titles on the display pages and openers.
+            $css .= ".tp-title, .opener-title, .part-title, .opener-figure, .part-figure, td.opener-figure, .half-title-text { font-family: {$headingFace}; }\n";
+        }
+
+        return $css;
     }
 
     /**
@@ -2347,42 +2481,82 @@ class PrintBook
         return $out;
     }
 
-    /** The margin the PDF being typeset widened to, for its page count; null for the setting. */
+    /** The inside margin the PDF being typeset widened to, for its page count; null for the setting. */
     private ?float $widened = null;
 
+    /**
+     * Whether this render is the print interior with mirrored margins: set
+     * as a recto on every page, the versos moved across afterwards
+     * (MirroredPages). Otherwise (the reading PDF, the HTML, the previews,
+     * or equal margins) the text block is centred on the page.
+     */
+    private bool $mirroring = false;
+
+    /** The inside margin, inches, once widened for the page count. */
     private function margin(array $layout): float
     {
-        return max(self::marginInches($layout['margins'] ?? 'Standard'), $this->widened ?? 0.0);
+        return $this->sides($layout)[0];
+    }
+
+    /** @return array{0: float, 1: float} inside and outside, inches */
+    private function sides(array $layout): array
+    {
+        return PageSetup::sides($layout, $this->widened);
     }
 
     /**
-     * The margin the interior is set at for this many pages: the Margins
+     * The page's left and right margins as dompdf sets them, inches: inside
+     * then outside when mirroring (every page a recto), else both the mean,
+     * so the reading PDF's text block is centred and the same width.
+     *
+     * @return array{0: float, 1: float}
+     */
+    private function leftRight(array $layout): array
+    {
+        [$inside, $outside] = $this->sides($layout);
+
+        return $this->mirroring ? [$inside, $outside] : [($inside + $outside) / 2, ($inside + $outside) / 2];
+    }
+
+    /**
+     * Where the running head and the foot line (folio, "Suite") are drawn,
+     * inches from the top of the page: 0.4 in above the text block and
+     * 0.33 in below it, which is 0.5 in and the height less 0.62 in on the
+     * preset margins, where they always were.
+     *
+     * @return array{0: float, 1: float}
+     */
+    public static function furniture(array $layout): array
+    {
+        $m = PageSetup::margins($layout);
+        [, $height] = PageSetup::trimInches($layout['trim']);
+
+        return [round(max(0.2, $m['top'] - 0.4), 4), round($height - max(0.2, $m['bottom'] - 0.33), 4)];
+    }
+
+    /**
+     * The inside margin the interior is set at for this many pages: the
      * setting, widened when the book is long enough that a print service
      * requires more inside (KDP: 0.625 in from 301 pages, 0.75 in from 501,
-     * 0.875 in from 701). dompdf cannot mirror margins, so both sides widen
-     * with the gutter.
+     * 0.875 in from 701). Symmetric margins widen on both sides with it;
+     * mirrored ones only inside (PageSetup::sides).
      */
     public static function insideMargin(array $layout, int $pages): float
     {
-        $required = collect(PrintSpecs::checkedServices())
-            ->map(fn (string $service) => (float) PrintSpecs::requiredGutter($service, PrintSpecs::evenPages($pages)))
-            ->max() ?? 0.0;
-
-        return max(self::marginInches($layout['margins'] ?? 'Standard'), $required);
+        return max(PageSetup::margins($layout)['inside'], PageSetup::requiredGutter($pages));
     }
 
     /**
-     * The page margin for a Margins setting, in inches. The same on every
-     * side, so it is also the inside (gutter) margin a print service
-     * checks against its own minimum (App\Publishing\PrintCheck).
+     * A margin preset's side margin, in inches (PageSetup::PRESETS). A
+     * book's own margins are PageSetup::margins().
      */
     public static function marginInches(string $margins): float
     {
-        return self::MARGINS[$margins] ?? self::MARGINS['Standard'];
+        return PageSetup::preset($margins)['side'];
     }
 
     /** Margins settings, narrowest first. */
-    public const MARGINS = ['Narrow' => 0.6, 'Standard' => 0.78, 'Wide' => 0.95];
+    public const MARGINS = ['Narrow' => 0.6, 'Standard' => 0.78, 'Wide' => 0.95, 'Large' => 1.0];
 
     /** @return array{0: float, 1: float} inches */
     private function trim(string $trim): array
@@ -2393,10 +2567,6 @@ class PrintBook
     /** @return array{0: float, 1: float} width and height in inches */
     public static function trimInches(string $trim): array
     {
-        if (preg_match('/([\d.]+)\s*x\s*([\d.]+)/', $trim, $found)) {
-            return [(float) $found[1], (float) $found[2]];
-        }
-
-        return [6.0, 9.0];
+        return PageSetup::trimInches($trim);
     }
 }

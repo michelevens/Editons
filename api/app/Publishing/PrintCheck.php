@@ -55,10 +55,16 @@ class PrintCheck
             $items[] = compact('key', 'status', 'message', 'fix');
         };
 
-        // Trim.
-        PrintSpecs::trimSupported($service, $layout['trim'])
-            ? $add('trim', 'pass', "{$label} prints {$layout['trim']}.")
-            : $add('trim', 'fail', "{$label} does not list {$layout['trim']} as a trim size.", 'Choose another trim size in Design.');
+        // Trim: a size the service lists for this paper, else a custom size
+        // inside its published range.
+        $paperName = $print['ink'] === 'bw' ? $print['paper'] : 'white';
+        $custom = PrintSpecs::customTrimSupported($service, $layout['trim'], $paperName);
+
+        match (true) {
+            PrintSpecs::trimSupported($service, $layout['trim'], $paperName) => $add('trim', 'pass', "{$label} prints {$layout['trim']}."),
+            $custom === true => $add('trim', 'pass', "{$layout['trim']} is a custom size within {$label}'s custom trim range for {$this->paperName($print)} (paperback)."),
+            default => $add('trim', 'fail', "{$label} does not print {$layout['trim']} on {$this->paperName($print)}, as a listed or a custom size.", 'Choose another trim size in Design.'),
+        };
 
         // Paper and ink.
         $range = PrintSpecs::pageRange($service, $print['paper'], $print['ink'], $layout['trim']);
@@ -79,19 +85,32 @@ class PrintCheck
         // setting, widened to the strictest service's band). An interior
         // typeset before margins tracked the length recorded none, and is
         // held to its setting.
+        $margins = PageSetup::margins($layout);
         $margin = match (true) {
             $pages['exact'] && isset($pages['margin']) => (float) $pages['margin'],
-            $pages['exact'] => PrintBook::marginInches($layout['margins']),
+            $pages['exact'] => $margins['inside'],
             default => PrintBook::insideMargin($layout, $count),
         };
 
         if ($margin + 1e-9 < $required) {
-            $better = collect(PrintBook::MARGINS)->filter(fn ($inches) => $inches + 1e-9 >= $required)->keys()->first();
             $add('margins', $soft,
-                sprintf('%s needs an inside margin of at least %s in at %s; %s margins are %s in.', $label, $this->inches($required), $about, $layout['margins'], $this->inches($margin)),
-                $better ? "Switch margins to {$better} in Design." : 'No margin setting is wide enough at this length: choose a larger trim.');
+                sprintf('%s needs an inside margin of at least %s in at %s; this book\'s is %s in.', $label, $this->inches($required), $about, $this->inches($margin)),
+                sprintf('Set the inside margin to %s in or more in Design.', $this->inches($required)));
         } else {
             $add('margins', 'pass', sprintf('Inside margin %s in meets %s\'s %s in for this length.', $this->inches($margin), $label, $this->inches($required)));
+        }
+
+        // Top, bottom and outside: the service's floor (KDP), or its
+        // recommendation (IngramSpark), which only warns.
+        $edge = (float) (PrintSpecs::spec($service)['outside_margin'] ?? 0.0);
+        $outside = $pages['exact'] && isset($pages['outside']) ? (float) $pages['outside'] : PageSetup::sides($layout, $margin)[1];
+        $narrowest = min($outside, $margins['top'], $margins['bottom']);
+
+        if ($edge > 0 && $narrowest + 1e-9 < $edge) {
+            $recommended = (bool) (PrintSpecs::spec($service)['outside_recommended'] ?? false);
+            $add('edges', $recommended ? 'warn' : 'fail',
+                sprintf('%s %s at least %s in at the top, bottom and outside; the narrowest here is %s in.', $label, $recommended ? 'recommends' : 'requires', $this->inches($edge), $this->inches($narrowest)),
+                sprintf('Widen the top, bottom or outside margin to %s in in Design.', $this->inches($edge)));
         }
 
         // Pictures.
@@ -138,7 +157,7 @@ class PrintCheck
             'service' => $service,
             'label' => $label,
             'status' => in_array('fail', $statuses, true) ? 'fail' : (in_array('warn', $statuses, true) ? 'warn' : 'pass'),
-            'pages' => array_diff_key($pages, ['layout' => 1, 'margin' => 1]) + ['count' => $count],
+            'pages' => array_diff_key($pages, ['layout' => 1, 'margin' => 1, 'outside' => 1]) + ['count' => $count],
             'items' => $items,
         ];
     }
@@ -186,8 +205,9 @@ class PrintCheck
     public function lowResolutionImages(Book $book): int
     {
         $layout = $book->layout();
-        [$width] = PrintBook::trimInches($layout['trim']);
-        $measure = $width - 2 * PrintBook::marginInches($layout['margins']);
+        [$width] = PageSetup::trimInches($layout['trim']);
+        $margins = PageSetup::margins($layout);
+        $measure = $width - $margins['inside'] - $margins['outside'];
         $needed = $measure * (int) config('publishing.print_dpi');
         $low = 0;
         $seen = [];

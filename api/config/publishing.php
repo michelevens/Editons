@@ -31,7 +31,7 @@ return [
     'docx_import' => (bool) env('DOCX_IMPORT', true),
 
     // The date every figure below was read from its source.
-    'checked' => '2026-10-23',
+    'checked' => '2026-10-28',
 
     // A picture printed below this many dots per inch looks soft on paper
     // (KDP cover guide: "a minimum resolution of 300 DPI"; IngramSpark
@@ -69,7 +69,8 @@ return [
             // Interior: https://kdp.amazon.com/en_US/help/topic/GVBQ3CMEQW3W2VL6
             // Inside (gutter) margin by page count, as [up to this many pages, inches].
             'gutter' => [[150, 0.375], [300, 0.5], [500, 0.625], [700, 0.75], [828, 0.875]],
-            // "at least 0.25 in (6.4 mm)" without bleed; interiors made here have none.
+            // "The top, bottom, and outside margins must be a minimum of 0.25 inches for
+            // books without bleed"; interiors made here have none.
             'outside_margin' => 0.25,
             // Paperback page ranges by paper and ink.
             'pages' => [
@@ -78,10 +79,27 @@ return [
                 'standard_color' => [72, 600],
                 'premium_color' => [24, 828],
             ],
-            // Trim sizes from the same page that the Design screen offers, and the
-            // lower maximum 8.5 x 11 carries ("24-590 pages").
-            'trims' => ['5 x 8 in', '5.5 x 8.5 in', '6 x 9 in', '7 x 10 in', '8.5 x 11 in'],
-            'trim_max_pages' => ['8.5 x 11 in' => 590],
+            // Paperback trims, from the same page's "Trim size specifications (width x
+            // height) with minimum and maximum page counts" (read 2026-10-28), and the
+            // lower maxima some carry on white paper ("24-800", "24-590", "24-780").
+            'trims' => [
+                '5 x 8 in', '5.06 x 7.81 in', '5.25 x 8 in', '5.5 x 8.5 in', '6 x 9 in', '6.14 x 9.21 in',
+                '6.69 x 9.61 in', '7 x 10 in', '7.44 x 9.69 in', '7.5 x 9.25 in', '8 x 10 in', '8.25 x 6 in',
+                '8.25 x 8.25 in', '8.5 x 8.5 in', '8.5 x 11 in', '8.27 x 11.69 in',
+            ],
+            'trim_max_pages' => [
+                '8.25 x 6 in' => 800, '8.25 x 8.25 in' => 800, '8.5 x 8.5 in' => 590, '8.5 x 11 in' => 590,
+                '8.27 x 11.69 in' => 780,
+            ],
+            // https://kdp.amazon.com/en_US/help/topic/GAVW3FZZAKA2KY3B: "There are five
+            // available trim sizes", case laminate only, "75 - 550 pages".
+            'hardcover_trims' => ['5.5 x 8.5 in', '6 x 9 in', '6.14 x 9.21 in', '7 x 10 in', '8.25 x 11 in'],
+            'hardcover_pages' => [75, 550],
+            // https://kdp.amazon.com/en_US/help/topic/G201834180: "For paperbacks, you can
+            // also enter your own custom trim size. Width must be within 4"-8.5" (10.16-21.59
+            // cm). Height must be within 6"-11.69" (15.24-29.69 cm)." Paperback only.
+            'custom' => ['white' => ['width' => [4.0, 8.5], 'height' => [6.0, 11.69]], 'cream' => ['width' => [4.0, 8.5], 'height' => [6.0, 11.69]]],
+
             // "more than 6.12 inches (155.5 mm) in width or more than 9 inches (228.6 mm) in height"
             'large_trim' => ['width' => 6.12, 'height' => 9.0],
             // https://kdp.amazon.com/en_US/help/topic/G201834340
@@ -133,15 +151,44 @@ return [
             'barcode' => ['width' => 1.75, 'height' => 1.0, 'inset' => 0.25],
             // Interior: "Margins: Recommended minimum 0.5" (13 mm) on all sides."
             'gutter' => [[PHP_INT_MAX, 0.5]],
+            // Top, bottom and outside too. A recommendation, so PrintCheck warns
+            // below it rather than failing.
             'outside_margin' => 0.5,
+            'outside_recommended' => true,
             // Trim Size Matrix, black and white: 50lb creme "18-1050 pgs", 50lb white
             // "18-1200 pgs". Read from a table in the PDF; the matrix is the authority.
             'pages' => [
                 'white' => [18, 1200],
                 'cream' => [18, 1050],
             ],
-            'trims' => ['5 x 8 in', '5.5 x 8.5 in', '6 x 9 in', '7 x 10 in', '8.5 x 11 in'],
+            // Trim Size Matrix (File Creation Guide p.40, read 2026-10-28): the sizes
+            // marked for 50lb white black-and-white perfect bound, and those also marked
+            // for 50lb creme. 11 x 8.5 is premium colour only and is left out.
+            'trims' => [
+                '4 x 6 in', '4 x 7 in', '4.25 x 7 in', '4.37 x 7 in', '4.72 x 7.48 in', '5 x 7 in', '5 x 8 in',
+                '5.06 x 7.81 in', '5.25 x 8 in', '5.5 x 7.5 in', '5.5 x 8.25 in', '5.5 x 8.5 in', '5.83 x 8.27 in',
+                '6 x 9 in', '6.14 x 9.21 in', '6.5 x 6.5 in', '6.625 x 10.25 in', '6.69 x 9.61 in', '7 x 10 in',
+                '7.44 x 9.69 in', '7.5 x 9.25 in', '8 x 8 in', '8 x 10 in', '8 x 10.88 in', '8.25 x 10.75 in',
+                '8.25 x 11 in', '8.27 x 11.69 in', '8.5 x 8.5 in', '8.5 x 9 in', '8.5 x 11 in',
+            ],
+            'trims_by_paper' => [
+                'cream' => [
+                    '4 x 6 in', '4 x 7 in', '4.25 x 7 in', '4.72 x 7.48 in', '5 x 7 in', '5 x 8 in', '5.06 x 7.81 in',
+                    '5.25 x 8 in', '5.5 x 8.25 in', '5.5 x 8.38 in', '5.5 x 8.5 in', '5.83 x 8.27 in', '6 x 9 in',
+                    '6.14 x 9.21 in',
+                ],
+            ],
             'trim_max_pages' => [],
+            // The matrix's Case Laminate rows.
+            'hardcover_trims' => [
+                '5 x 8 in', '5.5 x 8.5 in', '5.83 x 8.27 in', '6 x 9 in', '6.14 x 9.21 in', '6.69 x 9.61 in', '7 x 10 in',
+                '7.5 x 9.25 in', '8 x 8 in', '8 x 10 in', '8 x 10.88 in', '8.25 x 10.75 in', '8.5 x 8.5 in', '8.5 x 11 in',
+            ],
+            // p.41: "Custom trim sizes are available for Perfect Bound … White &
+            // Groundwood: Widths available from: 4" to 8.5" … Lengths available from: 6"
+            // to 11""; Crème: widths "4" to 6.14"", lengths "6" to 9.252"".
+            'custom' => ['white' => ['width' => [4.0, 8.5], 'height' => [6.0, 11.0]], 'cream' => ['width' => [4.0, 6.14], 'height' => [6.0, 9.252]]],
+
             // No public print-cost formula: IngramSpark points to its Print & Ship
             // Calculator (https://www.ingramspark.com/pricing).
             'print_cost' => null,
