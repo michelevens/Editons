@@ -312,6 +312,7 @@ it('sends the weekly digest to people who wrote, honouring preferences', functio
         && $mail->summary['active_days'] === 1);
 });
 
-it('is not scheduled by default', function () {
-    $this->artisan('schedule:list')->doesntExpectOutputToContain('emails:weekly-digest');
+// Switched on by the owner on 2026-10-28 (Mondays 8:00 New York time; see ScheduleTest).
+it('is scheduled weekly', function () {
+    $this->artisan('schedule:list')->expectsOutputToContain('emails:weekly-digest');
 });
