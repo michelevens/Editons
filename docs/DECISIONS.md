@@ -2834,7 +2834,7 @@ headings in the preview; a house style saved, followed with the controls
 locked, detached and applied to the other books from the shelf; no
 horizontal scroll).
 
-## ADR-00XX — Editable back cover, spine and image layers
+## ADR-0042 — Editable back cover, spine and image layers
 
 **Status:** accepted (2026-10-28). Number assigned at merge.
 
