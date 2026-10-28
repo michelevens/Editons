@@ -202,7 +202,10 @@ class CoverWrap
         $image = imagecreatetruecolor($px($g['width']), $px($g['height']));
         imagealphablending($image, true);
 
-        $front = @imagecreatefromstring((string) Storage::disk('files')->get($this->covers->ensure($book)));
+        // The front at the width its panel prints it, so a cover's text
+        // layers are set sharp at print resolution rather than enlarged.
+        $frontWidth = (int) round(min(($g['front']['width'] + $g['bleed']) * $dpi, $g['height'] * $dpi * CoverRenderer::WIDTH / CoverRenderer::HEIGHT));
+        $front = @imagecreatefromstring($this->covers->front($book, $frontWidth));
 
         if (! $front) {
             throw new RuntimeException('The front cover could not be drawn.');
