@@ -16,7 +16,7 @@ use FontLib\Font;
 use Symfony\Component\Process\Process;
 
 /**
- * Mirrored margins, trims and typography (ADR-00XX — Mirrored margins,
+ * Mirrored margins, trims and typography (ADR-0041 — Mirrored margins,
  * trims, typography and house styles): page settings and their limits,
  * the print services' trims and gutter bands, the print interior's
  * mirrored versos read back from the PDF, the interior faces, large print

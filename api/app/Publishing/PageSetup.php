@@ -5,7 +5,7 @@ namespace App\Publishing;
 use App\Models\Book;
 
 /**
- * The printed page: its trim and its four margins (ADR-00XX — Mirrored
+ * The printed page: its trim and its four margins (ADR-0041 — Mirrored
  * margins, trims, typography and house styles).
  *
  * Trim is the layout's `trim`, a "W x H in" string: one of the standard

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { firstBookId, signIn, watchForErrors } from './helpers.js';
 
 /**
- * Design & Layout's interior controls (ADR-00XX — Interior design controls):
+ * Design & Layout's interior controls (ADR-0040 — Interior design controls):
  * every setting changes the page preview, which is PrintBook's own markup
  * and stylesheet, and the new render replaces the old only once it is laid
  * out. Then a quotation is made a box of a chosen kind in the editor.

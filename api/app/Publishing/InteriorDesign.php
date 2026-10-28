@@ -5,7 +5,7 @@ namespace App\Publishing;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The interior design controls on the Design & Layout screen (ADR-00XX —
+ * The interior design controls on the Design & Layout screen (ADR-0040 —
  * Interior design controls): chapter and part openers, running heads and
  * folios, the printed and EPUB contents depth, and the style of each kind
  * of callout box.
@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
  *            epub (the EPUB's navigation, same scale)
  *   callouts preset, and types: {note: {border, tint, icon, label}, …}
  *
- * and, with ADR-00XX (Mirrored margins, trims, typography and house
+ * and, with ADR-0041 (Mirrored margins, trims, typography and house
  * styles):
  *
  *   page     top, bottom, inside, outside (inches; null: the margin

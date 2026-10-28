@@ -69,7 +69,7 @@ chosen as a Tip prints as a tip. A box chosen without a bold label is
 labelled with the type's word in the book's language ("Astuce.", "Tip."),
 or the label set for that type on Design & Layout. How each type prints
 (rule, tint, icon, label) is set per book on Design & Layout → Boxes; the
-table above is the Classic style (ADR-00XX — Interior design controls).
+table above is the Classic style (ADR-0040 — Interior design controls).
 Markdown has no syntax for the choice, so a Markdown export keeps the
 label and an import infers the type again.
 

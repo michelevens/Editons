@@ -19,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 use Symfony\Component\Process\Process;
 
 /**
- * Export profiles (ADR-00XX — Export profiles): the options an export is
+ * Export profiles (ADR-0043 — Export profiles): the options an export is
  * made with (range, cover, matter, watermark, manuscript format, notes,
  * contents depth), the presets and saved profiles, the book's matter set
  * per format, the labels in the history, the publish flow and the store

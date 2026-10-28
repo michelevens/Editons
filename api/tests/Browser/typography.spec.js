@@ -3,7 +3,7 @@ import { signIn, watchForErrors } from './helpers.js';
 
 /**
  * Margins, trims, typography and house styles on Design & Layout
- * (ADR-00XX — Mirrored margins, trims, typography and house styles): the
+ * (ADR-0041 — Mirrored margins, trims, typography and house styles): the
  * new controls change the page preview, mirrored margins show on the
  * spread, and a house style is saved, followed, detached and applied to
  * several books from the shelf.

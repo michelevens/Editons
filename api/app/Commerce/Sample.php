@@ -7,7 +7,7 @@ use App\Models\Product;
 use Illuminate\Support\Facades\URL;
 
 /**
- * "Read a sample" on a store product page (ADR-00XX — Export profiles).
+ * "Read a sample" on a store product page (ADR-0043 — Export profiles).
  *
  * The sample is a file the author already made with the Sample profile
  * (App\Publishing\ExportOptions: the first chapters, the front matter a

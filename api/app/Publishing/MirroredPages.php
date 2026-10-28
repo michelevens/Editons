@@ -6,7 +6,7 @@ use setasign\Fpdi\Fpdi;
 use setasign\Fpdi\PdfParser\StreamReader;
 
 /**
- * Mirrored margins for the print interior, made after typesetting (ADR-00XX
+ * Mirrored margins for the print interior, made after typesetting (ADR-0041
  * — Mirrored margins, trims, typography and house styles).
  *
  * dompdf honours one @page rule, so it cannot give a verso its wide margin

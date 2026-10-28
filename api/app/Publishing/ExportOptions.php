@@ -9,7 +9,7 @@ use App\Models\ManuscriptSection;
 use Illuminate\Validation\ValidationException;
 
 /**
- * What one export is made with: an export profile (ADR-00XX — Export
+ * What one export is made with: an export profile (ADR-0043 — Export
  * profiles).
  *
  * A profile narrows or marks the book rather than designing it again: a

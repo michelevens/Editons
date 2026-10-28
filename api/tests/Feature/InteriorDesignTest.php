@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Process;
 
 /**
- * The interior design controls (ADR-00XX — Interior design controls):
+ * The interior design controls (ADR-0040 — Interior design controls):
  * openers and their labels, right-hand starts, running heads and folios,
  * contents depth in print and EPUB, and callout boxes chosen in the editor
  * and styled per book. The defaults must set a book exactly as before.

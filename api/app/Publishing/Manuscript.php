@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 /**
  * Standard manuscript format, for an agent, an editor or a contest: the
- * text as a submission, not as a book (ADR-00XX — Export profiles).
+ * text as a submission, not as a book (ADR-0043 — Export profiles).
  *
  * 12 pt in a Times-like or Courier-like face (Liberation Serif or Courier
  * Prime, both OFL, in resources/fonts/manuscript), double-spaced, 1 in

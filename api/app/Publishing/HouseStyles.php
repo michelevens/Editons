@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * House styles: a book's design saved under a name and applied to other
- * books (ADR-00XX — Mirrored margins, trims, typography and house styles).
+ * books (ADR-0041 — Mirrored margins, trims, typography and house styles).
  *
  * A style is the whole of a book's `layout` — trim, margins, type, openers,
  * running heads, contents, boxes, paragraphs and headings — and nothing

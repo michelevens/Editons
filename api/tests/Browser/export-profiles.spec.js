@@ -6,7 +6,7 @@ import { expect, test } from '@playwright/test';
 import { flagshipBookId, signIn, watchForErrors } from './helpers.js';
 
 /**
- * Export profiles on Export & Publish (ADR-00XX — Export profiles), on a
+ * Export profiles on Export & Publish (ADR-0043 — Export profiles), on a
  * desktop and on a phone: the Sample chip, a file made with it appearing
  * labelled in the history, the Customise panel with a watermark and notes
  * at the end of the book saved as a profile of the book, and the saved

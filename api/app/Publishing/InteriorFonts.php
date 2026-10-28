@@ -3,7 +3,7 @@
 namespace App\Publishing;
 
 /**
- * The typefaces a printed interior can be set in (ADR-00XX — Mirrored
+ * The typefaces a printed interior can be set in (ADR-0041 — Mirrored
  * margins, trims, typography and house styles).
  *
  * Text faces, chosen for long reading at 9–24 pt: each has a real italic

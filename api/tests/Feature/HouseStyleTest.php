@@ -10,7 +10,7 @@ use App\Publishing\HouseStyles;
 use App\Publishing\PrintPages;
 
 /**
- * House styles (ADR-00XX — Mirrored margins, trims, typography and house
+ * House styles (ADR-0041 — Mirrored margins, trims, typography and house
  * styles): a book's design saved under a name, applied to the account's
  * other books, followed and detached; never the manuscript; only within
  * one account; the console's bulk action on house books audited.

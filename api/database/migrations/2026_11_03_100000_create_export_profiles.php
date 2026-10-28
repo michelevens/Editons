@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Export profiles (ADR-00XX — Export profiles).
+ * Export profiles (ADR-0043 — Export profiles).
  *
  * - export_profiles: a named set of export options saved on one book
  *   (App\Publishing\ExportOptions). Names are unique per book whatever

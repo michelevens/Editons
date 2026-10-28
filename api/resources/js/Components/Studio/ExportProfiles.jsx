@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 /**
- * Export profiles on Export & Publish (ADR-00XX — Export profiles).
+ * Export profiles on Export & Publish (ADR-0043 — Export profiles).
  *
  * The presets and this book's saved profiles as one-click chips; the chosen
  * one applies to whichever format is generated next. "Customise…" opens the
