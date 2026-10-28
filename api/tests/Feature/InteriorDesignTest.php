@@ -193,7 +193,8 @@ it('sets a fixture book with the default design exactly as before the controls e
         $this->markTestIncomplete('Wrote the snapshot; run again to compare.');
     }
 
-    expect($normal)->toBe(file_get_contents($fixture));
+    // Line endings as checked out (a Windows checkout may turn them to CRLF).
+    expect($normal)->toBe(str_replace("\r\n", "\n", (string) file_get_contents($fixture)));
 });
 
 it('adds nothing to the stylesheet or the EPUB for a book on the defaults', function () {
