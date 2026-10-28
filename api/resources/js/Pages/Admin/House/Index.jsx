@@ -209,7 +209,8 @@ function Transfer({ houses }) {
 
 /** One action across the selected books. */
 function Bulk({ selected, allIds, setSelected, options }) {
-    const form = useForm({ action: 'export', format: 'cover_wrap', service: options.services[0]?.[0] ?? 'kdp', price: '', currency: options.currencies[0], reason: '' });
+    const styles = options.house_styles ?? [];
+    const form = useForm({ action: 'export', format: 'cover_wrap', service: options.services[0]?.[0] ?? 'kdp', price: '', currency: options.currencies[0], house_style_id: styles[0]?.id ?? '', follow: true, reason: '' });
     const all = selected.length === allIds.length;
 
     const submit = (event) => {
@@ -220,6 +221,7 @@ function Bulk({ selected, allIds, setSelected, options }) {
             reason: d.reason,
             ...(d.action === 'export' ? { format: d.format, options: d.format === 'cover_wrap' ? { service: d.service } : {} } : {}),
             ...(d.action === 'price' ? { price: d.price, currency: d.currency } : {}),
+            ...(d.action === 'house_style' ? { house_style_id: d.house_style_id, follow: d.follow } : {}),
         }));
         // "Prepare for publishing" is its own action: step 1 of Publish for
         // each book, stale files regenerated, one Google Play zip and one
@@ -240,6 +242,7 @@ function Bulk({ selected, allIds, setSelected, options }) {
                         <option value="price">Set the price</option>
                         <option value="publish">Put on sale</option>
                         <option value="unpublish">Take off sale</option>
+                        {styles.length > 0 && <option value="house_style">Apply a house style (design only)</option>}
                         <option value="prepare">Prepare for publishing (check, regenerate, Google + KDP)</option>
                     </select>
                     {form.data.action === 'export' && (
@@ -260,6 +263,20 @@ function Bulk({ selected, allIds, setSelected, options }) {
                                     </select>
                                 </>
                             )}
+                        </>
+                    )}
+                    {form.data.action === 'house_style' && (
+                        <>
+                            <label className="sr-only" htmlFor="house-bulk-style">House style</label>
+                            <select id="house-bulk-style" data-a="admin:house:bulk:style" value={form.data.house_style_id} onChange={(e) => form.setData('house_style_id', Number(e.target.value))} className={`${inputClass} w-auto`}>
+                                {styles.map((style) => (
+                                    <option key={style.id} value={style.id}>{style.name}</option>
+                                ))}
+                            </select>
+                            <label className="flex items-center gap-1.5 text-[12.5px] text-text-primary">
+                                <input type="checkbox" data-a="admin:house:bulk:follow" checked={form.data.follow} onChange={(e) => form.setData('follow', e.target.checked)} />
+                                Books follow the style
+                            </label>
                         </>
                     )}
                     {form.data.action === 'price' && (

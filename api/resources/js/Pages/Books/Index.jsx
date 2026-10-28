@@ -3,7 +3,7 @@ import MobileNav from '@/Components/Studio/MobileNav';
 import Icon from '@/Components/Studio/Icon';
 import ImportDialog from '@/Components/Studio/ImportDialog';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * The author's shelf.
@@ -239,7 +239,7 @@ function PrepareBar({ selecting, selected, onStart, onStop }) {
                     onClick={onStart}
                     className="rounded-control border border-border-input bg-bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-text-body transition hover:border-brand-primary/40"
                 >
-                    Prepare several for publishing…
+                    Select several books (prepare, house style)…
                 </button>
             </div>
         );
@@ -268,6 +268,7 @@ function PrepareBar({ selecting, selected, onStart, onStop }) {
                 </div>
             </div>
             {error && <p className="mt-2 text-[12px] text-status-danger">{error}</p>}
+            <ApplyHouseStyle selected={selected} />
             {result && (
                 <div className="mt-3 space-y-2" data-a="books:prepare:result">
                     <div className="flex flex-wrap gap-2">
@@ -294,6 +295,94 @@ function PrepareBar({ selecting, selected, onStart, onStop }) {
                 </div>
             )}
         </section>
+    );
+}
+
+/**
+ * Apply one of the account's house styles to the selected books: their
+ * design (trim, margins, type, openers, heads, boxes) replaced by the
+ * style's, the manuscripts untouched. "Follow" keeps them in step with the
+ * style when it is updated (HouseStyleController::apply).
+ */
+function ApplyHouseStyle({ selected }) {
+    const [styles, setStyles] = useState(null);
+    const [styleId, setStyleId] = useState('');
+    const [follow, setFollow] = useState(true);
+    const [busy, setBusy] = useState(false);
+    const [rows, setRows] = useState(null);
+
+    useEffect(() => {
+        window.axios.get(route('house-styles.index')).then(({ data }) => {
+            setStyles(data.styles);
+            setStyleId(data.styles[0]?.id ?? '');
+        }).catch(() => setStyles([]));
+    }, []);
+
+    if (!styles || styles.length === 0) {
+        return (
+            <p className="mt-2 text-[11.5px] text-text-secondary" data-a="books:house-style:none">
+                To give several books one design, save a house style from a book&rsquo;s Design &amp; Layout.
+            </p>
+        );
+    }
+
+    const apply = async () => {
+        setBusy(true);
+
+        try {
+            setRows((await window.axios.post(route('house-styles.apply', styleId), { books: selected, follow })).data.results);
+        } catch (e) {
+            setRows([{ id: 0, ok: false, title: '', message: e.response?.data?.message ?? 'That did not work.' }]);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="mt-3 border-t border-border-default pt-3" data-a="books:house-style">
+            <div className="flex flex-wrap items-center gap-2">
+                <label className="text-[12.5px] font-medium text-text-body" htmlFor="house-style-pick">House style</label>
+                <select
+                    id="house-style-pick"
+                    value={styleId}
+                    data-a="books:house-style:pick"
+                    onChange={(event) => setStyleId(Number(event.target.value))}
+                    className="min-w-0 max-w-full rounded-control border border-border-input px-2 py-1 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                >
+                    {styles.map((style) => (
+                        <option key={style.id} value={style.id}>{style.name} — {style.summary}</option>
+                    ))}
+                </select>
+                <label className="flex items-center gap-1.5 text-[12px] text-text-body">
+                    <input type="checkbox" checked={follow} data-a="books:house-style:follow" onChange={(event) => setFollow(event.target.checked)} />
+                    Follow it
+                </label>
+                <button
+                    type="button"
+                    data-a="books:house-style:apply"
+                    disabled={selected.length === 0 || busy || !styleId}
+                    onClick={apply}
+                    className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-semibold text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
+                >
+                    {busy ? 'Applying…' : 'Apply to selected'}
+                </button>
+            </div>
+            <p className="mt-1 text-[11px] text-text-secondary">
+                Only the design changes; the text never does. Print files made before become out of date.
+            </p>
+            {rows && (
+                <ul className="mt-2 space-y-1 text-[12.5px]" data-a="books:house-style:result">
+                    {rows.map((row) => (
+                        <li key={row.id}>
+                            <span className={`mr-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${row.ok ? 'bg-status-success-bg text-status-success' : 'bg-status-danger-bg text-status-danger'}`}>
+                                {row.ok ? 'Done' : 'Not applied'}
+                            </span>
+                            <span className="font-semibold text-text-primary">{row.title}</span> <span className="text-text-secondary">{row.message}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
     );
 }
 

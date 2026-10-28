@@ -49,6 +49,10 @@ const FOLIOS = {
 
 const DEPTHS = { 1: 'Parts and chapters', 2: '+ sections (H2)', 3: '+ subsections (H3)' };
 
+const LINES = { 1: '1 line', 2: '2 lines', 3: '3 lines', 4: '4 lines', 5: '5 lines' };
+
+const MM = 25.4;
+
 const BORDERS = {
     box: 'Ruled box',
     'heavy-left': 'Box, heavy left rule',
@@ -62,6 +66,10 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
     const [data, setData] = useState(null);
     const [sectionId, setSectionId] = useState(null);
     const [busy, setBusy] = useState(false);
+    // A custom trim's width and height fields, shown when the size is not
+    // a listed one or the author asks for one.
+    const [customTrim, setCustomTrim] = useState(false);
+    const [level, setLevel] = useState('h2');
 
     // Sliders fire continuously. Without this, dragging the font size sends
     // a request per pixel and the preview arrives out of order.
@@ -83,6 +91,13 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
     useEffect(() => {
         load();
     }, [load]);
+
+    const storedTrim = data?.layout?.trim;
+    const listed = data?.trims?.some((trim) => trim.value === storedTrim);
+
+    useEffect(() => {
+        if (storedTrim && !listed) setCustomTrim(true);
+    }, [storedTrim, listed]);
 
     const save = (changes, { immediate = false } = {}) => {
         // Optimistic: the controls track the input at once; the page follows
@@ -136,7 +151,18 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
         return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
     }
 
-    const { layout, trims, sections, design } = data;
+    const { layout, trims, sections, design, margins } = data;
+    // A book that follows a house style takes its design from it: the
+    // controls are locked until it is detached (HouseStyleCard).
+    const locked = Boolean(data.house_style?.following);
+    const unit = layout.page?.unit ?? 'in';
+    const show = (inches) => (unit === 'mm' ? (inches * MM).toFixed(1) : String(Number(Number(inches).toFixed(3))));
+    const mirrored = margins.mirrored;
+    const currentTrim = trims.find((trim) => trim.value === layout.trim);
+    const trimSize = (layout.trim.match(/([\d.]+)\s*x\s*([\d.]+)/) ?? [0, 6, 9]).slice(1, 3).map(Number);
+    const text = layout.text;
+    const heading = layout.headings[level];
+    const setHeading = (changes, immediate = false) => group('headings', { [level]: { ...heading, ...changes } }, { immediate });
     const opener = layout.opener;
     const heads = layout.heads;
     const callouts = layout.callouts;
@@ -172,7 +198,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                 <button
                     data-a="layout:reset"
                     onClick={reset}
-                    disabled={busy}
+                    disabled={busy || Boolean(data?.house_style?.following)}
                     className={`${onPreview ? '' : 'ml-auto '}rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50`}
                 >
                     Reset to defaults
@@ -181,29 +207,120 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
 
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 lg:grid-cols-[340px_1fr]">
                 <div className="space-y-4">
+                    <HouseStyleCard
+                        bookId={bookId}
+                        info={data.house_style}
+                        onChanged={() => load(sectionId)}
+                        onNotify={onNotify}
+                    />
+
+                    <fieldset disabled={locked} className="m-0 min-w-0 space-y-4 border-0 p-0 disabled:opacity-60" data-a="layout:controls">
                     <Card title="Page">
                         <Field label="Trim size">
-                            <Select value={layout.trim} name="trim" onChange={(value) => save({ trim: value }, { immediate: true })}
-                                options={Object.fromEntries(trims.map((trim) => [trim, trim]))} />
+                            <select
+                                value={customTrim ? 'custom' : layout.trim}
+                                data-a="layout:trim"
+                                onChange={(event) => {
+                                    if (event.target.value === 'custom') {
+                                        setCustomTrim(true);
+                                    } else {
+                                        setCustomTrim(false);
+                                        save({ trim: event.target.value }, { immediate: true });
+                                    }
+                                }}
+                                className="w-full min-w-0 rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                            >
+                                {trims.map((trim) => (
+                                    <option key={trim.value} value={trim.value}>
+                                        {trim.value}{trim.name ? ` — ${trim.name}` : ''} ({trim.mm})
+                                    </option>
+                                ))}
+                                <option value="custom">Custom size…</option>
+                            </select>
                         </Field>
 
-                        <Field label="Margins">
-                            <Select value={layout.margins} name="margins" onChange={(value) => save({ margins: value }, { immediate: true })}
-                                options={{ Narrow: 'Narrow', Standard: 'Standard', Wide: 'Wide' }} />
-                        </Field>
+                        {customTrim && (
+                            <div className="mb-2.5" data-a="layout:custom-trim">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Measure label="Width" unit={unit} value={trimSize[0]} name="trim-width"
+                                        min={design.custom_trim.width[0]} max={design.custom_trim.width[1]}
+                                        onCommit={(inches) => save({ trim: `${inches} x ${trimSize[1]} in` }, { immediate: true })} />
+                                    <Measure label="Height" unit={unit} value={trimSize[1]} name="trim-height"
+                                        min={design.custom_trim.height[0]} max={design.custom_trim.height[1]}
+                                        onCommit={(inches) => save({ trim: `${trimSize[0]} x ${inches} in` }, { immediate: true })} />
+                                </div>
+                                <p className="text-[11px] leading-snug text-text-secondary">
+                                    From {show(design.custom_trim.width[0])} × {show(design.custom_trim.height[0])} to {show(design.custom_trim.width[1])} × {show(design.custom_trim.height[1])} {unit}.
+                                    The print check says whether each service prints it.
+                                </p>
+                            </div>
+                        )}
+
+                        {!customTrim && currentTrim && (
+                            <p className="-mt-1.5 mb-2.5 text-[11px] leading-snug text-text-secondary" data-a="layout:trim-services">
+                                {currentTrim.services.length ? `Listed by ${currentTrim.services.join(', ')}.` : 'Not a listed size: a custom trim.'}
+                            </p>
+                        )}
+
+                        <div className="mb-2.5 grid grid-cols-[1fr_auto] items-end gap-2">
+                            <Field label="Margins">
+                                <Select value={layout.margins} name="margins"
+                                    onChange={(value) => save({ margins: value, page: { ...layout.page, top: null, bottom: null, inside: null, outside: null } }, { immediate: true })}
+                                    options={Object.fromEntries(design.margin_presets.map((preset) => [preset.key, preset.name]))} />
+                            </Field>
+                            <div className="mb-2.5 flex overflow-hidden rounded-control border border-border-input" role="group" aria-label="Units">
+                                {['in', 'mm'].map((key) => (
+                                    <button key={key} type="button" data-a={`layout:unit-${key}`} aria-pressed={unit === key}
+                                        onClick={() => group('page', { unit: key }, { immediate: true })}
+                                        className={`px-2 py-1 text-[11.5px] font-medium ${unit === key ? 'bg-brand-fill text-white' : 'text-text-body'}`}>
+                                        {key}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2" data-a="layout:margins-grid">
+                            {[['top', 'Top'], ['bottom', 'Bottom'], ['inside', 'Inside (gutter)'], ['outside', 'Outside']].map(([key, label]) => (
+                                <Measure key={key} label={label} unit={unit} value={margins.set[key]} name={`margin-${key}`}
+                                    min={design.margin_range[0]} max={design.margin_range[1]}
+                                    onCommit={(inches) => group('page', mirrored || !['inside', 'outside'].includes(key) ? { [key]: inches } : { inside: inches, outside: inches }, { immediate: true })} />
+                            ))}
+                        </div>
+
+                        <Toggle
+                            label="Mirrored margins"
+                            hint={mirrored
+                                ? 'Inside and outside differ: on every left-hand page of the print file the wide margin is at the spine, on the right.'
+                                : `Recommended for print: inside ${show(margins.recommended.inside)}, outside ${show(margins.recommended.outside)} ${unit}, the text block the same width, so the page count does not change.`}
+                            checked={mirrored}
+                            name="mirrored"
+                            onChange={(value) => group('page', value ? margins.recommended : { inside: null, outside: null }, { immediate: true })}
+                        />
+
+                        <p className="mt-1 text-[11px] leading-snug text-text-secondary" data-a="layout:margin-effective">
+                            In print the inside margin is <strong className="font-semibold text-text-body">{show(margins.effective.inside)} {unit}</strong>
+                            {margins.widened
+                                ? ` — widened from ${show(margins.set.inside)}: ${margins.service} asks for ${show(margins.required)} ${unit} at ${margins.exact ? '' : 'about '}${margins.pages} pages.`
+                                : `; ${margins.service ?? 'The print services'} ${margins.service ? 'asks for' : 'ask for'} at least ${show(margins.required)} ${unit} at ${margins.exact ? '' : 'about '}${margins.pages} pages.`}
+                        </p>
                     </Card>
 
                     <Card title="Type">
-                        <Field label="Body font">
+                        <Field label="Body face">
                             <Select value={layout.font} name="font" onChange={(value) => save({ font: value }, { immediate: true })}
-                                options={{ serif: 'Serif (EB Garamond)', sans: 'Sans (Source Sans 3)' }} />
+                                options={Object.fromEntries(design.fonts.map((face) => [face.key, face.name]))} />
+                        </Field>
+
+                        <Field label="Heading face">
+                            <Select value={layout.heading_font ?? ''} name="heading-font" onChange={(value) => save({ heading_font: value === '' ? null : value }, { immediate: true })}
+                                options={{ '': 'Same as the text', ...Object.fromEntries(design.fonts.map((face) => [face.key, face.name])) }} />
                         </Field>
 
                         <Field label={`Font size — ${Number(layout.size).toFixed(1)} pt`}>
                             <input
                                 type="range"
-                                min="9"
-                                max="14"
+                                min={design.size_range[0]}
+                                max={design.size_range[1]}
                                 step="0.5"
                                 value={layout.size}
                                 data-a="layout:size"
@@ -224,6 +341,106 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                                 className="w-full accent-brand-primary"
                             />
                         </Field>
+                    </Card>
+
+                    <Card title="Paragraphs">
+                        <div className="grid grid-cols-2 gap-2">
+                            <Field label="Paragraphs">
+                                <Select value={text.paragraph} name="text-paragraph" onChange={(value) => group('text', { paragraph: value }, { immediate: true })}
+                                    options={{ indent: 'First-line indent', block: 'Space between' }} />
+                            </Field>
+                            <Field label="Alignment">
+                                <Select value={text.align} name="text-align" onChange={(value) => group('text', { align: value }, { immediate: true })}
+                                    options={{ justify: 'Justified', left: 'Ragged right' }} />
+                            </Field>
+                        </div>
+
+                        {text.paragraph === 'indent' ? (
+                            <Field label={`Indent — ${Number(text.indent).toFixed(2)} em`}>
+                                <input type="range" min={design.ranges.indent[0]} max={design.ranges.indent[1]} step="0.05" value={text.indent}
+                                    data-a="layout:text-indent" onChange={(event) => group('text', { indent: Number(event.target.value) })}
+                                    className="w-full accent-brand-primary" />
+                            </Field>
+                        ) : (
+                            <Field label={`Space between — ${Number(text.spacing).toFixed(1)} em`}>
+                                <input type="range" min={design.ranges.spacing[0]} max={design.ranges.spacing[1]} step="0.1" value={text.spacing}
+                                    data-a="layout:text-spacing" onChange={(event) => group('text', { spacing: Number(event.target.value) })}
+                                    className="w-full accent-brand-primary" />
+                            </Field>
+                        )}
+
+                        <Toggle
+                            label="Hyphenation"
+                            hint="Words broken at the line end, in each paragraph's own language. French spacing stays either way."
+                            checked={text.hyphenate}
+                            name="text-hyphenate"
+                            onChange={(value) => group('text', { hyphenate: value }, { immediate: true })}
+                        />
+
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                            <Field label="Orphans (lines kept at a page foot)">
+                                <Select value={String(text.orphans)} name="text-orphans" onChange={(value) => group('text', { orphans: Number(value) }, { immediate: true })}
+                                    options={LINES} />
+                            </Field>
+                            <Field label="Widows (lines carried to a page)">
+                                <Select value={String(text.widows)} name="text-widows" onChange={(value) => group('text', { widows: Number(value) }, { immediate: true })}
+                                    options={LINES} />
+                            </Field>
+                        </div>
+                        <p className="text-[11px] leading-snug text-text-secondary">
+                            The PDF keeps orphans together; for widows it reports short last pages in the print check.
+                        </p>
+                    </Card>
+
+                    <Card title="Headings">
+                        <div className="mb-2 flex flex-wrap gap-1" role="tablist" aria-label="Heading level">
+                            {design.heading_levels.map((key) => (
+                                <button key={key} type="button" role="tab" aria-selected={level === key} data-a={`layout:heading-${key}`}
+                                    onClick={() => setLevel(key)}
+                                    className={`rounded-control border px-2 py-1 text-[11.5px] font-medium ${level === key ? 'border-brand-primary bg-brand-fill text-white' : 'border-border-input text-text-body'}`}>
+                                    {key === 'h4' ? 'H4–H6' : key.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2" data-a="layout:heading-style">
+                            <Field label={`Size — ${Number(heading.size).toFixed(2)} em`}>
+                                <input type="range" min={design.ranges.size[0]} max={design.ranges.size[1]} step="0.02" value={heading.size}
+                                    data-a="layout:heading-size" onChange={(event) => setHeading({ size: Number(event.target.value) })}
+                                    className="w-full accent-brand-primary" />
+                            </Field>
+                            <Field label="Weight">
+                                <Select value={heading.weight} name="heading-weight" onChange={(value) => setHeading({ weight: value }, true)}
+                                    options={{ normal: 'Regular', bold: 'Bold' }} />
+                            </Field>
+                            <Field label="Case">
+                                <Select value={heading.case} name="heading-case" onChange={(value) => setHeading({ case: value }, true)}
+                                    options={{ none: 'As written', upper: 'Capitals', smallcaps: 'Small capitals' }} />
+                            </Field>
+                            <Field label="Alignment">
+                                <Select value={heading.align} name="heading-align" onChange={(value) => setHeading({ align: value }, true)}
+                                    options={{ left: 'Left', center: 'Centred', right: 'Right' }} />
+                            </Field>
+                            <Field label={`Space above — ${Number(heading.above).toFixed(2)} em`}>
+                                <input type="range" min={design.ranges.above[0]} max={design.ranges.above[1]} step="0.05" value={heading.above}
+                                    data-a="layout:heading-above" onChange={(event) => setHeading({ above: Number(event.target.value) })}
+                                    className="w-full accent-brand-primary" />
+                            </Field>
+                            <Field label={`Space below — ${Number(heading.below).toFixed(2)} em`}>
+                                <input type="range" min={design.ranges.below[0]} max={design.ranges.below[1]} step="0.05" value={heading.below}
+                                    data-a="layout:heading-below" onChange={(event) => setHeading({ below: Number(event.target.value) })}
+                                    className="w-full accent-brand-primary" />
+                            </Field>
+                            <Field label="Face">
+                                <Select value={heading.face} name="heading-face" onChange={(value) => setHeading({ face: value }, true)}
+                                    options={{ heading: 'Heading face', body: 'Text face' }} />
+                            </Field>
+                        </div>
+                        <label className="mt-1 flex items-center gap-1.5 text-[12px] text-text-body">
+                            <input type="checkbox" checked={heading.italic} data-a="layout:heading-italic"
+                                onChange={(event) => setHeading({ italic: event.target.checked }, true)} />
+                            Italic
+                        </label>
                     </Card>
 
                     <Card title="Chapter and part openers">
@@ -421,6 +638,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                             })}
                         </div>
                     </Card>
+                    </fieldset>
                 </div>
 
                 <section className="min-w-0 rounded-tile border border-border-default bg-bg-surface p-3.5">
@@ -451,9 +669,9 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         <>
                             <PrintSpread preview={data.print} />
                             <p className="mt-2.5 text-[11.5px] text-text-secondary">
-                                {layout.trim} · {layout.font === 'serif' ? 'EB Garamond' : 'Source Sans 3'}{' '}
-                                {Number(layout.size).toFixed(1)} pt · {layout.margins.toLowerCase()} margins. Line breaks can differ slightly from the
-                                PDF, which stays the proof.
+                                {layout.trim} · {design.fonts.find((face) => face.key === layout.font)?.name}{' '}
+                                {Number(layout.size).toFixed(1)} pt · {mirrored ? 'mirrored' : (design.margin_presets.find((p) => p.key === layout.margins)?.name ?? '').toLowerCase()} margins.
+                                Line breaks can differ slightly from the PDF, which stays the proof.
                             </p>
                         </>
                     ) : (
@@ -464,6 +682,200 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                 </section>
             </div>
         </div>
+    );
+}
+
+/**
+ * A length in the author's unit: typed in inches or millimetres, stored in
+ * inches. Committed on Enter or when the field is left, so a half-typed
+ * number is never sent.
+ */
+function Measure({ label, unit, value, name, min, max, onCommit }) {
+    const shown = unit === 'mm' ? (value * MM).toFixed(1) : String(Number(Number(value).toFixed(3)));
+    const [draft, setDraft] = useState(shown);
+
+    useEffect(() => setDraft(shown), [shown]);
+
+    const commit = () => {
+        const number = Number(String(draft).replace(',', '.'));
+
+        if (!Number.isFinite(number) || number <= 0) {
+            setDraft(shown);
+
+            return;
+        }
+
+        const inches = Math.round((unit === 'mm' ? number / MM : number) * 10000) / 10000;
+
+        if (inches < min - 1e-6 || inches > max + 1e-6) {
+            setDraft(shown);
+
+            return;
+        }
+
+        if (Math.abs(inches - value) > 1e-6) onCommit(inches);
+    };
+
+    return (
+        <label className="mb-2.5 block min-w-0">
+            <span className="mb-1 block text-[11.5px] font-medium text-text-secondary">{label}</span>
+            <span className="flex items-center gap-1">
+                <input
+                    type="text"
+                    inputMode="decimal"
+                    value={draft}
+                    data-a={`layout:${name}`}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onBlur={commit}
+                    onKeyDown={(event) => event.key === 'Enter' && commit()}
+                    className="w-full min-w-0 rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                />
+                <span className="text-[11px] text-text-secondary">{unit}</span>
+            </span>
+        </label>
+    );
+}
+
+/**
+ * House styles: what this book follows, and saving, applying and updating
+ * the account's named designs (HouseStyleController). Following locks the
+ * book's design to the style; "Customise this book" detaches it.
+ */
+function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
+    const [name, setName] = useState('');
+    const [pick, setPick] = useState('');
+    const [follow, setFollow] = useState(true);
+    const [busy, setBusy] = useState(false);
+
+    if (!info?.can_manage && !info?.following) return null;
+
+    const styles = info.styles ?? [];
+    const chosen = pick || styles[0]?.id || '';
+    const following = info.following;
+
+    const run = async (request, done) => {
+        setBusy(true);
+
+        try {
+            const response = await request();
+            onNotify?.(done(response.data));
+            onChanged();
+        } catch (error) {
+            const errors = error.response?.data?.errors;
+            onNotify?.(errors ? Object.values(errors).flat().join(' ') : (error.response?.data?.message ?? 'That did not work.'));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <section className="rounded-tile border border-border-default bg-bg-surface p-3.5" data-a="layout:house-style">
+            <h3 className="mb-2 text-[13px] font-semibold text-text-primary">House style</h3>
+
+            {following ? (
+                <div className="rounded-control border border-brand-primary/30 bg-brand-primary/5 p-2.5" data-a="layout:house-style:following">
+                    <p className="text-[12.5px] text-text-body">
+                        This book follows <strong className="font-semibold">{following.name}</strong>. Its design changes when the style does, and
+                        the settings below are locked.
+                    </p>
+                    {info.can_manage && (
+                        <button
+                            type="button"
+                            data-a="layout:house-style:detach"
+                            disabled={busy}
+                            onClick={() => run(() => window.axios.post(`/books/${bookId}/house-style/detach`), () => 'This book now has its own design.')}
+                            className="mt-2 rounded-control border border-border-input bg-bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-text-body disabled:opacity-50"
+                        >
+                            Customise this book
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <>
+                    {styles.length > 0 && (
+                        <div className="mb-3">
+                            <Field label="Apply a style to this book">
+                                <select
+                                    value={chosen}
+                                    data-a="layout:house-style:pick"
+                                    onChange={(event) => setPick(Number(event.target.value))}
+                                    className="w-full min-w-0 rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                                >
+                                    {styles.map((style) => (
+                                        <option key={style.id} value={style.id}>
+                                            {style.name} ({style.books} book{style.books === 1 ? '' : 's'})
+                                        </option>
+                                    ))}
+                                </select>
+                            </Field>
+                            <p className="-mt-1.5 mb-2 text-[11px] text-text-secondary">{styles.find((style) => style.id === chosen)?.summary}</p>
+                            <label className="mb-2 flex items-center gap-1.5 text-[12px] text-text-body">
+                                <input type="checkbox" checked={follow} data-a="layout:house-style:follow" onChange={(event) => setFollow(event.target.checked)} />
+                                Follow it (later changes to the style apply here too)
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    data-a="layout:house-style:apply"
+                                    disabled={busy || !chosen}
+                                    onClick={() => run(() => window.axios.post(`/house-styles/${chosen}/apply`, { books: [bookId], follow }), (data) => data.results[0]?.message)}
+                                    className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                                >
+                                    Apply
+                                </button>
+                                <button
+                                    type="button"
+                                    data-a="layout:house-style:update"
+                                    disabled={busy || !chosen}
+                                    onClick={() =>
+                                        run(() => window.axios.put(`/house-styles/${chosen}`, { book: bookId }), (data) => `Style updated; ${data.updated} book${data.updated === 1 ? '' : 's'} now set from it.`)
+                                    }
+                                    className="rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-semibold text-text-body disabled:opacity-50"
+                                >
+                                    Update the style from this book
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <form
+                        className="flex gap-2"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            const saved = name.trim();
+                            run(() => window.axios.post(`/books/${bookId}/house-style`, { name: saved }), () => {
+                                setName('');
+
+                                return `Saved “${saved}”. This book follows it.`;
+                            });
+                        }}
+                    >
+                        <input
+                            type="text"
+                            value={name}
+                            maxLength={80}
+                            placeholder="Name, e.g. Écrivain Prépa"
+                            aria-label="House style name"
+                            data-a="layout:house-style:name"
+                            onChange={(event) => setName(event.target.value)}
+                            className="min-w-0 flex-1 rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                        />
+                        <button
+                            type="submit"
+                            data-a="layout:house-style:save"
+                            disabled={busy || name.trim().length < 2}
+                            className="shrink-0 rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-semibold text-text-body disabled:opacity-50"
+                        >
+                            Save as house style
+                        </button>
+                    </form>
+                    <p className="mt-1.5 text-[11px] leading-snug text-text-secondary">
+                        Saves trim, margins, type, paragraphs, headings, openers, running heads and boxes, never the text. Apply it to other books
+                        here or from your shelf.
+                    </p>
+                </>
+            )}
+        </section>
     );
 }
 

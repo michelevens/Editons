@@ -240,18 +240,27 @@ export function ensurePrintFonts() {
         `@font-face { font-family: '${family}'; src: url('/preview/fonts/${file}') format('truetype'); font-weight: ${weight}; font-style: ${style}; font-display: swap; }`;
     const style = document.createElement('style');
     style.id = 'pv-fonts';
-    style.textContent = [
-        face('EB Garamond', 'EBGaramond-Regular.ttf', 400, 'normal'),
-        face('EB Garamond', 'EBGaramond-Italic.ttf', 400, 'italic'),
-        face('EB Garamond', 'EBGaramond-SemiBold.ttf', '600 700', 'normal'),
-        face('EB Garamond', 'EBGaramond-SemiBoldItalic.ttf', '600 700', 'italic'),
-        face('Source Sans 3', 'SourceSans3-Regular.ttf', 400, 'normal'),
-        face('Source Sans 3', 'SourceSans3-It.ttf', 400, 'italic'),
-        face('Source Sans 3', 'SourceSans3-Semibold.ttf', '600 700', 'normal'),
-        face('Source Sans 3', 'SourceSans3-SemiboldIt.ttf', '600 700', 'italic'),
-    ].join('\n');
+    // Every interior face (App\Publishing\InteriorFonts): regular, italic,
+    // bold and bold italic. A browser fetches only the ones a page uses.
+    style.textContent = PRINT_FACES.flatMap(([family, [regular, italic, bold, boldItalic], weight]) => [
+        face(family, regular, 400, 'normal'),
+        face(family, italic, 400, 'italic'),
+        face(family, bold, `${weight} 700`, 'normal'),
+        face(family, boldItalic, `${weight} 700`, 'italic'),
+    ]).join('\n');
     document.head.appendChild(style);
 }
+
+/** The interior faces and their files, as InteriorFonts lists them: family, files, bold weight. */
+export const PRINT_FACES = [
+    ['EB Garamond', ['EBGaramond-Regular.ttf', 'EBGaramond-Italic.ttf', 'EBGaramond-SemiBold.ttf', 'EBGaramond-SemiBoldItalic.ttf'], 600],
+    ['Lora', ['Lora-Regular.ttf', 'Lora-Italic.ttf', 'Lora-Bold.ttf', 'Lora-BoldItalic.ttf'], 700],
+    ['Crimson Pro', ['CrimsonPro-Regular.ttf', 'CrimsonPro-Italic.ttf', 'CrimsonPro-SemiBold.ttf', 'CrimsonPro-SemiBoldItalic.ttf'], 600],
+    ['Literata', ['Literata-Regular.ttf', 'Literata-Italic.ttf', 'Literata-Bold.ttf', 'Literata-BoldItalic.ttf'], 700],
+    ['Spectral', ['Spectral-Regular.ttf', 'Spectral-Italic.ttf', 'Spectral-SemiBold.ttf', 'Spectral-SemiBoldItalic.ttf'], 600],
+    ['Alegreya', ['Alegreya-Regular.ttf', 'Alegreya-Italic.ttf', 'Alegreya-Bold.ttf', 'Alegreya-BoldItalic.ttf'], 700],
+    ['Source Sans 3', ['SourceSans3-Regular.ttf', 'SourceSans3-It.ttf', 'SourceSans3-Semibold.ttf', 'SourceSans3-SemiboldIt.ttf'], 600],
+];
 
 /**
  * Where a printed page's running head and folio go, as PrintBook::decorate()
@@ -266,7 +275,11 @@ export function ensurePrintFonts() {
 export function pageFurniture(page, heads, { verso, opens, folio, section = null }) {
     if (!page) return [];
 
-    const margin = page.outside * PX_PER_INCH;
+    // The text block's edges on this side of the spread: a verso has its
+    // outside margin at the left, a recto at the right (equal unless the
+    // book's margins are mirrored).
+    const left = (verso ? page.outside : page.inside) * PX_PER_INCH;
+    const right = (verso ? page.inside : page.outside) * PX_PER_INCH;
     const showHead = page.headers && (!opens || page.openers);
     let head = showHead ? (heads?.[verso ? 'verso' : 'recto'] ?? null) : null;
 
@@ -283,7 +296,7 @@ export function pageFurniture(page, heads, { verso, opens, folio, section = null
     const face = `'${page.font}', serif`;
     const grey = '#545454';
     const line = (top) => ({
-        position: 'absolute', top, left: margin, right: margin, lineHeight: 1.3, fontFamily: face, color: grey,
+        position: 'absolute', top, left, right, lineHeight: 1.3, fontFamily: face, color: grey,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     });
     const headTop = (page.head_at ?? 0.5) * PX_PER_INCH;
@@ -318,7 +331,7 @@ export function pageFurniture(page, heads, { verso, opens, folio, section = null
         out.push({
             key: 'folio',
             style: place === 'bottom-center'
-                ? { ...line(footTop), left: 0, right: 0, textAlign: 'center' }
+                ? { ...line(footTop), textAlign: 'center' }
                 : { ...line(place === 'bottom-outside' ? footTop : headTop), textAlign: outside },
             parts: [folioPart],
         });
