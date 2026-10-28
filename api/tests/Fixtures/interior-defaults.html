@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The Design Fixture</title><style>@page { size: 6in 9in; margin: 0.9in 0.78in 0.95in 0.78in; }
+body { margin: 0; padding: 0; font-family: 'EB Garamond', Garamond, Georgia, serif; font-size: 11pt; line-height: 1.45; color: #1b1b1b; }
+
+section { page-break-before: always; }
+section.first { page-break-before: avoid; }
+.blank { page-break-before: always; height: 1pt; }
+
+/* A run with no break in it (an answer line of underscores, a long
+   URL) breaks at the margin rather than running off the page. */
+body { overflow-wrap: break-word; }
+
+p { margin: 0; text-indent: 1.35em; text-align: justify; orphans: 2; widows: 2; }
+.text > p:first-child, h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p,
+ul + p, ol + p, blockquote + p, pre + p, img + p, table + p, .scene-break + p { text-indent: 0; }
+
+.half-title-text { text-align: center; text-indent: 0; padding-top: 1.7in;
+    font-size: .92em; letter-spacing: .24em; text-transform: uppercase; }
+
+.title-page { text-align: center; padding-top: 1.35in; }
+.tp-title { font-size: 2.3em; line-height: 1.12; font-weight: normal; margin: 0 0 .5em; }
+.tp-subtitle { text-align: center; text-indent: 0; font-style: italic; font-size: 1.18em; line-height: 1.35; margin: 0 0 0; }
+.tp-ornament { text-align: center; text-indent: 0; font-size: 1.5em; color: #6d6d6d; margin: 1.3em 0 1.3em; }
+.tp-author { text-align: center; text-indent: 0; font-size: .95em; letter-spacing: .26em; text-transform: uppercase; }
+.tp-publisher { text-align: center; text-indent: 0; margin: 2.1in 0 0; font-size: .82em; letter-spacing: .22em; text-transform: uppercase; }
+.tp-place { text-align: center; text-indent: 0; font-size: .8em; font-style: italic; margin: .3em 0 0; }
+
+.series-text { padding-top: 1.1in; text-align: center; }
+.series-text p { text-align: center; text-indent: 0; }
+.series-heading { font-size: .78em; letter-spacing: .24em; text-transform: uppercase; margin: 0 0 .6em; }
+.series-name { font-style: italic; font-size: .9em; margin: 0 0 1.4em; }
+.series-book { font-size: .9em; margin: 0 0 .45em; }
+.series-number { color: #6d6d6d; }
+
+.copyright-text { padding-top: 4.46in; font-size: .74em; line-height: 1.55; }
+.copyright-long { padding-top: 0; font-size: .7em; }
+.copyright-long p { margin: 0 0 .6em; }
+.copyright-text p { text-indent: 0; text-align: left; margin: 0 0 .9em; }
+
+.dedication-text { padding-top: 1.6in; text-align: center; font-style: italic; }
+.dedication-text p { text-align: center; text-indent: 0; margin: 0 0 .5em; }
+
+.opener { text-align: center; padding-top: 1.05in; margin: 0 0 2.4em; }
+.opener-quiet { padding-top: .55in; margin-bottom: 1.8em; }
+.opener-label { text-align: center; text-indent: 0; font-size: .74em; letter-spacing: .3em;
+    text-transform: uppercase; color: #555555; margin: 0 0 1.05em; }
+.opener-title { font-size: 1.95em; line-height: 1.16; font-weight: normal; margin: 0; }
+.rule { width: 2.4em; margin: 1.15em auto 0; border-top: .6pt solid #8a8a8a; height: 0; }
+
+.part { text-align: center; padding-top: 2.05in; }
+.part-label { text-align: center; text-indent: 0; font-size: .8em; letter-spacing: .32em;
+    text-transform: uppercase; color: #555555; margin: 0; }
+.part-ornament { text-align: center; text-indent: 0; font-size: 1.35em; color: #7a7a7a; margin: .7em 0 .8em; }
+.part-title { font-size: 2.05em; line-height: 1.18; font-weight: normal; font-style: italic; margin: 0; }
+
+.opening { text-indent: 0; }
+.lead { text-transform: uppercase; font-size: .8em; letter-spacing: .07em; }
+.opening + * { clear: left; }
+.references p { text-align: left; text-indent: 0; font-size: .92em; margin: 0 0 .6em; }
+.dropcap { float: left; font-size: 3.55em; line-height: 0.82; margin: .07em .07em 0 0; padding: 0; }
+
+.text h1, .text h2 { font-size: 1.16em; font-weight: bold; line-height: 1.28; text-align: left;
+    margin: 1.75em 0 .6em; page-break-after: avoid; }
+.text h3 { font-size: 1.02em; font-style: italic; font-weight: normal; line-height: 1.3;
+    margin: 1.4em 0 .35em; page-break-after: avoid; }
+.text h4, .text h5, .text h6 { font-size: .8em; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: normal; margin: 1.3em 0 .35em; page-break-after: avoid; }
+
+blockquote { margin: .95em 1.7em; font-size: .94em; }
+blockquote p { text-indent: 0; margin: 0 0 .45em; }
+
+/* Boxes (Textbook::callout), black and white: a ruled box, a heavy
+   left rule for a pitfall, a 10% tint for what to remember, dashes
+   for a tip, rules above and below an example. Upright text, a
+   spaced capital label with its glyph, kept on one page. */
+.callout { margin: .9em 0; padding: .5em .75em .3em; border: .5pt solid #1a1a1a; font-size: .93em;
+    line-height: 1.392; page-break-inside: avoid; }
+.callout p { text-indent: 0; margin: 0 0 .4em; text-align: left; }
+.callout ul, .callout ol { margin: .3em 0 .45em 1.3em; }
+.callout-label { font-size: .8em; letter-spacing: .1em; text-transform: uppercase; font-weight: bold; padding-right: .3em; }
+.callout-label .glyph { font-size: 1.05em; letter-spacing: 0; }
+.callout-pitfall { border-left: 2.6pt solid #1a1a1a; }
+.callout-key, .callout-directions { border: 0; background-color: #e6e6e6; }
+.callout-tip { border-style: dashed; }
+.callout-example { border: 0; border-top: .6pt solid #1a1a1a; border-bottom: .6pt solid #1a1a1a; padding-left: 0; padding-right: 0; }
+.callout-note { border: 0; border-left: 1pt solid #555555; padding-top: .1em; padding-bottom: .1em; }
+
+/* A paragraph that is only a bold label, or that ends in a colon,
+   never ends a page. */
+p.run-in, p.lead-in { page-break-after: avoid; }
+p.math-rich { text-align: left; }
+p.run-in { text-indent: 0; margin-top: .45em; text-align: left; }
+
+/* Checklists: an empty square to tick, no bullet. */
+ul.checklist { list-style: none; margin-left: .2em; }
+ul.checklist li { padding-left: 0; margin: 0 0 .45em; }
+.check-box { display: inline-block; width: .82em; height: .82em; border: .7pt solid #1a1a1a;
+    margin-right: .55em; text-indent: 0; font-size: .9em; line-height: .82em; text-align: center; vertical-align: -.08em; }
+
+/* Exam papers: a boxed banner, boxed directions, the end marked. */
+.exam-banner { border: 1.2pt solid #1a1a1a; padding: .55em .8em .45em; margin: .4em 0 .9em; text-align: center; page-break-inside: avoid; page-break-after: avoid; }
+.exam-banner p { text-align: center; text-indent: 0; margin: 0 0 .25em; }
+.exam-title { font-weight: bold; }
+.exam-kind { font-size: .78em; letter-spacing: .14em; text-transform: uppercase; }
+.text table.exam-fields { width: 100%; margin: .35em 0 0; font-size: .82em; page-break-inside: avoid; }
+.text table.exam-fields td { border: 0; border-left: .5pt solid #1a1a1a; text-align: center; padding: .15em .4em; vertical-align: top; }
+.text table.exam-fields td:first-child { border-left: 0; }
+.text table.exam-fields tr:last-child td { border-bottom: 0; }
+.exam-field { font-size: .85em; letter-spacing: .1em; text-transform: uppercase; color: #333333; }
+.exam-directions { border: .5pt solid #1a1a1a; border-left: 2.6pt solid #1a1a1a; padding: .45em .75em .25em; margin: 0 0 1em;
+    font-size: .92em; page-break-inside: avoid; }
+.exam-directions p { text-indent: 0; margin: 0 0 .35em; text-align: left; }
+.exam-item { page-break-inside: avoid; }
+p.exam-end { text-align: center; text-indent: 0; margin: 1.4em 0 .6em; font-size: .82em; letter-spacing: .16em; font-weight: bold; }
+.ex-link { font-size: .82em; font-style: italic; font-weight: normal; white-space: nowrap; }
+ul, ol { margin: .65em 0 .85em 1.5em; padding: 0; }
+li { margin: 0 0 .3em; padding-left: .2em; text-align: left; }
+pre { font-family: 'DejaVu Sans Mono', monospace; font-size: .76em; line-height: 1.4;
+    margin: .9em 0; white-space: pre-wrap; }
+img { display: block; max-width: 100%; margin: 1.1em auto; }
+
+/* Book tables: three rules (top, under the head, bottom) and no
+   verticals, the way a typeset table reads; smaller type so a
+   five-column table fits the measure. */
+.text table { width: 100%; border-collapse: collapse; margin: .5em 0 1em;
+    font-size: .8em; line-height: 1.28; page-break-inside: auto; }
+.text thead { display: table-header-group; }
+.text tr { page-break-inside: avoid; }
+.text th { font-weight: bold; text-align: left; vertical-align: bottom;
+    border-top: .9pt solid #1a1a1a; border-bottom: .5pt solid #1a1a1a; padding: .32em .5em .28em 0; }
+.text td { text-align: left; vertical-align: top; padding: .22em .5em .22em 0;
+    border-bottom: .25pt solid #c9c9c9; }
+.text tbody tr:last-child td { border-bottom: .9pt solid #1a1a1a; }
+.text th p, .text td p { margin: 0; text-indent: 0; text-align: left; }
+.text table.keep { page-break-inside: avoid; }
+/* A score grid: every cell ruled, blank cells tall enough to write
+   in, totals set apart. */
+.text table.grid th, .text table.grid td { border: .5pt solid #1a1a1a; padding: .3em .4em .25em; }
+.text table.grid td.write-in { height: 1.9em; min-width: 3.4em; }
+.text table.grid tr.total td { font-weight: bold; border-top: 1.2pt solid #1a1a1a; }
+.text table.grid tbody tr:last-child td { border-bottom: .5pt solid #1a1a1a; }
+table + p { text-indent: 0; }
+p.caption { text-indent: 0; text-align: left; font-size: .88em; margin: 1.1em 0 .3em;
+    page-break-after: avoid; }
+p.table-note { text-indent: 0; text-align: left; font-size: .78em; line-height: 1.3;
+    margin: -.6em 0 1em; color: #444444; }
+blockquote p.caption { margin-top: 0; }
+
+/* Equations: displayed centred with the number at the right margin,
+   inline ones sitting on the baseline. */
+img.math { display: inline; margin: 0; }
+/* Notes, set at the end of the chapter under a short rule. */
+sup.fn-ref { font-size: .62em; line-height: 0; vertical-align: baseline; position: relative; top: -.62em; padding-left: .05em; }
+sup.fn-ref a { color: inherit; }
+section.footnotes { margin-top: 1.8em; font-size: .8em; line-height: 1.32; page-break-before: auto; }
+section.footnotes ol { margin: 0; padding: .7em 0 0 1.3em; border-top: .5pt solid #8a8a8a; width: 100%; }
+section.footnotes li { margin: 0 0 .35em; padding-left: .2em; }
+section.footnotes p { text-indent: 0; text-align: left; margin: 0; }
+div.chart { margin: .9em 0 .4em; page-break-inside: avoid; }
+div.chart img.chart { width: 100%; margin: 0; }
+.text table.math-display { width: 100%; margin: .7em 0; font-size: 1em; page-break-inside: avoid; }
+.text table.math-display td { border: 0; padding: 0; vertical-align: middle; }
+.text table.math-display tr:last-child td { border: 0; }
+.math-side { width: 3em; }
+.text td.math-body { text-align: center; }
+.text td.math-number { text-align: right; }
+/* Code in the monospaced face dompdf embeds. Left to itself it fell
+   back to the PDF's built-in Courier, which is not embedded and
+   printed "←" as "?". */
+code, kbd, samp { font-family: 'DejaVu Sans Mono', monospace; font-size: .84em; }
+pre code { font-size: 1em; }
+code.math-tex { font-family: 'DejaVu Sans Mono', monospace; font-size: .78em; color: #9b1c1c; }
+.glyph { font-family: 'DejaVu Sans', sans-serif; font-size: .9em; }
+.scene-break { text-align: center; text-indent: 0; color: #6d6d6d; margin: .9em 0; }
+a { color: inherit; text-decoration: none; }
+
+.toc { width: 100%; border-collapse: collapse; font-size: .96em; }
+.toc td { padding: .17em 0; vertical-align: top; line-height: 1.32; }
+.toc-num { width: 1.9em; color: #555555; }
+.toc-cap { width: 5.2em; color: #555555; white-space: nowrap; padding-right: .6em; }
+/* A list of tables or figures sits inside the text, so it undoes the
+   book-table rules and reads like the contents page. */
+.text table.toc { font-size: .96em; margin: 0; }
+.text table.toc td { border: 0; padding: .17em 0; }
+.text table.toc tr:last-child td { border: 0; }
+.text table.toc td.toc-page { text-align: right; }
+.text table.toc td.toc-cap { padding-right: .6em; }
+.toc-page { width: 2.4em; text-align: right; }
+.toc-matter .toc-title, .toc-references .toc-title { font-style: italic; }
+.toc-part td { padding: 1.05em 0 .3em; font-size: .78em; letter-spacing: .16em; text-transform: uppercase; }
+.toc-part-label { color: #555555; }</style></head>
+<body>
+<section class="half-title first" data-block="b0"><p class="half-title-text">The Design Fixture</p></section>
+<section class="title-page" data-block="b1"><h1 class="tp-title">The Design Fixture</h1><p class="tp-subtitle">A Book for Tests</p><p class="tp-ornament">&#x2766;</p><p class="tp-author">Ada Writer</p></section>
+<section class="copyright" data-block="b2"><div class="copyright-text"><p class="cr-notice">Copyright © Ada Writer</p><p class="cr-rights">All rights reserved.</p><p class="cr-set">Set in EB Garamond.</p></div></section>
+<section class="contents" data-block="b3"><div class="opener opener-quiet"><h1 class="opener-title">Contents</h1><div class="rule"></div></div><table class="toc"><tr class="toc-part"><td colspan="3"><span class="toc-part-label">Part One</span>&#160;&#160;Beginnings</td></tr><tr class="toc-chapter"><td class="toc-num">1</td><td class="toc-title">The River</td><td class="toc-page"></td></tr><tr class="toc-chapter"><td class="toc-num">2</td><td class="toc-title">The Town</td><td class="toc-page"></td></tr></table></section>
+<section class="part" data-block="b4"><p class="part-label">Part One</p><p class="part-ornament">&#x2766;</p><h1 class="part-title">Beginnings</h1></section>
+<section class="chapter" data-block="b5"><div class="opener" id="section-N"><p class="opener-label">Chapter One</p><h1 class="opener-title">The River</h1><div class="rule"></div></div><div class="text"><h2 id="hN-0" data-block="ref-N-hN-0">Low water</h2>
+<p class="opening"><span class="lead">The river ran low</span> that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour.</p>
+<p>The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The river ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour.</p>
+<div class="callout callout-tip"><p class="callout-first"><strong class="callout-label"><span class="callout-glyph" aria-hidden="true"><span class="glyph">★</span></span>&#160;Tip.</strong> Keep a bucket by the door.</p>
+</div>
+<div class="callout callout-pitfall"><p class="callout-first"><strong class="callout-label"><span class="callout-glyph" aria-hidden="true"><span class="glyph">⚠</span></span>&#160;Attention :</strong> not a box type you meant.</p>
+</div>
+<blockquote>
+<p>A quo­ta­tion with­out a label.</p>
+</blockquote>
+<h2 id="hN-6" data-block="ref-N-hN-6">Measures</h2>
+<ul>
+<li>one</li>
+<li>two</li>
+</ul>
+<p class="scene-break">&#x2767;</p>
+<p>After the break.</p>
+</div></section>
+<section class="chapter" data-block="b6"><div class="opener" id="section-N"><p class="opener-label">Chapter Two</p><h1 class="opener-title">The Town</h1><div class="rule"></div></div><div class="text"><p class="opening"><span class="lead">The town ran low</span> that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The town ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The town ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The town ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The town ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour. The town ran low that sum­mer, and the town learned to mea­sure water by the bucket and the hour.</p>
+<table class="keep">
+<thead>
+<tr><th>A</th><th>B</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>2</td></tr>
+</tbody>
+</table>
+</div></section>
+</body></html>
