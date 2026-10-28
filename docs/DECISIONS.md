@@ -2424,7 +2424,7 @@ bound text from the book; the print wrap's front at print resolution),
 `CoverTextParityTest.php` (PHP and JS agree), and
 `tests/Browser/cover.spec.js` at 1440px and 390px.
 
-## ADR-00XX — Customisable writing workspace
+## ADR-0039 — Customisable writing workspace
 
 **Status:** accepted (2026-10-28)
 
