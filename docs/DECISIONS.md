@@ -1,4 +1,4 @@
-# Architecture decision record
+﻿# Architecture decision record
 
 Decisions taken while implementing Milestone 1. Each records what was chosen,
 what was rejected, and what would make us revisit it.
@@ -2960,7 +2960,7 @@ copy box — it neither moves nor re-sizes; upload a logo; drop it on the
 barcode and see it moved clear; spine bottom to top; customise the spine;
 the full wrap; reload persists; no console errors).
 
-## ADR-00XX — Export profiles
+## ADR-0043 — Export profiles
 
 **Status:** accepted (2026-10-28). Number assigned at merge.
 
