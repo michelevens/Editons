@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Publishing\AccessibilityAudit;
 use App\Publishing\CoverRenderer;
+use App\Publishing\InteriorDesign;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -83,7 +84,7 @@ class Book extends Model
         'leading' => 1.45,
         'dropcap' => false,
         'headers' => true,
-    ];
+    ] + InteriorDesign::DEFAULTS;
 
     /**
      * How the printed book is made: paper, interior ink and cover finish.
@@ -190,7 +191,12 @@ class Book extends Model
     /** Layout with defaults applied, so the Design screen never reads null. */
     public function layout(): array
     {
-        return array_merge(self::DEFAULT_LAYOUT, $this->layout ?? []);
+        $stored = $this->layout ?? [];
+
+        // The interior design groups (openers, heads, contents, boxes) are
+        // filled in key by key, so a book saved before one existed, or
+        // with only part of one, still reads every value.
+        return array_merge(self::DEFAULT_LAYOUT, $stored, InteriorDesign::resolve($stored));
     }
 
     /** Print settings with defaults applied. */

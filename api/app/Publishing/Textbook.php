@@ -41,6 +41,12 @@ class Textbook
     /** The glyph that marks each type in print, all in DejaVu Sans. */
     public const GLYPHS = ['pitfall' => '⚠', 'key' => '◆', 'method' => '✎', 'tip' => '★', 'example' => '▸', 'check' => '✔'];
 
+    /** Glyphs for the types that classically have none, when a box style turns its icon on. */
+    public const EXTRA_GLYPHS = ['note' => 'ℹ', 'plain' => '■'];
+
+    /** What an author can choose for a quotation in the editor (attrs.callout): a box type, or "quote" for none. */
+    public const CHOICES = ['quote', 'note', 'key', 'pitfall', 'method', 'tip', 'example', 'check', 'plain'];
+
     /** Column heads that are left for the reader to fill in. */
     private const WRITE_IN = ['mes points', 'mon score', 'ma note', 'points obtenus', 'note obtenue', 'mon temps', 'date', 'temps',
         'score', 'mes reponses', 'ma reponse', '✔', '✓', 'correct', 'my points', 'my score', 'my answer', 'my answers',
@@ -73,8 +79,16 @@ class Textbook
      * ending in a full stop or a colon ("**Piège.**", "**Méthode. Étudier
      * le signe.**"); null for a quotation.
      *
+     * The type the author chose in the editor (attrs.callout) wins over
+     * the label's wording: a box chosen as a Tip is a tip whatever its
+     * label says, a quotation chosen as one is never a box, and a chosen
+     * box needs no label at all (its type's word stands in, see
+     * DocumentRenderer). Without a choice, the label is read as before,
+     * which is how imported books and existing content keep their boxes.
+     * `labelled` says whether the first bold run is the label.
+     *
      * @param  array<string, mixed>  $node
-     * @return array{type: string, label: string}|null
+     * @return array{type: string, label: string, labelled?: bool, chosen?: bool}|null
      */
     public static function callout(array $node): ?array
     {
@@ -82,21 +96,27 @@ class Textbook
             return null;
         }
 
+        $chosen = $node['attrs']['callout'] ?? null;
+        $chosen = in_array($chosen, self::CHOICES, true) ? $chosen : null;
+
+        if ($chosen === 'quote') {
+            return null;
+        }
+
         $first = $node['content'][0] ?? null;
         $lead = is_array($first) && ($first['type'] ?? '') === 'paragraph' ? ($first['content'][0] ?? null) : null;
-
-        if (! is_array($lead) || ($lead['type'] ?? '') !== 'text'
-            || ! array_intersect(['bold', 'strong'], array_column($lead['marks'] ?? [], 'type'))) {
-            return null;
-        }
-
-        $label = trim((string) ($lead['text'] ?? ''));
+        $label = is_array($lead) && ($lead['type'] ?? '') === 'text'
+            && array_intersect(['bold', 'strong'], array_column($lead['marks'] ?? [], 'type'))
+            ? trim((string) ($lead['text'] ?? ''))
+            : '';
 
         if ($label === '' || mb_strlen($label) > 90 || ! preg_match('/[.:]$/u', $label)) {
-            return null;
+            return $chosen === null ? null : ['type' => $chosen, 'label' => '', 'labelled' => false, 'chosen' => true];
         }
 
-        return ['type' => self::calloutType($label), 'label' => $label];
+        return $chosen === null
+            ? ['type' => self::calloutType($label), 'label' => $label]
+            : ['type' => $chosen, 'label' => $label, 'labelled' => true, 'chosen' => true];
     }
 
     /** The type a label names, 'plain' when none of the known words opens it. */

@@ -391,6 +391,8 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/design', [DesignController::class, 'show'])
         ->name('design.show');
+    Route::get('/books/{book}/design/callouts', [DesignController::class, 'callouts'])
+        ->name('design.callouts');
     Route::patch('/books/{book}/layout', [DesignController::class, 'updateLayout'])
         ->name('design.layout');
     Route::post('/books/{book}/layout/reset', [DesignController::class, 'resetLayout'])

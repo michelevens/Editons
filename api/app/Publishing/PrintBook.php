@@ -32,7 +32,10 @@ use Vanderlee\Syllable\Syllable;
  * a label, an ornament and small-capped opening words. Running heads carry
  * the book title on the verso and the chapter on the recto. Folios are
  * lower-case roman through the front matter, arabic from 1 at the first
- * page of the text; display pages count but print none.
+ * page of the text; display pages count but print none. Those are the
+ * defaults: the opener style and label, right-hand starts, the lead-in,
+ * what each running head shows and where the folio goes, the contents
+ * depth and the boxes' styles are the book's (InteriorDesign).
  *
  * The reading PDF opens with the front cover, full bleed, and closes with
  * the back cover when there is one; the print-ready interior has neither.
@@ -60,12 +63,6 @@ class PrintBook
     private const REFERENCES = [
         'references', 'bibliography', 'works cited', 'sources', 'notes',
         'références', 'bibliographie', 'referencias', 'bibliografía', 'literatur', 'referências',
-    ];
-
-    private const NUMBERS = [
-        1 => 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
-        'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen',
-        'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
     ];
 
     private const WORDS = [
@@ -219,9 +216,6 @@ class PrintBook
     public function previewContents(Book $book, Collection $sections, string $language): array
     {
         $plan = $this->plan($book, $sections, $language);
-        $layout = $book->layout();
-        [$width, $height] = $this->trim($layout['trim']);
-        $side = $this->margin($layout);
 
         return [
             'blocks' => array_map(fn (array $block) => [
@@ -238,21 +232,149 @@ class PrintBook
                 'running' => $block['running'],
                 'roman' => (bool) $block['roman'],
                 'restart' => (bool) $block['restart'],
+                // The running heads decorate() draws on this block's pages.
+                'heads' => $this->previewHeads($book, $block),
             ], $plan['blocks']),
             'css' => $this->css($book),
-            // Inches, as the stylesheet's @page rule sets them.
-            'page' => [
-                'width' => $width,
-                'height' => $height,
-                'top' => 0.9,
-                'bottom' => 0.95,
-                'inside' => $side,
-                'outside' => $side,
-                'font' => $layout['font'] === 'sans' ? self::SANS : self::SERIF,
-                'headers' => (bool) $layout['headers'],
-                'title' => $book->title,
-            ],
+            'page' => $this->previewPage($book),
         ];
+    }
+
+    /**
+     * The page the previews draw: trim and margins in inches, as the
+     * stylesheet's @page rule sets them, the face, and where the folio and
+     * running heads go (InteriorDesign), so a preview places them as
+     * decorate() does without deciding anything itself.
+     *
+     * @return array<string, mixed>
+     */
+    private function previewPage(Book $book): array
+    {
+        $layout = $book->layout();
+        [$width, $height] = $this->trim($layout['trim']);
+        $side = $this->margin($layout);
+
+        return [
+            'width' => $width,
+            'height' => $height,
+            'top' => 0.9,
+            'bottom' => 0.95,
+            'inside' => $side,
+            'outside' => $side,
+            'font' => $layout['font'] === 'sans' ? self::SANS : self::SERIF,
+            'headers' => (bool) $layout['headers'],
+            'title' => $book->title,
+            // Baselines in inches from the top: the head's, and the folio's
+            // at the foot.
+            'head_at' => 0.5,
+            'foot_at' => $height - 0.62,
+            'folio' => $layout['folio'],
+            'folio_size' => InteriorDesign::folioSize($layout['heads']),
+            'align' => $layout['heads']['align'],
+            'openers' => (bool) $layout['heads']['openers'],
+        ];
+    }
+
+    /**
+     * A block's running heads on a verso and a recto, as InteriorDesign
+     * sets them; null for a side that shows none. A head that shows the
+     * section is given here with the chapter's text, and its source, so the
+     * preview can put in the heading it finds on the page.
+     *
+     * @return array{verso: ?array, recto: ?array}
+     */
+    private function previewHeads(Book $book, array $block): array
+    {
+        $layout = $book->layout();
+
+        if (! $layout['headers'] || ! $block['runningHead']) {
+            return ['verso' => null, 'recto' => null];
+        }
+
+        $texts = [
+            'book' => (string) $book->title,
+            'author' => (string) (Anatomy::titlePageAuthor($book) ?? ''),
+            'part' => $block['partTitle'] ?? null,
+            'chapter' => $block['running'] ?? null,
+            'section' => null,
+        ];
+
+        return [
+            'verso' => InteriorDesign::head($layout['heads'], true, $texts),
+            'recto' => InteriorDesign::head($layout['heads'], false, $texts),
+        ];
+    }
+
+    /**
+     * The opening pages of one chapter for the Design & Layout screen: its
+     * block as the PDF's HTML sets it, the stylesheet, the page and its
+     * running heads. Only the first part of a long chapter is set, enough
+     * for the opener and the spread after it, so a slider move does not
+     * send the whole chapter.
+     *
+     * @param  Collection<int, ManuscriptSection>  $sections
+     * @return array<string, mixed>|null
+     */
+    public function designPreview(Book $book, Collection $sections, string $language, ?int $sectionId): ?array
+    {
+        $plan = $this->plan($book, $sections, $language);
+        $withSection = array_values(array_filter($plan['blocks'], fn (array $b) => $b['section'] !== null
+            && in_array($b['kind'], ['chapter', 'matter', 'references', 'part'], true)));
+        $block = collect($withSection)->first(fn (array $b) => $b['section']->id === $sectionId)
+            ?? collect($withSection)->first(fn (array $b) => $b['kind'] === 'chapter')
+            ?? ($withSection[0] ?? null);
+
+        if ($block === null) {
+            return null;
+        }
+
+        $block['section'] = $this->opening($block['section'], 1600);
+        $this->linkImages = true;
+
+        try {
+            $html = self::withoutPages($this->fallbackGlyphs(
+                $this->block($book, ['blankBefore' => false] + $block, $plan),
+                $book->layout()['font'] === 'sans' ? 'sans' : 'serif',
+            ));
+        } finally {
+            $this->linkImages = false;
+        }
+
+        return [
+            'key' => $this->previewKey($block),
+            'kind' => $block['kind'],
+            'section_id' => $block['section']->id,
+            'title' => $block['title'],
+            'label' => $block['label'],
+            'html' => $html,
+            'css' => $this->css($book),
+            'page' => $this->previewPage($book),
+            'heads' => $this->previewHeads($book, $block),
+            'folio' => (bool) $block['showFolio'],
+            'roman' => (bool) $block['roman'],
+        ];
+    }
+
+    /** A copy of a section cut to its first $words words, at a block boundary. */
+    private function opening(ManuscriptSection $section, int $words): ManuscriptSection
+    {
+        $nodes = $section->content['content'] ?? [];
+        $kept = [];
+        $count = 0;
+
+        foreach ($nodes as $node) {
+            $kept[] = $node;
+            $count += is_array($node) ? count(preg_split('/\s+/u', trim($this->plainOf($node)), -1, PREG_SPLIT_NO_EMPTY)) : 0;
+
+            if ($count >= $words) {
+                break;
+            }
+        }
+
+        $copy = clone $section;
+        $copy->content = ['type' => 'doc', 'content' => $kept];
+
+        return $copy;
     }
 
     /**
@@ -323,6 +445,9 @@ class PrintBook
 
         return $entries;
     }
+
+    /** Section headings of the last render, by their page key. @var array<string, string> */
+    private array $headings = [];
 
     /** Where the text on each page of the last render ends, in points from the top. @var array<int, float> */
     private array $filled = [];
@@ -441,6 +566,8 @@ class PrintBook
                 'section' => null,
                 'number' => null,
                 'label' => null,
+                'figure' => null,
+                'partTitle' => null,
                 'toc' => false,
                 'page' => null,
                 'blankBefore' => false,
@@ -453,6 +580,8 @@ class PrintBook
 
         $chapter = 0;
         $part = 0;
+        $opener = $book->layout()['opener'];
+        $partTitle = null;
 
         // When the author numbers chapters in their titles ("Chapter 4:
         // Paper 2"), those numbers are the ones the text cross-refers to, and
@@ -497,15 +626,32 @@ class PrintBook
             // what the label would, and set twice it reads as a stutter.
             $bare = (bool) preg_match('/^\s*(?:'.self::CHAPTER_WORDS.'|'.self::PART_WORDS.')\s+(?:\d+|[ivxlcdm]+)\s*$/iu', $title);
 
-            $add($kind, $page, $display + $folio + [
+            // Where the design asks for it, chapters open on a recto, and a
+            // part no longer has to (the anatomy puts parts on rectos).
+            $start = match (true) {
+                $i === $restart => 'recto',
+                $kind === 'chapter' && $opener['chapters_recto'] => 'recto',
+                $kind === 'part' && ! $opener['parts_recto'] => 'any',
+                default => $folio['start'],
+            };
+
+            if ($kind === 'part') {
+                $partTitle = $title;
+            } elseif (! in_array($section->type, ['chapter'], true)) {
+                // Front and back matter belong to no part.
+                $partTitle = $section->type === 'back_matter' ? null : $partTitle;
+            }
+
+            $add($kind, $page, $display + ['start' => $start] + $folio + [
                 'section' => $section,
                 'number' => $number,
                 'title' => $title,
                 'label' => $number === null || $bare ? null
-                    : $words[$kind].' '.($language === 'en' || str_starts_with($language, 'en')
-                        ? (self::NUMBERS[$number] ?? (string) $number)
-                        : ($kind === 'part' ? $this->roman($number) : (string) $number)),
+                    : InteriorDesign::label($kind, $number, $language, $opener, $words[$kind]),
+                // The number alone, for openers that set it large.
+                'figure' => $number === null || $bare || $opener['label'] === 'none' ? null : InteriorDesign::figure($kind, $number, $opener),
                 'running' => $title,
+                'partTitle' => $kind === 'part' ? $title : $partTitle,
                 'toc' => $kind !== 'dedication',
             ]);
         }
@@ -514,7 +660,8 @@ class PrintBook
             $add('back-cover', [], ['image' => $covers['back']]);
         }
 
-        return ['blocks' => $blocks, 'words' => $words, 'language' => $language];
+        return ['blocks' => $blocks, 'words' => $words, 'language' => $language, 'partsRecto' => $opener['parts_recto'],
+            'tocDepth' => (int) $book->layout()['toc']['depth']];
     }
 
     /** What a page of the anatomy is drawn as. */
@@ -605,7 +752,9 @@ class PrintBook
             $length = max(1, $next - ($starts[$id] ?? $next - 1));
 
             $recto = ($physical - $offset) % 2 === 1;
-            $wants = $previousKind === 'part' ? 'recto' : $blocks[$i]['start'];
+            // A part's verso stays blank, so what follows it opens on a
+            // recto, unless parts are set to run on (InteriorDesign).
+            $wants = $previousKind === 'part' && ($plan['partsRecto'] ?? true) ? 'recto' : $blocks[$i]['start'];
             $blocks[$i]['blankBefore'] = ! in_array($blocks[$i]['kind'], ['cover', 'back-cover'], true)
                 && (($wants === 'recto' && ! $recto) || ($wants === 'verso' && $recto));
             $physical += $blocks[$i]['blankBefore'] ? 1 : 0;
@@ -769,6 +918,7 @@ class PrintBook
 
         $starts = [];
         $this->filled = [];
+        $this->headings = [];
 
         $callbacks = [[
             'event' => 'begin_frame',
@@ -776,7 +926,14 @@ class PrintBook
                 $node = $frame->get_node();
 
                 if ($node instanceof DOMElement && $node->hasAttribute('data-block')) {
-                    $starts[$node->getAttribute('data-block')] ??= $canvas->get_page_number();
+                    $key = $node->getAttribute('data-block');
+                    $starts[$key] ??= $canvas->get_page_number();
+
+                    // A section heading's text, for running heads that
+                    // show the section a page is in.
+                    if (in_array($node->nodeName, ['h1', 'h2'], true) && str_starts_with($key, 'ref-')) {
+                        $this->headings[$key] ??= trim(preg_replace('/\s+/u', ' ', $node->textContent) ?? '');
+                    }
                 }
 
                 if ($frame instanceof TextFrame) {
@@ -871,39 +1028,89 @@ class PrintBook
         $font = $metrics->getFont($family, 'normal');
         $italic = $metrics->getFont($family, 'italic');
         $grey = [0.33, 0.33, 0.33];
+        $heads = $layout['heads'];
+        $margin = $this->margin($layout) * 72;
+
+        // Verso and recto count from the half title, not the cover.
+        $verso = ($page - ($plan['offset'] ?? 0)) % 2 === 0;
+
+        // An opener carries no head unless the design asks for one there.
+        $head = $layout['headers'] && $current['runningHead'] && (! $opens || $heads['openers'])
+            ? InteriorDesign::head($heads, $verso, $this->headTexts($book, $current, $page, $starts))
+            : null;
 
         $folio = $this->folio($plan, $page);
-        $size = 8.5;
-        $canvas->text(($w - $metrics->getTextWidth($folio, $font, $size)) / 2, $h - 0.62 * 72, $folio, $font, $size, $grey);
+        $size = InteriorDesign::folioSize($heads);
+        $folioWidth = $metrics->getTextWidth($folio, $font, $size);
+        $place = $layout['folio'];
 
-        if ($opens || ! $layout['headers'] || ! $current['runningHead']) {
+        // A folio at the head drops to the foot on an opener, which has no head.
+        if ($opens && in_array($place, ['top-outside', 'with-head'], true) && $head === null) {
+            $place = 'bottom-center';
+        }
+
+        // At the outside of the head line, beside an outside head.
+        $beside = $place === 'with-head' || ($place === 'top-outside' && $heads['align'] === 'outside');
+        $outside = $verso ? $margin : $w - $margin - $folioWidth;
+
+        [$fx, $fy] = match ($place) {
+            'bottom-outside' => [$outside, $h - 0.62 * 72],
+            'top-outside', 'with-head' => [$outside, 0.5 * 72],
+            default => [($w - $folioWidth) / 2, $h - 0.62 * 72],
+        };
+        $canvas->text($fx, $fy, $folio, $font, $size, $grey);
+
+        if ($head === null) {
             return;
         }
 
-        // Verso and recto count from the half title, not the cover.
-        if (($page - ($plan['offset'] ?? 0)) % 2 === 0) {
-            // Verso: the book, in spaced capitals.
-            $text = mb_strtoupper($book->title);
-            $size = 7.2;
-            $spacing = 1.4;
-            $face = $font;
-        } else {
-            // Recto: where the reader is, in italic.
-            $text = (string) $current['running'];
-            $size = 8.5;
-            $spacing = 0.2;
-            $face = $italic;
-        }
-
-        $text = $this->fit($text, $metrics, $face, $size, $spacing, $w - 2 * $this->margin($layout) * 72);
+        $face = $head['italic'] ? $italic : $font;
+        $gap = 1.4 * $size;
+        $room = $w - 2 * $margin - (str_starts_with($place, 'top') || $place === 'with-head' ? 2 * ($folioWidth + $gap) : 0);
+        $text = $this->fit($head['text'], $metrics, $face, $head['size'], $head['spacing'], $room);
         $runs = $this->glyphRuns($text, $face, $metrics, $layout['font'] === 'sans' ? 'sans' : 'serif');
-        $width = array_sum(array_map(fn ($r) => $metrics->getTextWidth($r[0], $r[1], $size, 0, $spacing), $runs));
-        $x = ($w - $width) / 2;
+        $width = array_sum(array_map(fn ($r) => $metrics->getTextWidth($r[0], $r[1], $head['size'], 0, $head['spacing']), $runs));
+
+        $x = match (true) {
+            $beside => $verso ? $margin + $folioWidth + $gap : $w - $margin - $folioWidth - $gap - $width,
+            $heads['align'] === 'outside' => $verso ? $margin : $w - $margin - $width,
+            default => ($w - $width) / 2,
+        };
 
         foreach ($runs as [$run, $runFace]) {
-            $canvas->text($x, 0.5 * 72, $run, $runFace, $size, $grey, 0, $spacing);
-            $x += $metrics->getTextWidth($run, $runFace, $size, 0, $spacing);
+            $canvas->text($x, 0.5 * 72, $run, $runFace, $head['size'], $grey, 0, $head['spacing']);
+            $x += $metrics->getTextWidth($run, $runFace, $head['size'], 0, $head['spacing']);
         }
+    }
+
+    /**
+     * What each running-head choice reads on a page: the book, its author
+     * (none for an anonymous book), the part and chapter the page is in, and
+     * the last section heading begun on or before it within the chapter.
+     *
+     * @param  array<string, int>  $starts
+     * @return array{book: string, author: string, part: ?string, chapter: ?string, section: ?string}
+     */
+    private function headTexts(Book $book, array $block, int $page, array $starts): array
+    {
+        $section = null;
+        $from = $starts[$block['id']] ?? $page;
+
+        foreach ($this->headings as $key => $text) {
+            $at = $starts[$key] ?? null;
+
+            if ($at !== null && $at >= $from && $at <= $page && $text !== '') {
+                $section = $text;
+            }
+        }
+
+        return [
+            'book' => (string) $book->title,
+            'author' => (string) (Anatomy::titlePageAuthor($book) ?? ''),
+            'part' => $block['partTitle'] ?? null,
+            'chapter' => $block['running'] ?? null,
+            'section' => $section,
+        ];
     }
 
     /**
@@ -1286,6 +1493,7 @@ class PrintBook
         $open = fn (string $class) => '<section class="'.$class.$first.'" data-block="'.$block['id'].'">';
         $data = $block['data'] ?? [];
         $section = $block['section'];
+        $style = $book->layout()['opener']['style'];
 
         return match ($block['kind']) {
             // Drawn full bleed onto the page by decorate(); the section only
@@ -1322,21 +1530,60 @@ class PrintBook
                 .'<div class="rule"></div></div>'
                 .$this->contents($plan).'</section>',
 
-            'part' => $open('part')
-                .'<p class="part-label">'.e($block['label']).'</p>'
-                .'<p class="part-ornament">&#x2766;</p>'
-                .'<h1 class="part-title">'.e($block['title']).'</h1>'
+            'part' => $open($style === 'classic' ? 'part' : 'part part-'.$style)
+                .$this->partOpener($block, $style)
                 .'</section>',
 
             default => $open($block['kind'])
-                .'<div class="opener" id="section-'.$section->id.'">'
-                .($block['label'] ? '<p class="opener-label">'.e($block['label']).'</p>' : '')
-                .'<h1 class="opener-title">'.e($block['title']).'</h1>'
-                .'<div class="rule"></div></div>'
+                .$this->opener($block, $style)
                 .'<div class="text">'.(($list = Numbering::listKind($section))
                     ? $this->captionList($list, $plan)
                     : $this->prose($book, $section, $plan['language'], lead: $block['kind'] !== 'references')).'</div>'
                 .'</section>',
+        };
+    }
+
+    /**
+     * A chapter's opener in the design's style (InteriorDesign::
+     * OPENER_STYLES). Classic is the opener as it always was: the label in
+     * spaced capitals, the title, a short rule, all centred under a sinkage.
+     */
+    private function opener(array $block, string $style): string
+    {
+        $id = ' id="section-'.$block['section']->id.'"';
+        $label = $block['label'] ? '<p class="opener-label">'.e($block['label']).'</p>' : '';
+        $title = '<h1 class="opener-title">'.e($block['title']).'</h1>';
+        $figure = $block['figure'] ?? null;
+
+        return match ($style) {
+            'numeral' => '<div class="opener opener-numeral"'.$id.'>'
+                .($figure !== null ? '<p class="opener-figure">'.e($figure).'</p>' : '')
+                .$title.'<div class="rule"></div></div>',
+            'rule' => '<div class="opener opener-rule"'.$id.'><div class="rule rule-top"></div>'.$label.$title.'</div>',
+            // A table, since dompdf sets one reliably where floats drift.
+            'split' => '<div class="opener opener-split"'.$id.'>'.($figure !== null
+                ? '<table class="opener-split-row"><tr><td class="opener-figure">'.e($figure).'</td><td class="opener-split-title">'.$title.'</td></tr></table>'
+                : $title).'</div>',
+            'smallcaps', 'sink' => '<div class="opener opener-'.$style.'"'.$id.'>'.$label.$title.'<div class="rule"></div></div>',
+            default => '<div class="opener"'.$id.'>'.$label.$title.'<div class="rule"></div></div>',
+        };
+    }
+
+    /** A part's title page in the design's style; classic keeps the ornament. */
+    private function partOpener(array $block, string $style): string
+    {
+        $label = '<p class="part-label">'.e($block['label']).'</p>';
+        $title = '<h1 class="part-title">'.e($block['title']).'</h1>';
+        $figure = $block['figure'] ?? null;
+
+        return match ($style) {
+            'numeral' => ($figure !== null ? '<p class="part-figure">'.e($figure).'</p>' : '').$title,
+            'rule' => '<div class="rule rule-top"></div>'.$label.$title,
+            'split' => $figure !== null
+                ? '<table class="opener-split-row"><tr><td class="opener-figure">'.e($figure).'</td><td class="opener-split-title">'.$title.'</td></tr></table>'
+                : $title,
+            'smallcaps', 'sink' => $label.$title,
+            default => $label.'<p class="part-ornament">&#x2766;</p>'.$title,
         };
     }
 
@@ -1425,13 +1672,15 @@ class PrintBook
         }
 
         $dropcap = (bool) $book->layout()['dropcap'];
+        // The small-capped opening words, on unless the design turns them off.
+        $smallCaps = (bool) $book->layout()['opener']['lead'];
 
         // The opening paragraph, even when a subheading comes before it; a
         // list or a quote at the head of a chapter is left as the author set
         // it.
         $html = preg_replace_callback(
             '/^(\s*(?:<h[1-6][^>]*>.*?<\/h[1-6]>\s*)*)<p>((?:&[#\w]+;|[^<\s&])+)((?:\s+(?:&[#\w]+;|[^<\s&])+){0,3})/su',
-            function (array $m) use ($dropcap) {
+            function (array $m) use ($dropcap, $smallCaps) {
                 $first = $m[2];
                 $rest = $m[3];
                 $initial = '';
@@ -1441,7 +1690,7 @@ class PrintBook
                     $first = mb_substr($first, 1);
                 }
 
-                return $m[1].'<p class="opening">'.$initial.'<span class="lead">'.$first.$rest.'</span>';
+                return $m[1].'<p class="opening">'.$initial.($smallCaps ? '<span class="lead">'.$first.$rest.'</span>' : $first.$rest);
             },
             $html,
             1,
@@ -1644,9 +1893,56 @@ class PrintBook
                 .($block['kind'] === 'chapter' ? e((string) $block['number']) : '')
                 .'</td><td class="toc-title">'.e($block['title'])
                 .'</td><td class="toc-page">'.e($page).'</td></tr>';
+
+            // A chapter's own sections, as deep as the design asks: their
+            // pages are the ones pass one measured for the headings' anchors.
+            if (in_array($block['kind'], ['chapter', 'matter'], true) && $block['section']) {
+                foreach ($this->subheadings($block['section'], $plan['tocDepth'] ?? 1) as [$level, $title, $key]) {
+                    $rows .= '<tr class="toc-sub toc-sub-'.$level.'"><td class="toc-num"></td><td class="toc-title">'.e($title)
+                        .'</td><td class="toc-page">'.e((string) ($plan['refPages'][$key] ?? '')).'</td></tr>';
+                }
+            }
         }
 
         return '<table class="toc">'.$rows.'</table>';
+    }
+
+    /**
+     * The headings a contents entry lists under its chapter: level 1 and 2
+     * at depth 2, and level 3 under them at depth 3, as the EPUB lists them
+     * (Exporter::headingEntries). The heading that only repeats the title
+     * is left out, as prose() leaves it out of the page.
+     *
+     * @return list<array{0: int, 1: string, 2: string}> level (1 or 2), text, the anchor's page key
+     */
+    private function subheadings(ManuscriptSection $section, int $depth): array
+    {
+        if ($depth < 2) {
+            return [];
+        }
+
+        $out = [];
+        $first = true;
+
+        foreach (array_values(Suggestions::published($section->content)['content'] ?? []) as $i => $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            $text = trim($this->plainOf($node));
+            $level = ($node['type'] ?? '') === 'heading' ? (int) ($node['attrs']['level'] ?? 2) : null;
+            $opening = $first && $text !== '';
+            $first = $first && $text === '';
+
+            if ($level === null || $text === '' || $level > ($depth >= 3 ? 3 : 2)
+                || ($opening && $level <= 2 && $this->sameTitle($text, $section->title))) {
+                continue;
+            }
+
+            $out[] = [$level <= 2 ? 1 : 2, $text, 'ref-'.$section->id.'-'.Textbook::headingAnchor($node, $section->id, $i)];
+        }
+
+        return $out;
     }
 
     /**
@@ -1864,7 +2160,78 @@ class PrintBook
         .toc-matter .toc-title, .toc-references .toc-title { font-style: italic; }
         .toc-part td { padding: 1.05em 0 .3em; font-size: .78em; letter-spacing: .16em; text-transform: uppercase; }
         .toc-part-label { color: #555555; }
-        CSS;
+        CSS.$this->designCss($layout, $lh);
+    }
+
+    /**
+     * The rules the design's choices add after the stylesheet's own
+     * (InteriorDesign). Nothing for a choice left at its default, so a
+     * book nobody has redesigned keeps the stylesheet it had.
+     *
+     * @param  callable(float): float  $lh
+     */
+    private function designCss(array $layout, callable $lh): string
+    {
+        $opener = $layout['opener'];
+
+        $css = match ($opener['style']) {
+            'numeral' => <<<CSS
+                .opener-figure, .part-figure { text-align: center; text-indent: 0; font-size: 3.4em; line-height: {$lh(1.0)}; margin: 0 0 .35em; color: #333333; }
+                .part-numeral .part-title { font-style: normal; }
+
+                CSS,
+            'rule' => <<<'CSS'
+                .opener-rule, .part-rule { text-align: left; padding-top: .7in; }
+                .part-rule { padding-top: 1.6in; }
+                .rule-top { width: 100%; margin: 0 0 1.1em; border-top: .8pt solid #1a1a1a; }
+                .opener-rule .opener-label, .part-rule .part-label { text-align: left; margin-bottom: .6em; }
+                .opener-rule .opener-title, .part-rule .part-title { text-align: left; font-style: normal; }
+
+                CSS,
+            'split' => <<<CSS
+                .opener-split, .part-split { padding-top: .9in; }
+                .part-split { padding-top: 1.9in; }
+                table.opener-split-row { width: 100%; border-collapse: collapse; margin: 0 0 .4em; }
+                table.opener-split-row td { border: 0; padding: 0; vertical-align: bottom; }
+                td.opener-figure { width: 28%; text-align: left; font-size: 3.6em; line-height: {$lh(0.9)}; color: #333333; }
+                td.opener-split-title { text-align: right; padding-bottom: .25em; }
+                td.opener-split-title .opener-title, td.opener-split-title .part-title { text-align: right; font-style: normal; }
+                .opener-split { border-bottom: .6pt solid #8a8a8a; padding-bottom: .5em; }
+
+                CSS,
+            'smallcaps' => <<<'CSS'
+                .opener-smallcaps, .part-smallcaps { text-align: left; }
+                .opener-smallcaps .opener-label, .part-smallcaps .part-label { text-align: left; letter-spacing: .2em; }
+                .opener-smallcaps .opener-title, .part-smallcaps .part-title { text-align: left; font-size: 1.3em; font-style: normal; letter-spacing: .12em; text-transform: uppercase; }
+                .opener-smallcaps .rule { margin-left: 0; }
+
+                CSS,
+            'sink' => <<<'CSS'
+                .opener-sink { text-align: left; padding-top: 2.15in; }
+                .part-sink { text-align: left; padding-top: 3in; }
+                .opener-sink .opener-label, .part-sink .part-label { text-align: left; }
+                .opener-sink .opener-title, .part-sink .part-title { text-align: left; }
+                .opener-sink .rule { margin-left: 0; }
+
+                CSS,
+            default => '',
+        };
+
+        // The opening paragraph indented like the rest, if asked.
+        if ($opener['indent_first']) {
+            $css .= ".text > p:first-child, p.opening { text-indent: 1.35em; }\n";
+        }
+
+        // Sections listed under their chapter in the contents.
+        if ((int) $layout['toc']['depth'] > 1) {
+            $css .= ".toc-sub td { padding: .05em 0; font-size: .9em; }\n"
+                .".toc-sub-1 .toc-title { padding-left: 1em; }\n"
+                .".toc-sub-2 .toc-title { padding-left: 2.2em; font-style: italic; }\n";
+        }
+
+        $css .= InteriorDesign::calloutCss($layout['callouts'], 'print');
+
+        return $css === '' ? '' : "\n".$css;
     }
 
     /**

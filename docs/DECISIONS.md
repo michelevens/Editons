@@ -2540,3 +2540,136 @@ by mouse and keyboard with reload and double-click, rails, every preset, a
 custom preset, canvas width/font/size/spacing/paper/page/floating toolbar,
 sub-panels, this-book-only, tablet and phone, no sideways scroll, no
 console errors).
+
+## ADR-0040 — Interior design controls
+
+**Status:** accepted (2026-10-28). Number assigned at merge.
+
+**Context.** The flexibility audit's items 1, 4, 5 and 7: Design & Layout
+offered trim, margins, two faces, size, leading, a drop cap and a running
+head switch; everything else in the printed interior was fixed in
+`PrintBook::css()`. Its quick preview was a hand-made mock-up with its own
+margins (0.5/0.75/1 in against the PDF's 0.6/0.78/0.95 plus 0.9/0.95 top
+and bottom), its own faces (Source Serif 4 and Inter against EB Garamond
+and Source Sans 3), a 1.5em indent against 1.35em, and the chapter title
+centred on every page where the PDF alternates the book title and the
+chapter. Chapter labels spelled numbers to "Twenty" and then switched to
+digits ("Chapter 21"). Callout boxes were recognised only from the words of
+their bold label, so "**Attention :**" became a caution whatever the author
+meant.
+
+**Decisions.**
+
+- *One settings model, in the book's `layout`.* `App\Publishing\InteriorDesign`
+  defines four groups and one value beside trim, margins and type:
+  `opener` (style, label, custom, chapters_recto, parts_recto,
+  indent_first, lead), `heads` (verso, recto, style, size, align, openers),
+  `folio`, `toc` (depth, epub) and `callouts` (preset, types). It resolves
+  stored values over the defaults key by key (`Book::layout()`; a value
+  that stops validating falls back to its default rather than reaching a
+  renderer), and validates every write: unknown top-level keys, unknown
+  keys inside a group, and values outside the schema are refused with 422,
+  not dropped. A group may be sent in part. `DesignController::designOptions()`
+  sends the screen the choices the server accepts.
+- *Defaults reproduce the interior as it was.* Checked two ways: a snapshot
+  (`tests/Fixtures/interior-defaults.html`, a fixture book's print HTML
+  written by the code before this change) compared byte for byte; and five
+  real books from the local catalogue (three Écrivain Prépa titles in
+  French and Kreyòl, two English books) typeset before and after: same page
+  counts and the same text at the same positions on every page, the HTML
+  byte-identical except in the one place below. The stylesheet gains
+  nothing for a book on the defaults, and the EPUB stylesheet nothing for
+  boxes left on Classic.
+- *The one deliberate change: chapter labels.* "auto" (the default) still
+  spells English numbers and uses numerals elsewhere (roman for parts), but
+  now spells every number ("Chapter Twenty-One"), so a book of 21 chapters
+  or more no longer switches style at 21. Authors can choose spelled out
+  (English and French; other languages fall back to numerals rather than a
+  half-spelled list), numerals, roman, no label, or their own word before
+  the numeral ("Lesson 4", "Leçon 4", "Leson 4").
+- *Openers.* Six styles (classic, large numeral, rule above, number left /
+  title right, small capitals, deep drop), each a class on the opener with
+  its rules appended to the stylesheet; classic markup is unchanged. Parts
+  follow the style (classic keeps the ornament). "Chapters start on a
+  right-hand page" sets their `start` to recto, so `paginate()` inserts the
+  blank versos as it already did for parts; "parts start on a right-hand
+  page" (on by default) can be turned off, which also drops the blank verso
+  behind the part. The EPUB is untouched by both: it has no pages. The
+  first paragraph's small-capped lead-in can be turned off and the
+  paragraph indented; the drop cap is unchanged.
+- *Running heads and folios.* `InteriorDesign::head()` decides what each
+  side shows (book, author, part, chapter, section, nothing) and how it is
+  set; Classic is the old head exactly (verso spaced capitals 7.2 pt,
+  recto italic 8.5 pt). The author comes from `Anatomy::titlePageAuthor`,
+  so an anonymous house book prints none. "Section" is the last H1/H2 of
+  the text begun on or before the page within the chapter, recorded from
+  the `ref-` anchors dompdf already reports. Heads can be centred or at the
+  outside edge, in three sizes, and shown on openers (off by default).
+  Folios: bottom centre (default), bottom outside, top outside, or beside
+  the head; a folio at the head drops to the foot on an opener. Roman for
+  front matter and arabic from 1 for the text are unchanged. Margins are
+  still symmetric (dompdf), so "outside" is the left edge of a verso and
+  the right of a recto at the same margin.
+- *Contents depth.* Print lists parts and chapters (default), or also their
+  H1/H2 sections, or H3 too, with page numbers from pass one (the
+  headings' `ref-` anchors), set smaller and indented. The EPUB navigation
+  has its own depth (default 2, as ADR-0036 left it): 1 lists no headings,
+  3 nests H3 under them.
+- *Boxes you choose.* The editor's toolbar shows a **Box kind** menu when
+  the cursor is in a quotation (`Components/Editor/Callout.js`): a global
+  `callout` attribute on Tiptap's blockquote, so every existing quotation,
+  Markdown round trip and suggestion is untouched. `Textbook::callout()`
+  reads it first: a chosen type beats the label's wording, "quote" makes a
+  quotation whatever its label, and a chosen box needs no label (the type's
+  word in the book's language, or the book's own label for the type). The
+  label inference stays for imported books and existing content. Per book,
+  Design & Layout → Boxes sets each type's rule (box, heavy left, left
+  rule, rules above and below, dashed, none), grey tint (0–20 %), icon and
+  label, from four black-and-white presets (Classic = the old look,
+  Minimal, Boxed, Shaded). `InteriorDesign::calloutCss()` writes the same
+  table as print CSS, EPUB CSS and editor CSS
+  (`GET /books/{book}/design/callouts`); glyphs and labels are markup, set
+  by `DocumentRenderer::calloutHtml`, which reads the book's styles afresh
+  for every section.
+- *A preview that is the PDF's page.* Design & Layout draws the chosen
+  chapter's opening page and the spread after it from
+  `PrintBook::designPreview()`: the block's own HTML (the chapter cut to its
+  first 1,600 words, so a slider does not send a whole chapter), the PDF's
+  stylesheet, the page geometry and the heads InteriorDesign sets, in the
+  faces the PDF embeds (`/preview/fonts`). `pageFurniture()` (preview.js)
+  only positions what the server decided; the full-screen preview's Print
+  mode uses it too, so neither preview has its own idea of a running head.
+  Line breaks are still the browser's (ADR-0025: rasterising dompdf pages
+  would need Ghostscript or Imagick everywhere), and the screen says the
+  PDF is the proof. A new render is laid out in a hidden slot and replaces
+  the one on screen only when its fonts and pictures are in (the Cover
+  Studio lesson, ADR-0038); replies that are overtaken are dropped. The
+  hidden slot is hidden with opacity, since the page's shadow root resets
+  inherited properties, visibility among them.
+- *Caches.* `InteriorDesign::VERSION` is part of `PrintPages::fingerprint`,
+  so print interiors and cover wraps made before this change read as out
+  of date and are regenerated (the fingerprint also changes because
+  `layout()` now carries the design keys).
+
+**Not done.** Mirrored or numeric margins and open trims (audit item 2;
+dompdf has one @page rule); heading styles and more fonts (item 3); custom
+box types beyond the eight; a scene-break or ornament picker; the DOCX
+export still sets boxes as quotations; the preview's folios are 1–3 (or
+i–iii) rather than the chapter's real page numbers, and it assumes the
+opener falls on a recto. "Leaves and Roots" is not in the local database,
+so the before/after check used two other English books.
+
+**Tests.** `tests/Feature/InteriorDesignTest.php` (defaults filled in;
+partial groups merged; fifteen kinds of refusal; fingerprint; the defaults
+snapshot; nothing added to the stylesheets on defaults; labels in six modes
+and three languages, and no switch after Twenty; each opener style;
+lead-in, drop cap and indent; right-hand chapter starts with empty blank
+versos and an unchanged EPUB; parts that run on; running heads, folio
+positions, openers and "none" read back from the PDF with PyMuPDF; roman
+and arabic folios; contents depth in print with page numbers and in the
+EPUB navigation; chosen box types beating labels in print and EPUB; box
+styles in print, EPUB and editor CSS, presets all grey; the preview payload
+and that it reads PrintBook's margins and faces) and
+`tests/Browser/design.spec.js` (each setting changes the preview, at
+1440px and 390px, without horizontal scroll; a quotation made a Tip in the
+editor, styled and kept after a reload).

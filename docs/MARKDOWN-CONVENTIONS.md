@@ -60,6 +60,19 @@ A quotation without a leading bold label stays a quotation. Box text is
 upright (never italic) in print and EPUB; the label is set in spaced
 capitals in print, small capitals in the EPUB. A box is kept on one page.
 
+The label's wording is only the default. In the editor, a quotation's
+**Box kind** menu (shown when the cursor is in a quotation) sets the type
+explicitly: Note, Key point, Caution, Method, Tip, Example, Check yourself,
+Plain box, or Quotation (never a box). The choice is stored on the
+blockquote (`attrs.callout`) and always beats the label: "**Attention :**"
+chosen as a Tip prints as a tip. A box chosen without a bold label is
+labelled with the type's word in the book's language ("Astuce.", "Tip."),
+or the label set for that type on Design & Layout. How each type prints
+(rule, tint, icon, label) is set per book on Design & Layout → Boxes; the
+table above is the Classic style (ADR-00XX — Interior design controls).
+Markdown has no syntax for the choice, so a Markdown export keeps the
+label and an import infers the type again.
+
 ## (b) Exam papers (mock exams, official papers, diagnostic test)
 
 A paper is recognised in any of three ways, and its end in any of three:

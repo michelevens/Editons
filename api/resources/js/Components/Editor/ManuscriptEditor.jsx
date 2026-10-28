@@ -11,6 +11,7 @@ import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import ProgressRing, { ringLabel } from '@/Components/Studio/ProgressRing';
+import { CALLOUT_CHOICES, CalloutChoice, useCalloutCss } from './Callout';
 import ChartDialog from './ChartDialog';
 import { CommentAnchors, setCommentThreads } from './CommentAnchors';
 import { ChangePopover, CommentDialog, CommentPopover, SelectionBubble, ThreadSheet } from './ReviewLayer';
@@ -284,6 +285,8 @@ export default function ManuscriptEditor({
                     onRefused: () => setNotice('Pictures, tables, charts and display equations cannot be removed while suggesting. Turn Suggest off to remove one.'),
                 }),
                 CommentAnchors,
+                // A quotation's box kind, chosen in the toolbar (Callout.js).
+                CalloutChoice,
             ],
             content: section?.content ?? '',
             onUpdate: ({ editor }) => {
@@ -594,6 +597,7 @@ export default function ManuscriptEditor({
     // how this person is working on this book on this device (an editor
     // suggesting on a client's manuscript, the author writing on their
     // own), not a fact about the book every collaborator should inherit.
+    const calloutCss = useCalloutCss(bookId);
     const suggestKey = `ecrivain:suggest:${bookId ?? 'book'}`;
     const [suggesting, setSuggesting] = useState(() => {
         try {
@@ -1255,6 +1259,7 @@ export default function ManuscriptEditor({
                         Anything typed here is not used.
                     </p>
                 )}
+                {calloutCss && <style data-a="editor:callout-css">{calloutCss}</style>}
                 <EditorContent editor={editor} />
 
                 {popover?.kind === 'change' && (() => {
@@ -1437,6 +1442,21 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <option value="h3">Heading 3</option>
                 <option value="quote">Quote</option>
             </select>
+
+            {block === 'quote' && (
+                <select
+                    value={editor.getAttributes('blockquote').callout ?? ''}
+                    onChange={(event) => editor.chain().focus().setCallout(event.target.value).run()}
+                    data-a="toolbar:callout"
+                    aria-label="Box kind"
+                    title="What this quotation prints as"
+                    className="mr-1 h-[28px] shrink-0 rounded-control border max-md:h-[40px] border-border-input bg-bg-surface py-0 pl-2 pr-7 text-[12px] text-text-body focus:border-brand-primary focus:ring-0"
+                >
+                    {CALLOUT_CHOICES.map((choice) => (
+                        <option key={choice.key} value={choice.key}>{choice.name}</option>
+                    ))}
+                </select>
+            )}
 
             <Divider />
 
