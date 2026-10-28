@@ -1710,10 +1710,6 @@ class Exporter
             .".copyright p { margin: 0 0 .7em; }\n"
             .".series-page { text-align: center; }\n"
             .".series-page ul { list-style: none; padding: 0; }\n"
-            // Pages an export profile adds.
-            .".review-notice { text-align: center; margin-top: 30%; font-weight: bold; }\n"
-            .".review-notice p, .continue-reading p, .notes li p { text-indent: 0; }\n"
-            .".notes h2 { font-size: 1.1em; margin: 1.2em 0 .4em; }\n"
             .'img { max-width: 100%; height: auto; }'."\n"
             // Boxes (Textbook): upright text, a label, a rule or a tint,
             // readable in black and white on an e-ink screen.
@@ -1739,7 +1735,17 @@ class Exporter
             ."table.grid td.write-in { height: 1.8em; min-width: 3em; }\n"
             ."table.grid tr.total td { font-weight: bold; }\n"
             // The book's own box styles, when it has changed them.
-            .InteriorDesign::calloutCss($layout['callouts'], 'epub');
+            .InteriorDesign::calloutCss($layout['callouts'], 'epub')
+            // The pages an export profile adds, only when it adds them, so
+            // a Full-book EPUB's stylesheet is what it always was.
+            .(ExportOptions::active($book)?->isDefault() === false
+                ? ".review-notice { text-align: center; margin-top: 30%; font-weight: bold; }
+"
+                    .".review-notice p, .continue-reading p, .notes li p { text-indent: 0; }
+"
+                    .".notes h2 { font-size: 1.1em; margin: 1.2em 0 .4em; }
+"
+                : '');
     }
 
     /** One content document; $matter is the body's epub:type (frontmatter, bodymatter, backmatter). */
