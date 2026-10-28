@@ -549,7 +549,7 @@ it('makes a file again with the profile it was made with', function () {
     // Queued again, with the Sample's options.
     $this->actingAs($book->user)->get("/books/{$book->id}/exports/{$export->id}/download")->assertStatus(503);
 
-    $again = $book->exports()->first();
+    $again = BookExport::where('book_id', $book->id)->latest('id')->first();
     expect($again->id)->not->toBe($export->id)
         ->and($again->status)->toBe('generating')
         ->and($again->options['profile'])->toBe($export->options['profile']);
