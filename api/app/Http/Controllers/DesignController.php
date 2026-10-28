@@ -160,6 +160,8 @@ class DesignController extends Controller
             'shade' => ['sometimes', 'integer', 'min:0', 'max:100'],
             // A line a tagline layer shows (bound, like the title).
             'tagline' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // The back-cover copy, which a back layer shows (bound).
+            'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             // The whole layer documents, checked by CoverLayers below: the
             // front's, and the print wrap's back and spine.
             'layers' => ['sometimes', 'nullable'],
@@ -199,6 +201,12 @@ class DesignController extends Controller
             $data['back_framing'] = ['fit' => $data['back_framing']['fit']] + CoverWrap::backFraming(['fit' => 'fill'] + $data['back_framing']);
         }
 
+        // The back-cover copy is the book's description (Anatomy's Back
+        // Cover Copy part), not a cover setting: the back's copy layer
+        // edits the one field the store listing and the back both read.
+        $book->fill(array_intersect_key($data, ['description' => true]));
+        unset($data['description']);
+
         $cover = array_merge($book->cover ?? [], $data);
 
         foreach (['layers', 'back_layers', 'spine_layers', 'spine_direction', 'framing', 'back_framing'] as $key) {
@@ -207,7 +215,8 @@ class DesignController extends Controller
             }
         }
 
-        $book->update(['cover' => $cover]);
+        $book->cover = $cover;
+        $book->save();
 
         return response()->json($this->payload($book->fresh(), null));
     }
@@ -294,12 +303,14 @@ class DesignController extends Controller
     {
         $this->authorize('view', $book);
 
-        // ?size=thumb is the 320px rendition the shelf and the sidebar show;
-        // ?part=background the picture alone, under Cover Studio's canvas.
-        if ($request->query('part') === 'artwork') {
-            return $this->artworkPreview($book);
+        // ?part=artwork and ?part=back-artwork are the uploaded pictures
+        // themselves, for the framing control.
+        if (in_array($request->query('part'), ['artwork', 'back-artwork'], true)) {
+            return $this->artworkPreview($book, $request->query('part') === 'artwork' ? 'artwork' : 'back_artwork');
         }
 
+        // ?size=thumb is the 320px rendition the shelf and the sidebar show;
+        // ?part=background the picture alone, under Cover Studio's canvas.
         $path = match (true) {
             $request->query('part') === 'background' => $this->covers->ensureBackground($book),
             $request->query('size') === 'thumb' => $this->covers->ensureThumb($book),
@@ -313,17 +324,19 @@ class DesignController extends Controller
     }
 
     /**
-     * The uploaded artwork itself, scaled to 800px, for Cover Studio's
-     * framing control: the author picks a focal point on the whole picture.
+     * An uploaded picture itself (the front's artwork or the uploaded
+     * back), scaled to 800px, for Cover Studio's framing control: the
+     * author picks a focal point on the whole picture.
      */
-    private function artworkPreview(Book $book): StreamedResponse
+    private function artworkPreview(Book $book, string $field): StreamedResponse
     {
-        $artwork = ($book->cover ?? [])['artwork'] ?? null;
+        $artwork = ($book->cover ?? [])[$field] ?? null;
         $disk = Storage::disk('files');
 
         abort_unless(is_string($artwork) && $disk->exists($artwork), 404);
 
-        $path = "covers/book-{$book->id}/artwork-preview-".substr(md5($artwork), 0, 12).'.jpg';
+        $path = "covers/book-{$book->id}/{$field}-preview-".substr(md5($artwork), 0, 12).'.jpg';
+
 
         if (! $disk->exists($path)) {
             $this->covers->headroom('512M');

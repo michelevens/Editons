@@ -232,3 +232,15 @@ Official pages only. No fees are quoted.
 | United Kingdom | **Not confirmed.** No official page was read. | |
 
 Every other country gets a general reminder with no figures.
+
+## Spine reading direction
+
+Not a print service rule: none of KDP, IngramSpark or Lulu requires a
+direction. Cover Studio (ADR "Editable back cover, spine and image layers")
+suggests one by the book's language and lets the author choose; read
+**2026-10-28**.
+
+- **Top to bottom** (descending): "In the United States, the United Kingdom, the Commonwealth, Scandinavia and the Netherlands, the spine text, when the book is standing upright, runs from the top to the bottom", a practice "reflected in the industry standards ANSI/NISO Z39.41 and ISO 6357". Source: https://en.wikipedia.org/wiki/Spine_(bookbinding)
+- **Bottom to top** (ascending): "most of continental Europe, Latin America, and French Canada", same source. For France: the great majority of French publishers set the title reading from the bottom up (Bibliothèque municipale de Lyon, Guichet du Savoir: https://www.guichetdusavoir.org/question/voir/5717; Dan Sperber, "Pourquoi les dos des livres…", https://www.cognitionandculture.net/wp-content/uploads/Pourquoi-les-dos-des-livres-sont-ils-presque-tous-écrits-dans-le-même-sens.pdf).
+- **Haitian Creole:** **not confirmed.** No authoritative source on Haitian publishing practice was found, so Kreyòl books are suggested the French convention, which Haitian publishing (and the Écrivain Prépa series) otherwise follows.
+- **Resolution of pictures:** the 300 dpi KDP asks for (above) is the threshold Cover Studio warns below for image layers.

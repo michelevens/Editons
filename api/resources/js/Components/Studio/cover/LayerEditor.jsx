@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../Icon';
 import CoverCanvas, { textOf } from './CoverCanvas';
-import { faceKey, layoutLayer } from './coverText';
 import { cssFamily, facesOf, ready, useFaceMetrics, useFontFiles } from './coverFonts';
+import { frontSurface, imageBox, overlaps, placeLayer } from './surfaces';
 
 /**
- * Cover Studio's text layers: a canvas to drag type around on, and an
- * inspector for the selected layer.
+ * Cover Studio's layers: a canvas to drag type and pictures around on, and
+ * an inspector for the selected layer. The same editor for the front, the
+ * back and the spine (surfaces.jsx says which).
  *
  * A box stays exactly where the author put it. Typing wraps text inside
- * its box and grows it downward; nothing else moves, and nothing is
- * re-fitted. Every change is one undo step (a slider drag or a burst of
- * typing counts as one), and saves on its own, debounced, through the
- * panel's save(); the canvas is immediate, the server's JPEG follows.
+ * its box and grows it downward (on the spine, both ways from its centre
+ * line); nothing else moves, and nothing is re-fitted. Every change is one
+ * undo step (a slider drag or a burst of typing counts as one), and saves
+ * on its own, debounced, through the panel's save(); the canvas is
+ * immediate, the server's render follows. A box dropped on the barcode
+ * area is moved clear of it.
  */
 
 const SOURCE_NAMES = {
@@ -22,22 +25,44 @@ const SOURCE_NAMES = {
     series: 'Series',
     edition: 'Edition',
     tagline: 'Tagline',
+    description: 'Back-cover copy',
+    publisher: 'Publisher',
+    price: 'Price',
+    category: 'Category',
+    isbn: 'ISBN',
     custom: 'Text',
+    image: 'Picture',
 };
 
 const WEIGHT_NAMES = { regular: 'Regular', semibold: 'Semibold', bold: 'Bold' };
 
-/** Book fields a bound layer's text field edits (series and edition live elsewhere). */
-const EDITABLE = ['title', 'subtitle', 'author', 'tagline'];
+/** Book fields a bound layer's text field edits (the rest live elsewhere). */
+const EDITABLE = ['title', 'subtitle', 'author', 'tagline', 'description'];
 
 const COALESCE_MS = 800;
 
-export default function LayerEditor({ data, onLayers, onText, onReset }) {
+export default function LayerEditor({
+    data,
+    surface: given,
+    doc: initial,
+    texts: givenTexts,
+    images = [],
+    onLayers,
+    onText,
+    onReset,
+    resetLabel = 'Reset to layout',
+    onUpload,
+    onNotify,
+}) {
     const { cover, editor, palettes } = data;
-    const [history, setHistory] = useState(() => ({ past: [], present: cover.layers, future: [] }));
-    const [selected, setSelected] = useState(() => cover.layers.items.find((l) => l.visible)?.id ?? null);
+    const surface = useMemo(() => given ?? { ...frontSurface(data), shadows: editor.shadows }, [given, data, editor.shadows]);
+    const texts = givenTexts ?? cover.texts;
+    const startDoc = initial ?? cover.layers;
+    const [history, setHistory] = useState(() => ({ past: [], present: startDoc, future: [] }));
+    const [selected, setSelected] = useState(() => startDoc.items.find((l) => l.visible)?.id ?? null);
     const [safe, setSafe] = useState(true);
     const [guides, setGuides] = useState([]);
+    const [notice, setNotice] = useState(null);
     const lastEdit = useRef({ key: null, at: 0 });
     const drag = useRef(null);
     const svg = useRef(null);
@@ -46,7 +71,7 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
     const doc = history.present;
     const items = doc.items;
     const layer = items.find((l) => l.id === selected) ?? null;
-    const metrics = useFaceMetrics(editor, facesOf(items));
+    const metrics = useFaceMetrics(editor, facesOf(items.filter((l) => l.source !== 'image')));
 
     // --- History -----------------------------------------------------------
 
@@ -111,48 +136,71 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
 
     // --- Geometry ----------------------------------------------------------
 
-    const W = editor.width;
-    const H = editor.height;
-    const safeX = editor.safe;
-    const safeY = (editor.safe * W) / H;
+    const W = surface.width;
+    const H = surface.height;
 
-    const boxOf = (l) =>
-        ready(metrics, l) ? layoutLayer(l, textOf(l, cover.texts), W, H, metrics).box : { x: l.x * W, y: l.y * H, width: l.width * W, height: 0.05 * H };
+    const boxOf = (l) => {
+        if (l.source === 'image') return imageBox(l, surface);
 
-    const clampMove = (l, x, y) => ({
-        x: Math.min(Math.max(0, x), 1 - l.width),
-        y: Math.min(Math.max(0, y), 1),
-    });
+        return ready(metrics, l)
+            ? placeLayer(l, textOf(l, texts), surface, metrics).box
+            : { x: l.x * W, y: surface.spine ? H / 2 + l.y * W : l.y * H, width: l.width * W, height: 0.05 * H };
+    };
 
-    /** Snap a moved box's edges and centre to the centre lines and the safe margin. */
-    const snap = (l, x, y, threshold) => {
+    const clampMove = (l, x, y) => {
+        const [low, high] = surface.yRange;
+        const top = l.source === 'image' && !surface.spine ? Math.min(high, 1 - l.height) : high;
+
+        return { x: Math.min(Math.max(0, x), 1 - l.width), y: Math.min(Math.max(low, y), top) };
+    };
+
+    /**
+     * Snap a moved box's edges and centre to the centre lines and the safe
+     * area. Worked in the surface's pixels: dx, dy are how far the box
+     * moved; the layer moves by the same, in its own units.
+     */
+    const snap = (l, dxPx, dyPx, threshold) => {
         const box = boxOf(l);
-        const h = box.height / H;
+        const moved = { ...box, x: box.x + dxPx, y: box.y + dyPx };
+        const s = surface.safe;
         const found = [];
-        const tryAxis = (value, candidates) => {
-            for (const [offset, target, guide] of candidates) {
-                if (Math.abs(value + offset - target) < threshold) {
-                    found.push(guide);
+        const tryAxis = (value, size, candidates, axis) => {
+            for (const [edge, target] of candidates) {
+                const at = value + edge * size;
 
-                    return target - offset;
+                if (Math.abs(at - target) < threshold) {
+                    found.push({ axis, at: target });
+
+                    return target - at;
                 }
             }
 
-            return value;
+            return 0;
         };
 
-        const nx = tryAxis(x, [
-            [l.width / 2, 0.5, { axis: 'x', at: 0.5 }],
-            [0, safeX, { axis: 'x', at: safeX }],
-            [l.width, 1 - safeX, { axis: 'x', at: 1 - safeX }],
-        ]);
-        const ny = tryAxis(y, [
-            [h / 2, 0.5, { axis: 'y', at: 0.5 }],
-            [0, safeY, { axis: 'y', at: safeY }],
-            [h, 1 - safeY, { axis: 'y', at: 1 - safeY }],
-        ]);
+        const ax = tryAxis(moved.x, moved.width, [[0.5, W / 2], [0, s.x], [1, s.x + s.width]], 'x');
+        const ay = tryAxis(moved.y, moved.height, [[0.5, H / 2], [0, s.y], [1, s.y + s.height]], 'y');
 
-        return { ...clampMove(l, nx, ny), guides: found };
+        return { ...clampMove(l, l.x + (dxPx + ax) / W, l.y + (dyPx + ay) / surface.unitY), guides: found };
+    };
+
+    /** A box over the barcode is pushed the shorter way out: up or left. */
+    const clearOf = (l) => {
+        const box = boxOf(l);
+
+        for (const zone of surface.noGo) {
+            if (!overlaps(box, zone)) continue;
+
+            const up = box.y + box.height - zone.y + 6;
+            const left = box.x + box.width - zone.x + 6;
+            const moved = up <= left ? clampMove(l, l.x, l.y - up / surface.unitY) : clampMove(l, l.x - left / W, l.y);
+
+            setNotice(`Moved clear of the ${zone.label.toLowerCase()} area: nothing may print there.`);
+
+            return moved;
+        }
+
+        return null;
     };
 
     // --- Pointer -----------------------------------------------------------
@@ -187,26 +235,30 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
         if (!d) return;
 
         const { fx, fy } = fraction(event);
-        const dx = fx - d.fx;
-        const dy = fy - d.fy;
+        const dxPx = (fx - d.fx) * W;
+        const dyPx = (fy - d.fy) * H;
         const l = d.start;
         let changes;
         let shown = [];
 
         if (d.mode === 'move') {
             if (event.altKey) {
-                changes = clampMove(l, l.x + dx, l.y + dy);
+                changes = clampMove(l, l.x + dxPx / W, l.y + dyPx / surface.unitY);
             } else {
-                const snapped = snap(l, l.x + dx, l.y + dy, 8 / d.rect.width);
+                const snapped = snap(l, dxPx, dyPx, (8 / d.rect.width) * W);
                 shown = snapped.guides;
                 changes = { x: snapped.x, y: snapped.y };
             }
         } else if (d.mode === 'left') {
             const right = l.x + l.width;
-            const x = Math.min(Math.max(0, l.x + dx), right - 0.05);
+            const x = Math.min(Math.max(0, l.x + dxPx / W), right - 0.02);
             changes = { x, width: right - x };
         } else {
-            changes = { width: Math.min(Math.max(0.05, l.width + dx), 1 - l.x) };
+            changes = { width: Math.min(Math.max(0.02, l.width + dxPx / W), 1 - l.x) };
+        }
+
+        if (l.source === 'image' && l.lock && changes.width !== undefined) {
+            changes.height = Math.min(aspectHeight(l, changes.width), surface.spine ? 0.25 : 1);
         }
 
         d.moved = true;
@@ -226,7 +278,24 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
         if (!d?.moved) return;
 
         const h = current.current;
-        replace({ past: [...h.past.slice(-99), d.before], present: h.present, future: [] });
+        const live = h.present.items.find((x) => x.id === d.id);
+        const cleared = live ? clearOf(live) : null;
+        const present = cleared
+            ? { ...h.present, items: h.present.items.map((x) => (x.id === d.id ? { ...x, ...round(cleared) } : x)) }
+            : h.present;
+
+        replace({ past: [...h.past.slice(-99), d.before], present, future: [] });
+    };
+
+    /** A picture's height for a width, keeping its (cropped) proportions. */
+    const aspectHeight = (l, width) => {
+        const image = images.find((i) => i.id === l.image);
+
+        if (!image) return l.height;
+
+        const crop = l.crop ?? { width: 1, height: 1 };
+
+        return (width * W * ((crop.height * image.height) / (crop.width * image.width))) / surface.unitY;
     };
 
     // --- Keyboard ----------------------------------------------------------
@@ -235,12 +304,14 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
         if (!layer) return;
 
         const live = current.current.present.items.find((l) => l.id === layer.id) ?? layer;
+        let moved = clampMove(live, live.x + dx / W, live.y + dy / surface.unitY);
+        moved = clearOf({ ...live, ...moved }) ?? moved;
 
-        update(layer.id, round(clampMove(live, live.x + dx / W, live.y + dy / H)), 'nudge');
+        update(layer.id, round(moved), 'nudge');
     };
 
     const removeOrHide = (l) => {
-        if (l.source === 'custom') {
+        if (l.source === 'custom' || l.source === 'image') {
             setItems(items.filter((x) => x.id !== l.id));
             setSelected(null);
         } else {
@@ -287,33 +358,40 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
         return () => window.removeEventListener('keydown', onKey);
     }, [undo, redo]);
 
+    useEffect(() => {
+        if (!notice) return undefined;
+
+        const timer = setTimeout(() => setNotice(null), 5000);
+
+        return () => clearTimeout(timer);
+    }, [notice]);
+
     // --- Layer actions -------------------------------------------------------
 
     const titleLayer = items.find((l) => l.source === 'title');
 
     const add = (source) => {
-        const base = titleLayer ?? { font: 'eb-garamond', weight: 'regular', italic: false };
-        const ink = palettes[cover.palette]?.ink ?? '#ffffff';
+        const base = titleLayer ?? { font: 'eb-garamond' };
         const fresh = {
             id: `${source}-${Math.random().toString(36).slice(2, 8)}`,
             source,
             text: source === 'custom' ? 'New text' : null,
             visible: true,
-            x: 0.15,
-            y: 0.45,
-            width: 0.7,
+            x: surface.fresh.x,
+            y: surface.fresh.y,
+            width: surface.fresh.width,
             height: null,
-            align: 'center',
+            align: surface.spine ? 'left' : 'center',
             font: base.font,
             weight: 'regular',
             italic: false,
-            size: source === 'custom' ? 0.03 : 0.035,
-            color: cover.artwork ? '#ffffff' : ink,
+            size: source === 'custom' ? surface.fresh.customSize : surface.fresh.size,
+            color: surface.ink,
             opacity: 1,
             uppercase: false,
             tracking: 0,
-            leading: 1.2,
-            shadow: cover.artwork ? 'soft' : 'none',
+            leading: surface.panel === 'back' ? 1.4 : 1.2,
+            shadow: surface.shadowDefault,
             background: null,
         };
 
@@ -321,14 +399,46 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
         setSelected(fresh.id);
     };
 
-    const duplicate = (l) => {
-        const copy = {
-            ...l,
-            id: `custom-${Math.random().toString(36).slice(2, 8)}`,
-            source: 'custom',
-            text: textOf(l, cover.texts),
-            y: Math.min(1, l.y + 0.03),
+    /** A picture, a third as wide as the panel, in its own proportions. */
+    const addPicture = (image) => {
+        const width = surface.spine ? Math.min(0.08, (0.8 * H * image.width) / image.height / W) : 0.3;
+        let height = (width * W * (image.height / image.width)) / surface.unitY;
+        let w = width;
+
+        if (!surface.spine && height > 0.5) {
+            w = (width * 0.5) / height;
+            height = 0.5;
+        }
+
+        const fresh = {
+            id: `image-${Math.random().toString(36).slice(2, 8)}`,
+            source: 'image',
+            image: image.id,
+            visible: true,
+            x: Math.round(((1 - w) / 2) * 10000) / 10000,
+            y: surface.spine ? 0 : Math.round(Math.min(0.4, 1 - height) * 10000) / 10000,
+            width: Math.round(w * 10000) / 10000,
+            height: Math.round(height * 1000000) / 1000000,
+            opacity: 1,
+            crop: null,
+            lock: true,
         };
+
+        setItems([...items, fresh]);
+        setSelected(fresh.id);
+    };
+
+    const duplicate = (l) => {
+        const copy =
+            l.source === 'image'
+                ? { ...l, id: `image-${Math.random().toString(36).slice(2, 8)}`, y: clampMove(l, l.x, l.y + 0.03).y }
+                : {
+                      ...l,
+                      id: `custom-${Math.random().toString(36).slice(2, 8)}`,
+                      source: 'custom',
+                      text: textOf(l, texts),
+                      y: clampMove(l, l.x, l.y + 0.03).y,
+                  };
         const at = items.findIndex((x) => x.id === l.id);
 
         setItems([...items.slice(0, at + 1), copy, ...items.slice(at + 1)]);
@@ -355,17 +465,26 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
         setItems(next);
     };
 
-    const missing = editor.sources.filter((s) => s !== 'custom' && !items.some((l) => l.source === s));
+    const missing = surface.sources.filter((s) => s !== 'custom' && s !== 'image' && !items.some((l) => l.source === s));
 
     // --- Render ------------------------------------------------------------
 
     const selectedBox = layer && layer.visible ? boxOf(layer) : null;
+    const stroke = Math.max(2, W / 320);
+    const handle = { w: Math.max(14, W / 36), h: Math.max(30, Math.min(H * 0.6, W / 13)) };
+    const front = surface.panel === 'front';
 
     return (
         // One grid: on a phone a single column whose canvas stays pinned at
         // the top while the list and the inspector scroll up under it like
         // a sheet; on a desktop the canvas column beside the inspector.
-        <div data-cover-editor className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start">
+        // The spine is long and thin: its canvas spans the width, with the
+        // list and the inspector side by side under it.
+        <div
+            data-cover-editor
+            data-panel={surface.panel}
+            className={`grid min-h-0 grid-cols-1 gap-3 ${surface.scroll ? '' : 'lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start'}`}
+        >
             <div className="flex justify-center lg:col-start-1">
                 <Toolbar
                     canUndo={history.past.length > 0}
@@ -377,164 +496,216 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
                     onAdd={add}
                     missing={missing}
                     onReset={onReset}
+                    resetLabel={resetLabel}
+                    images={images}
+                    onPicture={addPicture}
+                    onUpload={onUpload ? async (file) => {
+                        const image = await onUpload(file);
+                        if (image) addPicture(image);
+                    } : null}
                 />
             </div>
 
-            <div className="sticky top-0 z-20 flex items-center justify-center gap-2 bg-bg-surface py-1.5 lg:static lg:col-start-1 lg:flex-col lg:justify-start lg:py-0">
-                <div
-                    ref={canvasBox}
-                    tabIndex={0}
-                    role="application"
-                    aria-roledescription="cover canvas"
-                    aria-label={
-                        layer
-                            ? `Cover canvas. ${nameOf(layer, cover.texts)} selected. Arrow keys move it, Shift with an arrow moves it further, Delete hides it.`
-                            : 'Cover canvas. Choose a text layer to move it.'
-                    }
-                    data-a="cover:canvas"
-                    onKeyDown={onCanvasKey}
-                    className="relative w-[min(70%,calc(40dvh*0.625))] shrink-0 touch-none select-none rounded-[3px] shadow-[0_2px_14px_rgba(0,0,0,0.22)] lg:w-full lg:max-w-[360px]"
-                >
-                    <CoverCanvas
-                        svgRef={svg}
-                        editor={editor}
-                        items={items}
-                        texts={cover.texts}
-                        metrics={metrics}
-                        background={cover.background}
-                        label="Cover preview"
-                        className="block h-auto w-full rounded-[3px] bg-bg-subtle"
-                        onPointerMove={onPointerMove}
-                        onPointerUp={endDrag}
-                        onPointerCancel={endDrag}
-                        onPointerDown={(event) => {
-                            if (event.target === svg.current || event.target.tagName === 'image') setSelected(null);
-                        }}
+            <div
+                className={`sticky top-0 z-20 flex items-center gap-2 bg-bg-surface py-1.5 lg:static lg:col-start-1 lg:flex-col lg:justify-start lg:py-0 ${
+                    surface.scroll ? 'flex-col items-stretch' : 'justify-center'
+                }`}
+            >
+                <div className={surface.scroll ? 'w-full overflow-x-auto pb-1' : 'contents'} data-a={surface.scroll ? 'cover:scroller' : undefined}>
+                    <div
+                        ref={canvasBox}
+                        tabIndex={0}
+                        role="application"
+                        aria-roledescription="cover canvas"
+                        aria-label={
+                            layer
+                                ? `${surface.label} canvas. ${nameOf(layer, texts, images)} selected. Arrow keys move it, Shift with an arrow moves it further, Delete hides it.`
+                                : `${surface.label} canvas. Choose a layer to move it.`
+                        }
+                        data-a="cover:canvas"
+                        onKeyDown={onCanvasKey}
+                        style={surface.style}
+                        className={`relative shrink-0 touch-none select-none rounded-[3px] shadow-[0_2px_14px_rgba(0,0,0,0.22)] ${surface.className}`}
                     >
-                        {safe && (
-                            <rect
-                                data-a="cover:safe-area"
-                                x={safeX * W}
-                                y={safeY * H}
-                                width={W - 2 * safeX * W}
-                                height={H - 2 * safeY * H}
-                                fill="none"
-                                stroke="#22d3ee"
-                                strokeWidth={4}
-                                strokeDasharray="18 14"
-                                pointerEvents="none"
-                            />
-                        )}
-
-                        {guides.map((g, i) =>
-                            g.axis === 'x' ? (
-                                <line key={i} x1={g.at * W} x2={g.at * W} y1={0} y2={H} stroke="#f472b6" strokeWidth={4} pointerEvents="none" />
-                            ) : (
-                                <line key={i} x1={0} x2={W} y1={g.at * H} y2={g.at * H} stroke="#f472b6" strokeWidth={4} pointerEvents="none" />
-                            ),
-                        )}
-
-                        {items.map((l) => {
-                            if (!l.visible) return null;
-
-                            const box = boxOf(l);
-
-                            return (
+                        <CoverCanvas
+                            svgRef={svg}
+                            surface={surface}
+                            items={items}
+                            texts={texts}
+                            metrics={metrics}
+                            images={images}
+                            label={`${surface.label} preview`}
+                            className="block h-auto w-full rounded-[3px] bg-bg-subtle"
+                            onPointerMove={onPointerMove}
+                            onPointerUp={endDrag}
+                            onPointerCancel={endDrag}
+                            onPointerDown={(event) => {
+                                if (event.target === svg.current || event.target.tagName === 'image') setSelected(null);
+                            }}
+                        >
+                            {surface.trim && (
                                 <rect
-                                    key={l.id}
-                                    data-a={`cover:box:${l.id}`}
-                                    x={box.x}
-                                    y={box.y}
-                                    width={box.width}
-                                    height={Math.max(box.height, 24)}
-                                    fill="transparent"
-                                    stroke={l.id === selected ? 'none' : 'rgba(255,255,255,0.0)'}
-                                    style={{ cursor: 'move' }}
-                                    onPointerDown={(event) => startDrag(event, l, 'move')}
-                                />
-                            );
-                        })}
-
-                        {selectedBox && (
-                            <g data-a="cover:selection">
-                                <rect
-                                    x={selectedBox.x}
-                                    y={selectedBox.y}
-                                    width={selectedBox.width}
-                                    height={Math.max(selectedBox.height, 24)}
+                                    x={surface.trim.x}
+                                    y={surface.trim.y}
+                                    width={surface.trim.width}
+                                    height={surface.trim.height}
                                     fill="none"
-                                    stroke="#3b82f6"
-                                    strokeWidth={5}
+                                    stroke="#f97316"
+                                    strokeWidth={stroke}
                                     pointerEvents="none"
                                 />
-                                {['left', 'right'].map((side) => (
+                            )}
+
+                            {safe && (
+                                <rect
+                                    data-a="cover:safe-area"
+                                    x={surface.safe.x}
+                                    y={surface.safe.y}
+                                    width={surface.safe.width}
+                                    height={surface.safe.height}
+                                    fill="none"
+                                    stroke="#22d3ee"
+                                    strokeWidth={stroke}
+                                    strokeDasharray={`${stroke * 4.5} ${stroke * 3.5}`}
+                                    pointerEvents="none"
+                                />
+                            )}
+
+                            {surface.noGo.map((zone) => (
+                                <g key={zone.label} data-a={`cover:nogo:${zone.label.toLowerCase()}`} pointerEvents="none">
+                                    <rect x={zone.x} y={zone.y} width={zone.width} height={zone.height} fill="#ffffff" stroke="#ef4444" strokeWidth={stroke} />
+                                    <line x1={zone.x} y1={zone.y} x2={zone.x + zone.width} y2={zone.y + zone.height} stroke="#ef4444" strokeWidth={stroke / 2} />
+                                    <line x1={zone.x + zone.width} y1={zone.y} x2={zone.x} y2={zone.y + zone.height} stroke="#ef4444" strokeWidth={stroke / 2} />
+                                    <text x={zone.x + zone.width / 2} y={zone.y + zone.height / 2} fontSize={zone.height / 5} textAnchor="middle" dominantBaseline="middle" fill="#b91c1c">
+                                        {zone.label}
+                                    </text>
+                                </g>
+                            ))}
+
+                            {guides.map((g, i) =>
+                                g.axis === 'x' ? (
+                                    <line key={i} x1={g.at} x2={g.at} y1={0} y2={H} stroke="#f472b6" strokeWidth={stroke} pointerEvents="none" />
+                                ) : (
+                                    <line key={i} x1={0} x2={W} y1={g.at} y2={g.at} stroke="#f472b6" strokeWidth={stroke} pointerEvents="none" />
+                                ),
+                            )}
+
+                            {items.map((l) => {
+                                if (!l.visible) return null;
+
+                                const box = boxOf(l);
+
+                                return (
                                     <rect
-                                        key={side}
-                                        data-a={`cover:handle:${side}`}
-                                        x={(side === 'left' ? selectedBox.x : selectedBox.x + selectedBox.width) - 22}
-                                        y={selectedBox.y + Math.max(selectedBox.height, 24) / 2 - 60}
-                                        width={44}
-                                        height={120}
-                                        rx={10}
-                                        fill="#ffffff"
-                                        stroke="#3b82f6"
-                                        strokeWidth={6}
-                                        style={{ cursor: 'ew-resize' }}
-                                        onPointerDown={(event) => startDrag(event, layer, side)}
+                                        key={l.id}
+                                        data-a={`cover:box:${l.id}`}
+                                        x={box.x}
+                                        y={box.y}
+                                        width={box.width}
+                                        height={Math.max(box.height, H * 0.01)}
+                                        fill="transparent"
+                                        style={{ cursor: 'move' }}
+                                        onPointerDown={(event) => startDrag(event, l, 'move')}
                                     />
-                                ))}
-                            </g>
-                        )}
-                    </CoverCanvas>
+                                );
+                            })}
+
+                            {selectedBox && (
+                                <g data-a="cover:selection">
+                                    <rect
+                                        x={selectedBox.x}
+                                        y={selectedBox.y}
+                                        width={selectedBox.width}
+                                        height={Math.max(selectedBox.height, H * 0.01)}
+                                        fill="none"
+                                        stroke="#3b82f6"
+                                        strokeWidth={stroke * 1.2}
+                                        pointerEvents="none"
+                                    />
+                                    {['left', 'right'].map((side) => (
+                                        <rect
+                                            key={side}
+                                            data-a={`cover:handle:${side}`}
+                                            x={(side === 'left' ? selectedBox.x : selectedBox.x + selectedBox.width) - handle.w / 2}
+                                            y={selectedBox.y + Math.max(selectedBox.height, H * 0.01) / 2 - handle.h / 2}
+                                            width={handle.w}
+                                            height={handle.h}
+                                            rx={handle.w / 4}
+                                            fill="#ffffff"
+                                            stroke="#3b82f6"
+                                            strokeWidth={stroke * 1.4}
+                                            style={{ cursor: 'ew-resize' }}
+                                            onPointerDown={(event) => startDrag(event, layer, side)}
+                                        />
+                                    ))}
+                                </g>
+                            )}
+                        </CoverCanvas>
+                    </div>
                 </div>
 
                 {layer && <Nudge onNudge={nudge} />}
             </div>
 
-            <div className="flex justify-center lg:col-start-1">
-                <div className="flex w-full max-w-[360px] items-end justify-between gap-3">
-                    {/* Store lists show covers this small: check the title reads. */}
-                    <figure className="flex flex-col items-center gap-1">
-                        <CoverCanvas
-                            editor={editor}
-                            items={items}
-                            texts={cover.texts}
-                            metrics={metrics}
-                            background={cover.background}
-                            label="Cover at thumbnail size"
-                            data-a="cover:thumbnail"
-                            className="block h-[160px] w-[100px] rounded-[2px] shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
-                        />
-                        <figcaption className="text-[10.5px] text-text-secondary">Thumbnail</figcaption>
-                    </figure>
+            {notice && (
+                <p role="status" data-a="cover:notice" className="rounded-control bg-status-warning-bg px-2.5 py-1.5 text-[11.5px] text-status-warning lg:col-start-1">
+                    {notice}
+                </p>
+            )}
 
-                    <figure className="flex flex-col items-center gap-1">
-                        <img
-                            src={cover.image}
-                            alt="The saved cover, as it downloads"
-                            data-a="cover:preview"
-                            width={100}
-                            height={160}
-                            className="h-[160px] w-[100px] rounded-[2px] bg-bg-surface object-cover shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
-                        />
-                        <figcaption className="text-[10.5px] text-text-secondary">Saved file</figcaption>
-                    </figure>
+            {front && (
+                <div className="flex justify-center lg:col-start-1">
+                    <div className="flex w-full max-w-[360px] items-end justify-between gap-3">
+                        {/* Store lists show covers this small: check the title reads. */}
+                        <figure className="flex flex-col items-center gap-1">
+                            <CoverCanvas
+                                surface={surface}
+                                items={items}
+                                texts={texts}
+                                metrics={metrics}
+                                images={images}
+                                label="Cover at thumbnail size"
+                                data-a="cover:thumbnail"
+                                className="block h-[160px] w-[100px] rounded-[2px] shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
+                            />
+                            <figcaption className="text-[10.5px] text-text-secondary">Thumbnail</figcaption>
+                        </figure>
 
-                    <a
-                        href={cover.download}
-                        data-a="cover:download"
-                        className="inline-flex items-center gap-1.5 rounded-control border border-border-input bg-bg-surface px-2.5 py-1.5 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40"
-                    >
-                        <Icon name="exp" size={13} strokeWidth={2} />
-                        Download
-                    </a>
+                        <figure className="flex flex-col items-center gap-1">
+                            <img
+                                src={cover.image}
+                                alt="The saved cover, as it downloads"
+                                data-a="cover:preview"
+                                width={100}
+                                height={160}
+                                className="h-[160px] w-[100px] rounded-[2px] bg-bg-surface object-cover shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
+                            />
+                            <figcaption className="text-[10.5px] text-text-secondary">Saved file</figcaption>
+                        </figure>
+
+                        <a
+                            href={cover.download}
+                            data-a="cover:download"
+                            className="inline-flex items-center gap-1.5 rounded-control border border-border-input bg-bg-surface px-2.5 py-1.5 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40"
+                        >
+                            <Icon name="exp" size={13} strokeWidth={2} />
+                            Download
+                        </a>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <div className="min-w-0 space-y-3 lg:col-start-2 lg:row-span-3 lg:row-start-1">
+            <div
+                className={`min-w-0 ${
+                    surface.scroll
+                        ? 'grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start'
+                        : `space-y-3 lg:col-start-2 lg:row-start-1 ${front ? 'lg:row-span-3' : 'lg:row-span-4'}`
+                }`}
+            >
                 <LayerList
                     items={items}
-                    texts={cover.texts}
+                    texts={texts}
+                    images={images}
                     selected={selected}
                     onSelect={setSelected}
                     onToggle={(l) => update(l.id, { visible: !l.visible })}
@@ -543,22 +714,40 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
                 />
 
                 {layer ? (
-                    <Inspector
-                        key={layer.id}
-                        layer={layer}
-                        data={data}
-                        metrics={metrics}
-                        onChange={(changes, key) => update(layer.id, changes, key)}
-                        onText={onText}
-                        onDuplicate={() => duplicate(layer)}
-                        onDelete={() => removeOrHide(layer)}
-                        onForward={() => move(layer, 1)}
-                        onBack={() => move(layer, -1)}
-                        onClose={() => setSelected(null)}
-                    />
+                    layer.source === 'image' ? (
+                        <PictureInspector
+                            key={layer.id}
+                            layer={layer}
+                            surface={surface}
+                            images={images}
+                            onChange={(changes, key) => update(layer.id, changes, key)}
+                            aspectHeight={aspectHeight}
+                            onDuplicate={() => duplicate(layer)}
+                            onDelete={() => removeOrHide(layer)}
+                            onForward={() => move(layer, 1)}
+                            onBack={() => move(layer, -1)}
+                            onClose={() => setSelected(null)}
+                        />
+                    ) : (
+                        <Inspector
+                            key={layer.id}
+                            layer={layer}
+                            data={data}
+                            surface={surface}
+                            texts={texts}
+                            onChange={(changes, key) => update(layer.id, changes, key)}
+                            onText={onText}
+                            onDuplicate={() => duplicate(layer)}
+                            onDelete={() => removeOrHide(layer)}
+                            onForward={() => move(layer, 1)}
+                            onBack={() => move(layer, -1)}
+                            onClose={() => setSelected(null)}
+                            palettes={palettes}
+                        />
+                    )
                 ) : (
                     <p className="rounded-tile border border-dashed border-border-input p-3 text-[12px] text-text-secondary">
-                        Choose a text on the cover or in the list to change it. Drag it to move it; drag the
+                        Choose a layer on the {surface.label.toLowerCase()} or in the list to change it. Drag it to move it; drag the
                         side handles to make its box wider or narrower.
                     </p>
                 )}
@@ -567,18 +756,19 @@ export default function LayerEditor({ data, onLayers, onText, onReset }) {
     );
 }
 
-/** Positions to 1/10000 of the cover: plenty, and short in storage. */
+/** Positions to 1/10000 of the panel (sizes finer): plenty, and short in storage. */
 function round(changes) {
     const out = {};
 
     for (const [k, v] of Object.entries(changes)) {
-        out[k] = typeof v === 'number' ? Math.round(v * 10000) / 10000 : v;
+        out[k] = typeof v === 'number' ? Math.round(v * (k === 'height' ? 1000000 : 10000)) / (k === 'height' ? 1000000 : 10000) : v;
     }
 
     return out;
 }
 
-function nameOf(layer, texts) {
+function nameOf(layer, texts, images = []) {
+    if (layer.source === 'image') return images.find((i) => i.id === layer.image)?.name ?? 'Picture';
     if (layer.source !== 'custom') return SOURCE_NAMES[layer.source];
 
     const text = (layer.text ?? '').trim();
@@ -588,12 +778,14 @@ function nameOf(layer, texts) {
     return text.length > 24 ? `${text.slice(0, 24)}…` : text;
 }
 
-function Toolbar({ canUndo, canRedo, onUndo, onRedo, safe, onSafe, onAdd, missing, onReset }) {
+function Toolbar({ canUndo, canRedo, onUndo, onRedo, safe, onSafe, onAdd, missing, onReset, resetLabel, images, onPicture, onUpload }) {
     const button =
         'inline-flex min-h-[36px] items-center gap-1 rounded-control border border-border-input bg-bg-surface px-2.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-40';
+    const file = useRef(null);
+    const [busy, setBusy] = useState(false);
 
     return (
-        <div role="toolbar" aria-label="Cover text" className="flex w-full max-w-[380px] flex-wrap items-center gap-1.5">
+        <div role="toolbar" aria-label="Cover layers" className="flex w-full max-w-[380px] flex-wrap items-center gap-1.5">
             <button type="button" onClick={onUndo} disabled={!canUndo} data-a="cover:undo" aria-label="Undo" title="Undo (Ctrl+Z)" className={button}>
                 <Icon name="reset" size={13} strokeWidth={2} /> Undo
             </button>
@@ -623,11 +815,60 @@ function Toolbar({ canUndo, canRedo, onUndo, onRedo, safe, onSafe, onAdd, missin
                 </label>
             )}
 
+            {onUpload && (
+                <>
+                    <label className="inline-flex items-center">
+                        <span className="sr-only">Add a picture</span>
+                        <select
+                            value=""
+                            data-a="cover:add-picture"
+                            disabled={busy}
+                            onChange={(event) => {
+                                const value = event.target.value;
+
+                                if (value === '__upload') file.current?.click();
+                                else if (value) onPicture(images.find((i) => i.id === value));
+                            }}
+                            className="min-h-[36px] rounded-control border border-border-input bg-bg-surface px-2 text-[12px]"
+                        >
+                            <option value="">{busy ? 'Uploading…' : 'Add picture…'}</option>
+                            {images.map((image) => (
+                                <option key={image.id} value={image.id}>
+                                    {image.name}
+                                </option>
+                            ))}
+                            <option value="__upload">Upload a PNG or JPEG…</option>
+                        </select>
+                    </label>
+                    <input
+                        ref={file}
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        data-a="cover:picture-upload"
+                        className="sr-only"
+                        onChange={async (event) => {
+                            const chosen = event.target.files?.[0];
+                            event.target.value = '';
+
+                            if (!chosen) return;
+
+                            setBusy(true);
+
+                            try {
+                                await onUpload(chosen);
+                            } finally {
+                                setBusy(false);
+                            }
+                        }}
+                    />
+                </>
+            )}
+
             <button type="button" onClick={onSafe} aria-pressed={safe} data-a="cover:safe" className={button}>
                 Safe area
             </button>
             <button type="button" onClick={onReset} data-a="cover:reset-layout" className={`${button} ml-auto`}>
-                Reset to layout
+                {resetLabel}
             </button>
         </div>
     );
@@ -639,7 +880,7 @@ function Nudge({ onNudge }) {
 
     return (
         // A cross of four on a phone, beside the canvas; a row under it on a desktop.
-        <div role="group" aria-label="Move the selected text" className="grid grid-cols-3 gap-1 lg:flex lg:gap-1.5">
+        <div role="group" aria-label="Move the selected layer" className="grid grid-cols-3 gap-1 self-center lg:flex lg:gap-1.5">
             <button type="button" aria-label="Move up" data-a="cover:nudge:up" onClick={() => onNudge(0, -10)} className={`${button} col-start-2`}>↑</button>
             <button type="button" aria-label="Move left" data-a="cover:nudge:left" onClick={() => onNudge(-10, 0)} className={`${button} col-start-1 row-start-2`}>←</button>
             <button type="button" aria-label="Move right" data-a="cover:nudge:right" onClick={() => onNudge(10, 0)} className={`${button} col-start-3 row-start-2`}>→</button>
@@ -648,7 +889,7 @@ function Nudge({ onNudge }) {
     );
 }
 
-function LayerList({ items, texts, selected, onSelect, onToggle, onMove, onReorder }) {
+function LayerList({ items, texts, images, selected, onSelect, onToggle, onMove, onReorder }) {
     const dragging = useRef(null);
 
     // Listed front first, as layer lists are: the last drawn is on top.
@@ -674,12 +915,12 @@ function LayerList({ items, texts, selected, onSelect, onToggle, onMove, onReord
                         }`}
                     >
                         <span aria-hidden="true" className="cursor-grab text-text-secondary">
-                            <Icon name="grip" size={14} strokeWidth={2} />
+                            <Icon name={l.source === 'image' ? 'image' : 'grip'} size={14} strokeWidth={2} />
                         </span>
                         <button
                             type="button"
                             aria-pressed={l.visible}
-                            aria-label={`${l.visible ? 'Hide' : 'Show'} ${nameOf(l, texts)}`}
+                            aria-label={`${l.visible ? 'Hide' : 'Show'} ${nameOf(l, texts, images)}`}
                             data-a={`cover:layer:eye:${l.id}`}
                             onClick={() => onToggle(l)}
                             className={`flex h-[34px] w-[34px] items-center justify-center rounded-control ${l.visible ? 'text-text-body' : 'text-text-secondary opacity-50'}`}
@@ -693,11 +934,11 @@ function LayerList({ items, texts, selected, onSelect, onToggle, onMove, onReord
                             onClick={() => onSelect(l.id)}
                             className={`min-h-[34px] flex-1 truncate text-left text-[12.5px] ${l.visible ? 'text-text-primary' : 'text-text-secondary line-through'}`}
                         >
-                            {nameOf(l, texts)}
+                            {nameOf(l, texts, images)}
                         </button>
                         <button
                             type="button"
-                            aria-label={`Bring ${nameOf(l, texts)} forward`}
+                            aria-label={`Bring ${nameOf(l, texts, images)} forward`}
                             disabled={i === 0}
                             onClick={() => onMove(l, 1)}
                             className="h-[30px] w-[28px] rounded-control text-[13px] text-text-secondary disabled:opacity-30"
@@ -706,7 +947,7 @@ function LayerList({ items, texts, selected, onSelect, onToggle, onMove, onReord
                         </button>
                         <button
                             type="button"
-                            aria-label={`Send ${nameOf(l, texts)} back`}
+                            aria-label={`Send ${nameOf(l, texts, images)} back`}
                             disabled={i === listed.length - 1}
                             onClick={() => onMove(l, -1)}
                             className="h-[30px] w-[28px] rounded-control text-[13px] text-text-secondary disabled:opacity-30"
@@ -720,8 +961,8 @@ function LayerList({ items, texts, selected, onSelect, onToggle, onMove, onReord
     );
 }
 
-function Inspector({ layer, data, metrics, onChange, onText, onDuplicate, onDelete, onForward, onBack, onClose }) {
-    const { cover, editor, palettes } = data;
+function Inspector({ layer, data, surface, texts, palettes, onChange, onText, onDuplicate, onDelete, onForward, onBack, onClose }) {
+    const { cover, editor } = data;
     const family = editor.fonts.find((f) => f.key === layer.font);
     const styles = family?.styles ?? {};
     const weights = ['regular', 'semibold', 'bold'].filter((w) => styles[w] || styles[`${w}-italic`]);
@@ -749,11 +990,11 @@ function Inspector({ layer, data, metrics, onChange, onText, onDuplicate, onDele
     const swatches = useMemo(() => {
         const palette = palettes[cover.palette] ?? palettes[0];
 
-        return [...new Set(['#ffffff', '#000000', palette.ink, palette.from, palette.to, '#f5efe0', '#c9a227', '#b91c1c'].map((c) => c.toLowerCase()))];
-    }, [palettes, cover.palette]);
+        return [...new Set(['#ffffff', '#000000', '#1a1a1a', surface.ink, palette.ink, palette.from, palette.to, '#f5efe0', '#c9a227', '#b91c1c'].map((c) => c.toLowerCase()))];
+    }, [palettes, cover.palette, surface.ink]);
 
     const name = SOURCE_NAMES[layer.source];
-    const sizePx = Math.round(layer.size * editor.height);
+    const size = surface.size;
 
     return (
         <section
@@ -781,10 +1022,23 @@ function Inspector({ layer, data, metrics, onChange, onText, onDuplicate, onDele
                         className="w-full resize-y rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
                     />
                 </Field>
+            ) : layer.source === 'description' ? (
+                <Field label="Back-cover copy (the book's description)">
+                    <textarea
+                        rows={6}
+                        value={texts.description ?? ''}
+                        data-a="cover:description"
+                        onChange={(event) => onText('description', event.target.value)}
+                        className="w-full resize-y rounded-control border border-border-input px-2 py-1.5 text-[12.5px] leading-relaxed focus:border-brand-primary focus:ring-0"
+                    />
+                    <span className="mt-1 block text-[11px] text-text-secondary">
+                        Wraps inside its box; the size stays where you set it. Also used for store listings.
+                    </span>
+                </Field>
             ) : EDITABLE.includes(layer.source) ? (
                 <Field label={`${name} (on the cover)`}>
                     <input
-                        value={cover.texts[layer.source] ?? ''}
+                        value={texts[layer.source] ?? ''}
                         data-a={`cover:${layer.source}`}
                         onChange={(event) => onText(layer.source, event.target.value)}
                         className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
@@ -792,8 +1046,8 @@ function Inspector({ layer, data, metrics, onChange, onText, onDuplicate, onDele
                 </Field>
             ) : (
                 <p className="text-[11.5px] text-text-secondary">
-                    {cover.texts[layer.source]
-                        ? `Shows “${cover.texts[layer.source]}”, from the book's details.`
+                    {texts[layer.source]
+                        ? `Shows “${texts[layer.source]}”, from the book's details.`
                         : `The book has no ${name.toLowerCase()} yet; set it in the book's details.`}
                 </p>
             )}
@@ -852,13 +1106,13 @@ function Inspector({ layer, data, metrics, onChange, onText, onDuplicate, onDele
 
             <Slider
                 label="Size"
-                unit="px"
-                min={15}
-                max={600}
-                step={1}
-                value={sizePx}
+                unit={size.unit}
+                min={size.min}
+                max={size.max}
+                step={size.step}
+                value={size.to(layer.size)}
                 data-a="cover:size"
-                onChange={(v) => onChange({ size: Math.round((Math.min(600, Math.max(15, v)) / editor.height) * 100000) / 100000 }, 'size')}
+                onChange={(v) => onChange({ size: size.from(Math.min(size.max, Math.max(size.min, v))) }, 'size')}
             />
 
             <fieldset>
@@ -940,15 +1194,117 @@ function Inspector({ layer, data, metrics, onChange, onText, onDuplicate, onDele
                 )}
             </div>
 
-            <div className="flex flex-wrap gap-1.5 border-t border-border-default pt-2.5">
-                <SmallButton onClick={onDuplicate} data-a="cover:duplicate">Duplicate</SmallButton>
-                <SmallButton onClick={onForward} data-a="cover:forward">Bring forward</SmallButton>
-                <SmallButton onClick={onBack} data-a="cover:back">Send back</SmallButton>
-                <SmallButton onClick={onDelete} data-a="cover:delete" danger>
-                    {layer.source === 'custom' ? 'Delete' : 'Hide'}
-                </SmallButton>
-            </div>
+            <Actions layer={layer} onDuplicate={onDuplicate} onDelete={onDelete} onForward={onForward} onBack={onBack} />
         </section>
+    );
+}
+
+/** A picture: its size, opacity, crop, proportions, and how sharp it prints. */
+function PictureInspector({ layer, surface, images, onChange, aspectHeight, onDuplicate, onDelete, onForward, onBack, onClose }) {
+    const image = images.find((i) => i.id === layer.image);
+    const crop = layer.crop ?? { x: 0, y: 0, width: 1, height: 1 };
+    // Printed width in inches, where the surface knows it (the back and
+    // spine are drawn at 300 dpi; the front's print size depends on the trim).
+    const inches = surface.inchesPerPx ? layer.width * surface.width * surface.inchesPerPx : null;
+    const dpi = image && inches ? Math.floor((image.width * crop.width) / inches) : null;
+
+    const setCrop = (changes) => {
+        const next = { ...crop, ...changes };
+        next.width = Math.min(next.width, 1 - next.x);
+        next.height = Math.min(next.height, 1 - next.y);
+        const full = next.x === 0 && next.y === 0 && next.width === 1 && next.height === 1;
+        const updated = { ...layer, crop: full ? null : next };
+
+        onChange({ crop: updated.crop, ...(layer.lock ? { height: aspectHeight(updated, layer.width) } : {}) }, 'crop');
+    };
+
+    return (
+        <section
+            aria-label="Selected picture"
+            data-a="cover:picture-inspector"
+            className="space-y-3 rounded-tile border border-border-default bg-bg-surface p-3 max-lg:rounded-t-[16px] max-lg:shadow-[0_-6px_20px_rgba(0,0,0,0.12)]"
+        >
+            <div className="flex items-center justify-between gap-2">
+                <h3 className="truncate text-[13px] font-semibold text-text-primary">{image?.name ?? 'Picture'}</h3>
+                <div className="flex items-center gap-1">
+                    <Toggle label="Visible" checked={layer.visible} onChange={(v) => onChange({ visible: v })} data-a="cover:visible" />
+                    <button type="button" onClick={onClose} aria-label="Close the inspector" className="flex h-[32px] w-[32px] items-center justify-center rounded-control text-text-secondary lg:hidden">
+                        <Icon name="x" size={14} strokeWidth={2} />
+                    </button>
+                </div>
+            </div>
+
+            {image && (
+                <p className="text-[11.5px] text-text-secondary">
+                    {image.width} × {image.height} px
+                    {dpi !== null && (
+                        <>
+                            {' '}· prints at{' '}
+                            <span data-a="cover:picture-dpi" className={dpi < 300 ? 'font-semibold text-status-warning' : 'text-text-body'}>
+                                {dpi} dpi
+                            </span>
+                            {dpi < 300 && ' — print wants 300. Make it smaller or use a larger picture.'}
+                        </>
+                    )}
+                </p>
+            )}
+
+            <Slider
+                label="Width"
+                unit="%"
+                min={1}
+                max={100}
+                step={0.5}
+                value={Math.round(layer.width * 1000) / 10}
+                data-a="cover:picture-width"
+                onChange={(v) => {
+                    const width = Math.min(v / 100, 1 - layer.x);
+                    onChange({ width, ...(layer.lock ? { height: Math.min(aspectHeight(layer, width), surface.spine ? 0.25 : 1) } : {}) }, 'width');
+                }}
+            />
+            <Slider
+                label="Height"
+                unit="%"
+                min={0.5}
+                max={surface.spine ? 25 : 100}
+                step={0.5}
+                value={Math.round(layer.height * 1000) / 10}
+                data-a="cover:picture-height"
+                onChange={(v) => onChange({ height: v / 100, lock: false }, 'height')}
+            />
+            <Toggle
+                label="Keep proportions"
+                checked={layer.lock}
+                data-a="cover:picture-lock"
+                onChange={(v) => onChange(v ? { lock: true, height: aspectHeight(layer, layer.width) } : { lock: false })}
+            />
+            <Slider label="Opacity" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)} onChange={(v) => onChange({ opacity: v / 100 }, 'opacity')} data-a="cover:opacity" />
+
+            <fieldset className="rounded-control border border-border-default p-2">
+                <legend className="px-1 text-[11.5px] font-medium text-text-secondary">Crop</legend>
+                <div className="grid grid-cols-2 gap-x-3">
+                    <Slider label="Left" unit="%" min={0} max={95} step={1} value={Math.round(crop.x * 100)} onChange={(v) => setCrop({ x: v / 100 })} data-a="cover:crop-x" />
+                    <Slider label="Top" unit="%" min={0} max={95} step={1} value={Math.round(crop.y * 100)} onChange={(v) => setCrop({ y: v / 100 })} data-a="cover:crop-y" />
+                    <Slider label="Width" unit="%" min={5} max={100} step={1} value={Math.round(crop.width * 100)} onChange={(v) => setCrop({ width: v / 100 })} data-a="cover:crop-width" />
+                    <Slider label="Height" unit="%" min={5} max={100} step={1} value={Math.round(crop.height * 100)} onChange={(v) => setCrop({ height: v / 100 })} data-a="cover:crop-height" />
+                </div>
+            </fieldset>
+
+            <Actions layer={layer} onDuplicate={onDuplicate} onDelete={onDelete} onForward={onForward} onBack={onBack} />
+        </section>
+    );
+}
+
+function Actions({ layer, onDuplicate, onDelete, onForward, onBack }) {
+    return (
+        <div className="flex flex-wrap gap-1.5 border-t border-border-default pt-2.5">
+            <SmallButton onClick={onDuplicate} data-a="cover:duplicate">Duplicate</SmallButton>
+            <SmallButton onClick={onForward} data-a="cover:forward">Bring forward</SmallButton>
+            <SmallButton onClick={onBack} data-a="cover:back">Send back</SmallButton>
+            <SmallButton onClick={onDelete} data-a="cover:delete" danger>
+                {layer.source === 'custom' || layer.source === 'image' ? 'Delete' : 'Hide'}
+            </SmallButton>
+        </div>
     );
 }
 
@@ -976,7 +1332,7 @@ function Toggle({ label, checked, onChange, disabled, ...rest }) {
 }
 
 function Slider({ label, unit, min, max, step, value, onChange, ...rest }) {
-    const shown = Number.isInteger(step) ? value : Number(value).toFixed(2);
+    const shown = Number.isInteger(step) ? value : Number(value).toFixed(step >= 0.1 ? 1 : 2);
 
     return (
         <div>

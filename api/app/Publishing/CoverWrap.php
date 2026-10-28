@@ -549,7 +549,13 @@ class CoverWrap
                 'spine' => CoverLayers::stored($book, 'spine'),
             ],
             'texts' => CoverLayers::wrapTexts($book),
+            // The ink the generated back and spine set their type in, for
+            // a new layer: near-black on a light ground, white on a dark one.
+            'ink' => self::hex($this->inkOn($this->groundFor($book))),
             'back_artwork' => $this->backArtwork($book) !== null,
+            'back_artwork_image' => $this->backArtwork($book) ? route('design.cover.image', [
+                'book' => $book->id, 'part' => 'back-artwork', 'v' => substr(md5((string) $this->backArtwork($book)), 0, 12),
+            ]) : null,
             'back_framing' => self::backFraming(($book->cover ?? [])['back_framing'] ?? null),
             'warnings' => $this->warnings($book, $g),
             'fingerprint' => $this->fingerprint($book),
