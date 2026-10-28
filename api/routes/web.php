@@ -507,6 +507,16 @@ Route::middleware('auth')->group(function () {
         ->name('publishing.generate');
     Route::get('/books/{book}/exports/{export}/download', [PublishingController::class, 'download'])
         ->name('publishing.download');
+    // Export profiles (App\Publishing\ExportOptions) and the book's own
+    // front and back matter per format.
+    Route::post('/books/{book}/export-profiles', [PublishingController::class, 'storeProfile'])
+        ->name('publishing.profiles.store');
+    Route::put('/books/{book}/export-profiles/{profile}', [PublishingController::class, 'updateProfile'])
+        ->name('publishing.profiles.update');
+    Route::delete('/books/{book}/export-profiles/{profile}', [PublishingController::class, 'destroyProfile'])
+        ->name('publishing.profiles.destroy');
+    Route::put('/books/{book}/export-matter', [PublishingController::class, 'matter'])
+        ->name('publishing.matter');
 
     // Publish in three steps: Check, Choose channels, Publish
     // (App\Http\Controllers\PublishFlowController for who may do what).
@@ -677,6 +687,12 @@ Route::prefix('store')->name('store.')->group(function () {
         ->name('product');
     Route::get('/{product:slug}/cover', [StoreController::class, 'cover'])
         ->name('cover');
+    // "Read a sample": a Sample-profile export, by a link the product page
+    // signs (expiring), rate-limited per visitor.
+    Route::get('/{product:slug}/sample/{format}', [StoreController::class, 'sample'])
+        ->middleware(['signed:relative', 'throttle:20,1'])
+        ->whereIn('format', ['epub', 'pdf'])
+        ->name('sample');
     Route::post('/{product:slug}/checkout', [StoreController::class, 'checkout'])
         ->middleware('throttle:10,1')
         ->name('checkout');

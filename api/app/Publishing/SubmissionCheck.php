@@ -148,7 +148,7 @@ class SubmissionCheck
         // Ebook stores' own limits beyond the shared floor above.
         $ebooks = $book->channels()->whereIn('status', ['not_submitted', 'ready_to_submit'])->pluck('channel')
             ->filter(fn ($channel) => (BookChannel::CHANNELS[$channel][1] ?? null) === 'ebook');
-        $hasEpub = $book->exports()->where('format', 'epub')->where('status', 'ready')->exists();
+        $hasEpub = $book->exports()->fullBook()->where('format', 'epub')->where('status', 'ready')->exists();
 
         foreach ($ebooks as $channel) {
             foreach (app(StoreReadiness::class)->for($book, $channel, $hasEpub)['items'] as $item) {

@@ -7,6 +7,7 @@ use App\Commerce\Listing;
 use App\Commerce\Partners\Commissions;
 use App\Commerce\Partners\Program;
 use App\Commerce\Revenue;
+use App\Commerce\Sample;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\Product;
@@ -55,6 +56,8 @@ class ProductController extends Controller
             // share of the net. Out of the seller's own royalty.
             'partner_enabled' => ['sometimes', 'boolean'],
             'partner_rate' => ['nullable', 'integer'],
+            // "Read a sample" on the product page (App\Commerce\Sample).
+            'sample_enabled' => ['sometimes', 'boolean'],
         ]);
 
         $partners = $this->partnerSettings($request, $data, $book->product);
@@ -81,6 +84,10 @@ class ProductController extends Controller
             'published_at' => $data['published'] ? ($wasPublished ? $product->published_at : now()) : null,
         ]);
         $product->forceFill($partners);
+
+        if (array_key_exists('sample_enabled', $data)) {
+            $product->forceFill(['sample_enabled' => (bool) $data['sample_enabled']]);
+        }
 
         if (! $product->exists) {
             $product->user_id = $book->user_id;
@@ -170,7 +177,14 @@ class ProductController extends Controller
                 'url' => $product->isPublished() ? route('store.product', $product->slug) : null,
                 'partner_enabled' => (bool) $product->partner_enabled,
                 'partner_rate' => $product->partner_rate_bps ? intdiv($product->partner_rate_bps, 100) : null,
+                'sample_enabled' => (bool) $product->sample_enabled,
             ] : null,
+            // The Sample-profile files a "Read a sample" link can offer
+            // (App\Commerce\Sample), made on Export & Publish.
+            'samples' => collect(Sample::FORMATS)
+                ->filter(fn (string $format) => $product && Sample::export($product, $format))
+                ->values()
+                ->all(),
             // Écrivain Partners: the switch, the allowed range, and what a
             // sale pays with and without a partner (Commissions::split, the
             // same arithmetic the order will use).

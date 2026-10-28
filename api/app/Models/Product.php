@@ -35,6 +35,8 @@ class Product extends Model
             'paperback_price_cents' => 'integer',
             // The Lulu files a paperback prints from (App\Commerce\Print\LuluPrinting).
             'print' => 'array',
+            // "Read a sample" on the product page (App\Commerce\Sample).
+            'sample_enabled' => 'boolean',
         ];
     }
 

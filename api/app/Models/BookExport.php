@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Publishing\ExportOptions;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -91,7 +93,30 @@ class BookExport extends Model
                 .(isset($this->options['paper']) ? ', '.$this->options['paper'].' paper' : '');
         }
 
+        // What an export profile made it, so a Sample is never taken for
+        // the book (ExportOptions::label).
+        if (! $this->isFullBook()) {
+            $label .= ' · '.ExportOptions::fromExport($this)->label();
+        }
+
         return $label;
+    }
+
+    /**
+     * Made with no export profile: the whole book, as it is sold and sent
+     * to the stores and the printer. Every other export (a Sample, a review
+     * copy, a manuscript) is for reading only and is never offered to a
+     * buyer, a store or a print service.
+     */
+    public function isFullBook(): bool
+    {
+        return ($this->options['profile'] ?? null) === null;
+    }
+
+    /** Only Full-book exports (isFullBook). */
+    public function scopeFullBook(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->whereNull('options')->orWhereNull('options->profile'));
     }
 
     public function extension(): string

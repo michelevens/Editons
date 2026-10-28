@@ -8,13 +8,17 @@ use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\BookExport;
+use App\Models\ExportProfile;
 use App\Platform\House\House;
 use App\Platform\Trust\MasterData;
+use App\Publishing\BookPart;
 use App\Publishing\Exporter;
+use App\Publishing\ExportOptions;
 use App\Publishing\SubmissionCheck;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -227,7 +231,13 @@ class PublishingController extends Controller
             'options.service' => ['sometimes', 'string', 'max:20'],
             'options.paper' => ['sometimes', 'string', 'max:20'],
             'options.spine' => ['sometimes', 'nullable', 'numeric'],
+            // The export profile (ExportOptions): a preset, a saved
+            // profile's id, or options of the author's own. Checked in
+            // full by ExportOptions::validate, which refuses unknown keys.
+            'profile' => ['sometimes', 'nullable', 'array'],
         ]);
+
+        $options = ($data['options'] ?? []) + ($request->input('profile') ? ['profile' => (array) $request->input('profile')] : []);
 
         // The plan decides which formats are available. The method existed
         // and nothing called it, so every plan could export everything.
@@ -241,8 +251,10 @@ class PublishingController extends Controller
 
         try {
             $export = $queued
-                ? $this->exporter->start($book, $data['format'], $request->user()->id, $data['options'] ?? [])
-                : $this->exporter->generate($book, $data['format'], $request->user()->id);
+                ? $this->exporter->start($book, $data['format'], $request->user()->id, $options)
+                : $this->exporter->generate($book, $data['format'], $request->user()->id, $options);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (Throwable $e) {
             // 422 rather than 500: an empty manuscript is the author's to
             // fix, and the message says what to do about it.
@@ -311,8 +323,12 @@ class PublishingController extends Controller
             // A PDF or EPUB takes too long to rebuild while the browser
             // waits: queue it (or join the render already running), and the
             // history shows it when it is ready.
+            // Made again with what it was made with: the cover's service,
+            // or the export profile, already checked when it was first made.
+            $again = $export->format === 'cover_wrap' ? ($export->options ?? []) : ['profile' => ExportOptions::fromExport($export)];
+
             if (in_array($export->format, GenerateExport::FORMATS, true)) {
-                $rebuild = $this->exporter->start($book, $export->format, $user->id, $export->options ?? []);
+                $rebuild = $this->exporter->start($book, $export->format, $user->id, $again);
 
                 if ($rebuild->wasRecentlyCreated) {
                     GenerateExport::dispatch($rebuild->id);
@@ -321,7 +337,7 @@ class PublishingController extends Controller
                 abort(503, 'That file is being rebuilt. It will appear in your export history in a few minutes.');
             }
 
-            $export = $this->exporter->generate($book, $export->format, $user->id);
+            $export = $this->exporter->generate($book, $export->format, $user->id, $again);
 
             abort_unless(
                 $export->status === 'ready' && $export->path && Storage::disk('files')->exists($export->path),
@@ -334,6 +350,170 @@ class PublishingController extends Controller
             $export->path,
             basename($export->path),
         );
+    }
+
+    /**
+     * Save the options as a profile of this book. Names are unique per
+     * book whatever their case.
+     */
+    public function storeProfile(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:60'],
+            'options' => ['present', 'array'],
+        ]);
+
+        $profile = new ExportProfile([
+            'name' => $this->profileName($book, $data['name']),
+            'options' => $this->profileOptions($book, (array) $request->input('options')),
+        ]);
+        $profile->book_id = $book->id;
+        $profile->user_id = $request->user()->id;
+        $profile->save();
+
+        return response()->json(['profile' => $profile->id] + $this->payload($book->fresh()), 201);
+    }
+
+    public function updateProfile(Request $request, Book $book, ExportProfile $profile): JsonResponse
+    {
+        $this->authorize('update', $book);
+        abort_unless($profile->book_id === $book->id, 404);
+
+        $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:60'],
+            'options' => ['sometimes', 'array'],
+        ]);
+
+        if (isset($data['name'])) {
+            $profile->name = $this->profileName($book, $data['name'], $profile->id);
+        }
+
+        if ($request->has('options')) {
+            $profile->options = $this->profileOptions($book, (array) $request->input('options'));
+        }
+
+        $profile->save();
+
+        return response()->json($this->payload($book->fresh()));
+    }
+
+    public function destroyProfile(Book $book, ExportProfile $profile): JsonResponse
+    {
+        $this->authorize('update', $book);
+        abort_unless($profile->book_id === $book->id, 404);
+
+        // Exports made with it keep their options (BookExport.options).
+        $profile->delete();
+
+        return response()->json($this->payload($book->fresh()));
+    }
+
+    /**
+     * The book's own front and back matter per format family (E3): what
+     * every export of it leaves out of the EPUB, and of the print files.
+     * Empty, the default, is the book's anatomy as it is.
+     */
+    public function matter(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $keys = implode(',', ExportOptions::matterKeys());
+        $data = $request->validate([
+            'ebook' => ['present', 'array'],
+            'ebook.*' => ['string', 'distinct', 'in:'.$keys],
+            'print' => ['present', 'array'],
+            'print.*' => ['string', 'distinct', 'in:'.$keys],
+        ]);
+
+        if ($unknown = array_diff(array_keys($request->all()), ['ebook', 'print'])) {
+            throw ValidationException::withMessages([reset($unknown) => 'There is no matter set called "'.reset($unknown).'".']);
+        }
+
+        $meta = $book->meta ?? [];
+        $meta['export_matter'] = ['ebook' => array_values($data['ebook']), 'print' => array_values($data['print'])];
+
+        if ($meta['export_matter'] === ['ebook' => [], 'print' => []]) {
+            unset($meta['export_matter']);
+        }
+
+        $book->meta = $meta;
+        $book->save();
+
+        return response()->json($this->payload($book->fresh()));
+    }
+
+    private function profileName(Book $book, string $name, ?int $except = null): string
+    {
+        $name = trim($name);
+        $taken = ExportProfile::where('book_id', $book->id)
+            ->when($except, fn ($q) => $q->whereKeyNot($except))
+            ->whereRaw('lower(name) = ?', [mb_strtolower($name)])
+            ->exists();
+
+        if ($name === '' || $taken || in_array(mb_strtolower($name), array_map(fn ($key) => mb_strtolower(ExportOptions::presetName($key)), ExportOptions::PRESETS), true)) {
+            throw ValidationException::withMessages(['name' => $name === '' ? 'Name the profile.' : 'This book already has a profile called "'.$name.'".']);
+        }
+
+        return $name;
+    }
+
+    /** Options checked as an export would check them, stored without their name. */
+    private function profileOptions(Book $book, array $input): array
+    {
+        unset($input['id']);
+
+        return array_diff_key(ExportOptions::validate($input, $book)->values, array_flip(['id', 'name']));
+    }
+
+    /**
+     * What the Export screen needs to offer profiles: the presets, this
+     * book's saved profiles, the matter keys by group, the sections a range
+     * can run between, and the book's matter set per format.
+     *
+     * @return array<string, mixed>
+     */
+    private function profiles(Book $book): array
+    {
+        $chapters = ExportOptions::chapterIds($book);
+        $titles = $book->sections()->pluck('title', 'id');
+        $language = substr(Exporter::languageCode($book->language), 0, 2);
+        $label = fn (string $key) => match ($key) {
+            'other_front' => 'Other front matter',
+            'other_back' => 'Other back matter',
+            default => BookPart::from($key)->title('en'),
+        };
+
+        return [
+            'presets' => ExportOptions::presets(),
+            'saved' => ExportProfile::where('book_id', $book->id)->orderBy('name')->get()
+                ->map(fn (ExportProfile $p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'options' => array_merge(ExportOptions::defaults(), $p->options ?? [], ['id' => $p->id, 'name' => $p->name]),
+                    'summary' => ExportOptions::summary($p->options ?? []),
+                ])->values()->all(),
+            'matter' => [
+                'front' => array_map(fn ($key) => ['key' => $key, 'label' => $label($key)], ExportOptions::matterKeys('front')),
+                'back' => array_map(fn ($key) => ['key' => $key, 'label' => $label($key)], ExportOptions::matterKeys('back')),
+            ],
+            'sections' => collect(ExportOptions::bodySectionIds($book))
+                ->map(fn (int $id) => ['id' => $id, 'title' => (string) ($titles[$id] ?? ''),
+                    'chapter' => ($n = array_search($id, $chapters, true)) === false ? null : $n + 1])
+                ->values()->all(),
+            'chapters' => count($chapters),
+            'book_matter' => [
+                'ebook' => ExportOptions::bookMatter($book, 'epub'),
+                'print' => ExportOptions::bookMatter($book, 'pdf'),
+            ],
+            'formats' => ExportOptions::FORMATS,
+            'manuscript_formats' => ExportOptions::MANUSCRIPT_FORMATS,
+            'watermarked' => ExportOptions::WATERMARKED,
+            'watermark_max' => ExportOptions::WATERMARK_MAX,
+            'page_notes_reason' => ExportOptions::PAGE_NOTES_REASON,
+            'language' => $language,
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -404,6 +584,8 @@ class PublishingController extends Controller
             'blockers' => $this->check->errors($book),
             // Not blocking, but worth knowing before the files go anywhere.
             'warnings' => $this->check->warnings($book),
+            // Export profiles (ExportOptions).
+            'profiles' => $this->profiles($book),
         ];
     }
 
@@ -442,6 +624,10 @@ class PublishingController extends Controller
             'size' => $export->byte_size ? $this->humanSize($export->byte_size) : null,
             'pages' => $export->pages,
             'created_at' => $export->created_at->diffForHumans(),
+            // A Sample or a review copy is for reading: never sent to a
+            // store, a printer or a buyer.
+            'full_book' => $export->isFullBook(),
+            'profile' => $export->isFullBook() ? null : ExportOptions::fromExport($export)->label(),
         ];
     }
 

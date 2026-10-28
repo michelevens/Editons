@@ -165,7 +165,7 @@ class Royalties
         $pages = PrintPages::for($book);
         $print = $book->printSettings();
         $trim = $book->layout()['trim'];
-        $epub = $book->exports()->where('format', 'epub')->where('status', 'ready')->latest('id')->value('byte_size');
+        $epub = $book->exports()->fullBook()->where('format', 'epub')->where('status', 'ready')->latest('id')->value('byte_size');
         $megabytes = $epub ? round($epub / 1048576, 2) : null;
 
         return [

@@ -49,7 +49,9 @@ class PrintPages
     {
         $fingerprint = self::fingerprint($book);
 
+        // A range or a manuscript has its own count, not the book's.
         $export = BookExport::where('book_id', $book->id)
+            ->fullBook()
             ->whereIn('format', self::RECORDING)
             ->whereNotNull('pages')
             ->latest('id')

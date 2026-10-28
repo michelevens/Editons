@@ -9,6 +9,7 @@ use App\Commerce\Fulfilment;
 use App\Commerce\Partners\Attribution;
 use App\Commerce\Partners\PartnerPages;
 use App\Commerce\Print\LuluPrinting;
+use App\Commerce\Sample;
 use App\Growth\Discounts;
 use App\Jobs\GenerateExport;
 use App\Models\BookExport;
@@ -90,6 +91,9 @@ class StoreController extends Controller
                     'shipping_cents' => (int) config('commerce.paperback.shipping_cents'),
                     'countries' => config('commerce.paperback.countries'),
                 ] : null,
+                // "Read a sample": signed links to the author's Sample
+                // export, when they turned it on (App\Commerce\Sample).
+                'samples' => Sample::links($product),
                 // "Report this book": to the console's moderation queue.
                 'report_url' => route('store.report', $product->slug),
                 // Only a named book links to its author's shelf: linking an
@@ -142,6 +146,23 @@ class StoreController extends Controller
             'Content-Type' => 'image/jpeg',
             'Cache-Control' => 'public, max-age=86400',
         ]);
+    }
+
+    /**
+     * A sample of the book: the author's Sample-profile export (App\Commerce     * Sample), by a signed link from the product page. Only while the
+     * product is on sale with samples turned on.
+     */
+    public function sample(Product $product, string $format): StreamedResponse
+    {
+        $product = $this->published($product);
+        abort_unless($product->sample_enabled, 404);
+
+        $export = Sample::export($product, $format);
+        abort_unless($export && $export->path && Storage::disk('files')->exists($export->path), 404);
+
+        $name = (Str::slug($product->displayTitle()) ?: 'book').'-sample.'.$export->extension();
+
+        return Storage::disk('files')->download($export->path, $name, ['Cache-Control' => 'private, no-store']);
     }
 
     /**
@@ -304,7 +325,8 @@ class StoreController extends Controller
         $book = $license->item->book;
         abort_if(! $book || $book->trashed(), 410, 'This book is no longer available.');
 
-        $export = $book->exports()->where('format', $format)->where('status', 'ready')->first();
+        // The whole book, never a Sample made after it (ExportOptions).
+        $export = $book->exports()->fullBook()->where('format', $format)->where('status', 'ready')->first();
 
         if (! $export || ! $export->path || ! Storage::disk('files')->exists($export->path)) {
             $this->rebuild($book, $format, $license->item);
@@ -418,6 +440,7 @@ class StoreController extends Controller
     private function rebuild($book, string $format, OrderItem $item): void
     {
         $running = $book->exports()
+            ->fullBook()
             ->where('format', $format)
             ->where('status', 'generating')
             ->where('created_at', '>', now()->subMinutes(30))

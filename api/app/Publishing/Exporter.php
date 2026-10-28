@@ -40,10 +40,16 @@ class Exporter
     ) {}
 
     /** Generate one file now and record it: start() then run(). */
-    public function generate(Book $book, string $format, ?int $userId = null): BookExport
+    public function generate(Book $book, string $format, ?int $userId = null, array $options = []): BookExport
     {
-        return $this->run($this->start($book, $format, $userId));
+        return $this->run($this->start($book, $format, $userId, $options));
     }
+
+    /**
+     * Notes gathered for the end of the book while one is being made with
+     * notes placed there (ExportOptions), else null.
+     */
+    private ?\ArrayObject $bookNotes = null;
 
     /**
      * Record a file as `generating`, after checking it can be made.
@@ -68,9 +74,16 @@ class Exporter
             throw new RuntimeException('There is nothing to export yet. Write a chapter first.');
         }
 
+        // The export profile (ExportOptions): sent as input, checked against
+        // the book; or handed over already checked, when a file is made
+        // again with what it was made with. Full book is stored as nothing.
+        $profile = $options['profile'] ?? null;
+        $profile = is_array($profile) ? ExportOptions::validate($profile, $book, $format) : ($profile instanceof ExportOptions ? $profile : null);
+        $stored = $profile?->toStored();
+
         // A cover wrap is made for one service and paper; checked here so
         // a choice that cannot work is refused before a worker is taken.
-        $options = $format === 'cover_wrap' ? $this->wraps->options($book, $options) : [];
+        $options = $format === 'cover_wrap' ? $this->wraps->options($book, $options) : ($stored ? ['profile' => $stored] : []);
         $queued = in_array($format, GenerateExport::FORMATS, true);
 
         if ($queued) {
@@ -83,6 +96,12 @@ class Exporter
                 // what was asked for.
                 if ($format === 'cover_wrap' && array_intersect_key($running->options ?? [], $options) != $options) {
                     throw new RuntimeException('A print cover for '.PrintSpecs::label($running->options['service'] ?? 'kdp').' is being made. Ask for this one when it is ready.');
+                }
+
+                // Likewise one profile at a time: a Sample is not the
+                // Full book that was asked for.
+                if ($format !== 'cover_wrap' && ($running->options['profile'] ?? null) != $stored) {
+                    throw new RuntimeException('A '.$running->label().' of this book is being made. Ask for this one when it is ready.');
                 }
 
                 return $running;
@@ -216,26 +235,38 @@ class Exporter
             $book = $export->book ?? throw new RuntimeException('This book has been deleted.');
             $format = $export->format;
             $sections = $this->chapters($book);
+            $profile = ExportOptions::fromExport($export);
 
-            // Numbering for the whole book: captions and equations renumber
-            // from position, and cross-references resolve, in every format.
-            // EPUB splits the book into files, so its links name the file.
-            $structure = $this->structure($book);
-            $this->renderer = $base->withNumbering(
-                Numbering::forBook($structure),
-                $format === 'epub' ? array_map(fn ($name) => $name.'.xhtml', $this->epubNames($structure)) : [],
-            )->withLanguage(self::languageCode($book->language));
+            // The book as this profile has it, for the whole of the render
+            // (ExportOptions::within): the range and the matter apply
+            // wherever the book's anatomy is read.
+            $path = ExportOptions::within($book, $format, $profile, function () use ($base, $book, $format, $sections, $export, $profile) {
+                // Numbering for the whole book: captions and equations renumber
+                // from position, and cross-references resolve, in every format.
+                // EPUB splits the book into files, so its links name the file.
+                $structure = $this->structure($book);
+                $this->renderer = $base->withNumbering(
+                    Numbering::forBook($structure),
+                    $format === 'epub' ? array_map(fn ($name) => $name.'.xhtml', $this->epubNames($structure)) : [],
+                )->withLanguage(self::languageCode($book->language));
 
-            $path = match ($format) {
-                'epub' => $this->epub($book, $sections, $export),
-                'pdf' => $this->pdf($book, $sections, $export),
-                'pdf_print' => $this->printable($book, $sections, $export),
-                'pdf_interior' => $this->interior($book, $export),
-                'cover_wrap' => $this->coverWrap($book, $export),
-                'docx' => $this->docx($book, $sections, $export),
-                'md' => $this->markdown($book, $sections, $export),
-                'html' => $this->singleHtml($book, $sections, $export),
-            };
+                $this->bookNotes = $profile->values['notes'] === 'book' ? new \ArrayObject : null;
+
+                if ($profile->values['manuscript']) {
+                    return $this->manuscript($book, $export, $profile);
+                }
+
+                return match ($format) {
+                    'epub' => $this->epub($book, $sections, $export),
+                    'pdf' => $this->pdf($book, $sections, $export),
+                    'pdf_print' => $this->printable($book, $sections, $export),
+                    'pdf_interior' => $this->interior($book, $export),
+                    'cover_wrap' => $this->coverWrap($book, $export),
+                    'docx' => $this->docx($book, $sections, $export),
+                    'md' => $this->markdown($book, $sections, $export),
+                    'html' => $this->singleHtml($book, $sections, $export),
+                };
+            });
 
             $settled = BookExport::whereKey($export->id)->where('status', 'generating')->update([
                 'status' => 'ready',
@@ -269,6 +300,7 @@ class Exporter
         } finally {
             // The next export starts from the plain renderer, not this book's.
             $this->renderer = $base;
+            $this->bookNotes = null;
         }
 
         return $export->fresh();
@@ -641,6 +673,12 @@ class Exporter
             $parts[] = "by {$book->author_name}";
         }
 
+        $added = $this->addedPages($book);
+
+        if ($notice = $added['review_notice'] ?? null) {
+            $parts[] = '**'.$notice['data']['text'].'**';
+        }
+
         // In the book's order, without template guidance; parts are
         // containers with no prose of their own.
         foreach ($this->structure($book)->reject(fn (ManuscriptSection $s) => $s->isContainer()) as $section) {
@@ -651,6 +689,11 @@ class Exporter
             }
 
             $parts[] = $this->renderer->markdown($section);
+        }
+
+        if ($closing = $added['continue_reading'] ?? null) {
+            $parts[] = "\n## {$closing['data']['heading']}\n";
+            $parts[] = $closing['data']['text'].($closing['data']['url'] ? "\n\n[{$closing['data']['link']}]({$closing['data']['url']})" : '');
         }
 
         return $this->put($book, $export, implode("\n\n", $parts)."\n");
@@ -666,12 +709,36 @@ class Exporter
 
         $copyright = collect(Anatomy::copyrightLines($book))->map(fn ($line) => self::copyrightParagraphs($line['text']))->implode('');
 
-        $body = $this->titlePageHtml($book)
-            .($copyright !== '' ? '<section class="copyright">'.$copyright.'</section>'."\n" : '')
-            .$this->contentsHtml($entries, self::languageCode($book->language));
+        // A profile or the book's matter set may leave the generated front
+        // matter out, and may add a notice or a closing page.
+        $out = $this->leftOut($book);
+        $added = $this->addedPages($book);
+
+        $body = (in_array('title_page', $out, true) ? '' : $this->titlePageHtml($book))
+            .($copyright !== '' && ! in_array('copyright_page', $out, true) ? '<section class="copyright">'.$copyright.'</section>'."\n" : '')
+            .(isset($added['review_notice']) ? '<section class="review-notice"><p><strong>'.e($added['review_notice']['data']['text']).'</strong></p></section>'."\n" : '')
+            .(in_array('table_of_contents', $out, true) ? '' : $this->contentsHtml($entries, self::languageCode($book->language)));
+
+        $renderer = $this->renderer;
+
+        if ($this->bookNotes) {
+            $this->renderer = $renderer->withBookNotes($this->bookNotes);
+        }
 
         foreach ($sections as $i => $section) {
             $body .= $this->structuredHtml($section, $entries[$i]['id']);
+        }
+
+        $this->renderer = $renderer;
+
+        if ($this->bookNotes && count($this->bookNotes) > 0) {
+            $body .= '<section class="notes" id="notes"><h1>'.e(ExportOptions::words(self::languageCode($book->language))['notes']).'</h1>'
+                .$renderer->bookNotesHtml($this->bookNotes).'</section>'."\n";
+        }
+
+        if ($closing = $added['continue_reading'] ?? null) {
+            $body .= '<section class="continue-reading"><h1>'.e($closing['data']['heading']).'</h1><p>'.e($closing['data']['text']).'</p>'
+                .($closing['data']['url'] ? '<p><a href="'.e($closing['data']['url']).'">'.e($closing['data']['link']).'</a></p>' : '').'</section>'."\n";
         }
 
         // One self-contained file: pictures travel inside it.
@@ -691,8 +758,9 @@ class Exporter
     {
         // The reading PDF: the front cover is its first page. The
         // print-ready interior (pdf_print) never carries the cover.
+        // A profile may leave the cover out (ExportOptions).
         return $this->put($book, $export, $this->print->pdf(
-            $book, $this->structure($book), self::languageCode($book->language), cover: true,
+            $book, $this->structure($book), self::languageCode($book->language), cover: ExportOptions::active($book)?->values['cover'] ?? true,
         ));
     }
 
@@ -710,8 +778,9 @@ class Exporter
         BookExport::whereKey($export->id)->update([
             'pages' => $set['pages'],
             // The margin it was set at and the near-empty pages it has, for
-            // the print checks (PrintCheck).
-            'options' => json_encode(['fingerprint' => $fingerprint, 'margin' => $set['margin'], 'outside' => $set['outside'], 'layout' => $set['layout']]),
+            // the print checks (PrintCheck); and the profile it was made
+            // with, if any (ExportOptions).
+            'options' => json_encode(array_merge($export->options ?? [], ['fingerprint' => $fingerprint, 'margin' => $set['margin'], 'outside' => $set['outside'], 'layout' => $set['layout']])),
         ]);
 
         return $this->put($book, $export, $set['pdf']);
@@ -847,7 +916,14 @@ class Exporter
                     ->map(fn ($paragraph) => $this->docxParagraph(trim($paragraph), 'Copyright'))->implode(''),
 
                 $page['part'] === 'table_of_contents' => $this->docxParagraph((string) $page['title'], 'TOCHeading')
-                    .$this->docxContents($entries),
+                    .$this->docxContents($entries, ExportOptions::active($book)?->values['toc_depth'] ?? 1),
+
+                // Pages an export profile adds (ExportOptions).
+                $page['part'] === 'review_notice' => $this->docxParagraph((string) $data['text'], 'Title', center: true),
+
+                $page['part'] === 'continue_reading' => $this->docxParagraph((string) $data['heading'], 'Heading1')
+                    .$this->docxParagraph((string) $data['text'])
+                    .($data['url'] ? $this->docxParagraph($data['link'].': '.$data['url']) : ''),
 
                 $section === null => '',
 
@@ -877,6 +953,19 @@ class Exporter
                 .($i < count($pages) - 1 ? '<w:p><w:pPr>'.$properties.'</w:pPr></w:p>' : $properties);
         }
 
+        return $this->docxPackage($book, $export, $body, $this->docxStyles(self::wordLanguage(self::languageCode($book->language))));
+    }
+
+    /**
+     * A Word package around a document body: styles, settings, the folio
+     * footers, and the pictures, footnotes and list numbering the renderer
+     * collected. $headers adds header parts (relationship id => [file,
+     * XML]), which only the manuscript uses.
+     *
+     * @param  array<string, array{0: string, 1: string}>  $headers
+     */
+    private function docxPackage(Book $book, BookExport $export, string $body, string $styles, array $headers = []): string
+    {
         $document = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'."\n"
             .'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" '
             .'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
@@ -903,6 +992,7 @@ class Exporter
             .'<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>'
             .'<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
             .'<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
+            .collect($headers)->map(fn ($h) => '<Override PartName="/word/'.$h[0].'" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>')->implode('')
             .($footnotes ? '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' : '')
             .($numbering ? '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' : '')
             .'<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
@@ -920,6 +1010,7 @@ class Exporter
             .'<Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>'
             .'<Relationship Id="rIdFolio" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>'
             .'<Relationship Id="rIdBlind" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>'
+            .collect($headers)->map(fn ($h, $id) => '<Relationship Id="'.$id.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="'.$h[0].'"/>')->implode('')
             .($footnotes ? '<Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>' : '')
             .($numbering ? '<Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' : '')
             .collect($media)->map(fn ($m, $id) => '<Relationship Id="'.$id.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'.$m['file'].'"/>')->implode('')
@@ -935,7 +1026,7 @@ class Exporter
             '_rels/.rels' => $rels,
             'word/document.xml' => $document,
             'word/_rels/document.xml.rels' => $documentRels,
-            'word/styles.xml' => $this->docxStyles(self::wordLanguage(self::languageCode($book->language))),
+            'word/styles.xml' => $styles,
             'word/settings.xml' => $settings,
             // The folio, centred at the foot; and an empty footer for the
             // display pages, which a Word section would otherwise inherit.
@@ -944,6 +1035,7 @@ class Exporter
                 .'<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'),
             'word/footer2.xml' => $footer('<w:p/>'),
             'docProps/core.xml' => $this->docxCore($book),
+            ...collect($headers)->mapWithKeys(fn ($h) => ['word/'.$h[0] => $h[1]])->all(),
             ...($footnotes ? ['word/footnotes.xml' => $footnotes] : []),
             ...($numbering ? ['word/numbering.xml' => $numbering] : []),
             ...collect($media)->mapWithKeys(fn ($m) => ['word/media/'.$m['file'] => $m['data']])->all(),
@@ -996,11 +1088,12 @@ class Exporter
      *
      * @param  list<string>  $entries
      */
-    private function docxContents(array $entries): string
+    private function docxContents(array $entries, int $depth = 1): string
     {
         $x = fn (string $value) => htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        // Chapter titles only, unless a profile asks Word to go deeper.
         $begin = '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
-            .'<w:r><w:instrText xml:space="preserve"> TOC \o "1-1" \h \z \u </w:instrText></w:r>'
+            .'<w:r><w:instrText xml:space="preserve"> TOC \o "1-'.max(1, min(3, $depth)).'" \h \z \u </w:instrText></w:r>'
             .'<w:r><w:fldChar w:fldCharType="separate"/></w:r>';
         $end = '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
 
@@ -1218,10 +1311,19 @@ class Exporter
             }
 
             if ($page['section_id'] === null) {
-                [$id, $body] = $this->epubGeneratedPage($page) ?? [null, null];
+                // The notes gathered from the chapters set above, at the
+                // end of the book (an export profile's notes placement).
+                [$id, $body] = $part === 'book_notes'
+                    ? ($this->bookNotes && count($this->bookNotes) > 0 ? ['notes', '<section epub:type="endnotes" class="notes"><h1>'.e($page['title']).'</h1>'
+                        .$this->renderer->withNotes('epub')->bookNotesHtml($this->bookNotes).'</section>'] : [null, null])
+                    : ($this->epubGeneratedPage($page) ?? [null, null]);
 
                 if ($id === null) {
                     continue;
+                }
+
+                if ($id === 'notes') {
+                    $entries[] = ['depth' => 0, 'href' => 'notes.xhtml', 'title' => $page['title']];
                 }
 
                 $files["OEBPS/{$id}.xhtml"] = $this->xhtml($page['title'], $body, $language, $matter);
@@ -1284,7 +1386,7 @@ class Exporter
             // As deep as the design's EPUB contents depth (InteriorDesign):
             // 2, the default, lists level 1 and 2 headings; 3 adds level 3.
             if ($section->type !== 'part') {
-                array_push($entries, ...$this->headingEntries($section, $id.'.xhtml', (int) $page['depth'] + 1, (int) $book->layout()['toc']['epub']));
+                array_push($entries, ...$this->headingEntries($section, $id.'.xhtml', (int) $page['depth'] + 1, $this->tocDepth($book, 'epub')));
             }
 
             // Where the text begins: the first arabic page.
@@ -1300,21 +1402,24 @@ class Exporter
         $coverManifest = '';
         $coverMeta = '';
 
-        try {
-            $files['OEBPS/cover.jpg'] = Storage::disk('files')->get($this->covers->ensure($book));
-            $files['OEBPS/cover.xhtml'] = $this->xhtml(
-                $book->title,
-                '<div class="cover"><img src="cover.jpg" alt="'.e('Cover of '.$book->title).'"/></div>',
-                $language,
-            );
+        // A profile may leave the cover out (ExportOptions).
+        if (ExportOptions::active($book)?->values['cover'] ?? true) {
+            try {
+                $files['OEBPS/cover.jpg'] = Storage::disk('files')->get($this->covers->ensure($book));
+                $files['OEBPS/cover.xhtml'] = $this->xhtml(
+                    $book->title,
+                    '<div class="cover"><img src="cover.jpg" alt="'.e('Cover of '.$book->title).'"/></div>',
+                    $language,
+                );
 
-            $coverManifest = '<item id="cover-image" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>'
-                .'<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>';
-            // EPUB 2's form as well: Kindle's converter still reads it.
-            $coverMeta = '<meta name="cover" content="cover-image"/>';
-            $spine = '<itemref idref="cover" linear="no"/>'.$spine;
-        } catch (\Throwable $e) {
-            report($e);
+                $coverManifest = '<item id="cover-image" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>'
+                    .'<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>';
+                // EPUB 2's form as well: Kindle's converter still reads it.
+                $coverMeta = '<meta name="cover" content="cover-image"/>';
+                $spine = '<itemref idref="cover" linear="no"/>'.$spine;
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         // The accessibility metadata stores check for. Claimed only where it
@@ -1420,6 +1525,10 @@ class Exporter
                 .collect($page['data']['lines'] ?? [])->map(fn ($line) => self::copyrightParagraphs($line['text']))->implode('')
                 .'</section>'],
             'series_page' => ['series', $this->epubSeriesPage($page['data'])],
+            // Pages an export profile adds (ExportOptions).
+            'review_notice' => ['notice', '<section class="review-notice"><p>'.e($page['data']['text']).'</p></section>'],
+            'continue_reading' => ['continue', '<section class="continue-reading"><h1>'.e($page['data']['heading']).'</h1><p>'.e($page['data']['text']).'</p>'
+                .(! empty($page['data']['url']) ? '<p><a href="'.e($page['data']['url']).'">'.e($page['data']['link']).'</a></p>' : '').'</section>'],
             default => [null, null],
         };
 
@@ -1515,7 +1624,9 @@ class Exporter
         return $section->type === 'part'
             ? '<section class="part"'.$typeAttribute.'><h1 class="part-title">'.e($section->title).'</h1></section>'
             // EPUB footnotes, which readers open in a pop-up.
-            : '<section'.$typeAttribute.'>'.$this->chapterHtml($section, $this->renderer->withNotes('epub')).'</section>';
+            : '<section'.$typeAttribute.'>'.$this->chapterHtml($section, $this->bookNotes
+                ? $this->renderer->withNotes('epub')->withBookNotes($this->bookNotes, 'notes.xhtml')
+                : $this->renderer->withNotes('epub')).'</section>';
     }
 
     /**
@@ -1599,6 +1710,10 @@ class Exporter
             .".copyright p { margin: 0 0 .7em; }\n"
             .".series-page { text-align: center; }\n"
             .".series-page ul { list-style: none; padding: 0; }\n"
+            // Pages an export profile adds.
+            .".review-notice { text-align: center; margin-top: 30%; font-weight: bold; }\n"
+            .".review-notice p, .continue-reading p, .notes li p { text-indent: 0; }\n"
+            .".notes h2 { font-size: 1.1em; margin: 1.2em 0 .4em; }\n"
             .'img { max-width: 100%; height: auto; }'."\n"
             // Boxes (Textbook): upright text, a label, a rule or a tint,
             // readable in black and white on an e-ink screen.
@@ -1668,6 +1783,68 @@ class Exporter
             .'<title>'.e($book->title).'</title>'
             .'<style>'.$default.'</style></head>'."\n"
             .'<body>'."\n".$body."\n".'</body></html>'."\n";
+    }
+
+    /**
+     * The front and back matter this export leaves out: the profile's and
+     * the book's own set for the format (ExportOptions). Only the formats
+     * that set their front matter without the anatomy (HTML) need it.
+     *
+     * @return list<string>
+     */
+    private function leftOut(Book $book): array
+    {
+        $options = ExportOptions::active($book);
+
+        return $options ? [...ExportOptions::bookMatter($book, (string) ExportOptions::activeFormat()), ...$options->values['exclude']] : [];
+    }
+
+    /**
+     * The pages an export profile adds to the book (the review notice, the
+     * notes at the end, the "Continue reading" page), by part, for the
+     * formats that do not walk the anatomy page by page.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function addedPages(Book $book): array
+    {
+        if (! ExportOptions::active($book)) {
+            return [];
+        }
+
+        return collect(Anatomy::plan($book)['pages'])
+            ->whereIn('part', ['review_notice', 'continue_reading', 'book_notes'])
+            ->keyBy('part')
+            ->all();
+    }
+
+    /** How deep the contents goes: the profile's override, else the design's. */
+    private function tocDepth(Book $book, string $kind): int
+    {
+        return (int) (ExportOptions::active($book)?->values['toc_depth'] ?? $book->layout()['toc'][$kind]);
+    }
+
+    /**
+     * Standard manuscript format (Manuscript), as a PDF or a Word document:
+     * the text as a submission, not as a book.
+     */
+    private function manuscript(Book $book, BookExport $export, ExportOptions $profile): string
+    {
+        $language = self::languageCode($book->language);
+        $sections = $this->structure($book);
+        $manuscript = app(Manuscript::class);
+
+        if ($export->format === 'pdf') {
+            return $this->put($book, $export, $manuscript->pdf($book, $sections, $this->renderer, $profile, $language, $this->bookNotes));
+        }
+
+        $this->renderer->resetDocxMedia();
+        $body = $manuscript->docxBody($book, $sections, $this->renderer, $profile, $language, fn (bool $title) => Manuscript::docxSection($title, $language));
+
+        return $this->docxPackage($book, $export, $body, Manuscript::docxStyles($profile->values['manuscript_font'], self::wordLanguage($language)), [
+            'rIdMsHeader' => ['header1.xml', Manuscript::docxHeader($book)],
+            'rIdMsBlank' => ['header2.xml', Manuscript::docxBlankHeader()],
+        ]);
     }
 
     /**

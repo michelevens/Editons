@@ -58,6 +58,7 @@ final class Listing
 
     public static function readyExport(Book $book, string $format): ?BookExport
     {
-        return $book->exports()->where('format', $format)->where('status', 'ready')->first();
+        // Never a Sample or a review copy: a buyer pays for the book.
+        return $book->exports()->fullBook()->where('format', $format)->where('status', 'ready')->first();
     }
 }
