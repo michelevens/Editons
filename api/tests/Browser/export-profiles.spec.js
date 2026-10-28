@@ -1,4 +1,7 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import { flagshipBookId, signIn, watchForErrors } from './helpers.js';
 
@@ -11,9 +14,23 @@ import { flagshipBookId, signIn, watchForErrors } from './helpers.js';
  * console errors.
  *
  * The EPUB renders on the queue worker; its row is labelled from the
- * moment it is queued, which is what this checks.
+ * moment it is queued, and the test drains the queue with `queue:work
+ * --stop-when-empty` in this checkout (as printkit.spec.js does) to see it
+ * ready, so the server under test must use the same database.
  */
-test.describe.configure({ timeout: 180_000 });
+test.describe.configure({ timeout: 300_000 });
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+function drainQueue() {
+    execFileSync(process.env.E2E_PHP ?? 'php', ['artisan', 'queue:work', '--stop-when-empty', '--timeout=600'], {
+        cwd: ROOT,
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+        env: process.env,
+        timeout: 280_000,
+    });
+}
 
 const SHOTS = process.env.EXPORT_SHOTS;
 
@@ -26,6 +43,8 @@ async function shot(page, name) {
 
 async function profiles(page, size) {
     const errors = watchForErrors(page);
+    // Nothing left rendering from an earlier run.
+    drainQueue();
     await signIn(page);
     const id = await flagshipBookId(page);
 
@@ -50,8 +69,15 @@ async function profiles(page, size) {
     const row = page.locator('[data-a^="publish:label:"]', { hasText: 'EPUB · Sample · ch. 1–2' }).first();
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText('Not for stores');
-    await row.scrollIntoViewIfNeeded();
+
+    // Rendered by the worker, it is a download, still labelled.
+    drainQueue();
+    await page.reload();
+    const ready = page.locator('tr', { has: page.locator('[data-a^="publish:label:"]', { hasText: 'EPUB · Sample · ch. 1–2' }) }).first();
+    await expect(ready.locator('[data-a^="publish:download:"]')).toBeVisible({ timeout: 30_000 });
+    await ready.scrollIntoViewIfNeeded();
     await shot(page, `${size}-sample-in-history`);
+    await page.locator('[data-a="export-profile:sample"]').click();
 
     // Customise: a watermark and the notes at the end, saved as a profile.
     await panel.scrollIntoViewIfNeeded();

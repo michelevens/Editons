@@ -409,7 +409,7 @@ final class ExportOptions
         }
 
         if ($values['exclude'] !== []) {
-            $parts[] = count($values['exclude']).' matter page'.(count($values['exclude']) === 1 ? '' : 's').' left out';
+            $parts[] = count($values['exclude']).' kind'.(count($values['exclude']) === 1 ? '' : 's').' of front or back matter left out';
         }
 
         if ($values['watermark']) {

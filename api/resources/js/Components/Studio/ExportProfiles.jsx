@@ -64,7 +64,7 @@ export function summarise(options) {
 
     if (options.manuscript) parts.push('manuscript format');
     if (!options.cover) parts.push('no cover');
-    if (options.exclude?.length) parts.push(`${options.exclude.length} matter page${options.exclude.length === 1 ? '' : 's'} left out`);
+    if (options.exclude?.length) parts.push(`${options.exclude.length} kind${options.exclude.length === 1 ? '' : 's'} of front or back matter left out`);
     if (options.watermark) parts.push(`watermark “${options.watermark}”`);
     if (options.notes === 'book') parts.push('notes at the end of the book');
     if (options.toc_depth) parts.push(`contents ${options.toc_depth} level${options.toc_depth === 1 ? '' : 's'}`);
