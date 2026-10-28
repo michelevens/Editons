@@ -93,9 +93,16 @@ class PrintCheck
         };
 
         if ($margin + 1e-9 < $required) {
+            // A book on a preset is pointed at the first wide enough; one
+            // with its own inside margin at the number to type.
+            $better = ($layout['page']['inside'] ?? null) === null
+                ? collect(PageSetup::PRESETS)->except('Large')->filter(fn ($p) => $p['side'] + 1e-9 >= $required)->keys()->first()
+                : null;
             $add('margins', $soft,
                 sprintf('%s needs an inside margin of at least %s in at %s; this book\'s is %s in.', $label, $this->inches($required), $about, $this->inches($margin)),
-                sprintf('Set the inside margin to %s in or more in Design.', $this->inches($required)));
+                $better
+                    ? "Switch margins to {$better} in Design."
+                    : sprintf('Set the inside margin to %s in or more in Design.', $this->inches($required)));
         } else {
             $add('margins', 'pass', sprintf('Inside margin %s in meets %s\'s %s in for this length.', $this->inches($margin), $label, $this->inches($required)));
         }

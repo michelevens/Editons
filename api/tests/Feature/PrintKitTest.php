@@ -539,7 +539,7 @@ it('serves the print kit, its prices and a cover preview to the author', functio
     $kit = $this->actingAs($user)->getJson("/books/{$book->id}/print-kit")->assertOk();
     expect(collect($kit->json('checks'))->pluck('service')->all())->toBe(['kdp', 'ingram'])
         ->and(collect($kit->json('services'))->firstWhere('service', 'ingram')['spine_entered'])->toBeTrue()
-        ->and($kit->json('checked'))->toBe('2026-10-23');
+        ->and($kit->json('checked'))->toBe('2026-10-28');
 
     $this->actingAs($user)->patchJson("/books/{$book->id}/print-kit", ['paper' => 'cream', 'finish' => 'glossy'])
         ->assertOk()
