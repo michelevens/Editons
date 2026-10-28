@@ -227,3 +227,125 @@ export function remember(key, value) {
         // Private windows and blocked storage: the choice lasts the visit.
     }
 }
+
+/**
+ * The faces the printed book is set in, declared on the page once (a
+ * shadow root's own @font-face rules are ignored by browsers). Served by
+ * PreviewController from resources/fonts, the files the PDF embeds.
+ */
+export function ensurePrintFonts() {
+    if (typeof document === 'undefined' || document.getElementById('pv-fonts')) return;
+
+    const face = (family, file, weight, style) =>
+        `@font-face { font-family: '${family}'; src: url('/preview/fonts/${file}') format('truetype'); font-weight: ${weight}; font-style: ${style}; font-display: swap; }`;
+    const style = document.createElement('style');
+    style.id = 'pv-fonts';
+    style.textContent = [
+        face('EB Garamond', 'EBGaramond-Regular.ttf', 400, 'normal'),
+        face('EB Garamond', 'EBGaramond-Italic.ttf', 400, 'italic'),
+        face('EB Garamond', 'EBGaramond-SemiBold.ttf', '600 700', 'normal'),
+        face('EB Garamond', 'EBGaramond-SemiBoldItalic.ttf', '600 700', 'italic'),
+        face('Source Sans 3', 'SourceSans3-Regular.ttf', 400, 'normal'),
+        face('Source Sans 3', 'SourceSans3-It.ttf', 400, 'italic'),
+        face('Source Sans 3', 'SourceSans3-Semibold.ttf', '600 700', 'normal'),
+        face('Source Sans 3', 'SourceSans3-SemiboldIt.ttf', '600 700', 'italic'),
+    ].join('\n');
+    document.head.appendChild(style);
+}
+
+/**
+ * Where a printed page's running head and folio go, as PrintBook::decorate()
+ * draws them: the server decides what each head says and how it is set
+ * (InteriorDesign::head, sent as `heads`) and where the folio goes (`page`);
+ * this only turns that into positioned boxes, in CSS pixels of a page drawn
+ * at 96 px to the inch. `section` is the heading the page is in, for a head
+ * that shows the section.
+ *
+ * @returns {Array<{key: string, style: object, parts: Array<{text: string, style: object}>}>}
+ */
+export function pageFurniture(page, heads, { verso, opens, folio, section = null }) {
+    if (!page) return [];
+
+    const margin = page.outside * PX_PER_INCH;
+    const showHead = page.headers && (!opens || page.openers);
+    let head = showHead ? (heads?.[verso ? 'verso' : 'recto'] ?? null) : null;
+
+    if (head && head.source === 'section' && section) {
+        head = { ...head, text: head.upper ? section.toUpperCase() : section };
+    }
+
+    let place = page.folio ?? 'bottom-center';
+
+    // A folio at the head drops to the foot on an opener, which has no head.
+    if (opens && (place === 'top-outside' || place === 'with-head') && !head) place = 'bottom-center';
+
+    const beside = place === 'with-head' || (place === 'top-outside' && page.align === 'outside');
+    const face = `'${page.font}', serif`;
+    const grey = '#545454';
+    const line = (top) => ({
+        position: 'absolute', top, left: margin, right: margin, lineHeight: 1.3, fontFamily: face, color: grey,
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    });
+    const headTop = (page.head_at ?? 0.5) * PX_PER_INCH;
+    const footTop = (page.foot_at ?? page.height - 0.62) * PX_PER_INCH;
+    const folioPart = folio ? { text: folio, style: { fontSize: `${page.folio_size ?? 8.5}pt` } } : null;
+    const headPart = head
+        ? { text: head.text, style: { fontSize: `${head.size}pt`, letterSpacing: `${head.spacing}pt`, fontStyle: head.italic ? 'italic' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis' } }
+        : null;
+    const out = [];
+
+    if (beside && (place === 'with-head' || place === 'top-outside')) {
+        const parts = [folioPart, headPart].filter(Boolean);
+        out.push({
+            key: 'head',
+            style: { ...line(headTop), display: 'flex', gap: `${1.4 * (page.folio_size ?? 8.5)}pt`, justifyContent: verso ? 'flex-start' : 'flex-end' },
+            parts: verso ? parts : parts.reverse(),
+        });
+
+        return out;
+    }
+
+    if (headPart) {
+        out.push({
+            key: 'head',
+            style: { ...line(headTop), textAlign: page.align === 'outside' ? (verso ? 'left' : 'right') : 'center' },
+            parts: [headPart],
+        });
+    }
+
+    if (folioPart) {
+        const outside = verso ? 'left' : 'right';
+        out.push({
+            key: 'folio',
+            style: place === 'bottom-center'
+                ? { ...line(footTop), left: 0, right: 0, textAlign: 'center' }
+                : { ...line(place === 'bottom-outside' ? footTop : headTop), textAlign: outside },
+            parts: [folioPart],
+        });
+    }
+
+    return out;
+}
+
+/**
+ * The last section heading (h1 or h2 of the text, not the opener's title)
+ * that begins on or before each page of a laid-out flow, for running heads
+ * that show the section.
+ */
+export function sectionHeadings(flow, block, pages) {
+    const found = [...flow.querySelectorAll('.text h1[id], .text h2[id]')].map((el) => ({
+        page: Math.floor((el.offsetLeft + 1) / (block.width + block.gap)),
+        text: el.textContent.replace(/\s+/g, ' ').trim(),
+    }));
+    const out = [];
+    let current = null;
+
+    for (let page = 0; page < pages; page++) {
+        for (const heading of found) {
+            if (heading.page === page && heading.text) current = heading.text;
+        }
+        out.push(current);
+    }
+
+    return out;
+}

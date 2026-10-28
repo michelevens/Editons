@@ -6,7 +6,9 @@ import {
     FONT_STEPS,
     bookPages,
     countPages,
+    ensurePrintFonts,
     pageBox,
+    pageFurniture,
     pageWarnings,
     parseLink,
     reflows,
@@ -14,6 +16,7 @@ import {
     remembered,
     roman,
     scopeCss,
+    sectionHeadings,
     textBlock,
 } from './preview';
 
@@ -173,23 +176,7 @@ export default function BookPreview({ bookId, onClose }) {
     // The faces print is set in, declared on the page once: a shadow root's
     // own @font-face rules are ignored by browsers.
     useEffect(() => {
-        if (mode !== 'print' || document.getElementById('pv-fonts')) return;
-
-        const face = (family, file, weight, style) =>
-            `@font-face { font-family: '${family}'; src: url('/preview/fonts/${file}') format('truetype'); font-weight: ${weight}; font-style: ${style}; font-display: swap; }`;
-        const style = document.createElement('style');
-        style.id = 'pv-fonts';
-        style.textContent = [
-            face('EB Garamond', 'EBGaramond-Regular.ttf', 400, 'normal'),
-            face('EB Garamond', 'EBGaramond-Italic.ttf', 400, 'italic'),
-            face('EB Garamond', 'EBGaramond-SemiBold.ttf', '600 700', 'normal'),
-            face('EB Garamond', 'EBGaramond-SemiBoldItalic.ttf', '600 700', 'italic'),
-            face('Source Sans 3', 'SourceSans3-Regular.ttf', 400, 'normal'),
-            face('Source Sans 3', 'SourceSans3-It.ttf', 400, 'italic'),
-            face('Source Sans 3', 'SourceSans3-Semibold.ttf', '600 700', 'normal'),
-            face('Source Sans 3', 'SourceSans3-SemiboldIt.ttf', '600 700', 'italic'),
-        ].join('\n');
-        document.head.appendChild(style);
+        if (mode === 'print') ensurePrintFonts();
     }, [mode]);
 
     /** Lay a page's markup out in a host's shadow root; resolves to the flow. */
@@ -258,7 +245,7 @@ export default function BookPreview({ bookId, onClose }) {
             pending.current = null;
 
             setCounts((current) => ({ ...current, [key]: pages }));
-            setLaid({ key, pages, warnings, flow });
+            setLaid({ key, pages, warnings, flow, sections: mode === 'print' ? sectionHeadings(flow, block, pages) : [] });
             setPosition((current) => {
                 let page = current.page === 'last' ? pages - 1 : current.page;
 
@@ -280,7 +267,7 @@ export default function BookPreview({ bookId, onClose }) {
         return () => {
             live = false;
         };
-    }, [doc, key, block, box, layOut]);
+    }, [doc, key, block, box, layOut, mode]);
 
     // Slide the window onto the page.
     const ready = laid && laid.key === key;
@@ -510,11 +497,11 @@ export default function BookPreview({ bookId, onClose }) {
     const startCheck = () => setCheck({ state: 'running', checked: 0 });
     const continueCheck = () => setCheck((value) => ({ state: 'running', checked: value?.checked ?? 0, skip: true }));
 
-    // Running head and folio on a printed page, as PrintBook draws them.
+    // Running head and folio on a printed page, where PrintBook draws them
+    // and with what it sets in them (pageFurniture).
     const furniture = useMemo(() => {
         if (mode !== 'print' || !ready || !item || current === null || !meta) return null;
 
-        const page = meta.print.page;
         const restart = items.findIndex((entry) => entry.restart);
         const arabic = restart >= 0 && position.index >= restart;
         const folio = item.folio
@@ -522,15 +509,14 @@ export default function BookPreview({ bookId, onClose }) {
                 ? String(current - numbers.starts[restart])
                 : roman(current)
             : null;
-        const head =
-            page.headers && item.running_head && position.page > 0
-                ? current % 2 === 0
-                    ? { text: page.title.toUpperCase(), verso: true }
-                    : { text: item.running ?? item.title, verso: false }
-                : null;
 
-        return { folio, head, font: page.font };
-    }, [mode, ready, item, current, meta, items, position, numbers]);
+        return pageFurniture(meta.print.page, item.heads, {
+            verso: current % 2 === 0,
+            opens: position.page === 0,
+            folio,
+            section: laid.sections?.[position.page] ?? null,
+        });
+    }, [mode, ready, item, current, meta, items, position, numbers, laid]);
 
     const palette =
         device === 'print'
@@ -681,28 +667,13 @@ export default function BookPreview({ bookId, onClose }) {
                                 ref={hostRef}
                                 style={{ position: 'absolute', top: box.pad[0], left: box.pad[3], width: block.width, height: block.height }}
                             />
-                            {furniture?.head && (
-                                <p
-                                    aria-hidden="true"
-                                    style={{
-                                        position: 'absolute', top: 0.5 * 96 - 12, left: box.pad[3], right: box.pad[1],
-                                        fontFamily: `'${furniture.font}', serif`, fontSize: furniture.head.verso ? '7.2pt' : '8.5pt',
-                                        letterSpacing: furniture.head.verso ? '1.4pt' : '0.2pt', fontStyle: furniture.head.verso ? 'normal' : 'italic',
-                                    }}
-                                    className="truncate text-center text-[#545454]"
-                                >
-                                    {furniture.head.text}
+                            {furniture?.map((entry) => (
+                                <p key={entry.key} aria-hidden="true" data-a={`preview:${entry.key}`} style={entry.style}>
+                                    {entry.parts.map((part, index) => (
+                                        <span key={index} style={part.style}>{part.text}</span>
+                                    ))}
                                 </p>
-                            )}
-                            {furniture?.folio && (
-                                <p
-                                    aria-hidden="true"
-                                    style={{ position: 'absolute', bottom: 0.62 * 96 - 4, left: 0, right: 0, fontFamily: `'${furniture.font}', serif`, fontSize: '8.5pt' }}
-                                    className="text-center text-[#545454]"
-                                >
-                                    {furniture.folio}
-                                </p>
-                            )}
+                            ))}
                             {!ready && (
                                 <p className="absolute inset-0 grid place-items-center text-[12px] text-[#777]">Laying out…</p>
                             )}
