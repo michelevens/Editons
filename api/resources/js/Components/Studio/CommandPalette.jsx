@@ -10,7 +10,7 @@ import Icon from './Icon';
  * command palette: every place the studio can take you, filtered as you
  * type, opened with Enter.
  *
- * `commands` are { key, label, group, icon, run }.
+ * `commands` are { key, label, group, icon, run, shortcut? }.
  */
 export default function CommandPalette({ open, onClose, commands }) {
     const [query, setQuery] = useState('');
@@ -101,6 +101,9 @@ export default function CommandPalette({ open, onClose, commands }) {
                         >
                             <Icon name={command.icon ?? 'doc'} size={16} className="shrink-0 opacity-70" />
                             <span className="flex-1 truncate">{command.label}</span>
+                            {command.shortcut && (
+                                <kbd className="shrink-0 font-sans text-[11px] text-text-secondary">{command.shortcut}</kbd>
+                            )}
                             <span className="shrink-0 text-[11.5px] text-text-secondary">
                                 {command.group}
                             </span>

@@ -55,8 +55,11 @@ export default function AIEditorPanel({
     onShowChange = null,
     // {tab, at}: switch to a tab when asked (the editor's "3 changes").
     tabRequest = null,
+    // Which tabs the author keeps (the workspace's sub-panels); all of them
+    // unless told otherwise.
+    visibleTabs = null,
 }) {
-    const [tab, setTab] = useState(tabRequest?.tab ?? 'AI Editor');
+    const [chosen, setTab] = useState(tabRequest?.tab ?? 'AI Editor');
 
     useEffect(() => {
         if (tabRequest?.tab) setTab(tabRequest.tab);
@@ -89,11 +92,14 @@ export default function AIEditorPanel({
     const open = findings.filter((f) => f.status === 'open');
 
     const tabs = [
-        { key: 'AI Editor', ready: true },
-        { key: 'Comments', ready: true, count: commentCount + changes.length },
-        { key: 'Research', ready: true },
-        { key: 'Checks', ready: true },
-    ];
+        { key: 'AI Editor', id: 'editor', ready: true },
+        { key: 'Comments', id: 'comments', ready: true, count: commentCount + changes.length },
+        { key: 'Research', id: 'research', ready: true },
+        { key: 'Checks', id: 'checks', ready: true },
+    ].filter((t) => !visibleTabs || visibleTabs[t.id] !== false);
+
+    // A hidden tab is never the one shown: the first kept one stands in.
+    const tab = tabs.some((t) => t.key === chosen) ? chosen : (tabs[0]?.key ?? 'AI Editor');
 
     return (
         <aside className="flex min-h-0 w-full flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface">

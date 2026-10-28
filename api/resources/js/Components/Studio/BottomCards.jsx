@@ -18,27 +18,43 @@ import Icon from './Icon';
  * Width ratios come from tokens.layout.bottomCards.
  */
 
-export function BottomRow({ sources, onOpenLibrary, onAddSource, onOpenLayout, onOpenCover, onOpenExport }) {
+/** The cards' share of the row, from tokens.layout.bottomCards. */
+const CARD_SHARES = { research: 217, design: 371, cover: 188, export: 210 };
+
+export function BottomRow({ sources, onOpenLibrary, onAddSource, onOpenLayout, onOpenCover, onOpenExport, cards = null }) {
+    // The cards the author keeps (the workspace's sub-panels); the rest
+    // give their share of the row to those left.
+    const shown = Object.keys(CARD_SHARES).filter((key) => !cards || cards[key] !== false);
+
     return (
-        <div className="grid h-full min-h-0 gap-[10px] [grid-template-columns:repeat(2,minmax(0,1fr))] lg:[grid-template-columns:217fr_371fr_188fr_210fr]">
-            <ResearchCard
-                sources={sources}
-                onOpen={onOpenLibrary}
-                onAdd={onAddSource}
-            />
-            <DoorCard
-                id="design"
-                title="Book Design"
-                onOpen={onOpenLayout}
-                text="Trim size, margins, typeface, size and leading, drop caps and running heads, previewed on your own chapter and used by the PDF."
-            />
-            <DoorCard
-                id="cover"
-                title="Cover Studio"
-                onOpen={onOpenCover}
-                text="Title, author and colours for the front cover, with your own artwork uploaded."
-            />
-            <ExportCard onOpen={onOpenExport} />
+        <div
+            className="grid h-full min-h-0 gap-[10px] [grid-template-columns:repeat(2,minmax(0,1fr))] lg:[grid-template-columns:var(--bottom-cards)]"
+            style={{ '--bottom-cards': shown.map((key) => `${CARD_SHARES[key]}fr`).join(' ') }}
+        >
+            {shown.includes('research') && (
+                <ResearchCard
+                    sources={sources}
+                    onOpen={onOpenLibrary}
+                    onAdd={onAddSource}
+                />
+            )}
+            {shown.includes('design') && (
+                <DoorCard
+                    id="design"
+                    title="Book Design"
+                    onOpen={onOpenLayout}
+                    text="Trim size, margins, typeface, size and leading, drop caps and running heads, previewed on your own chapter and used by the PDF."
+                />
+            )}
+            {shown.includes('cover') && (
+                <DoorCard
+                    id="cover"
+                    title="Cover Studio"
+                    onOpen={onOpenCover}
+                    text="Title, author and colours for the front cover, with your own artwork uploaded."
+                />
+            )}
+            {shown.includes('export') && <ExportCard onOpen={onOpenExport} />}
         </div>
     );
 }

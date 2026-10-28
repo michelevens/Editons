@@ -21,6 +21,8 @@ export default function StudioSidebar({
     onClose,
     activeNav = null,
     onSelectNav,
+    // The workspace hid the static column (the drawer below 1024 stays).
+    hidden = false,
     ...sidebar
 }) {
     // Grown past the breakpoint with the drawer open: the static column is
@@ -42,7 +44,7 @@ export default function StudioSidebar({
                 1024px, where this copy is hidden anyway), so the page holds
                 one sidebar at a time. */}
             {!open && (
-                <div className="flex min-h-0 max-lg:hidden">
+                <div className={`flex min-h-0 max-lg:hidden ${hidden ? 'hidden' : ''}`} data-ws-panel="sidebar">
                     <BookSidebar {...sidebar} />
                 </div>
             )}

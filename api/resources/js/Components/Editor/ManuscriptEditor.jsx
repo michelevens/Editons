@@ -117,6 +117,15 @@ export default function ManuscriptEditor({
     // The chapter's word goal, and what tapping its ring opens.
     wordGoal = null,
     onGoals = null,
+    // The workspace (ADR — customisable writing workspace): the formatting
+    // toolbar docked, floating over a selection, or hidden; the status bar;
+    // and typewriter scrolling, when the studio keeps it. Without
+    // `typewriter` the editor remembers that choice itself, per browser.
+    showToolbar = true,
+    toolbarStyle = 'docked',
+    showStatusBar = true,
+    typewriter: typewriterSetting = undefined,
+    onTypewriter = null,
     ref,
 }) {
     const user = usePage().props.auth?.user ?? null;
@@ -457,17 +466,24 @@ export default function ManuscriptEditor({
     // on the keyboard, where the thumb is, instead of scrolling away above.
     const [editing, setEditing] = useState(false);
     // Typewriter scrolling: the line being written stays mid-screen.
-    const [typewriter, setTypewriter] = useState(() => {
+    const [ownTypewriter, setTypewriter] = useState(() => {
         try {
             return window.localStorage.getItem('ecrivain:typewriter') === '1';
         } catch {
             return false;
         }
     });
+    const typewriter = typewriterSetting ?? ownTypewriter;
     const typewriterRef = useRef(typewriter);
     typewriterRef.current = typewriter;
 
     const toggleTypewriter = () => {
+        if (onTypewriter) {
+            onTypewriter(!typewriter);
+
+            return;
+        }
+
         setTypewriter((on) => {
             try {
                 window.localStorage.setItem('ecrivain:typewriter', on ? '0' : '1');
@@ -828,6 +844,9 @@ export default function ManuscriptEditor({
 
     // The bubble over a selection: Comment, Bold, Italic.
     const [bubble, setBubble] = useState(null);
+    // A floating toolbar stays while something in it has focus (the block
+    // menu), though the selection's bubble has gone with the editor's focus.
+    const [toolbarFocus, setToolbarFocus] = useState(false);
 
     useEffect(() => {
         if (!editor) return undefined;
@@ -931,7 +950,11 @@ export default function ManuscriptEditor({
     // Never trust the count to be a number: a footer that throws takes the
     // whole writing canvas down with it.
     const words = Number(wordCount) || 0;
-    const docked = editing && phone;
+    // Floating is a desktop form: on a phone the bar is on the keyboard.
+    const floating = showToolbar && toolbarStyle === 'floating' && !phone;
+    const docked = editing && phone && showToolbar;
+    const floatingBar = floating && !docked;
+    const toolbarShown = showToolbar && (!floating || Boolean(bubble) || toolbarFocus);
     const readingMinutes = Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 
     return (
@@ -1048,12 +1071,26 @@ export default function ManuscriptEditor({
                 keyboard: fixed above it where iOS lays the keyboard over the
                 page, last in the column where Android has already shrunk the
                 page to fit. */}
+            {/* Floating, the bar sits over the top of the writing area
+                while text is selected: laid over the page, not in its
+                flow, so the text never moves when it comes and goes. */}
             <div
                 data-a="editor:toolbar-dock"
                 data-docked={docked ? 'true' : undefined}
-                className={docked ? 'order-last z-40 border-t border-border-divider bg-bg-surface shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)]' : ''}
+                data-floating={floatingBar ? 'true' : undefined}
+                hidden={!toolbarShown}
+                onFocus={() => floatingBar && setToolbarFocus(true)}
+                onBlur={(event) => !event.currentTarget.contains(event.relatedTarget) && setToolbarFocus(false)}
+                className={
+                    docked
+                        ? 'order-last z-40 border-t border-border-divider bg-bg-surface shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)]'
+                        : floatingBar
+                          ? 'relative z-30 h-0'
+                          : ''
+                }
                 style={docked && keyboard ? { position: 'fixed', left: 0, right: 0, bottom: keyboard } : undefined}
             >
+            <div className={floatingBar ? 'absolute inset-x-3 top-2 overflow-hidden rounded-tile border border-border-default bg-bg-surface shadow-popover' : ''}>
             <Toolbar
                 editor={editor}
                 onDone={docked ? () => editor?.commands.blur() : null}
@@ -1066,6 +1103,7 @@ export default function ManuscriptEditor({
                     setXrefPick({ local: localTargets(editor.state.doc), remote: place?.targets ?? [] });
                 } : null}
             />
+            </div>
             </div>
 
             {xrefPick && (
@@ -1204,7 +1242,8 @@ export default function ManuscriptEditor({
 
             <div
                 ref={scroller}
-                className={`relative flex-1 overflow-y-auto px-4 pt-5 sm:px-[21px] sm:pt-[30px] ${typewriter ? 'pb-[45vh]' : 'pb-10'}`}
+                data-a="editor:canvas"
+                className={`ws-canvas relative flex-1 overflow-y-auto px-4 pt-5 sm:px-[21px] sm:pt-[30px] ${typewriter ? 'pb-[45vh]' : 'pb-10'}`}
             >
                 {/^\s*list\s+of\s+(tables|figures|illustrations)\s*$/i.test(section.title) && (
                     <p
@@ -1284,7 +1323,7 @@ export default function ManuscriptEditor({
                 );
             })()}
 
-            <footer className={`${docked ? 'hidden' : 'flex'} h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-4 text-[11px] text-text-secondary sm:px-[21px]`}>
+            <footer data-a="editor:status-bar" className={`${docked || !showStatusBar ? 'hidden' : 'flex'} h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-4 text-[11px] text-text-secondary sm:px-[21px]`}>
                 <span>Reading time ~{readingMinutes} min</span>
                 <span className="tabular-nums">
                     {words.toLocaleString()} words
