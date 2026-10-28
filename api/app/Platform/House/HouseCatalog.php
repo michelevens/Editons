@@ -8,11 +8,14 @@ use App\Commerce\PlatformSales;
 use App\Jobs\GenerateExport;
 use App\Models\Book;
 use App\Models\BookExport;
+use App\Models\HouseStyle;
 use App\Models\Product;
 use App\Models\User;
 use App\Platform\AdminAudit;
 use App\Publishing\Exporter;
+use App\Publishing\HouseStyles;
 use App\Publishing\PrintCheck;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -32,7 +35,7 @@ use Throwable;
 final class HouseCatalog
 {
     /** Bulk actions the console offers. */
-    public const BULK = ['export', 'price', 'publish', 'unpublish'];
+    public const BULK = ['export', 'price', 'publish', 'unpublish', 'house_style'];
 
     /** Formats staff can queue; the same list as Export & Publish. */
     public const EXPORTS = ['pdf', 'pdf_interior', 'cover_wrap', 'epub'];
@@ -86,6 +89,8 @@ final class HouseCatalog
             'house' => ['id' => $book->user->id, 'name' => $book->user->name],
             'cover' => $book->coverFor()['thumb'],
             'status' => $book->status,
+            // The house style the book follows, if any.
+            'house_style' => $book->house_style_id ? $book->houseStyle?->name : null,
             'language' => $book->language,
             'words' => (int) $book->word_count,
             'updated_at' => $book->updated_at?->toIso8601String(),
@@ -117,6 +122,30 @@ final class HouseCatalog
                 'sales' => route('books.edit', ['book' => $book->id, 'pane' => 'sales']),
             ],
         ];
+    }
+
+    /**
+     * Apply one of the house account's styles to a house book: its design
+     * only, never its manuscript (HouseStyles), audited with the layout
+     * before and after.
+     */
+    public function houseStyle(Book $book, int $styleId, bool $follow, User $actor, string $reason): string
+    {
+        $this->assertHouseBook($book);
+        $style = HouseStyle::find($styleId) ?? throw ValidationException::withMessages(['house_style_id' => 'Choose a house style.']);
+
+        return DB::transaction(function () use ($book, $style, $follow, $actor, $reason) {
+            try {
+                $change = app(HouseStyles::class)->apply($style, $book, $actor, $follow);
+            } catch (AuthorizationException) {
+                throw ValidationException::withMessages(['house_style_id' => 'That style is not one this book’s account can use.']);
+            }
+
+            [$from, $to] = AdminAudit::diff($change['before'], $change['after']);
+            AdminAudit::record('house.house_style_applied', $book, $from ?: null, $to + ['house_style' => $style->name, 'follow' => $follow], $reason, $actor);
+
+            return $follow ? "Follows “{$style->name}”." : "Design copied from “{$style->name}”.";
+        });
     }
 
     /**
@@ -322,6 +351,7 @@ final class HouseCatalog
 
                         return 'Off sale.';
                     })(),
+                    'house_style' => $this->houseStyle($book, (int) ($params['house_style_id'] ?? 0), (bool) ($params['follow'] ?? true), $actor, $reason),
                 };
 
                 $results[] = ['id' => $id, 'title' => $book->title, 'ok' => true, 'message' => $message];

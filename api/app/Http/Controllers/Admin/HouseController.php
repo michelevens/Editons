@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Book;
+use App\Models\HouseStyle;
 use App\Platform\House\HouseAccounts;
 use App\Platform\House\HouseCatalog;
 use App\Platform\House\HouseTransfer;
@@ -58,6 +59,10 @@ class HouseController extends Controller
                 'formats' => config('commerce.formats'),
                 'isbn_editions' => Book::ISBN_EDITIONS,
                 'isbn_sources' => Book::ISBN_SOURCES,
+                // Each house account's styles (HouseStyles), saved from one
+                // of its books in Design & Layout.
+                'house_styles' => HouseStyle::whereIn('user_id', $accounts->all()->pluck('id'))->orderBy('name')
+                    ->get(['id', 'name', 'user_id', 'version'])->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'house_id' => $s->user_id, 'version' => $s->version])->values(),
             ],
             'results' => $request->session()->get('house_results'),
             'can' => ['manage' => $request->user()->isPlatformOwner()],
@@ -146,10 +151,14 @@ class HouseController extends Controller
             'currency' => ['required_if:action,price', 'nullable', 'string', 'in:'.implode(',', config('commerce.currencies'))],
             'formats' => ['sometimes', 'nullable', 'array'],
             'formats.*' => ['string', 'in:'.implode(',', config('commerce.formats'))],
+            'house_style_id' => ['required_if:action,house_style', 'nullable', 'integer'],
+            'follow' => ['sometimes', 'boolean'],
             'reason' => ['required', 'string', 'min:4', 'max:1000'],
         ]);
 
         $results = $catalog->bulk($data['action'], $data['books'], [
+            'house_style_id' => $data['house_style_id'] ?? null,
+            'follow' => $data['follow'] ?? true,
             'format' => $data['format'] ?? null,
             'options' => $data['options'] ?? [],
             'price_cents' => isset($data['price']) ? (int) round(((float) $data['price']) * 100) : null,

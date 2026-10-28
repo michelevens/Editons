@@ -21,6 +21,7 @@ use App\Http\Controllers\EditionsController;
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\GoalsController;
 use App\Http\Controllers\GrowthController;
+use App\Http\Controllers\HouseStyleController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InvitationController;
@@ -397,6 +398,15 @@ Route::middleware('auth')->group(function () {
         ->name('design.layout');
     Route::post('/books/{book}/layout/reset', [DesignController::class, 'resetLayout'])
         ->name('design.layout.reset');
+    // House styles: a book's design saved under a name and applied to the
+    // account's other books (HouseStyles).
+    Route::get('/house-styles', [HouseStyleController::class, 'index'])->name('house-styles.index');
+    Route::post('/books/{book}/house-style', [HouseStyleController::class, 'store'])->name('house-styles.store');
+    Route::post('/books/{book}/house-style/detach', [HouseStyleController::class, 'detach'])->name('house-styles.detach');
+    Route::put('/house-styles/{style}', [HouseStyleController::class, 'update'])->name('house-styles.update');
+    Route::patch('/house-styles/{style}', [HouseStyleController::class, 'rename'])->name('house-styles.rename');
+    Route::delete('/house-styles/{style}', [HouseStyleController::class, 'destroy'])->name('house-styles.destroy');
+    Route::post('/house-styles/{style}/apply', [HouseStyleController::class, 'apply'])->name('house-styles.apply');
     Route::patch('/books/{book}/cover', [DesignController::class, 'updateCover'])
         ->name('design.cover');
     Route::post('/books/{book}/cover/artwork', [DesignController::class, 'uploadArtwork'])
