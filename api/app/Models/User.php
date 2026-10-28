@@ -35,6 +35,8 @@ use Laravel\Cashier\Billable;
     'ai_monthly_cap_usd',
     // Where the account came from (App\Growth\Attribution): the console's.
     'signup_source', 'signup_medium', 'signup_campaign', 'signup_referrer', 'signup_landing',
+    // The studio layout: sent to the editor on its own, not to every page.
+    'workspace',
 ])]
 class User extends Authenticatable
 {
@@ -188,6 +190,8 @@ class User extends Authenticatable
             'offboarded_at' => 'datetime',
             // Overrides only; App\Mail\EmailPreferences resolves defaults.
             'email_preferences' => 'array',
+            // The writing workspace: App\Workspace\Workspace reads and writes it.
+            'workspace' => 'array',
             'password' => 'hashed',
         ];
     }
