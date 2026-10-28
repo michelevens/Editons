@@ -43,6 +43,16 @@ final class House
         return $user->isPlatformAdmin() && self::staffReady($user) && self::isHouseBook($book);
     }
 
+    /**
+     * May $user act for this house account itself, not one of its books:
+     * its house styles (App\Publishing\HouseStyles). The same rule as
+     * editing a house book.
+     */
+    public static function canEditAccount(User $user, User $account): bool
+    {
+        return $account->isHouse() && $user->isPlatformOwner() && self::staffReady($user);
+    }
+
     /** May $user run the House catalog's actions at all (owner) — the console's gate. */
     public static function canManage(User $user): bool
     {

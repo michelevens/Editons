@@ -113,8 +113,22 @@ class Book extends Model
     /** own: the author's ISBN; store: assigned by the store (tied to it). */
     public const ISBN_SOURCES = ['own', 'store'];
 
-    /** Print trim sizes offered on the Design screen. */
-    public const TRIMS = ['5 x 8 in', '5.5 x 8.5 in', '6 x 9 in', '7 x 10 in', '8.5 x 11 in'];
+    /**
+     * Standard print trim sizes offered on the Design screen: every size
+     * KDP and IngramSpark list for black-and-white paperbacks and
+     * hardcovers (config/publishing.php, docs/POD-SPECS.md), narrowest
+     * first. A custom size within the services' range is also accepted
+     * (PageSetup::normaliseTrim).
+     */
+    public const TRIMS = [
+        '4 x 6 in', '4 x 7 in', '4.25 x 7 in', '4.37 x 7 in', '4.72 x 7.48 in',
+        '5 x 7 in', '5 x 8 in', '5.06 x 7.81 in', '5.25 x 8 in',
+        '5.5 x 7.5 in', '5.5 x 8.25 in', '5.5 x 8.38 in', '5.5 x 8.5 in', '5.83 x 8.27 in',
+        '6 x 9 in', '6.14 x 9.21 in', '6.5 x 6.5 in', '6.625 x 10.25 in', '6.69 x 9.61 in',
+        '7 x 10 in', '7.44 x 9.69 in', '7.5 x 9.25 in',
+        '8 x 8 in', '8 x 10 in', '8 x 10.88 in', '8.25 x 6 in', '8.25 x 8.25 in', '8.25 x 10.75 in', '8.25 x 11 in',
+        '8.27 x 11.69 in', '8.5 x 8.5 in', '8.5 x 9 in', '8.5 x 11 in',
+    ];
 
     /** Formats that each need their own ISBN. */
     public const EDITION_FORMATS = ['ebook', 'paperback', 'hardcover', 'large_print', 'audiobook'];
@@ -251,6 +265,12 @@ class Book extends Model
             'list_price' => 'decimal:2',
             'word_count' => 'integer',
         ];
+    }
+
+    /** The house style this book follows, if any (App\Publishing\HouseStyles). */
+    public function houseStyle(): BelongsTo
+    {
+        return $this->belongsTo(HouseStyle::class);
     }
 
     /** Stores this book is offered in. */

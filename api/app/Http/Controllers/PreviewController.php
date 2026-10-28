@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Book;
 use App\Publishing\Exporter;
+use App\Publishing\InteriorFonts;
 use App\Publishing\PreviewCheck;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,11 +25,6 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class PreviewController extends Controller
 {
     /** The faces Print mode sets in, served to the browser (SIL OFL). */
-    private const FONTS = [
-        'EBGaramond-Regular.ttf', 'EBGaramond-Italic.ttf', 'EBGaramond-SemiBold.ttf', 'EBGaramond-SemiBoldItalic.ttf',
-        'SourceSans3-Regular.ttf', 'SourceSans3-It.ttf', 'SourceSans3-Semibold.ttf', 'SourceSans3-SemiboldIt.ttf',
-    ];
-
     public function __construct(private readonly Exporter $exporter) {}
 
     public function show(Book $book): JsonResponse
@@ -75,9 +71,10 @@ class PreviewController extends Controller
     /** A typeface for Print mode. Public files, cached for a year. */
     public function font(string $name): BinaryFileResponse
     {
-        abort_unless(in_array($name, self::FONTS, true), 404);
+        // Only the interior faces (InteriorFonts), by their file name.
+        $file = InteriorFonts::files()[$name] ?? abort(404);
 
-        return response()->file(resource_path('fonts/'.$name), [
+        return response()->file(resource_path('fonts/'.$file), [
             'Content-Type' => 'font/ttf',
             'Cache-Control' => 'public, max-age=31536000, immutable',
         ]);

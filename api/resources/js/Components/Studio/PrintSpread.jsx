@@ -136,11 +136,13 @@ function Pages({ data, width, onReady }) {
 
         (async () => {
             if (document.fonts?.load) {
-                await Promise.all([
-                    document.fonts.load(`12pt "${page.font}"`),
-                    document.fonts.load(`italic 12pt "${page.font}"`),
-                    document.fonts.load(`bold 12pt "${page.font}"`),
-                ]).catch(() => null);
+                // The body face, and the heading face when the book has one.
+                const faces = [page.font, page.heading_font].filter(Boolean);
+                await Promise.all(faces.flatMap((family) => [
+                    document.fonts.load(`12pt "${family}"`),
+                    document.fonts.load(`italic 12pt "${family}"`),
+                    document.fonts.load(`bold 12pt "${family}"`),
+                ])).catch(() => null);
             }
 
             const images = flows.filter(Boolean).flatMap((flow) => [...flow.querySelectorAll('img')]);

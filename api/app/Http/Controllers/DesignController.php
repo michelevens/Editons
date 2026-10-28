@@ -13,7 +13,12 @@ use App\Platform\Features;
 use App\Publishing\CoverRenderer;
 use App\Publishing\DocumentRenderer;
 use App\Publishing\Exporter;
+use App\Publishing\HouseStyles;
 use App\Publishing\InteriorDesign;
+use App\Publishing\InteriorFonts;
+use App\Publishing\PageSetup;
+use App\Publishing\PrintBook;
+use App\Publishing\PrintPages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -80,13 +85,24 @@ class DesignController extends Controller
                 ->mapWithKeys(fn ($key) => [$key => "“{$key}” is not a layout setting."])->all());
         }
 
+        // A book that follows a house style takes its design from the
+        // style; the author detaches it first to make it their own.
+        HouseStyles::refuseWhileFollowing($book);
+
         $data = $request->validate([
-            'trim' => ['sometimes', 'string', 'in:'.implode(',', Book::TRIMS)],
-            'margins' => ['sometimes', 'string', 'in:Narrow,Standard,Wide'],
-            'font' => ['sometimes', 'string', 'in:serif,sans'],
-            // The range the Design screen offers. Outside it, a print
-            // interior is either unreadable or wastes pages.
-            'size' => ['sometimes', 'numeric', 'min:9', 'max:14'],
+            // A standard size, or a custom one in the services' range.
+            'trim' => ['sometimes', 'string', function (string $attribute, mixed $value, \Closure $fail) {
+                if (PageSetup::normaliseTrim($value) === null) {
+                    $fail(sprintf('Choose a listed trim size, or a custom one from %s × %s in up to %s × %s in.',
+                        PageSetup::CUSTOM['width'][0], PageSetup::CUSTOM['height'][0], PageSetup::CUSTOM['width'][1], PageSetup::CUSTOM['height'][1]));
+                }
+            }],
+            'margins' => ['sometimes', 'string', Rule::in(array_keys(PageSetup::PRESETS))],
+            'font' => ['sometimes', 'string', Rule::in(InteriorFonts::keys())],
+            // The range the Design screen offers: up to 24 pt, so a large
+            // print edition can set 18. Outside it, a print interior is
+            // either unreadable or wastes pages.
+            'size' => ['sometimes', 'numeric', 'min:9', 'max:24'],
             'leading' => ['sometimes', 'numeric', 'min:1.2', 'max:1.8'],
             'dropcap' => ['sometimes', 'boolean'],
             'headers' => ['sometimes', 'boolean'],
@@ -100,7 +116,18 @@ class DesignController extends Controller
             InteriorDesign::resolve($layout),
         );
 
-        $book->update(['layout' => array_merge($layout, $data, $design)]);
+        if (isset($data['trim'])) {
+            $data['trim'] = PageSetup::normaliseTrim($data['trim']);
+        }
+
+        $merged = array_merge($layout, $data, $design);
+
+        // The margins and the trim together must leave a text block.
+        if ($errors = PageSetup::errors($merged)) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        $book->update(['layout' => $merged]);
 
         return response()->json($this->payload($book->fresh(), $request->integer('section'), true));
     }
@@ -108,6 +135,7 @@ class DesignController extends Controller
     public function resetLayout(Request $request, Book $book): JsonResponse
     {
         $this->authorize('update', $book);
+        HouseStyles::refuseWhileFollowing($book);
 
         $book->update(['layout' => Book::DEFAULT_LAYOUT]);
 
@@ -296,7 +324,9 @@ class DesignController extends Controller
 
         return [
             'layout' => $book->layout(),
-            'trims' => Book::TRIMS,
+            'margins' => $this->marginInfo($book),
+            'house_style' => HouseStyles::summary($book, auth()->user()),
+            'trims' => PageSetup::catalog(),
             'cover' => [
                 'title' => $cover['title'] ?? $book->title,
                 'subtitle' => $cover['subtitle'] ?? $book->subtitle,
@@ -392,9 +422,47 @@ class DesignController extends Controller
             'folios' => InteriorDesign::FOLIOS,
             'callout_types' => $pairs(InteriorDesign::CALLOUT_NAMES),
             'callout_presets' => array_keys(InteriorDesign::CALLOUT_PRESETS),
+            'fonts' => InteriorFonts::catalog(),
+            'margin_presets' => collect(PageSetup::PRESETS)->map(fn ($values, $key) => ['key' => $key, 'name' => PageSetup::PRESET_NAMES[$key]] + $values)->values()->all(),
+            'margin_range' => InteriorDesign::RANGES['page'],
+            'custom_trim' => PageSetup::CUSTOM,
+            'size_range' => [9, 24],
+            'heading_levels' => InteriorDesign::HEADING_LEVELS,
+            'heading_cases' => InteriorDesign::HEADING_CASES,
+            'aligns' => InteriorDesign::ALIGNS,
+            'ranges' => InteriorDesign::RANGES,
             'callout_styles' => InteriorDesign::CALLOUT_PRESETS,
             'borders' => InteriorDesign::BORDERS,
             'tints' => InteriorDesign::TINTS,
+        ];
+    }
+
+    /**
+     * The margins as the print interior will set them, and why: the inside
+     * is never below the strictest print service's minimum for the book's
+     * length (KDP's page-count bands), whatever the setting says.
+     *
+     * @return array<string, mixed>
+     */
+    private function marginInfo(Book $book): array
+    {
+        $layout = $book->layout();
+        $pages = PrintPages::for($book);
+        $set = PageSetup::margins($layout);
+        $reason = PageSetup::gutterReason($pages['pages']);
+        $inside = PrintBook::insideMargin($layout, $pages['pages']);
+        [, $outside] = PageSetup::sides($layout, $inside);
+
+        return [
+            'set' => $set,
+            'effective' => ['top' => $set['top'], 'bottom' => $set['bottom'], 'inside' => $inside, 'outside' => $outside],
+            'widened' => $inside > $set['inside'] + 1e-9,
+            'required' => $reason['inches'],
+            'service' => $reason['service'],
+            'pages' => $pages['pages'],
+            'exact' => $pages['exact'],
+            'mirrored' => PageSetup::mirrored($layout),
+            'recommended' => PageSetup::recommendedMirror($layout, $pages['pages']),
         ];
     }
 

@@ -351,10 +351,11 @@ class PortableBook
     {
         return [
             'layout' => [
-                'trim' => ['string', Rule::in(Book::TRIMS)],
-                'margins' => ['string', 'in:Narrow,Standard,Wide'],
-                'font' => ['string', 'in:serif,sans'],
-                'size' => ['numeric', 'min:9', 'max:14'],
+                // A listed trim, or a custom one in the services' range.
+                'trim' => ['string', fn (string $attribute, mixed $value, \Closure $fail) => PageSetup::normaliseTrim($value) === $value ? null : $fail('trim')],
+                'margins' => ['string', Rule::in(array_keys(PageSetup::PRESETS))],
+                'font' => ['string', Rule::in(InteriorFonts::keys())],
+                'size' => ['numeric', 'min:9', 'max:24'],
                 'leading' => ['numeric', 'min:1.2', 'max:1.8'],
                 'dropcap' => ['boolean'],
                 'headers' => ['boolean'],

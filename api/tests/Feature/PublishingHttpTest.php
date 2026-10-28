@@ -617,7 +617,7 @@ it('builds a workbook with an exercise per heading', function () {
         ->and($edition->sections()->first()->plainText())->toContain('Work through this');
 });
 
-it('builds a large-print edition with 14pt type and wide margins', function () {
+it('builds a large-print edition with 18pt type and large-print margins', function () {
     $user = User::factory()->subscribed('author')->create();
     $book = chapteredBook($user);
 
@@ -628,7 +628,7 @@ it('builds a large-print edition with 14pt type and wide margins', function () {
     $edition = Book::find($response->json('edition.id'));
 
     expect($edition->layout())
-        ->toMatchArray(['size' => 14.0, 'margins' => 'Wide', 'trim' => '7 x 10 in']);
+        ->toMatchArray(['size' => 18.0, 'margins' => 'Large', 'trim' => '7 x 10 in']);
 });
 
 it('starts a translation in the chosen language with the text copied in', function () {

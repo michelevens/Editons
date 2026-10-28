@@ -2673,3 +2673,163 @@ and that it reads PrintBook's margins and faces) and
 `tests/Browser/design.spec.js` (each setting changes the preview, at
 1440px and 390px, without horizontal scroll; a quotation made a Tip in the
 editor, styled and kept after a reload).
+
+---
+
+## ADR-00XX — Mirrored margins, trims, typography and house styles
+
+**Status:** accepted (2026-10-28). Number assigned at merge.
+
+**Context.** The flexibility audit's items 2 and 3 (D2–D6): margins were
+three symmetric presets with a fixed head and foot; trims were a list of
+five; type was EB Garamond or Source Sans 3 at 9–14 pt, so the large-print
+edition, documented as 18 pt, was set at 14; paragraphs, hyphenation and
+heading styles were fixed; and a design could not be shared between the
+books of a series (19 Écrivain Prépa titles). The owner decided (2026-10-28)
+to keep dompdf and to mirror the print interior by post-processing it.
+
+**Decisions.**
+
+- *Margins.* `App\Publishing\PageSetup`: the layout's `margins` stays the
+  preset (Narrow, Standard, Wide — shown as Compact, Standard, Generous —
+  with their old values, and a new Large print), and a `page` group in
+  InteriorDesign sets top, bottom, inside and outside on their own (inches,
+  0.25–2; null takes the preset), with the unit the screen shows (in or
+  mm). The text block must keep 2.5 × 3.5 in, else 422. The head sits
+  0.4 in above the text block and the foot line 0.33 in below it, which on
+  the presets is exactly where they always were (0.5 in, height − 0.62 in).
+- *The gutter band.* The inside margin is never below the strictest checked
+  service's minimum for the page count (KDP's bands; IngramSpark's 0.5 in):
+  `PrintBook::insideMargin`, with pass one rerun when the count crosses a
+  band, as ADR-0036 did. Symmetric margins widen on both sides, as before;
+  mirrored ones widen the inside only. Design & Layout shows the inside the
+  print file will have, and why ("widened from 0.5: Amazon KDP asks for
+  0.75 in at 620 pages"). PrintCheck holds the typeset interior to the band
+  (fail), and now also checks top, bottom and outside against KDP's 0.25 in
+  (fail) and IngramSpark's recommended 0.5 in (warn).
+- *Mirroring, by post-processing.* Inside ≠ outside means mirrored. For the
+  print interior (`pdf_interior`, PrintBook::typeset without the cover)
+  dompdf sets every page as a recto (left = inside, right = outside), so the
+  text block already has its final width and every line breaks where it
+  will print; running heads, folios and "Suite ▸" are placed against that
+  block (centred on the block, not the page). `App\Publishing\MirroredPages`
+  then imports each page whole with FPDI (setasign/fpdi 2.6, MIT, with its
+  free FPDF 1.9 writer, permissive "no usage restriction" licence) as a
+  form XObject and moves each verso left by inside − outside. Content
+  streams, embedded font subsets and images are copied, not re-rendered;
+  page size stays the trim. FPDI's free parser reads classic
+  cross-reference tables only, which is what dompdf's CPDF backend writes,
+  so no setting was needed (a file it could not parse would throw and the
+  export would fail visibly, never come out wrong). Links and the outline
+  do not survive the copy; the outline and /Lang are added back by
+  PdfOutline (the same incremental update as before), and the information
+  dictionary is written again from the book. The reading PDF (`pdf`) is
+  never mirrored: it centres the same text block ((inside + outside) / 2 a
+  side), so its pages break exactly where the print interior's do, and
+  keeps its links. There is no bleed in interiors made here; none is added.
+- *Default unchanged.* Every preset has inside = outside, so a book that
+  changes nothing is not mirrored, not post-processed, and sets exactly as
+  before (below). Mirroring is opt-in: the "Mirrored margins" switch applies
+  a recommended pair that moves 1/8 in from the outside to the inside
+  (raised to the band if needed), keeping the text block's width and so the
+  page count.
+- *Trims.* `Book::TRIMS` holds every standard size KDP (paperback and
+  hardcover) and IngramSpark (perfect bound and case laminate, black and
+  white) list, read on 2026-10-28 and quoted in docs/POD-SPECS.md: 33
+  sizes, A5, Royal, Demy, crown quarto and A4 among them. A custom size is
+  accepted within KDP's custom range (4–8.5 × 6–11.69 in) and normalised
+  ("5.250 x 8" is "5.25 x 8 in"). PrintCheck passes a size the service lists
+  for the paper, or one within its published custom range for that paper
+  (IngramSpark crème: 4–6.14 × 6–9.252 in), and fails the rest.
+- *Type.* Size 9–24 pt. `App\Publishing\InteriorFonts` lists the interior
+  faces: EB Garamond and Source Sans 3 (keys `serif` and `sans`, unchanged)
+  and five OFL text faces in `resources/fonts/interior` — Lora (upstream
+  static files, Reserved Font Name, unmodified), Spectral (google/fonts
+  static files, unmodified), Crimson Pro, Literata and Alegreya (no RFN;
+  static instances cut from the variable fonts and subset to Latin with
+  fontTools). Each has a real italic and bold or semibold and draws every
+  French and Kreyòl letter; licences and provenance in SOURCES.txt. Source
+  Serif 4 (missing Ĳ, Ŧ…, and Adobe's RFN), Libre Baskerville (RFN with only
+  variable files, no bold italic) and Cardo (no bold italic) were left out.
+  A separate heading face (`heading_font`) sets titles, openers and the
+  headings whose style says so. dompdf registers only the faces a book
+  uses; the glyph fallback checks every face in use; the previews load the
+  same files (`/preview/fonts`, whitelisted from InteriorFonts).
+- *Large print* is 18 pt on 1.5 leading with the Large print margins (it
+  was documented as 18 and set at 14, the old cap).
+- *Paragraphs and headings.* A `text` group (indent or block paragraphs,
+  indent and spacing in em, justified or ragged right, hyphenation, widows,
+  orphans) and a `headings` group (H1, H2, H3, and H4 for H4–H6: size,
+  weight, italic, case, space above and below, alignment, face). Defaults
+  are the stylesheet's own values and add nothing to it. Hyphenation off
+  drops the soft hyphens and keeps French spacing. dompdf honours `orphans`
+  and ignores `widows` (its page breaker says so); the setting is written
+  to the CSS, and short last pages remain a print-check note.
+- *House styles.* `house_styles` (account, name, the whole `layout`,
+  version) and `books.house_style_id`/`house_style_version`
+  (`App\Publishing\HouseStyles`). Save a book's design as a style of the
+  account that owns the book (a house account's for a house book); apply
+  it to one book or several (Design & Layout, the shelf's selection, the
+  console's House catalog bulk action, audited per book with before and
+  after). Applying writes only `layout`: never sections, versions, cover or
+  metadata; existing exports become stale through the fingerprint.
+  Following is explicit: only "follow" links a book; a following book's
+  own design edits are refused (422) until "Customise this book" detaches
+  it with its design kept; "Update the style from this book" bumps the
+  version and rewrites every follower; deleting a style leaves its books'
+  designs. A style is used only on the owning account's books, and only by
+  that account or, for a house account, the platform owner with
+  two-factor (support may not).
+- *Caches.* `InteriorDesign::VERSION` is 3, so print interiors made before
+  read as out of date.
+
+**Before and after.** Five books from the local catalogue, typeset read-only
+(a rolled-back transaction) with main (4189b71, from a `git archive`) and
+with this branch, as ADR-0040's check did: "Building an Independent
+Practice" (63 pages), "Belonging at a Distance" (113), and three Écrivain
+Prépa titles, 9e AF Mathématiques (61), 9e AF Kreyòl (42) and Bac NS4
+Histoire-Géographie (40). *On their stored (default) layouts:* the print
+HTML is byte-identical, the page counts are the same, and every page has
+the same text spans at the same positions (PyMuPDF, 0.1 pt); the files are
+the same size, and no post-processing runs. *Mirrored* (the recommended
+pair, 0.905 in inside / 0.655 in outside): the same page counts and the
+same text on every page; every recto's text moved 9 pt right and every
+verso's 9 pt left (inside − outside = 18 pt, measured exactly), vertical
+positions unchanged; page size 432 × 648 pt; every font embedded; the
+outline and title kept; files 4–13 % larger (FPDF's form XObjects).
+*Large print* (18 pt, 7 × 10 in): 63→79, 113→217, 61→106, 42→69 and
+40→71 pages, set in 18 pt. One finding on the way: the first run of this branch's
+Mathématiques interior listed an unused, unembedded Times-Roman in its font
+resources (no text uses it) while dompdf's font cache (storage/fonts) held
+entries left by the test suite; rerun with a fresh cache, as on a deploy,
+it does not, and main's run never did. Worth a preflight check on real
+print files.
+
+**Not done.** The EPUB and DOCX do not follow the new faces, paragraph or
+heading styles (audit E1). Bleed interiors. Hardcover as a binding the
+print checks know (the hardcover lists are recorded and shown on the trim
+picker). Lulu trims are recorded in POD-SPECS only. Portable book files
+carry trim, preset, face and size (custom trims and new faces now accepted)
+but not the design groups, as before. The full-screen preview's Print mode
+still draws every page with the recto's margins.
+
+**Tests.** `tests/Feature/TypographyTest.php` (defaults; saving margins,
+paragraphs, headings and faces, a heading level sent in part; sixteen
+refusals; every face to 24 pt; every service's trims offered; custom trims
+normalised and refused; PrintCheck per service and paper; the band
+minimum and its reason; the recommended pair; the mirrored interior read
+back with PyMuPDF — versos moved by exactly inside − outside, page size,
+fonts embedded, outline and title kept; the reading PDF centred; a default
+book not post-processed; heads and folios moved with the text; the preview
+spread; every face's files, licence and French/Kreyòl coverage; each face
+embedded with no fallback glyphs; the font whitelist; large print read back
+at 18 pt; paragraph, heading and face CSS; hyphenation off; preview.js in
+step with InteriorFonts), `tests/Feature/HouseStyleTest.php` (save, apply
+to several, copy without following, refused edits, detach, update and
+propagation, delete, cross-account refusals, the console's audited bulk
+action, support refused, the Design payload) and
+`tests/Browser/typography.spec.js` (at 1440 and 390 px: mirrored margins on
+the spread, millimetres, listed and custom trims, faces, paragraphs and
+headings in the preview; a house style saved, followed with the controls
+locked, detached and applied to the other books from the shelf; no
+horizontal scroll).

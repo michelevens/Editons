@@ -1,7 +1,9 @@
 # Print-on-demand and store specifications
 
 What the print kit (ADR "Print-on-demand kit") relies on, as each service
-publishes it. Every page below was read on **2026-10-23**. The code takes its
+publishes it. Every page below was read on **2026-10-23**; the trim sizes,
+custom trim ranges and margin rules again on **2026-10-28** (ADR "Mirrored
+margins, trims, typography and house styles"). The code takes its
 figures from `api/config/publishing.php`, where each value has its source in a
 comment. When a service changes a figure, change it there and here.
 
@@ -46,7 +48,8 @@ Source: https://kdp.amazon.com/en_US/help/topic/GVBQ3CMEQW3W2VL6
   | 501–700 | 0.75 in |
   | 701–828 | 0.875 in |
 
-- **Outside margin:** "at least 0.25 in" without bleed, and "at least 0.375 in" with bleed. Interiors made here have no bleed.
+- **Top, bottom and outside margins:** "The top, bottom, and outside margins must be a minimum of 0.25 inches for books without bleed and 0.375 inches (9.6mm) for books with bleed." Interiors made here have no bleed. PrintCheck fails a narrower one.
+- **Inside margin:** "Make sure to input the same value for your inside margin and the gutter." The app never sets the inside below the band for the page count (it widens it and says why on Design & Layout).
 - **Page ranges:**
 
   | Paper and ink | Pages |
@@ -56,9 +59,39 @@ Source: https://kdp.amazon.com/en_US/help/topic/GVBQ3CMEQW3W2VL6
   | Standard colour | 72–600 |
   | Premium colour | 24–828 |
 
-- **Trims:** every size the Design screen offers is on the trim list: 5×8, 5.5×8.5, 6×9, 7×10 and 8.5×11. 8.5×11 is limited to 24–590 pages.
+- **Paperback trims** (the page's table "Trim size specifications (width x height) with minimum and maximum page counts", kdp.amazon.com, read 2026-10-28), black ink on white paper:
+
+  | Trim (in) | cm | Pages | Large trim |
+  |---|---|---|---|
+  | 5 × 8 | 12.7 × 20.32 | 24–828 | |
+  | 5.06 × 7.81 | 12.85 × 19.84 | 24–828 | |
+  | 5.25 × 8 | 13.34 × 20.32 | 24–828 | |
+  | 5.5 × 8.5 | 13.97 × 21.59 | 24–828 | |
+  | 6 × 9 | 15.24 × 22.86 | 24–828 | |
+  | 6.14 × 9.21 | 15.6 × 23.39 | 24–828 | yes |
+  | 6.69 × 9.61 | 16.99 × 24.41 | 24–828 | yes |
+  | 7 × 10 | 17.78 × 25.4 | 24–828 | yes |
+  | 7.44 × 9.69 | 18.9 × 24.61 | 24–828 | yes |
+  | 7.5 × 9.25 | 19.05 × 23.5 | 24–828 | yes |
+  | 8 × 10 | 20.32 × 25.4 | 24–828 | yes |
+  | 8.25 × 6 | 20.96 × 15.24 | 24–800 | yes |
+  | 8.25 × 8.25 | 20.96 × 20.96 | 24–800 | yes |
+  | 8.5 × 8.5 | 21.59 × 21.59 | 24–590 | yes |
+  | 8.5 × 11 | 21.59 × 27.94 | 24–590 | yes |
+  | 8.27 × 11.69 (A4) | 21 × 29.7 | 24–780 | yes |
+
+  Cream paper allows fewer pages on several sizes (24–776, 24–750, 24–550, 24–730); the code keeps the white maximum per trim beside the paper's own range. The same page gives A4 premium colour as 24–590 in one table and 24–780 in another: **not confirmed**, not used. kdp.amazon.co.jp lists further sizes (5.83 × 8.27, 7.17 × 10.12 and others) that the US store does not; they are not on the KDP list here, though most fall inside the custom range below.
+- **Custom trim:** "For paperbacks, you can also enter your own custom trim size. Width must be within 4"-8.5" (10.16-21.59 cm). Height must be within 6"-11.69" (15.24-29.69 cm)." Source: https://kdp.amazon.com/en_US/help/topic/G201834180. This is the range the Design screen accepts for a custom trim.
 - **Large trim:** "more than 6.12 inches (155.5 mm) in width or more than 9 inches (228.6 mm) in height".
-- We could not confirm that the extracted trim list is complete.
+
+## Amazon KDP: hardcover
+Sources: https://kdp.amazon.com/en_US/help/topic/GAVW3FZZAKA2KY3B and https://kdp.amazon.com/en_US/help/topic/GKYZRXFBZH2LDXAK
+
+- **Trims:** "There are five available trim sizes": 5.5 × 8.5, 6 × 9, 6.14 × 9.21, 7 × 10 and 8.25 × 11 in.
+- **Pages:** "The minimum and maximum page count is 75 - 550 pages".
+- **Binding:** "We offer case laminate hardcover. Dust jackets, cloth bound, and other hardcover formats aren't available."
+- **Custom trim:** no page offers one for hardcover; the custom wording is for paperbacks. **Inferred**, not stated.
+- **Margins:** the hardcover formatting page links to the paperback margin table, so the same table applies.
 
 ### Printing cost, Amazon.com (USD)
 Source: https://kdp.amazon.com/en_US/help/topic/G201834340
@@ -123,9 +156,14 @@ Source: https://www.ingramspark.com/hubfs/downloads/file-creation-guide.pdf
 - **Spine text:** "NO spine text allowed for Perfect Bound books with page counts below 48."
 - **Spine width:** no per-page figure is published. "IngramSpark highly recommend the use of our custom Cover Template Generator", with "a mod2 spine calculation (page count divisible by 2)". **The author enters the spine width the generator gives.** We do not estimate it.
 - **Barcode:** "If you're unable to supply a barcode, please leave an area of at least 1.75" wide x 1" high".
-- **Interior margins:** "Recommended minimum 0.5" (13 mm) on all sides."
+- **Interior margins:** "Recommended minimum 0.5" (13 mm) on all sides." and "It is recommended that you provide a minimum of 0.5" (13 mm) margin on all sides of your text block. LS allows for 1/16" (0.0625 in / 2 mm) variance in printing." A recommendation, so PrintCheck warns (not fails) below it. There is **no gutter table by page count**.
 - **Page ranges:** from the Trim Size Matrix, black and white: 50lb creme 18–1050 pages, 50lb white 18–1200 pages. These were read from a table in the PDF. The matrix is the authority for your trim.
-- **Trims:** 5×8, 5.5×8.5, 6×9, 7×10 and 8.5×11 are all in the matrix.
+- **Trims (Trim Size Matrix, p. 40, read 2026-10-28).** The matrix marks availability with shaded cells, not text; they were read by sampling the rendered page and checked row by row. The guide writes millimetres as height × width. Black and white on 50lb white, perfect bound:
+  4 × 6, 4 × 7, 4.25 × 7, 4.37 × 7, 4.72 × 7.48, 5 × 7, 5 × 8, 5.06 × 7.81, 5.25 × 8, 5.5 × 7.5, 5.5 × 8.25, 5.5 × 8.5 (Demy 8vo), 5.83 × 8.27 (A5), 6 × 9, 6.14 × 9.21 (Royal 8vo), 6.5 × 6.5, 6.625 × 10.25, 6.69 × 9.61 (pinched crown), 7 × 10, 7.44 × 9.69 (crown quarto), 7.5 × 9.25, 8 × 8, 8 × 10, 8 × 10.88, 8.25 × 10.75, 8.25 × 11, 8.268 × 11.693 (A4, stored as 8.27 × 11.69), 8.5 × 8.5, 8.5 × 9, 8.5 × 11 in.
+  Also on 50lb creme: 4 × 6, 4 × 7, 4.25 × 7, 4.72 × 7.48, 5 × 7, 5 × 8, 5.06 × 7.81, 5.25 × 8, 5.5 × 8.25, 5.5 × 8.38, 5.5 × 8.5, 5.83 × 8.27, 6 × 9, 6.14 × 9.21 (5.5 × 8.38 is creme and groundwood only). 11 × 8.5 is premium colour only ("Max 400 pages") and is left out.
+- **Hardcover (case laminate) trims:** 5 × 8, 5.5 × 8.5, 5.83 × 8.27, 6 × 9, 6.14 × 9.21, 6.69 × 9.61, 7 × 10, 7.5 × 9.25, 8 × 8, 8 × 10, 8 × 10.88, 8.25 × 10.75, 8.5 × 8.5, 8.5 × 11 in. "Where available, Jacketed Covers can be set-up with either Case Laminate or Digital Cloth™ Covers."
+- **Custom trims (p. 41):** "Custom trim sizes are available for Perfect Bound, Case Laminate and Dust Jacket books with size restrictions on the finished book". Perfect bound, white and groundwood: "Widths available from: 4" to 8.5" or 102mm to 216mm" and "Lengths available from: 6" to 11" or 152mm to 279mm"; crème: widths "4" to 6.14"", lengths "6" to 9.252" (152mm to 235mm)". Case laminate and dust jacket, white: widths "5" to 8.5"", lengths "7" to 11"; crème and groundwood: widths "5" to 6.14"", lengths "7" to 9.252"". PrintCheck uses the perfect-bound ranges.
+- **Not confirmed:** the IngramSpark trim-size web page (https://www.ingramspark.com/plan-your-book/print/trim-sizes) gives the white hardcover minimum as 5 × 8 and the crème maximum as 6.14 × 9.21, where the guide says 5 × 7 and 9.252. The guide is used.
 
 ### Compensation
 - **Discount range:** "range of 40% (minimum) to 55% (maximum)" in the US. Source: https://www.ingramspark.com/blog/why-should-i-discount-my-book
@@ -148,6 +186,7 @@ Source: https://www.ingramspark.com/free-isbn
 - **Spine text:** "If your book is 80 pages or fewer, do not include spine text." Leave "at least 0.125 in/3.175 mm between the spine text and the edge of the spine".
 - **Cross-check:** for 6×9 and 210 pages, our formula gives 920.4 pt. The API example gives 920 pt.
 - **Not confirmed:** the barcode area, interior margins and page limits. The kit makes Lulu covers only and runs no Lulu print checks.
+- **For reference only (not encoded):** the Book Creation Guide (2026-01-21, pp. 10–11) lists Pocketbook 4.25 × 6.875, Novella 5 × 8, Digest 5.5 × 8.5, A5 5.83 × 8.27, Royal 6.14 × 9.21, US Trade 6 × 9, Comic 6.63 × 10.25, Executive 7 × 10, Crown Quarto 7.44 × 9.68, Small Square 7.5 × 7.5, A4 8.27 × 11.69, Square 8.5 × 8.5, US Letter 8.5 × 11 and landscape sizes, and recommends "a 0.50 in Safety Margin for all content" with the inside widened by page count (0.5 in to 1.25 in in all).
 
 ## eBook stores
 
