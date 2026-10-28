@@ -19,6 +19,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Platform\Features;
 use App\Platform\TwoFactor;
+use App\Publishing\CoverWrap;
 use App\Publishing\PrintPages;
 use App\Publishing\Publish\PublishPlan;
 use Illuminate\Cookie\CookieValuePrefix;
@@ -379,7 +380,9 @@ function pfFile(Book $book, string $format, array $options = [], int $pages = 12
     $export = $book->exports()->create(['format' => $format, 'status' => 'ready', 'path' => $path, 'byte_size' => 2048]);
 
     if (in_array($format, PrintPages::RECORDING, true)) {
-        $export->forceFill(['pages' => $pages, 'options' => $options + ['fingerprint' => PrintPages::fingerprint($book)]])->save();
+        // A wrap also records the cover design it was drawn from.
+        $cover = $format === 'cover_wrap' ? ['cover' => app(CoverWrap::class)->fingerprint($book)] : [];
+        $export->forceFill(['pages' => $pages, 'options' => $options + ['fingerprint' => PrintPages::fingerprint($book)] + $cover])->save();
     }
 }
 

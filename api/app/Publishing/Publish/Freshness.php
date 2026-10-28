@@ -4,6 +4,7 @@ namespace App\Publishing\Publish;
 
 use App\Models\Book;
 use App\Models\BookExport;
+use App\Publishing\CoverWrap;
 use App\Publishing\PrintPages;
 use Illuminate\Support\Carbon;
 
@@ -17,7 +18,8 @@ use Illuminate\Support\Carbon;
  * so a margin changed after the interior was typeset makes it stale too.
  *
  * What it cannot see: a cover redesigned after the EPUB was made (the
- * cover has no change time of its own). The Publish screen says so.
+ * cover has no change time of its own). The Publish screen says so. A
+ * cover wrap records the design it was drawn from, so it can.
  */
 class Freshness
 {
@@ -79,6 +81,15 @@ class Freshness
                 return ['format' => $format, 'label' => $label, 'export' => $export, 'fresh' => false,
                     'reason' => 'The layout or publishing details changed after it was made.'];
             }
+        }
+
+        // A cover wrap also records the cover it was drawn from
+        // (CoverWrap::fingerprint): the front, back and spine design, and
+        // the renderer's version, so a redesigned cover, or one made by an
+        // older renderer, is made again.
+        if ($format === 'cover_wrap' && ($export->options['cover'] ?? null) !== app(CoverWrap::class)->fingerprint($book)) {
+            return ['format' => $format, 'label' => $label, 'export' => $export, 'fresh' => false,
+                'reason' => 'The cover design changed after it was made.'];
         }
 
         return ['format' => $format, 'label' => $label, 'export' => $export, 'fresh' => true, 'reason' => null];

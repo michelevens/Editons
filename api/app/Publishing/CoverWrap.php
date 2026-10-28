@@ -2,6 +2,10 @@
 
 namespace App\Publishing;
 
+use App\Covers\CoverFonts;
+use App\Covers\CoverImages;
+use App\Covers\CoverLayers;
+use App\Covers\CoverText;
 use App\Models\Book;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -21,11 +25,20 @@ use RuntimeException;
  *    colour of the image's own edge there, as the reading PDF does.
  *  - Spine: the colour of the front's spine-side edge. Text (title, series,
  *    author, publisher) only at the service's minimum page count, set
- *    clear of its spine margins, reading top to bottom.
+ *    clear of its spine margins, reading top to bottom unless the author
+ *    chose bottom to top.
  *  - Back: an uploaded back cover when the book has one. Otherwise the
- *    book's own back-cover copy (its description), its publisher or imprint, and a blank white box where
- *    the service places the barcode. Nothing is invented: a book with no
- *    author name prints none, anywhere.
+ *    book's own back-cover copy (its description), its publisher or
+ *    imprint, and a blank white box where the service places the barcode.
+ *    Nothing is invented: a book with no author name prints none, anywhere.
+ *
+ * The back and the spine can instead carry layers (CoverLayers, the same
+ * system as the front's): "Customise back" and "Customise spine" convert
+ * what is generated here into layers once, and from then on nothing is
+ * fitted or moved for the author. Layers are laid out on a 300 dpi model of
+ * the panel and drawn at whatever resolution is asked, so the screen's
+ * preview and the print file break every line alike. The barcode box is
+ * drawn last, over everything, so nothing can print on it.
  *
  * Drawn at 300 dpi and wrapped in a one-page PDF whose MediaBox is the
  * full sheet and whose TrimBox is the sheet less the bleed.
@@ -33,6 +46,23 @@ use RuntimeException;
 class CoverWrap
 {
     public const DPI = 300;
+
+    /**
+     * Bumped when the drawing changes, so every wrap made before is stale
+     * (Freshness) and is made again. 2: back and spine layers, image
+     * layers, spine direction, artwork framing.
+     */
+    public const VERSION = 2;
+
+    /** The resolution back and spine layers are laid out at. */
+    public const MODEL_DPI = 300;
+
+    /**
+     * How far inside the trim a layer should stay, in inches, on the back
+     * and along the spine: the cutter's tolerance. Cover Studio shows it
+     * and warns past it; the generated back keeps a wider 0.5 in (SAFE).
+     */
+    public const EDGE = 0.125;
 
     /** Inches kept clear inside the trim and the spine folds on the back. */
     private const SAFE = 0.5;
@@ -144,10 +174,392 @@ class CoverWrap
         return $this->wrapPdf($this->image($book, $geometry, self::DPI), $geometry, $book->title);
     }
 
-    /** A small JPEG of the same drawing, for the screen. */
-    public function preview(Book $book, array $geometry, int $dpi = 48): string
+    /**
+     * A small JPEG of the same drawing, for the screen. $bare leaves out
+     * the back's and the spine's type and layers and the barcode box: the
+     * ground Cover Studio's back and spine editors draw their layers over.
+     */
+    public function preview(Book $book, array $geometry, int $dpi = 48, bool $bare = false): string
     {
-        return $this->image($book, $geometry, $dpi, 80);
+        return $this->image($book, $geometry, $dpi, 80, $bare);
+    }
+
+    // --- Layers -------------------------------------------------------------
+
+    /**
+     * Which way the spine reads.
+     *
+     * `chosen` is the author's choice, stored as cover.spine_direction;
+     * `suggested` the convention of the book's language: bottom to top for
+     * French (and Haitian Creole, which follows French publishing), top to
+     * bottom otherwise, as the US, UK and ISO 6357 have it. A spine nobody
+     * has chosen for keeps reading top to bottom, as every wrap did before,
+     * so a book that does not touch its spine prints exactly as it did;
+     * "Customise spine" starts from the suggestion and records it.
+     *
+     * @return array{direction: string, chosen: ?string, suggested: string}
+     */
+    public function direction(Book $book): array
+    {
+        $stored = ($book->cover ?? [])['spine_direction'] ?? null;
+        $chosen = in_array($stored, CoverLayers::DIRECTIONS, true) ? $stored : null;
+
+        return ['direction' => $chosen ?? 'ttb', 'chosen' => $chosen, 'suggested' => self::languageDirection($book->language)];
+    }
+
+    public static function languageDirection(?string $language): string
+    {
+        return in_array(Exporter::languageCode($language), ['fr', 'ht'], true) ? 'btt' : 'ttb';
+    }
+
+    /**
+     * The models back and spine layers are laid out on, in pixels at
+     * MODEL_DPI: the back panel from the sheet's left edge (its bleed
+     * included) to the spine fold; the spine as its reading frame, as long
+     * as the sheet is tall and as deep as the spine is thick.
+     *
+     * @return array{back: array{width: float, height: float}, spine: array{width: float, height: float, spine: bool}}
+     */
+    public function surfaces(array $g): array
+    {
+        $px = fn (float $inches) => $inches * self::MODEL_DPI;
+
+        return [
+            'back' => ['width' => $px($g['trim'][0] + $g['bleed']), 'height' => $px($g['height'])],
+            'spine' => ['width' => $px($g['height']), 'height' => $px($g['spine']), 'spine' => true],
+        ];
+    }
+
+    /** Artwork framing for an uploaded back: null keeps it whole. @return array{x: float, y: float, zoom: float}|null */
+    public static function backFraming(mixed $framing): ?array
+    {
+        if (! is_array($framing) || ($framing['fit'] ?? null) !== 'fill') {
+            return null;
+        }
+
+        return [
+            'x' => max(0.0, min(1.0, (float) ($framing['x'] ?? 0.5))),
+            'y' => max(0.0, min(1.0, (float) ($framing['y'] ?? 0.5))),
+            'zoom' => max(1.0, min(4.0, (float) ($framing['zoom'] ?? 1))),
+        ];
+    }
+
+    /**
+     * Everything the wrap is drawn from beyond its options and page count,
+     * hashed: a wrap made from another design is stale (Freshness). The
+     * front's own hash, the back's and spine's layers and the book text
+     * they show, the spine's direction, the uploaded back and its framing,
+     * the pictures, and VERSION.
+     */
+    public function fingerprint(Book $book): string
+    {
+        $cover = $book->cover ?? [];
+
+        return substr(md5(json_encode([
+            self::VERSION,
+            $this->covers->version($book),
+            CoverLayers::stored($book, 'back'),
+            CoverLayers::stored($book, 'spine'),
+            $cover['spine_direction'] ?? null,
+            $cover['back_artwork'] ?? null,
+            self::backFraming($cover['back_framing'] ?? null),
+            CoverImages::all($book),
+            CoverLayers::wrapTexts($book),
+            $this->covers->settings($book)['font'],
+        ])), 0, 16);
+    }
+
+    /**
+     * The pictures a panel's layers use, by id.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function images(Book $book): array
+    {
+        $images = [];
+
+        foreach (CoverImages::all($book) as $image) {
+            $images[$image['id']] = $image;
+        }
+
+        return $images;
+    }
+
+    /**
+     * The back as generated, converted once into layers: the title, the
+     * back-cover copy at the size it fits today, the publisher at the foot,
+     * in the same faces, sizes, places and ink. From then on nothing is
+     * fitted: the copy wraps inside its box, and the box stays put.
+     *
+     * @return array{version: int, items: array<int, array<string, mixed>>}
+     */
+    public function backLayersFromGenerated(Book $book, array $g): array
+    {
+        $family = $this->covers->settings($book)['font'] === 'sans' ? 'source-sans' : 'eb-garamond';
+        $ink = self::hex($this->inkOn($this->groundFor($book)));
+        $area = $this->copyArea($g);
+        $panelW = $g['trim'][0] + $g['bleed'];
+        $panelH = $g['height'];
+        $texts = CoverLayers::wrapTexts($book);
+
+        // A block's box from its first baseline (inches) and size (points).
+        $layer = function (string $source, string $weight, float $pt, float $baseline, float $leading, float $x, float $width) use ($family, $ink, $panelH, $panelW) {
+            $face = CoverFonts::metrics(CoverFonts::faceKey($family, $weight, false));
+
+            return CoverLayers::make($source, [
+                'id' => $source,
+                'x' => $x / $panelW, 'y' => max(0, ($baseline - $face['asc'] / $face['upm'] * $pt / 72) / $panelH),
+                'width' => $width / $panelW,
+                'align' => 'left',
+                'font' => $family, 'weight' => $weight,
+                'size' => $pt / 72 / $panelH,
+                'color' => $ink, 'leading' => $leading,
+            ]);
+        };
+
+        $title = $this->titleBlock($book, $g, 72);
+        $items = [$layer('title', 'semibold', $title['size'], $area['y'] + $title['line'] / 72, 1.2, $area['x'], $area['width'])];
+        $y = $area['y'] + ($title['line'] * count($title['lines']) + $title['line'] * 0.6) / 72;
+        $copy = $this->backCopy($book);
+        $size = $copy === '' ? 12.0 : $this->fitCopy($copy, $this->face($book, 'regular'), $area['width'], $area['height'] - ($y - $area['y']), 72)[0];
+        $items[] = $layer('description', 'regular', $size, $y + $size * 1.4 / 72, 1.4, $area['x'], $area['width']);
+
+        $room = $g['barcode'] ? ($g['barcode']['x'] - $area['x'] - 0.25) : $area['width'];
+        $items[] = $layer('publisher', 'regular', 10.0, $g['height'] - $g['bleed'] - self::SAFE, 1.2, $area['x'], max(0.5, $room));
+
+        return CoverLayers::validate(['version' => CoverLayers::VERSION, 'items' => $items], 'back');
+    }
+
+    /**
+     * The spine as generated, converted once into layers in its reading
+     * frame: the title from the start of the spine, then the series,
+     * author and publisher ending at its foot, at today's size. A part
+     * that would not fit today starts hidden.
+     *
+     * @return array{version: int, items: array<int, array<string, mixed>>}
+     */
+    public function spineLayersFromGenerated(Book $book, array $g): array
+    {
+        $family = $this->covers->settings($book)['font'] === 'sans' ? 'source-sans' : 'eb-garamond';
+        $ink = self::hex($this->inkOn($this->groundFor($book)));
+        $length = $g['height'];
+        $lines = $this->spineLines($book, $g);
+        $size = $lines[2] ?? 8.0;
+        $texts = CoverLayers::wrapTexts($book);
+        $series = trim((string) $book->series_name);
+        $same = fn (string $a, string $b) => $a !== '' && $b !== ''
+            && mb_strtolower(Str::ascii($a)) === mb_strtolower(Str::ascii($b));
+
+        // A part's width at a size, in inches, as CoverText measures it.
+        $width = function (string $source, string $weight, float $pt) use ($family, $texts, $length) {
+            $probe = CoverLayers::make($source, ['x' => 0, 'width' => 1, 'font' => $family, 'weight' => $weight, 'size' => $pt / 72 / $length]);
+            $set = CoverText::layout($probe, CoverLayers::text($probe, $texts), $length * 100, $length * 100);
+
+            return ($set['lines'][0]['width'] ?? 0) / 100 + 0.02;
+        };
+
+        $make = fn (string $source, string $weight, float $pt, float $x, float $w, bool $visible) => CoverLayers::make($source, [
+            'id' => $source, 'x' => max(0, $x) / $length, 'y' => 0, 'width' => max(0.02 * $length, min($w, $length - max(0, $x))) / $length,
+            'align' => 'left', 'font' => $family, 'weight' => $weight, 'size' => $pt / 72 / $length,
+            'color' => $ink, 'visible' => $visible, 'leading' => 1.2,
+        ]);
+
+        $start = $g['bleed'] + self::SAFE;
+        $titleWidth = min($width('title', 'semibold', $size), $length - 2 * $start);
+        $items = [$make('title', 'semibold', $size, $start, $titleWidth, true)];
+
+        // The rest ends at the foot, the publisher last; a series named for
+        // its publisher is said once, as the generated spine says it.
+        $rest = array_filter([
+            'series' => $series !== '',
+            'author' => $texts['author'] !== '',
+            'publisher' => $texts['publisher'] !== '' && ! $same($series, $texts['publisher']),
+        ]);
+        $shown = $lines !== null && $lines[1] !== '';
+        $end = $length - $start;
+
+        foreach (array_reverse(array_keys($rest)) as $source) {
+            $w = $width($source, 'regular', $size * 0.8);
+            $end -= $w;
+            $items[] = $make($source, 'regular', $size * 0.8, $end, $w, $shown && $end > $start + $titleWidth + 0.25);
+            $end -= 0.3;
+        }
+
+        return CoverLayers::validate(['version' => CoverLayers::VERSION, 'items' => $items], 'spine');
+    }
+
+    /**
+     * What Cover Studio should tell the author about this wrap's layers:
+     * pictures that print below 300 dpi, layers over the barcode box or
+     * past the trim's safe edge, spine type too deep for the spine, and
+     * why the spine carries no type when the book is too thin.
+     *
+     * @return list<array{panel: string, layer: ?string, kind: string, message: string}>
+     */
+    public function warnings(Book $book, array $g): array
+    {
+        $warnings = [];
+        $surfaces = $this->surfaces($g);
+        $texts = CoverLayers::wrapTexts($book);
+        $images = $this->images($book);
+        $in = fn (float $px) => $px / self::MODEL_DPI;
+        $name = fn (array $layer) => $layer['source'] === 'custom' ? 'A text layer' : ($layer['source'] === 'image' ? 'A picture' : ucfirst($layer['source']));
+
+        $dpi = function (string $panel, array $layer, float $inches) use (&$warnings, $images) {
+            $image = $images[$layer['image']] ?? null;
+
+            if ($image && $layer['visible'] && ($value = CoverImages::dpi($layer, $image, $inches)) < CoverImages::PRINT_DPI) {
+                $warnings[] = ['panel' => $panel, 'layer' => $layer['id'], 'kind' => 'dpi',
+                    'message' => sprintf('“%s” prints at %d dpi at this size; print wants 300. Use a larger picture or make it smaller.', $image['name'], (int) floor($value))];
+            }
+        };
+
+        // The front: its pictures, at the size the front panel prints.
+        if ($front = CoverLayers::stored($book, 'front')) {
+            $coverWidth = CoverRenderer::WIDTH * min(($g['front']['width'] + $g['bleed']) / CoverRenderer::WIDTH, $g['height'] / CoverRenderer::HEIGHT);
+
+            foreach ($front['items'] as $layer) {
+                if ($layer['source'] === 'image') {
+                    $dpi('front', $layer, $layer['width'] * $coverWidth);
+                }
+            }
+        }
+
+        if ($back = CoverLayers::stored($book, 'back')) {
+            $safe = ['x' => $g['bleed'] + self::EDGE, 'y' => $g['bleed'] + self::EDGE,
+                'right' => $g['bleed'] + $g['trim'][0] - self::EDGE, 'bottom' => $g['height'] - $g['bleed'] - self::EDGE];
+
+            foreach ($back['items'] as $layer) {
+                if (! $layer['visible']) {
+                    continue;
+                }
+
+                $box = CoverRenderer::place($layer, $surfaces['back'], $texts)['box'];
+                [$x, $y, $w, $h] = [$in($box['x']), $in($box['y']), $in($box['width']), $in($box['height'])];
+
+                if ($layer['source'] === 'image') {
+                    $dpi('back', $layer, $w);
+                }
+
+                if ($h <= 0) {
+                    continue;
+                }
+
+                if (($bar = $g['barcode']) && ! $this->backArtwork($book)
+                    && $x < $bar['x'] + $bar['width'] && $x + $w > $bar['x'] && $y < $bar['y'] + $bar['height'] && $y + $h > $bar['y']) {
+                    $warnings[] = ['panel' => 'back', 'layer' => $layer['id'], 'kind' => 'barcode',
+                        'message' => $name($layer).' overlaps the barcode box, which prints white over it. Move it clear.'];
+                }
+
+                if ($x < $safe['x'] - 1e-6 || $y < $safe['y'] - 1e-6 || $x + $w > $safe['right'] + 1e-6 || $y + $h > $safe['bottom'] + 1e-6) {
+                    $warnings[] = ['panel' => 'back', 'layer' => $layer['id'], 'kind' => 'safe',
+                        'message' => $name($layer).' runs past the safe edge, '.self::EDGE.' in inside the trim, and may be cut.'];
+                }
+            }
+        }
+
+        if ($spine = CoverLayers::stored($book, 'spine')) {
+            $hasText = false;
+            $margin = $g['spine_margin'];
+
+            foreach ($spine['items'] as $layer) {
+                if (! $layer['visible']) {
+                    continue;
+                }
+
+                $hasText = $hasText || $layer['source'] !== 'image';
+                $box = CoverRenderer::place($layer, $surfaces['spine'], $texts)['box'];
+                [$u, $v, $w, $h] = [$in($box['x']), $in($box['y']), $in($box['width']), $in($box['height'])];
+
+                if ($layer['source'] === 'image') {
+                    $dpi('spine', $layer, $w);
+
+                    continue;
+                }
+
+                if (! $g['spine_text'] || $h <= 0) {
+                    continue;
+                }
+
+                if ($v < $margin - 1e-6 || $v + $h > $g['spine'] - $margin + 1e-6) {
+                    $warnings[] = ['panel' => 'spine', 'layer' => $layer['id'], 'kind' => 'spine',
+                        'message' => sprintf('%s is deeper than the spine allows: keep %s in clear of each fold (%s).', $name($layer), $margin, $g['label'])];
+                }
+
+                if ($u < $g['bleed'] + self::EDGE - 1e-6 || $u + $w > $g['height'] - $g['bleed'] - self::EDGE + 1e-6) {
+                    $warnings[] = ['panel' => 'spine', 'layer' => $layer['id'], 'kind' => 'safe',
+                        'message' => $name($layer).' runs past the ends of the spine and may be cut.'];
+                }
+            }
+
+            if ($hasText && ! $g['spine_text']) {
+                $warnings[] = ['panel' => 'spine', 'layer' => null, 'kind' => 'thin', 'message' => $this->spineTextReason($g)];
+            }
+        }
+
+        return $warnings;
+    }
+
+    /** Why a spine carries no type, in the service's own terms. */
+    public function spineTextReason(array $g): string
+    {
+        return sprintf('%s prints spine text only on books of %d pages or more; this one has %d. The spine shows its colour and pictures only.',
+            $g['label'], $g['spine_text_min_pages'], $g['pages']);
+    }
+
+    /**
+     * What Cover Studio's back, spine and full-wrap views draw with, in
+     * MODEL_DPI pixels: the sheet and its panels, the trim, folds and
+     * bleed, the safe edges, the barcode box, the spine's margins and
+     * whether it may carry type, which way it reads, and the warnings.
+     *
+     * @return array<string, mixed>
+     */
+    public function editor(Book $book, array $g): array
+    {
+        $px = fn (float $inches) => round($inches * self::MODEL_DPI, 3);
+        $surfaces = $this->surfaces($g);
+        $bar = $g['barcode'];
+
+        return [
+            'dpi' => self::MODEL_DPI,
+            'geometry' => $g,
+            'sheet' => ['width' => $px($g['width']), 'height' => $px($g['height'])],
+            'bleed' => $px($g['bleed']),
+            'edge' => $px(self::EDGE),
+            'back' => $surfaces['back'] + [
+                // In the back's own pixels, which start at the sheet's edge.
+                'trim' => ['x' => $px($g['bleed']), 'y' => $px($g['bleed']), 'width' => $px($g['trim'][0]), 'height' => $px($g['trim'][1])],
+                'safe' => ['x' => $px($g['bleed'] + self::EDGE), 'y' => $px($g['bleed'] + self::EDGE),
+                    'width' => $px($g['trim'][0] - 2 * self::EDGE), 'height' => $px($g['trim'][1] - 2 * self::EDGE)],
+                'barcode' => $bar && ! $this->backArtwork($book) ? ['x' => $px($bar['x']), 'y' => $px($bar['y']), 'width' => $px($bar['width']), 'height' => $px($bar['height'])] : null,
+            ],
+            'spine' => $surfaces['spine'] + [
+                'x' => $px($g['spine_x']),
+                'margin' => $px($g['spine_margin']),
+                // Along the spine, in its reading frame.
+                'safe' => ['x' => $px($g['bleed'] + self::EDGE), 'y' => $px($g['spine_margin']),
+                    'width' => $px($g['height'] - 2 * ($g['bleed'] + self::EDGE)), 'height' => max(0, $px($g['spine'] - 2 * $g['spine_margin']))],
+                'text' => $g['spine_text'],
+                'reason' => $g['spine_text'] ? null : $this->spineTextReason($g),
+            ] + $this->direction($book),
+            'front' => ['x' => $px($g['front']['x']), 'width' => $px($g['front']['width'] + $g['bleed'])],
+            'layers' => [
+                'back' => CoverLayers::stored($book, 'back'),
+                'spine' => CoverLayers::stored($book, 'spine'),
+            ],
+            'texts' => CoverLayers::wrapTexts($book),
+            // The ink the generated back and spine set their type in, for
+            // a new layer: near-black on a light ground, white on a dark one.
+            'ink' => self::hex($this->inkOn($this->groundFor($book))),
+            'back_artwork' => $this->backArtwork($book) !== null,
+            'back_artwork_image' => $this->backArtwork($book) ? route('design.cover.image', [
+                'book' => $book->id, 'part' => 'back-artwork', 'v' => substr(md5((string) $this->backArtwork($book)), 0, 12),
+            ]) : null,
+            'back_framing' => self::backFraming(($book->cover ?? [])['back_framing'] ?? null),
+            'warnings' => $this->warnings($book, $g),
+            'fingerprint' => $this->fingerprint($book),
+        ];
     }
 
     /**
@@ -190,7 +602,7 @@ class CoverWrap
     // --- Drawing ----------------------------------------------------------
 
     /** The whole sheet as JPEG bytes at a resolution. */
-    private function image(Book $book, array $g, int $dpi, int $quality = 92): string
+    private function image(Book $book, array $g, int $dpi, int $quality = 92, bool $bare = false): string
     {
         if (! function_exists('imagecreatetruecolor')) {
             throw new RuntimeException('Cover rendering needs the GD extension.');
@@ -221,9 +633,13 @@ class CoverWrap
         imagefilledrectangle($image, 0, 0, imagesx($image) - 1, imagesy($image) - 1, $ground);
 
         $this->drawFront($image, $front, $g, $dpi, $spineSide, $outerSide);
-        $this->drawBack($book, $image, $g, $dpi, $spineGround);
+        $this->drawBack($book, $image, $g, $dpi, $spineGround, $bare);
 
-        if ($g['spine_text']) {
+        if ($bare) {
+            // The ground alone, for the spine editor.
+        } elseif ($spine = CoverLayers::stored($book, 'spine')) {
+            $this->drawSpineLayers($book, $image, $g, $dpi, $spine['items']);
+        } elseif ($g['spine_text']) {
             $this->drawSpine($book, $image, $g, $dpi, $spineGround);
         }
 
@@ -263,13 +679,30 @@ class CoverWrap
         imagecopyresampled($image, $front, (int) round($x), (int) round($y), 0, 0, (int) round($w), (int) round($h), $iw, $ih);
     }
 
-    private function drawBack(Book $book, $image, array $g, int $dpi, array $ground): void
+    private function drawBack(Book $book, $image, array $g, int $dpi, array $ground, bool $bare = false): void
     {
         $panelW = ($g['back']['width'] + $g['bleed']) * $dpi;
         $panelH = $g['height'] * $dpi;
+        $layers = $bare ? null : CoverLayers::stored($book, 'back');
+        $draw = fn () => $layers && $this->covers->drawItems(
+            $image, $layers['items'], CoverLayers::wrapTexts($book), $this->images($book),
+            $this->surfaces($g)['back'], $dpi / self::MODEL_DPI,
+        );
 
         if ($path = $this->backArtwork($book)) {
             $art = @imagecreatefromstring((string) Storage::disk('files')->get($path));
+
+            if ($art && ($framing = self::backFraming(($book->cover ?? [])['back_framing'] ?? null))) {
+                // Panned and zoomed to fill the panel, as the front can be.
+                $panel = imagecreatetruecolor((int) round($panelW), (int) round($panelH));
+                $this->covers->cover($panel, $art, $framing);
+                imagecopy($image, $panel, 0, 0, 0, 0, imagesx($panel), imagesy($panel));
+                imagedestroy($panel);
+                imagedestroy($art);
+                $draw();
+
+                return;
+            }
 
             if ($art) {
                 // Fitted whole, like the front: an uploaded back is the
@@ -284,9 +717,22 @@ class CoverWrap
                 imagefilledrectangle($image, (int) ($wide ? $panelW / 2 : 0), (int) ($wide ? 0 : $panelH / 2), (int) $panelW, (int) $panelH, $this->allocate($image, $fill[1]));
                 imagecopyresampled($image, $art, (int) round(($panelW - $w) / 2), (int) round(($panelH - $h) / 2), 0, 0, (int) round($w), (int) round($h), $iw, $ih);
                 imagedestroy($art);
+                // Layers, when the author added any, over the finished back.
+                $draw();
 
                 return;
             }
+        }
+
+        if ($bare) {
+            return;
+        }
+
+        if ($layers) {
+            $draw();
+            $this->barcode($image, $g, $dpi);
+
+            return;
         }
 
         $ink = $this->allocate($image, $this->inkOn($ground));
@@ -330,7 +776,12 @@ class CoverWrap
             $this->text($image, $this->ellipsis($publisher, $this->face($book, 'regular'), $size, $room * 72), $this->face($book, 'regular'), $size, $ink, $left, (int) round($baseline), $dpi);
         }
 
-        // A blank white box where the service puts its barcode.
+        $this->barcode($image, $g, $dpi);
+    }
+
+    /** A blank white box where the service puts its barcode. */
+    private function barcode($image, array $g, int $dpi): void
+    {
         if ($box = $g['barcode']) {
             imagefilledrectangle(
                 $image,
@@ -343,7 +794,8 @@ class CoverWrap
 
     /**
      * Title, then series, author and publisher, rotated to read top to
-     * bottom, set as large as the spine allows inside its margins.
+     * bottom (or, when the author chose it, bottom to top), set as large
+     * as the spine allows inside its margins.
      */
     private function drawSpine(Book $book, $image, array $g, int $dpi, array $ground): void
     {
@@ -358,23 +810,67 @@ class CoverWrap
         $centre = ($g['spine_x'] + $g['spine'] / 2) * $dpi;
         $top = ($g['bleed'] + self::SAFE) * $dpi;
         $bottom = ($g['height'] - $g['bleed'] - self::SAFE) * $dpi;
+        $up = $this->direction($book)['direction'] === 'btt';
 
-        $place = function (string $text, string $face, float $pt, float $start) use ($image, $ink, $centre, $dpi): void {
+        $place = function (string $text, string $face, float $pt, float $start) use ($image, $ink, $centre, $dpi, $up): void {
             [$ascent, $descent] = $this->extent($face, $pt);
             // Rotated clockwise, the tops of the letters face the front
-            // cover; centre the line's height on the spine.
-            $x = $centre - ($ascent - $descent) * $dpi / 72 / 2;
-            imagettftext($image, $this->gdSize($pt, $dpi), -90, (int) round($x), (int) round($start), $ink, $face, $text);
+            // cover; anticlockwise, the back. Centre the line's height on
+            // the spine.
+            $x = $up
+                ? $centre + ($ascent - $descent) * $dpi / 72 / 2
+                : $centre - ($ascent - $descent) * $dpi / 72 / 2;
+            imagettftext($image, $this->gdSize($pt, $dpi), $up ? 90 : -90, (int) round($x), (int) round($start), $ink, $face, $text);
         };
 
         $bold = $this->face($book, 'bold');
         $regular = $this->face($book, 'regular');
-        $place($title, $bold, $size, $top);
+        $place($title, $bold, $size, $up ? $bottom : $top);
 
         if ($rest !== '') {
             $length = $this->measure($rest, $regular, $size * 0.8) * $dpi / 72;
-            $place($rest, $regular, $size * 0.8, $bottom - $length);
+            $place($rest, $regular, $size * 0.8, $up ? $top + $length : $bottom - $length);
         }
+    }
+
+    /**
+     * Spine layers: the spine cut out of the sheet, turned into its
+     * reading frame (a quarter turn, which moves pixels without
+     * resampling them), the layers drawn on it exactly as on a front, and
+     * turned back. Type is drawn only at the service's minimum page count;
+     * pictures always. Nothing leaves the spine.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function drawSpineLayers(Book $book, $image, array $g, int $dpi, array $items): void
+    {
+        if (! $g['spine_text']) {
+            $items = array_values(array_filter($items, fn ($layer) => $layer['source'] === 'image'));
+        }
+
+        if ($items === []) {
+            return;
+        }
+
+        $x0 = (int) round($g['spine_x'] * $dpi);
+        $width = max(1, (int) round(($g['spine_x'] + $g['spine']) * $dpi) - $x0);
+        $height = imagesy($image);
+        $up = $this->direction($book)['direction'] === 'btt';
+
+        $strip = imagecreatetruecolor($width, $height);
+        imagecopy($strip, $image, 0, 0, $x0, 0, $width, $height);
+        // Anticlockwise for top to bottom: the frame's start is the top of
+        // the sheet, and the tops of the letters face the front cover.
+        $frame = imagerotate($strip, $up ? 270 : 90, 0);
+        imagedestroy($strip);
+        imagealphablending($frame, true);
+
+        $this->covers->drawItems($frame, $items, CoverLayers::wrapTexts($book), $this->images($book), $this->surfaces($g)['spine'], $dpi / self::MODEL_DPI);
+
+        $back = imagerotate($frame, $up ? 90 : 270, 0);
+        imagedestroy($frame);
+        imagecopy($image, $back, $x0, 0, 0, 0, $width, $height);
+        imagedestroy($back);
     }
 
     /**
@@ -423,6 +919,30 @@ class CoverWrap
         }
 
         return [$this->ellipsis($title, $bold, $size, $room), $restText, $size];
+    }
+
+    /** The spine and back's colour, as image() picks it, from the stored front. */
+    private function groundFor(Book $book): array
+    {
+        if ($chosen = self::rgb($book->printSettings()['spine_color'] ?? null)) {
+            return $chosen;
+        }
+
+        $front = @imagecreatefromstring((string) Storage::disk('files')->get($this->covers->ensure($book)));
+
+        if (! $front) {
+            return [255, 255, 255];
+        }
+
+        $edge = $this->edgeColours($front, true)[0];
+        imagedestroy($front);
+
+        return $edge;
+    }
+
+    private static function hex(array $rgb): string
+    {
+        return sprintf('#%02x%02x%02x', $rgb[0], $rgb[1], $rgb[2]);
     }
 
     // --- Text -------------------------------------------------------------

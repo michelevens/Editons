@@ -2833,3 +2833,129 @@ the spread, millimetres, listed and custom trims, faces, paragraphs and
 headings in the preview; a house style saved, followed with the controls
 locked, detached and applied to the other books from the shelf; no
 horizontal scroll).
+
+## ADR-00XX — Editable back cover, spine and image layers
+
+**Status:** accepted (2026-10-28). Number assigned at merge.
+
+**Context.** The flexibility audit's item 9 (C1–C4). ADR-0038 made the
+front's type editable; the rest of the print wrap was not. The back was
+auto-laid out: the title, then the description at the largest size from
+12 pt down that fitted (`CoverWrap::fitCopy()`), so the copy re-fitted —
+the front's old "text moves as I type" — and the only alternative was a
+finished back image. The spine always read top to bottom (French books
+read bottom to top) with fixed content. There were no image layers, so no
+publisher logo, series badge or author photo, and artwork was always
+centre-cropped.
+
+**Decisions.**
+
+- *One layer system, three documents.* `App\Covers\CoverLayers` validates a
+  document per panel — `cover.layers` (front, unchanged), `cover.back_layers`
+  and `cover.spine_layers` — with panel sources: the back adds the
+  back-cover copy (the book's description, which the back's copy layer now
+  edits; one field for the back and the store listing), the publisher or
+  imprint, a price line (`meta.print_price`), the category and the print
+  ISBN, all bound (`CoverLayers::wrapTexts`). Back fractions are of the
+  back panel (trim plus outer bleed wide, trim plus both bleeds tall), so a
+  design survives a change of service. A stored document that stops
+  validating draws the panel as generated rather than failing.
+- *The spine is set in its reading frame.* `CoverText::spine` lays a layer
+  out on a strip as long as the spine and as deep as it is thick: x, width
+  and size are fractions of the length, y is the box centre's offset from
+  the centre line (also of the length), so a layer stays centred as the
+  page count changes the thickness, and a two-line spine grows both ways.
+  `CoverText::spinePoint` (and `coverText.js`'s `spinePoint`) turns the frame
+  onto the sheet: top to bottom turns it clockwise (tops of the letters to
+  the front), bottom to top anticlockwise.
+- *Direction by language, chosen by the author.* `cover.spine_direction`
+  (ttb/btt). The suggestion is bottom to top for French and Haitian Creole,
+  top to bottom otherwise (US, UK, ISO 6357; sources in docs/POD-SPECS.md).
+  No authoritative Kreyòl convention was found, so Kreyòl follows French,
+  as Haitian publishing does. To keep untouched books exactly as they
+  print today, the suggestion is not imposed: a spine nobody chose for
+  still reads top to bottom; "Customise spine" records the suggestion, and
+  the direction buttons set it at any time (the generated spine honours it).
+- *Server render.* `CoverRenderer::drawItems` draws any panel's layers from
+  a surface model at a scale and offset (the front at 1 : 1 as before). The
+  back and spine are laid out on a 300 dpi model and drawn at the asked
+  resolution, so the 72 dpi screen preview and the PDF break lines alike.
+  The spine is cut from the sheet, turned into its reading frame with
+  `imagerotate` by exactly 90° (a lossless pixel transpose), drawn exactly
+  as a front is, and turned back. We chose this over `imagettftext`'s angle:
+  GD's rotated glyph placement would be a second algorithm to keep in step
+  with the browser, while the transpose keeps the tested horizontal one.
+  Type never leaves the spine. Below the service's minimum page count
+  (PrintSpecs) spine type is not drawn and the editor says why; pictures
+  still are.
+- *Barcode box.* Drawn last, white, over every layer, so nothing prints on
+  it. The editor shows it as a locked zone; a box dropped or nudged onto it
+  is pushed the shorter way out (up or left) with a notice; the server
+  warns about any overlap. An uploaded back keeps its old rule (no box).
+- *Image layers.* PNG or JPEG only, decided by the bytes (`getimagesize`),
+  12 MB, 40 MP, at least 16 px, must decode; SVG refused rather than
+  rasterised (nothing here can rasterise it without running what it may
+  carry). Stored on the files disk under `covers/book-{id}/images`, listed
+  in `cover.images`, served only to readers of the book. A layer has a box,
+  opacity, optional crop and "keep proportions" (the editor sizes the box to
+  the crop; the server never distorts what it was not asked to). Deleting a
+  picture removes its layers on every panel. Print resolution is checked:
+  a picture below 300 dpi at its printed size is warned about (front pictures
+  at the size the front prints in the wrap).
+- *Artwork framing.* `cover.framing` {x, y, zoom}: the focal point kept in
+  view and a zoom of 1–4, cropped inside the picture (`CoverRenderer::frame`,
+  ported in `Framing.jsx`'s outline). The default (centre, 1×) is stored as
+  nothing and draws through the old code path. An uploaded back can "fill"
+  its panel the same way (`cover.back_framing`); "whole" keeps it fitted.
+- *Customise and reset.* `POST /books/{book}/cover/{back|spine}-layers`
+  converts the generated panel once: the back's title (20 pt), copy (at the
+  size it fits today, then never again) and publisher (10 pt) where the
+  generated back put them, in the same face and ink; the spine's title from
+  its start and series, author and publisher ending at its foot, a part that
+  would not fit starting hidden. `DELETE` returns to the generated panel.
+- *Defaults unchanged, wraps regenerated.* Nothing new is in a cover's
+  settings or hash until it is used, so fronts keep their file names. Before
+  and after this change, wrap previews of six local books (three Écrivain
+  Prépa, with finished fronts; a palette demo; a bold layout; an artwork
+  book) at three service/page-count combinations are byte-identical, and a
+  test shows customise-then-reset gives the same bytes. `CoverWrap::VERSION`
+  is 2 and a wrap records `options.cover` (`CoverWrap::fingerprint`: the
+  front's version, back and spine layers, direction, back image and its
+  framing, pictures, the texts they show); `Freshness` calls a wrap stale
+  when it differs, so every wrap made before this version is made again by
+  "Regenerate files", and a redesigned cover makes its wrap stale.
+- *The editor.* Cover Studio has Front / Back / Spine / Full wrap. The back
+  and spine use the front's `LayerEditor` on a surface (`surfaces.jsx`) with
+  their own units (points), safe area (0.125 in inside the trim; the spine's
+  service margins), trim line and no-go zones, over the wrap's own render
+  without type (`GET /cover/wrap/image?bare=1`). The spine is edited
+  horizontally in its reading frame, scrolled sideways. Full wrap is the
+  PDF's own render at the chosen service, paper and page count, with bleed,
+  trim, folds, safe areas and the barcode box drawn over it. "Add picture"
+  uploads or reuses a picture on any panel.
+
+**Not done.** Image layers are drawn in the spine's reading frame (rotated
+with its type), so an upright logo on the spine needs the picture turned;
+a full-wrap background image spanning back, spine and front; cover templates
+shared across a series (C6); any solid or gradient background and per-layer
+contrast (C5); rotation of layers other than the spine's quarter turn.
+
+**Tests.** `tests/Feature/CoverWrapLayersTest.php` (panel sources and
+ranges; image layer validation; the generated back converted with its
+positions; the copy never re-fitted; back layers drawn within 2 %; the
+barcode kept white with a warning; layers over an uploaded back; direction
+by language and the endpoints; spine layers both ways within 2 % with the
+letters facing the right fold; the generated spine converted and flipped by
+a chosen direction; no spine type below the minimum, with the reason, while
+pictures print; uploads — SVG, GIF, an oversized header and a broken file
+refused, other authors refused; the 300 dpi warning; pictures on front,
+back and spine with crop and opacity, deleted with their layers; artwork
+framing and the centre default; the back filled and panned; customise and
+reset endpoints; an untouched book byte-identical after customise and
+reset; wraps stale on a changed cover or an older renderer),
+`CoverTextParityTest.php` (24 rotated spine cases: PHP and JS agree on
+every glyph's sheet position, both directions), and
+`tests/Browser/cover-wrap.spec.js` at 1440 and 390 px (type into the back
+copy box — it neither moves nor re-sizes; upload a logo; drop it on the
+barcode and see it moved clear; spine bottom to top; customise the spine;
+the full wrap; reload persists; no console errors).

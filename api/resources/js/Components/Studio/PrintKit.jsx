@@ -348,6 +348,7 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                         : kit.back.has_copy
                           ? 'The back is designed from your description, with a blank box for the barcode.'
                           : 'The book has no description, so the back carries only the title.'}{' '}
+                    Place the back and the spine yourself in Cover Studio (Back, Spine and Full wrap).
                     The cover appears in Export history when it is ready.
                 </p>
             </div>

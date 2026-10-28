@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import Framing from './cover/Framing';
 import LayerEditor from './cover/LayerEditor';
+import WrapEditor from './cover/WrapEditor';
 
 /**
  * Cover Studio.
@@ -13,7 +15,17 @@ import LayerEditor from './cover/LayerEditor';
  * "Customise text" turns that into text layers (LayerEditor): boxes the
  * author drags, sizes and styles, drawn live in the browser by the same
  * algorithm and the same font files as the server's JPEG.
+ *
+ * The print cover's back and spine, and the whole wrap, are views of their
+ * own (WrapEditor): the same layers, on the print service's real geometry.
  */
+
+const VIEWS = [
+    ['front', 'Front'],
+    ['back', 'Back'],
+    ['spine', 'Spine'],
+    ['wrap', 'Full wrap'],
+];
 
 /** Cover fields whose text a bound layer shows, mirrored into cover.texts. */
 const TEXT_FIELDS = ['title', 'subtitle', 'author', 'tagline'];
@@ -32,6 +44,9 @@ function overlay(cover, changes) {
 export default function CoverPanel({ bookId, onNotify }) {
     const [data, setData] = useState(null);
     const [busy, setBusy] = useState(false);
+    const [view, setView] = useState('front');
+    // Bumped when a save lands, so the wrap views redraw from the server.
+    const [savedAt, setSavedAt] = useState(0);
     // Bumped when the layers change from outside the editor (customise,
     // reset, an AI concept, a reload), so the editor starts from them.
     const [epoch, setEpoch] = useState(0);
@@ -75,6 +90,7 @@ export default function CoverPanel({ bookId, onNotify }) {
             // still waiting to be sent.
             if (mine === sent.current) {
                 setData({ ...response.data, cover: overlay(response.data.cover, queued.current) });
+                setSavedAt(Date.now());
             }
         } catch (error) {
             notify.current?.(
@@ -109,6 +125,26 @@ export default function CoverPanel({ bookId, onNotify }) {
 
     const onLayers = useCallback((doc) => save({ layers: doc }), [save]);
     const onText = useCallback((field, value) => save({ [field]: value }), [save]);
+
+    /** A picture for image layers; resolves to it, or null with a notice. */
+    const uploadPicture = useCallback(
+        async (file) => {
+            const body = new FormData();
+            body.append('image', file);
+
+            try {
+                const response = await window.axios.post(`/books/${bookId}/cover/images`, body);
+                setData((current) => ({ ...current, cover: { ...current.cover, images: response.data.images } }));
+
+                return response.data.image;
+            } catch (error) {
+                notify.current?.(error.response?.data?.errors?.image?.[0] ?? error.response?.data?.message ?? 'That picture could not be used. Use a PNG or JPEG under 12 MB.');
+
+                return null;
+            }
+        },
+        [bookId],
+    );
 
     const customise = async () => {
         setBusy(true);
@@ -233,242 +269,295 @@ export default function CoverPanel({ bookId, onNotify }) {
             <header className="border-b border-border-default px-4 py-3">
                 <h2 className="text-[15px] font-semibold text-text-primary">Cover Studio</h2>
                 <p className="text-[11.5px] text-text-secondary">
-                    Stores want 1600 × 2560 pixels or larger.
+                    {view === 'front'
+                        ? 'Stores want 1600 × 2560 pixels or larger.'
+                        : 'The printed cover: back, spine and front on one sheet, at the print service’s size.'}
                 </p>
+                <div role="tablist" aria-label="Cover part" className="mt-2 flex flex-wrap gap-1">
+                    {VIEWS.map(([key, name]) => (
+                        <button
+                            key={key}
+                            type="button"
+                            role="tab"
+                            aria-selected={view === key}
+                            data-a={`cover:view:${key}`}
+                            onClick={() => {
+                                clearTimeout(pending.current);
+                                send();
+                                setView(key);
+                            }}
+                            className={`min-h-[34px] rounded-control border px-3 text-[12px] font-medium transition ${
+                                view === key ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary' : 'border-border-input text-text-body hover:border-brand-primary/40'
+                            }`}
+                        >
+                            {name}
+                        </button>
+                    ))}
+                </div>
             </header>
 
-            <div className="min-h-0 flex-1 space-y-4 p-4">
-                {layered ? (
-                    <LayerEditor
-                        key={epoch}
+            {view !== 'front' ? (
+                <div className="min-h-0 flex-1 p-4">
+                    <WrapEditor
+                        bookId={bookId}
                         data={data}
-                        onLayers={onLayers}
-                        onText={onText}
-                        onReset={resetToLayout}
-                    />
-                ) : (
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
-                        <section className="flex flex-col items-center gap-3 rounded-tile border border-border-default bg-bg-subtle p-4">
-                            <SteadyImage
-                                src={cover.image}
-                                alt={`Cover of ${cover.title ?? 'the book'}`}
-                                data-a="cover:preview"
-                                width={250}
-                                height={400}
-                                className="h-[400px] w-[250px] rounded-[3px] bg-bg-surface object-cover shadow-[0_2px_14px_rgba(0,0,0,0.22)]"
-                            />
-
-                            <a
-                                href={cover.download}
-                                data-a="cover:download"
-                                className="inline-flex items-center gap-1.5 rounded-control border border-border-input bg-bg-surface px-3 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40"
-                            >
-                                <Icon name="exp" size={13} strokeWidth={2} />
-                                Download cover (1600 × 2560 JPEG)
-                            </a>
-                        </section>
-
-                        <div className="min-w-0 space-y-4">
-                            <section className="rounded-tile border border-brand-primary/30 bg-brand-primary-subtle p-3.5">
-                                <h3 className="text-[13px] font-semibold text-text-primary">Place the text yourself</h3>
-                                <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
-                                    The layout fits the title for you, so it moves as the text changes. Customise
-                                    the text to drag each line where you want it, and choose its typeface, size,
-                                    colour and spacing. It stays where you put it.
-                                </p>
-                                <button
-                                    type="button"
-                                    data-a="cover:customise"
-                                    onClick={customise}
-                                    disabled={busy}
-                                    className="mt-2.5 rounded-control bg-brand-fill px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
-                                >
-                                    Customise text
-                                </button>
-                            </section>
-
-                            <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
-                                <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">Text</h3>
-
-                                <Field label="Title">
-                                    <input
-                                        value={cover.title ?? ''}
-                                        data-a="cover:title"
-                                        onChange={(event) => save({ title: event.target.value })}
-                                        className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
-                                    />
-                                </Field>
-
-                                <Field label="Subtitle">
-                                    <input
-                                        value={cover.subtitle ?? ''}
-                                        data-a="cover:subtitle"
-                                        onChange={(event) => save({ subtitle: event.target.value })}
-                                        className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
-                                    />
-                                </Field>
-
-                                <Field label="Author">
-                                    <input
-                                        value={cover.author ?? ''}
-                                        data-a="cover:author"
-                                        onChange={(event) => save({ author: event.target.value })}
-                                        className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
-                                    />
-                                </Field>
-
-                                <Field label="Typeface">
-                                    <select
-                                        value={cover.font}
-                                        data-a="cover:font"
-                                        onChange={(event) => save({ font: event.target.value }, { immediate: true })}
-                                        className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
-                                    >
-                                        <option value="serif">Serif</option>
-                                        <option value="sans">Sans</option>
-                                    </select>
-                                </Field>
-                            </section>
-
-                            <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
-                                <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">Layout</h3>
-
-                                <div role="group" aria-label="Layout" className="flex flex-wrap gap-2">
-                                    {layouts.map((layout) => (
-                                        <button
-                                            key={layout.key}
-                                            aria-pressed={cover.layout === layout.key}
-                                            data-a={`cover:layout:${layout.key}`}
-                                            onClick={() => save({ layout: layout.key }, { immediate: true })}
-                                            className={`rounded-control border px-3 py-1.5 text-[12px] font-medium transition ${
-                                                cover.layout === layout.key
-                                                    ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary'
-                                                    : 'border-border-input text-text-body hover:border-brand-primary/40'
-                                            }`}
-                                        >
-                                            {layout.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
-                        </div>
-                    </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
-                        <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">
-                            {layered ? 'Background' : 'Artwork'}
-                        </h3>
-
-                        <div
-                            role="group"
-                            aria-label="Colour scheme"
-                            className="flex flex-wrap gap-2"
-                        >
-                            {palettes.map((palette, index) => (
-                                <button
-                                    key={palette.name}
-                                    aria-pressed={!cover.artwork && cover.palette === index}
-                                    data-a={`cover:palette:${index}`}
-                                    title={palette.name}
-                                    onClick={() => save({ palette: index }, { immediate: true })}
-                                    className={`h-[44px] w-[44px] rounded-control border-2 transition ${
-                                        !cover.artwork && cover.palette === index
-                                            ? 'border-brand-primary'
-                                            : 'border-transparent hover:border-border-input'
-                                    }`}
-                                    style={{
-                                        background: `linear-gradient(170deg, ${palette.from}, ${palette.to})`,
-                                    }}
-                                >
-                                    <span className="sr-only">{palette.name}</span>
-                                </button>
-                            ))}
-                        </div>
-
-                        {cover.artwork && (
-                            <>
-                                <p className="mt-2.5 rounded bg-status-info-bg px-2 py-1.5 text-[11px] text-status-info">
-                                    Your uploaded artwork is in use. Remove it to go back to a
-                                    colour scheme.
-                                </p>
-
-                                {/* Darkens the picture under the type, so the title
-                                    reads on any photograph. Layers keep the layout's
-                                    treatment: classic and bold darken, band and a
-                                    finished cover do not. */}
-                                {(!layered || ['classic', 'bold'].includes(cover.layout)) && (
-                                    <label className="mt-3 block">
-                                        <span className="mb-1 flex justify-between text-[11.5px] font-medium text-text-secondary">
-                                            <span>Darken behind the text</span>
-                                            <span>{cover.shade}%</span>
-                                        </span>
-                                        <input
-                                            type="range"
-                                            min={0}
-                                            max={100}
-                                            step={5}
-                                            value={cover.shade}
-                                            data-a="cover:shade"
-                                            onChange={(event) => save({ shade: Number(event.target.value) })}
-                                            className="w-full accent-brand-primary"
-                                        />
-                                    </label>
-                                )}
-                            </>
-                        )}
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <label
-                                htmlFor="cover-artwork"
-                                className="cursor-pointer rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40"
-                            >
-                                <span className="inline-flex items-center gap-1.5">
-                                    <Icon name="image" size={13} strokeWidth={2} />
-                                    {busy ? 'Working…' : 'Upload artwork'}
-                                </span>
-                            </label>
-
-                            <input
-                                id="cover-artwork"
-                                ref={fileInput}
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                data-a="cover:artwork"
-                                disabled={busy}
-                                onChange={(event) => upload(event.target.files?.[0])}
-                                className="sr-only"
-                            />
-
-                            {cover.artwork && (
-                                <button
-                                    data-a="cover:artwork:remove"
-                                    onClick={removeArtwork}
-                                    disabled={busy}
-                                    className="rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-status-danger/40 disabled:opacity-50"
-                                >
-                                    Remove artwork
-                                </button>
-                            )}
-                        </div>
-
-                        <p className="mt-2 text-[11px] text-text-secondary">
-                            JPEG, PNG or WebP, up to 12 MB.
-                        </p>
-                    </section>
-
-                    <AiDesigner
-                        data={data}
-                        brief={brief ?? cover.brief ?? ''}
-                        onBrief={setBrief}
-                        thinking={thinking}
-                        onPropose={propose}
-                        onApply={applyConcept}
-                        onPaint={paint}
+                        view={view}
+                        save={save}
+                        savedAt={savedAt}
+                        images={cover.images ?? []}
+                        onUpload={uploadPicture}
+                        onNotify={onNotify}
                     />
                 </div>
-            </div>
+            ) : (
+                <div className="min-h-0 flex-1 space-y-4 p-4">
+                    {layered ? (
+                        <LayerEditor
+                            key={epoch}
+                            data={data}
+                            images={cover.images ?? []}
+                            onLayers={onLayers}
+                            onText={onText}
+                            onReset={resetToLayout}
+                            onUpload={uploadPicture}
+                            onNotify={onNotify}
+                        />
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
+                            <section className="flex flex-col items-center gap-3 rounded-tile border border-border-default bg-bg-subtle p-4">
+                                <SteadyImage
+                                    src={cover.image}
+                                    alt={`Cover of ${cover.title ?? 'the book'}`}
+                                    data-a="cover:preview"
+                                    width={250}
+                                    height={400}
+                                    className="h-[400px] w-[250px] rounded-[3px] bg-bg-surface object-cover shadow-[0_2px_14px_rgba(0,0,0,0.22)]"
+                                />
+
+                                <a
+                                    href={cover.download}
+                                    data-a="cover:download"
+                                    className="inline-flex items-center gap-1.5 rounded-control border border-border-input bg-bg-surface px-3 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40"
+                                >
+                                    <Icon name="exp" size={13} strokeWidth={2} />
+                                    Download cover (1600 × 2560 JPEG)
+                                </a>
+                            </section>
+
+                            <div className="min-w-0 space-y-4">
+                                <section className="rounded-tile border border-brand-primary/30 bg-brand-primary-subtle p-3.5">
+                                    <h3 className="text-[13px] font-semibold text-text-primary">Place the text yourself</h3>
+                                    <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
+                                        The layout fits the title for you, so it moves as the text changes. Customise
+                                        the text to drag each line where you want it, and choose its typeface, size,
+                                        colour and spacing. It stays where you put it.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        data-a="cover:customise"
+                                        onClick={customise}
+                                        disabled={busy}
+                                        className="mt-2.5 rounded-control bg-brand-fill px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
+                                    >
+                                        Customise text
+                                    </button>
+                                </section>
+
+                                <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
+                                    <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">Text</h3>
+
+                                    <Field label="Title">
+                                        <input
+                                            value={cover.title ?? ''}
+                                            data-a="cover:title"
+                                            onChange={(event) => save({ title: event.target.value })}
+                                            className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                                        />
+                                    </Field>
+
+                                    <Field label="Subtitle">
+                                        <input
+                                            value={cover.subtitle ?? ''}
+                                            data-a="cover:subtitle"
+                                            onChange={(event) => save({ subtitle: event.target.value })}
+                                            className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                                        />
+                                    </Field>
+
+                                    <Field label="Author">
+                                        <input
+                                            value={cover.author ?? ''}
+                                            data-a="cover:author"
+                                            onChange={(event) => save({ author: event.target.value })}
+                                            className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                                        />
+                                    </Field>
+
+                                    <Field label="Typeface">
+                                        <select
+                                            value={cover.font}
+                                            data-a="cover:font"
+                                            onChange={(event) => save({ font: event.target.value }, { immediate: true })}
+                                            className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
+                                        >
+                                            <option value="serif">Serif</option>
+                                            <option value="sans">Sans</option>
+                                        </select>
+                                    </Field>
+                                </section>
+
+                                <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
+                                    <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">Layout</h3>
+
+                                    <div role="group" aria-label="Layout" className="flex flex-wrap gap-2">
+                                        {layouts.map((layout) => (
+                                            <button
+                                                key={layout.key}
+                                                aria-pressed={cover.layout === layout.key}
+                                                data-a={`cover:layout:${layout.key}`}
+                                                onClick={() => save({ layout: layout.key }, { immediate: true })}
+                                                className={`rounded-control border px-3 py-1.5 text-[12px] font-medium transition ${
+                                                    cover.layout === layout.key
+                                                        ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary'
+                                                        : 'border-border-input text-text-body hover:border-brand-primary/40'
+                                                }`}
+                                            >
+                                                {layout.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
+                            <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">
+                                {layered ? 'Background' : 'Artwork'}
+                            </h3>
+
+                            <div
+                                role="group"
+                                aria-label="Colour scheme"
+                                className="flex flex-wrap gap-2"
+                            >
+                                {palettes.map((palette, index) => (
+                                    <button
+                                        key={palette.name}
+                                        aria-pressed={!cover.artwork && cover.palette === index}
+                                        data-a={`cover:palette:${index}`}
+                                        title={palette.name}
+                                        onClick={() => save({ palette: index }, { immediate: true })}
+                                        className={`h-[44px] w-[44px] rounded-control border-2 transition ${
+                                            !cover.artwork && cover.palette === index
+                                                ? 'border-brand-primary'
+                                                : 'border-transparent hover:border-border-input'
+                                        }`}
+                                        style={{
+                                            background: `linear-gradient(170deg, ${palette.from}, ${palette.to})`,
+                                        }}
+                                    >
+                                        <span className="sr-only">{palette.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {cover.artwork && (
+                                <>
+                                    <p className="mt-2.5 rounded bg-status-info-bg px-2 py-1.5 text-[11px] text-status-info">
+                                        Your uploaded artwork is in use. Remove it to go back to a
+                                        colour scheme.
+                                    </p>
+
+                                    {/* Darkens the picture under the type, so the title
+                                        reads on any photograph. Layers keep the layout's
+                                        treatment: classic and bold darken, band and a
+                                        finished cover do not. */}
+                                    {cover.artwork_image && (
+                                        <div className="mt-3">
+                                            <Framing
+                                                image={cover.artwork_image}
+                                                framing={cover.framing}
+                                                frameWidth={data.editor.width}
+                                                frameHeight={data.editor.height}
+                                                onChange={(framing) => save({ framing })}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {(!layered || ['classic', 'bold'].includes(cover.layout)) && (
+                                        <label className="mt-3 block">
+                                            <span className="mb-1 flex justify-between text-[11.5px] font-medium text-text-secondary">
+                                                <span>Darken behind the text</span>
+                                                <span>{cover.shade}%</span>
+                                            </span>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100}
+                                                step={5}
+                                                value={cover.shade}
+                                                data-a="cover:shade"
+                                                onChange={(event) => save({ shade: Number(event.target.value) })}
+                                                className="w-full accent-brand-primary"
+                                            />
+                                        </label>
+                                    )}
+                                </>
+                            )}
+
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <label
+                                    htmlFor="cover-artwork"
+                                    className="cursor-pointer rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40"
+                                >
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <Icon name="image" size={13} strokeWidth={2} />
+                                        {busy ? 'Working…' : 'Upload artwork'}
+                                    </span>
+                                </label>
+
+                                <input
+                                    id="cover-artwork"
+                                    ref={fileInput}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    data-a="cover:artwork"
+                                    disabled={busy}
+                                    onChange={(event) => upload(event.target.files?.[0])}
+                                    className="sr-only"
+                                />
+
+                                {cover.artwork && (
+                                    <button
+                                        data-a="cover:artwork:remove"
+                                        onClick={removeArtwork}
+                                        disabled={busy}
+                                        className="rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-status-danger/40 disabled:opacity-50"
+                                    >
+                                        Remove artwork
+                                    </button>
+                                )}
+                            </div>
+
+                            <p className="mt-2 text-[11px] text-text-secondary">
+                                JPEG, PNG or WebP, up to 12 MB.
+                            </p>
+                        </section>
+
+                        <AiDesigner
+                            data={data}
+                            brief={brief ?? cover.brief ?? ''}
+                            onBrief={setBrief}
+                            thinking={thinking}
+                            onPropose={propose}
+                            onApply={applyConcept}
+                            onPaint={paint}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

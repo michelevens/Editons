@@ -731,7 +731,9 @@ class Exporter
 
         BookExport::whereKey($export->id)->update([
             'pages' => $pages,
-            'options' => json_encode($options + ['fingerprint' => $fingerprint]),
+            // The cover's own design too: a wrap made before the back, the
+            // spine or the front changed is stale (Freshness).
+            'options' => json_encode($options + ['fingerprint' => $fingerprint, 'cover' => $this->wraps->fingerprint($book)]),
         ]);
 
         return $this->put($book, $export, $this->wraps->pdf($book, $this->wraps->geometry($book, $options, $pages)));

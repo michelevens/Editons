@@ -15,6 +15,7 @@ use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\ContentReportController;
 use App\Http\Controllers\CoverAiController;
 use App\Http\Controllers\CoverFontController;
+use App\Http\Controllers\CoverWrapController;
 use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
@@ -440,6 +441,28 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover.layers');
     Route::delete('/books/{book}/cover/layers', [DesignController::class, 'resetCover'])
         ->name('design.cover.layers.destroy');
+    // The back and the spine as layers, the whole print wrap as Cover
+    // Studio shows it, and the pictures image layers place
+    // (ADR "Editable back cover, spine and image layers").
+    Route::get('/books/{book}/cover/wrap', [CoverWrapController::class, 'show'])
+        ->name('design.cover.wrap');
+    Route::get('/books/{book}/cover/wrap/image', [CoverWrapController::class, 'image'])
+        ->middleware('throttle:120,1')
+        ->name('design.cover.wrap.image');
+    Route::post('/books/{book}/cover/{panel}-layers', [CoverWrapController::class, 'customise'])
+        ->whereIn('panel', ['back', 'spine'])
+        ->name('design.cover.panel');
+    Route::delete('/books/{book}/cover/{panel}-layers', [CoverWrapController::class, 'reset'])
+        ->whereIn('panel', ['back', 'spine'])
+        ->name('design.cover.panel.destroy');
+    Route::post('/books/{book}/cover/images', [CoverWrapController::class, 'upload'])
+        ->name('design.cover.images');
+    Route::get('/books/{book}/cover/images/{image}', [CoverWrapController::class, 'picture'])
+        ->where('image', '[A-Za-z0-9_-]{1,40}')
+        ->name('design.cover.images.show');
+    Route::delete('/books/{book}/cover/images/{image}', [CoverWrapController::class, 'destroyImage'])
+        ->where('image', '[A-Za-z0-9_-]{1,40}')
+        ->name('design.cover.images.destroy');
     // The faces cover layers are set in, and their metrics, for the live
     // canvas (CoverFonts).
     Route::get('/cover-fonts/{face}/metrics', [CoverFontController::class, 'metrics'])
