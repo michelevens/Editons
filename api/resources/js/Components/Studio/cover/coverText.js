@@ -110,6 +110,39 @@ export function layoutLayer(layer, text, width, height, metrics) {
     };
 }
 
+/**
+ * A spine layer in the spine's reading frame (CoverText::spine): a strip
+ * `length` long and `thickness` deep; x, width and size are fractions of
+ * the length, y moves the box's centre off the centre line.
+ */
+export function spineLayout(layer, text, length, thickness, metrics) {
+    const set = layoutLayer({ ...layer, y: 0 }, text, length, length, metrics);
+
+    return shiftLayout(set, 0, thickness / 2 + layer.y * length - set.box.height / 2);
+}
+
+/**
+ * A point of the spine's reading frame on the sheet (CoverText::spinePoint):
+ * top to bottom turns the frame clockwise, bottom to top anticlockwise.
+ */
+export function spinePoint(u, v, direction, spineX, thickness, sheetHeight) {
+    return direction === 'btt' ? [spineX + v, sheetHeight - u] : [spineX + thickness - v, u];
+}
+
+/** A layout moved by (dx, dy). */
+export function shiftLayout(set, dx, dy) {
+    return {
+        ...set,
+        box: { ...set.box, x: set.box.x + dx, y: set.box.y + dy },
+        lines: set.lines.map((line) => ({
+            ...line,
+            baseline: line.baseline + dy,
+            x: line.x + dx,
+            glyphs: line.glyphs.map((glyph) => ({ ...glyph, x: glyph.x + dx })),
+        })),
+    };
+}
+
 export function faceKey(family, weight, italic) {
     return `${family}.${weight}${italic ? '-italic' : ''}`;
 }

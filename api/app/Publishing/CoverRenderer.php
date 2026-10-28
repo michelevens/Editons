@@ -3,10 +3,12 @@
 namespace App\Publishing;
 
 use App\Covers\CoverFonts;
+use App\Covers\CoverImages;
 use App\Covers\CoverLayers;
 use App\Covers\CoverText;
 use App\Models\Book;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 /**
@@ -76,7 +78,62 @@ class CoverRenderer
             'layers' => $this->layers($cover),
             // What bound layers show; only layered covers depend on them.
             'texts' => isset($cover['layers']) ? CoverLayers::texts($book) : null,
+        ] + $this->extras($book, $cover);
+    }
+
+    /**
+     * Settings a cover only has once the author uses them, so a cover that
+     * does not is drawn, and hashed, exactly as before: the artwork's
+     * framing, and the pictures its image layers place.
+     *
+     * @return array<string, mixed>
+     */
+    private function extras(Book $book, array $cover): array
+    {
+        $extras = [];
+
+        if ($framing = self::framing($cover['framing'] ?? null)) {
+            $extras['framing'] = $framing;
+        }
+
+        $layers = $this->layers($cover);
+        $wanted = $layers ? array_column(array_filter($layers['items'], fn ($l) => $l['source'] === 'image'), 'image') : [];
+
+        if ($wanted !== []) {
+            $extras['images'] = [];
+
+            foreach (CoverImages::all($book) as $image) {
+                if (in_array($image['id'], $wanted, true)) {
+                    $extras['images'][$image['id']] = $image;
+                }
+            }
+        }
+
+        return $extras;
+    }
+
+    /**
+     * Artwork framing, checked: the focal point (fractions of the picture)
+     * that stays in view, and a zoom from 1 (the picture just fills the
+     * frame) to 4. Null for anything else, or for the default, which is the
+     * centre crop covers have always had.
+     *
+     * @return array{x: float, y: float, zoom: float}|null
+     */
+    public static function framing(mixed $framing): ?array
+    {
+        if (! is_array($framing) || ! isset($framing['x'], $framing['y'], $framing['zoom'])
+            || ! is_numeric($framing['x']) || ! is_numeric($framing['y']) || ! is_numeric($framing['zoom'])) {
+            return null;
+        }
+
+        $f = [
+            'x' => max(0.0, min(1.0, (float) $framing['x'])),
+            'y' => max(0.0, min(1.0, (float) $framing['y'])),
+            'zoom' => max(1.0, min(4.0, (float) $framing['zoom'])),
         ];
+
+        return $f['x'] === 0.5 && $f['y'] === 0.5 && $f['zoom'] === 1.0 ? null : $f;
     }
 
     /** @return array{version: int, items: array<int, array<string, mixed>>}|null */
@@ -88,7 +145,7 @@ class CoverRenderer
 
         try {
             return CoverLayers::validate($cover['layers']);
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             return null;
         }
     }
@@ -250,7 +307,7 @@ class CoverRenderer
         $art = $artwork !== null ? @imagecreatefromstring($artwork) : false;
 
         if ($art) {
-            $this->cover($image, $art);
+            $this->cover($image, $art, $settings['framing'] ?? null);
         } else {
             $this->gradient($image, $palette['from'], $palette['to']);
         }
@@ -267,7 +324,7 @@ class CoverRenderer
             }
 
             if ($withText && $layers !== null) {
-                $this->drawLayers($image, $layers['items'], $settings['texts'] ?? []);
+                $this->drawItems($image, $layers['items'], $settings['texts'] ?? [], $settings['images'] ?? [], ['width' => $width, 'height' => $height]);
             }
         } else {
             // A finished cover from a designer already carries its type: it
@@ -300,16 +357,55 @@ class CoverRenderer
     ];
 
     /**
-     * Each visible layer in order, the first at the back: its background
-     * panel, its shadow, then its type, every glyph where CoverText put it.
+     * Where a layer sits on a surface, in the surface's pixels.
+     *
+     * A surface is a panel's model: `width` × `height` pixels, and for the
+     * spine `spine` true, when it is the reading frame (its width the
+     * spine's length, its height the spine's thickness; CoverText::spine).
+     *
+     * @param  array<string, mixed>  $layer
+     * @param  array{width: float, height: float, spine?: bool}  $surface
+     * @param  array<string, string>  $texts
+     * @return array<string, mixed> CoverText's layout; an image layer's has only its box
+     */
+    public static function place(array $layer, array $surface, array $texts = []): array
+    {
+        $spine = $surface['spine'] ?? false;
+        [$w, $h] = [$surface['width'], $surface['height']];
+
+        if ($layer['source'] === 'image') {
+            $height = $layer['height'] * ($spine ? $w : $h);
+            $top = $spine ? $h / 2 + $layer['y'] * $w - $height / 2 : $layer['y'] * $h;
+
+            return ['box' => ['x' => $layer['x'] * $w, 'y' => $top, 'width' => $layer['width'] * $w, 'height' => $height], 'lines' => []];
+        }
+
+        $text = CoverLayers::text($layer, $texts);
+
+        return $spine ? CoverText::spine($layer, $text, $w, $h) : CoverText::layout($layer, $text, $w, $h);
+    }
+
+    /**
+     * Each visible layer in order, the first at the back: an image layer's
+     * picture, or a text layer's background panel, its shadow, then its
+     * type, every glyph where CoverText put it.
+     *
+     * Laid out on the surface's model and drawn at $scale from ($ox, $oy)
+     * on $image: the print wrap sets its back and spine at 300 dpi and draws
+     * a preview from the same layout scaled, so a line never breaks
+     * differently on screen and on paper.
      *
      * @param  array<int, array<string, mixed>>  $items
      * @param  array<string, string>  $texts
+     * @param  array<string, array<string, mixed>>  $images  by id
+     * @param  array{width: float, height: float, spine?: bool}  $surface
      */
-    private function drawLayers($image, array $items, array $texts): void
+    public function drawItems($image, array $items, array $texts, array $images, array $surface, float $scale = 1.0, float $ox = 0.0, float $oy = 0.0): void
     {
-        $width = imagesx($image);
-        $height = imagesy($image);
+        $width = $surface['width'];
+        // Shadows and panels are fractions of the cover; on the spine, of
+        // its length.
+        $height = ($surface['spine'] ?? false) ? $surface['width'] : $surface['height'];
         $points = 1 / $this->pixelsPerPoint();
 
         foreach ($items as $layer) {
@@ -317,7 +413,16 @@ class CoverRenderer
                 continue;
             }
 
-            $set = CoverText::layout($layer, CoverLayers::text($layer, $texts), $width, $height);
+            $set = self::place($layer, $surface, $texts);
+
+            if ($layer['source'] === 'image') {
+                if (isset($images[$layer['image']]) && ($picture = CoverImages::load($images[$layer['image']]['path']))) {
+                    $box = $set['box'];
+                    $this->picture($image, $picture, $layer, $ox + $box['x'] * $scale, $oy + $box['y'] * $scale, $box['width'] * $scale, $box['height'] * $scale);
+                }
+
+                continue;
+            }
 
             if ($panel = $layer['background']) {
                 $box = $set['box'];
@@ -325,39 +430,89 @@ class CoverRenderer
 
                 imagefilledrectangle(
                     $image,
-                    (int) round($box['x'] - $pad),
-                    (int) round($box['y'] - $pad),
-                    (int) round($box['x'] + $box['width'] + $pad) - 1,
-                    (int) round($box['y'] + $box['height'] + $pad) - 1,
+                    (int) round($ox + ($box['x'] - $pad) * $scale),
+                    (int) round($oy + ($box['y'] - $pad) * $scale),
+                    (int) round($ox + ($box['x'] + $box['width'] + $pad) * $scale) - 1,
+                    (int) round($oy + ($box['y'] + $box['height'] + $pad) * $scale) - 1,
                     $this->color($image, $panel['color'], $this->alpha($panel['opacity'])),
                 );
             }
 
-            $size = $set['size'] * $points;
+            $size = $set['size'] * $scale * $points;
 
             if ($shadow = self::SHADOWS[$layer['shadow']] ?? null) {
                 $dark = $this->color($image, '#000000', $this->alpha($shadow['opacity'] * $layer['opacity']));
-                $this->glyphs($image, $set['lines'], $size, $dark, $shadow['dx'] * $width, $shadow['dy'] * $height);
+                $this->glyphs($image, $set['lines'], $size, $dark, $shadow['dx'] * $width, $shadow['dy'] * $height, $scale, $ox, $oy);
             }
 
-            $this->glyphs($image, $set['lines'], $size, $this->color($image, $layer['color'], $this->alpha($layer['opacity'])), 0, 0);
+            $this->glyphs($image, $set['lines'], $size, $this->color($image, $layer['color'], $this->alpha($layer['opacity'])), 0, 0, $scale, $ox, $oy);
         }
     }
 
     /** @param  array<int, array<string, mixed>>  $lines */
-    private function glyphs($image, array $lines, float $points, int $color, float $dx, float $dy): void
+    private function glyphs($image, array $lines, float $points, int $color, float $dx, float $dy, float $scale, float $ox, float $oy): void
     {
         foreach ($lines as $line) {
-            $y = (int) round($line['baseline'] + $dy);
+            $y = (int) round($oy + ($line['baseline'] + $dy) * $scale);
 
             foreach ($line['glyphs'] as $glyph) {
                 if (trim($glyph['char']) === '') {
                     continue;
                 }
 
-                imagettftext($image, $points, 0, (int) round($glyph['x'] + $dx), $y, $color, CoverFonts::file($glyph['face']), $glyph['char']);
+                imagettftext($image, $points, 0, (int) round($ox + ($glyph['x'] + $dx) * $scale), $y, $color, CoverFonts::file($glyph['face']), $glyph['char']);
             }
         }
+    }
+
+    /**
+     * A picture into a box: its crop (fractions of the picture, or all of
+     * it) resampled to the box, its own transparency kept, at the layer's
+     * opacity. The box is the layer's: "keep aspect" is the editor sizing
+     * the box to the crop, so nothing here distorts what was not asked for.
+     *
+     * @param  array<string, mixed>  $layer
+     */
+    public function picture($image, $picture, array $layer, float $x, float $y, float $w, float $h): void
+    {
+        $opacity = max(0.0, min(1.0, (float) $layer['opacity']));
+
+        if ($opacity <= 0) {
+            return;
+        }
+
+        $crop = $layer['crop'] ?? ['x' => 0.0, 'y' => 0.0, 'width' => 1.0, 'height' => 1.0];
+        [$pw, $ph] = [imagesx($picture), imagesy($picture)];
+        $sx = (int) round($crop['x'] * $pw);
+        $sy = (int) round($crop['y'] * $ph);
+        $sw = max(1, (int) round($crop['width'] * $pw));
+        $sh = max(1, (int) round($crop['height'] * $ph));
+        $dx = (int) round($x);
+        $dy = (int) round($y);
+        $dw = max(1, (int) round($x + $w) - $dx);
+        $dh = max(1, (int) round($y + $h) - $dy);
+
+        $tile = imagecreatetruecolor($dw, $dh);
+        imagealphablending($tile, false);
+        imagesavealpha($tile, true);
+        imagefill($tile, 0, 0, imagecolorallocatealpha($tile, 0, 0, 0, 127));
+        imagecopyresampled($tile, $picture, 0, 0, $sx, $sy, $dw, $dh, $sw, $sh);
+
+        if ($opacity < 1) {
+            // GD has no "draw at 50%" that keeps a PNG's own transparency,
+            // so each pixel's alpha is scaled, as the browser composites.
+            for ($py = 0; $py < $dh; $py++) {
+                for ($px = 0; $px < $dw; $px++) {
+                    $c = imagecolorat($tile, $px, $py);
+                    $alpha = (int) round(127 - (127 - (($c >> 24) & 0x7F)) * $opacity);
+                    imagesetpixel($tile, $px, $py, ($c & 0xFFFFFF) | ($alpha << 24));
+                }
+            }
+        }
+
+        imagealphablending($image, true);
+        imagecopy($image, $tile, $dx, $dy, 0, 0, $dw, $dh);
+        imagedestroy($tile);
     }
 
     /** GD's 0 (opaque) – 127 (clear) from an opacity 0–1. */
@@ -542,7 +697,8 @@ class CoverRenderer
     public function backgroundPath(Book $book): string
     {
         $s = $this->settings($book);
-        $hash = substr(md5(self::VERSION.'|bg|'.json_encode([$s['palette'], $s['layout'], $s['shade'], $s['artwork']])), 0, 12);
+        $hash = substr(md5(self::VERSION.'|bg|'.json_encode([$s['palette'], $s['layout'], $s['shade'], $s['artwork']])
+            .(isset($s['framing']) ? json_encode($s['framing']) : '')), 0, 12);
 
         return "covers/book-{$book->id}/background-{$hash}.jpg";
     }
@@ -841,12 +997,26 @@ class CoverRenderer
         return $lines;
     }
 
-    /** Artwork scaled to fill the cover, cropped from the centre. */
-    private function cover($image, $art): void
+    /**
+     * Artwork scaled to fill the cover, cropped from the centre; or, with a
+     * framing, zoomed and cropped around its focal point, kept inside the
+     * picture.
+     *
+     * @param  array{x: float, y: float, zoom: float}|null  $framing
+     */
+    public function cover($image, $art, ?array $framing = null): void
     {
         $w = imagesx($art);
         $h = imagesy($art);
         [$width, $height] = [imagesx($image), imagesy($image)];
+
+        if ($framing !== null) {
+            [$sx, $sy, $cropW, $cropH] = self::frame($w, $h, $width, $height, $framing);
+            imagecopyresampled($image, $art, 0, 0, (int) round($sx), (int) round($sy), $width, $height, (int) round($cropW), (int) round($cropH));
+
+            return;
+        }
+
         $scale = max($width / $w, $height / $h);
         $cropW = (int) round($width / $scale);
         $cropH = (int) round($height / $scale);
@@ -856,6 +1026,25 @@ class CoverRenderer
             (int) (($w - $cropW) / 2), (int) (($h - $cropH) / 2),
             $width, $height, $cropW, $cropH,
         );
+    }
+
+    /**
+     * The part of a $w × $h picture a $width × $height frame shows at a
+     * framing: the crop's left, top, width and height in the picture's
+     * pixels.
+     *
+     * @param  array{x: float, y: float, zoom: float}  $framing
+     * @return array{0: float, 1: float, 2: float, 3: float}
+     */
+    public static function frame(int $w, int $h, float $width, float $height, array $framing): array
+    {
+        $scale = max($width / $w, $height / $h) * $framing['zoom'];
+        $cropW = min($w, $width / $scale);
+        $cropH = min($h, $height / $scale);
+        $sx = max(0.0, min($w - $cropW, $framing['x'] * $w - $cropW / 2));
+        $sy = max(0.0, min($h - $cropH, $framing['y'] * $h - $cropH / 2));
+
+        return [$sx, $sy, $cropW, $cropH];
     }
 
     private function gradient($image, string $from, string $to): void

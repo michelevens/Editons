@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Covers\CoverArtist;
 use App\Covers\CoverConcepts;
 use App\Covers\CoverFonts;
+use App\Covers\CoverImages;
 use App\Covers\CoverLayers;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Platform\Ai\AiControls;
 use App\Platform\Features;
 use App\Publishing\CoverRenderer;
+use App\Publishing\CoverWrap;
 use App\Publishing\DocumentRenderer;
 use App\Publishing\Exporter;
 use App\Publishing\HouseStyles;
@@ -158,20 +160,51 @@ class DesignController extends Controller
             'shade' => ['sometimes', 'integer', 'min:0', 'max:100'],
             // A line a tagline layer shows (bound, like the title).
             'tagline' => ['sometimes', 'nullable', 'string', 'max:255'],
-            // The whole layer document, checked by CoverLayers below.
+            // The whole layer documents, checked by CoverLayers below: the
+            // front's, and the print wrap's back and spine.
             'layers' => ['sometimes', 'nullable'],
+            'back_layers' => ['sometimes', 'nullable'],
+            'spine_layers' => ['sometimes', 'nullable'],
+            // Which way the spine reads; null goes back to top to bottom.
+            'spine_direction' => ['sometimes', 'nullable', 'string', Rule::in(CoverLayers::DIRECTIONS)],
+            // The artwork's focal point and zoom (CoverRenderer::framing).
+            'framing' => ['sometimes', 'nullable', 'array:x,y,zoom'],
+            'framing.x' => ['required_with:framing', 'numeric', 'min:0', 'max:1'],
+            'framing.y' => ['required_with:framing', 'numeric', 'min:0', 'max:1'],
+            'framing.zoom' => ['required_with:framing', 'numeric', 'min:1', 'max:4'],
+            // An uploaded back: kept whole, or filling the panel, panned
+            // and zoomed (CoverWrap::backFraming).
+            'back_framing' => ['sometimes', 'nullable', 'array:fit,x,y,zoom'],
+            'back_framing.fit' => ['required_with:back_framing', 'string', 'in:whole,fill'],
+            'back_framing.x' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'back_framing.y' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'back_framing.zoom' => ['sometimes', 'numeric', 'min:1', 'max:4'],
         ]);
 
-        if (array_key_exists('layers', $data)) {
-            // Null is "Reset to layout"; anything else must be a valid
-            // document, and is stored as CoverLayers normalised it.
-            $data['layers'] = $data['layers'] === null ? null : CoverLayers::validate($data['layers']);
+        $images = CoverImages::ids($book);
+
+        foreach (CoverLayers::STORED as $panel => $key) {
+            if (array_key_exists($key, $data) && $data[$key] !== null) {
+                // Null is "Reset"; anything else must be a valid document,
+                // and is stored as CoverLayers normalised it.
+                $data[$key] = CoverLayers::validate($data[$key], $panel, $images);
+            }
+        }
+
+        if (isset($data['framing'])) {
+            $data['framing'] = array_map('floatval', $data['framing']);
+        }
+
+        if (isset($data['back_framing'])) {
+            $data['back_framing'] = ['fit' => $data['back_framing']['fit']] + CoverWrap::backFraming(['fit' => 'fill'] + $data['back_framing']);
         }
 
         $cover = array_merge($book->cover ?? [], $data);
 
-        if (array_key_exists('layers', $data) && $data['layers'] === null) {
-            unset($cover['layers']);
+        foreach (['layers', 'back_layers', 'spine_layers', 'spine_direction', 'framing', 'back_framing'] as $key) {
+            if (array_key_exists($key, $data) && $data[$key] === null) {
+                unset($cover[$key]);
+            }
         }
 
         $book->update(['cover' => $cover]);
@@ -263,6 +296,10 @@ class DesignController extends Controller
 
         // ?size=thumb is the 320px rendition the shelf and the sidebar show;
         // ?part=background the picture alone, under Cover Studio's canvas.
+        if ($request->query('part') === 'artwork') {
+            return $this->artworkPreview($book);
+        }
+
         $path = match (true) {
             $request->query('part') === 'background' => $this->covers->ensureBackground($book),
             $request->query('size') === 'thumb' => $this->covers->ensureThumb($book),
@@ -270,6 +307,34 @@ class DesignController extends Controller
         };
 
         return Storage::disk('files')->response($path, null, [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'private, max-age=31536000, immutable',
+        ]);
+    }
+
+    /**
+     * The uploaded artwork itself, scaled to 800px, for Cover Studio's
+     * framing control: the author picks a focal point on the whole picture.
+     */
+    private function artworkPreview(Book $book): StreamedResponse
+    {
+        $artwork = ($book->cover ?? [])['artwork'] ?? null;
+        $disk = Storage::disk('files');
+
+        abort_unless(is_string($artwork) && $disk->exists($artwork), 404);
+
+        $path = "covers/book-{$book->id}/artwork-preview-".substr(md5($artwork), 0, 12).'.jpg';
+
+        if (! $disk->exists($path)) {
+            $this->covers->headroom('512M');
+            $image = @imagecreatefromstring((string) $disk->get($artwork));
+            abort_unless((bool) $image, 404);
+            ob_start();
+            imagejpeg($image, null, 90);
+            $disk->put($path, $this->covers->scale((string) ob_get_clean(), min(800, imagesx($image))));
+        }
+
+        return $disk->response($path, null, [
             'Content-Type' => 'image/jpeg',
             'Cache-Control' => 'private, max-age=31536000, immutable',
         ]);
@@ -349,6 +414,13 @@ class DesignController extends Controller
                 // bound sources say, and the picture they sit on.
                 'layers' => $this->covers->settings($book)['layers'],
                 'texts' => CoverLayers::texts($book),
+                // The pictures image layers can place, and the artwork's
+                // framing with the picture itself, for the framing control.
+                'images' => CoverWrapController::listed($book),
+                'framing' => CoverRenderer::framing($cover['framing'] ?? null) ?? ['x' => 0.5, 'y' => 0.5, 'zoom' => 1.0],
+                'artwork_image' => isset($cover['artwork']) ? route('design.cover.image', [
+                    'book' => $book->id, 'part' => 'artwork', 'v' => substr(md5((string) $cover['artwork']), 0, 12),
+                ]) : null,
                 'background' => route('design.cover.image', [
                     'book' => $book->id,
                     'part' => 'background',

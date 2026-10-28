@@ -33,7 +33,7 @@ class CoverText
      * @param  array<string, mixed>  $layer  a validated layer (CoverLayers)
      * @return array{box: array{x: float, y: float, width: float, height: float}, size: float, face: string, lines: array<int, array{text: string, baseline: float, x: float, width: float, glyphs: array<int, array{char: string, x: float, face: string}>}>}
      */
-    public static function layout(array $layer, string $text, int $width, int $height): array
+    public static function layout(array $layer, string $text, float $width, float $height): array
     {
         $face = CoverFonts::faceKey($layer['font'], $layer['weight'], (bool) $layer['italic']);
         $metrics = CoverFonts::metrics($face);
@@ -127,6 +127,69 @@ class CoverText
             'face' => $face,
             'lines' => $placed,
         ];
+    }
+
+    /**
+     * A spine layer laid out in the spine's reading frame: a strip as long
+     * as the spine ($length) and as deep as it is thick ($thickness), the
+     * text running along it as it does once the book is turned to read it.
+     *
+     * x, width and size are fractions of the length; y moves the box's
+     * centre off the strip's centre line, by a fraction of the length. So
+     * the layout is set exactly as a front layer is (a strip $length
+     * square, then moved down), and a layer stays centred across the spine
+     * whatever the page count makes its thickness.
+     *
+     * @param  array<string, mixed>  $layer  a validated spine layer
+     * @return array<string, mixed> as layout()
+     */
+    public static function spine(array $layer, string $text, float $length, float $thickness): array
+    {
+        $set = self::layout(array_merge($layer, ['y' => 0.0]), $text, $length, $length);
+
+        return self::shift($set, 0.0, $thickness / 2 + $layer['y'] * $length - $set['box']['height'] / 2);
+    }
+
+    /**
+     * A point of the spine's reading frame on the sheet, the frame's
+     * origin at the start of reading and the top of the letters.
+     *
+     * Top to bottom, the frame turns clockwise: reading runs down the sheet
+     * and the tops of the letters face the front cover. Bottom to top, it
+     * turns anticlockwise: reading runs up and the tops face the back.
+     * $spineX is the spine's left fold, $sheetHeight its length, both in
+     * the same units as the point.
+     *
+     * @return array{0: float, 1: float}
+     */
+    public static function spinePoint(float $u, float $v, string $direction, float $spineX, float $thickness, float $sheetHeight): array
+    {
+        return $direction === 'btt'
+            ? [$spineX + $v, $sheetHeight - $u]
+            : [$spineX + $thickness - $v, $u];
+    }
+
+    /**
+     * A layout moved by ($dx, $dy): its box, baselines and every glyph.
+     *
+     * @param  array<string, mixed>  $set
+     * @return array<string, mixed>
+     */
+    public static function shift(array $set, float $dx, float $dy): array
+    {
+        $set['box']['x'] += $dx;
+        $set['box']['y'] += $dy;
+
+        foreach ($set['lines'] as $i => $line) {
+            $set['lines'][$i]['baseline'] += $dy;
+            $set['lines'][$i]['x'] += $dx;
+
+            foreach ($line['glyphs'] as $g => $glyph) {
+                $set['lines'][$i]['glyphs'][$g]['x'] += $dx;
+            }
+        }
+
+        return $set;
     }
 
     /** NFC, so "é" is one character on both ends; capitals if asked. */

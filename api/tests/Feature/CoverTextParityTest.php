@@ -92,3 +92,72 @@ it('wraps and places text exactly as the browser does', function () {
         }
     }
 });
+
+/**
+ * And the spine: laid out in its reading frame, each way round, and every
+ * glyph's origin turned onto the sheet — the full-wrap view's picture of
+ * the spine and the PDF's agree glyph for glyph.
+ */
+it('sets and turns spine text exactly as the browser does, both directions', function () {
+    $node = (new ExecutableFinder)->find('node');
+
+    if ($node === null) {
+        $this->markTestSkipped('node is not installed.');
+    }
+
+    $cases = [];
+    $texts = ['Réussir le Bac — Kreyòl', 'THE LONG FIELD', "Two\nlines", 'Écrivain Prépa · 15'];
+
+    foreach (['ttb', 'btt'] as $d => $direction) {
+        foreach ($texts as $i => $text) {
+            foreach ([[2775, 203], [3375, 360.6], [2775, 90]] as $j => [$length, $thickness]) {
+                $layer = CoverLayers::validate(['version' => 1, 'items' => [CoverLayers::make('custom', [
+                    'text' => $text,
+                    'font' => ['eb-garamond', 'montserrat', 'oswald', 'cinzel'][$i],
+                    'x' => 0.05 + 0.1 * $j, 'width' => 0.6, 'y' => [-0.004, 0, 0.003][$j],
+                    'size' => 0.012 + 0.002 * $i, 'align' => ['left', 'center', 'right'][$j],
+                    'tracking' => [0, 0.05, 0.1, -0.02][$i],
+                ])]], 'spine')['items'][0];
+
+                $cases[] = ['layer' => $layer, 'text' => $text, 'spine' => [
+                    'length' => $length, 'thickness' => $thickness, 'direction' => $direction, 'spineX' => 1837.5 + $d,
+                ]];
+            }
+        }
+    }
+
+    $faces = array_values(array_unique(array_merge(['fallback'], array_map(
+        fn ($c) => CoverFonts::faceKey($c['layer']['font'], $c['layer']['weight'], $c['layer']['italic']),
+        $cases,
+    ))));
+    $metrics = [];
+
+    foreach ($faces as $face) {
+        $metrics[$face] = CoverFonts::metrics($face);
+    }
+
+    $process = new Process([$node, base_path('tests/js/coverParity.mjs')]);
+    $process->setInput(json_encode(['cases' => $cases, 'metrics' => $metrics]));
+    $process->mustRun();
+    $browser = json_decode($process->getOutput(), true);
+
+    expect($browser)->toHaveCount(count($cases));
+
+    foreach ($cases as $i => $case) {
+        $s = $case['spine'];
+        $server = CoverText::spine($case['layer'], $case['text'], $s['length'], $s['thickness']);
+        $js = $browser[$i];
+
+        expect(array_column($js['lines'], 'text'))->toBe(array_column($server['lines'], 'text'), "spine case {$i}: line breaks differ")
+            ->and($js['box']['y'])->toEqualWithDelta($server['box']['y'], 1e-6);
+
+        foreach ($server['lines'] as $l => $line) {
+            foreach ($line['glyphs'] as $g => $glyph) {
+                [$x, $y] = CoverText::spinePoint($glyph['x'], $line['baseline'], $s['direction'], $s['spineX'], $s['thickness'], $s['length']);
+
+                expect($js['sheet'][$l][$g][0])->toEqualWithDelta($x, 1e-6)
+                    ->and($js['sheet'][$l][$g][1])->toEqualWithDelta($y, 1e-6);
+            }
+        }
+    }
+});
