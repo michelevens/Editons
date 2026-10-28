@@ -2294,7 +2294,7 @@ address, idempotent retry, polling and tracking email, refusal and retry,
 no keys or shipping, permissions). `tests/Browser/publish.spec.js` at 390
 px and desktop.
 
-## ADR-00XX — Cover Studio text layers
+## ADR-0038 — Cover Studio text layers
 
 **Status:** accepted (2026-10-27). Number assigned at merge.
 
