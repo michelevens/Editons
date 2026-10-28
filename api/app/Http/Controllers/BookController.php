@@ -15,6 +15,7 @@ use App\Platform\Trust\MasterData;
 use App\Publishing\Anatomy;
 use App\Publishing\BookPart;
 use App\Research\Bibliography;
+use App\Workspace\Workspace;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -289,6 +290,10 @@ class BookController extends Controller
             // a section of the studio rather than always landing on the
             // manuscript.
             'pane' => $request->string('pane')->toString() ?: null,
+            // How this author has arranged the studio (ADR — customisable
+            // writing workspace): on first paint, so no panel jumps once the
+            // page has loaded.
+            'workspace' => Workspace::for($request->user(), $book),
             // A house book (ADR — house catalog): the studio says so, and
             // whose name its versions are saved under — the staff member's.
             'house' => House::isHouseBook($book) ? [

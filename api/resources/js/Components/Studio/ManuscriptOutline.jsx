@@ -67,6 +67,11 @@ export default function ManuscriptOutline({
     onSetGoal = null,
     onRenamed = null,
     onDeleted = null,
+    // The workspace's sub-panels (ADR — customisable writing workspace):
+    // the tab strip, the search-and-actions row, and the goal rings.
+    showTabs = true,
+    showTools = true,
+    showGoals = true,
 }) {
     const [query, setQuery] = useState('');
     const [collapsed, setCollapsed] = useState(() => new Set());
@@ -83,6 +88,15 @@ export default function ManuscriptOutline({
 
     const bookId = usePage().props.book?.id;
     const reorderable = Boolean(bookId) && !query.trim();
+
+    // Hiding the search row must not leave a filter or reordering on that
+    // can no longer be seen or ended.
+    useEffect(() => {
+        if (showTools) return;
+
+        setQuery('');
+        setReordering(false);
+    }, [showTools]);
 
     // The Outline table has no rows to arrange; leaving for it ends the mode.
     useEffect(() => {
@@ -284,14 +298,17 @@ export default function ManuscriptOutline({
     };
 
     return (
-        // w-full inside its container, capped at the design's 268px. As a
-        // fixed width it overflowed the mobile drawer and the rows fell off
-        // the side of the screen.
+        // w-full inside its container: the studio sizes the container (the
+        // workspace's splitter, 268px by default), the phone drawer its own.
+        // As a fixed width it overflowed the mobile drawer and the rows fell
+        // off the side of the screen.
         <aside
             ref={root}
             data-reordering={reordering ? 'true' : undefined}
-            className="flex h-full min-h-0 w-full max-w-[268px] shrink-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface md:w-[268px]"
+            data-hide-goals={showGoals ? undefined : 'true'}
+            className="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface"
         >
+            {showTabs && (
             <div className="flex shrink-0 bg-bg-subtle" role="tablist">
                 {TABS.map((t) => {
                     const isActive = tab === t.key;
@@ -323,10 +340,11 @@ export default function ManuscriptOutline({
                     );
                 })}
             </div>
+            )}
 
             {(
                 <>
-                    <div className="flex shrink-0 items-center gap-2 px-3 py-3">
+                    <div className={`flex shrink-0 items-center gap-2 px-3 py-3 ${showTools ? '' : 'hidden'}`}>
                         {reordering ? (
                             <p className="min-w-0 flex-1 text-[12px] leading-snug text-text-secondary">
                                 Drag a handle, or use ↑ ↓.

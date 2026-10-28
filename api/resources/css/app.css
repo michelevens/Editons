@@ -74,6 +74,58 @@
     outline: none;
 }
 
+/* The writing canvas as the author set it in View (ADR — customisable
+   writing workspace). Variables on the .manuscript section; unset, each
+   falls back to the handoff's value above, so the default canvas is the
+   one it always was. Only the writing view: exports never read these. */
+.manuscript .ProseMirror {
+    font-family: var(--ws-font, var(--font-manuscript));
+    font-size: var(--ws-size, 17px);
+    line-height: var(--ws-leading, 24px);
+}
+
+.manuscript[data-measure] .ProseMirror {
+    max-width: var(--ws-measure);
+    margin-inline: auto;
+}
+
+.manuscript {
+    --ws-paper: #fbf8f1;
+    --ws-desk: #ebe7df;
+}
+
+html.dark .manuscript {
+    --ws-paper: #1f1d1a;
+    --ws-desk: #121110;
+}
+
+.manuscript[data-paper] .ws-canvas {
+    background-color: var(--ws-paper);
+}
+
+/* Page view: the chapter on a sheet, on a desk. */
+.manuscript[data-page] .ws-canvas {
+    background-color: var(--ws-desk);
+}
+
+.manuscript[data-page] .ProseMirror {
+    max-width: var(--ws-measure, 816px);
+    margin-inline: auto;
+    padding: 56px clamp(20px, 7%, 72px);
+    background-color: var(--color-bg-surface);
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 8px 24px -12px rgb(0 0 0 / 0.25);
+}
+
+.manuscript[data-page][data-paper] .ProseMirror {
+    background-color: var(--ws-paper);
+}
+
+/* Word-goal rings hidden in the outline (a workspace sub-panel). */
+[data-hide-goals] [data-a^="outline:goal:"] {
+    display: none;
+}
+
 .manuscript .ProseMirror > * + * {
     margin-top: 1em;
 }

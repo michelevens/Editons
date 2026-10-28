@@ -49,6 +49,7 @@ use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\WorkflowController;
+use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -93,6 +94,13 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile/theme', [ProfileController::class, 'updateTheme'])->name('profile.theme');
     // The daily writing goal, from the studio's goals sheet (JSON).
     Route::patch('/profile/daily-goal', [GoalsController::class, 'daily'])->name('profile.daily-goal');
+    // The writing workspace: panels, sizes, canvas and named layouts (JSON).
+    Route::get('/workspace', [WorkspaceController::class, 'show'])->name('workspace.show');
+    Route::put('/workspace', [WorkspaceController::class, 'update'])->name('workspace.update');
+    Route::delete('/workspace', [WorkspaceController::class, 'destroy'])->name('workspace.destroy');
+    Route::delete('/workspace/books/{book}', [WorkspaceController::class, 'forgetBook'])->name('workspace.book.forget');
+    Route::post('/workspace/presets', [WorkspaceController::class, 'storePreset'])->name('workspace.presets.store');
+    Route::delete('/workspace/presets/{preset}', [WorkspaceController::class, 'destroyPreset'])->name('workspace.presets.destroy');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Two-factor sign-in (App\Platform\TwoFactor). Throttled: each takes a

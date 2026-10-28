@@ -63,6 +63,12 @@ export default function AppHeader({
     account,
     skipTo = '#main',
     skipLabel = 'Skip to content',
+    // The studio's View commands (toggle a panel, apply a layout), listed
+    // with the rest in search.
+    extraCommands = [],
+    // Hidden by the workspace or distraction-free: no bar, but search and
+    // its Ctrl+K stay, as does the skip link.
+    bare = false,
 }) {
     const { recent_book_id: recentBookId } = usePage().props;
     const book = bookId ?? recentBookId ?? null;
@@ -120,21 +126,42 @@ export default function AppHeader({
             });
         }
 
-        return list;
-    }, [book, chapters, onSelect, onNavigate, onOpenChapter]);
+        return [...extraCommands, ...list];
+    }, [book, chapters, onSelect, onNavigate, onOpenChapter, extraCommands]);
+
+    const skipLink = (
+        <a
+            href={skipTo}
+            onClick={(event) => skip(event, skipTo)}
+            data-a="skip"
+            className="sr-only rounded-control bg-brand-fill px-3 py-2 text-[13px] font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-2 focus:z-[60]"
+        >
+            {skipLabel}
+        </a>
+    );
+
+    const paletteDialog = (
+        <CommandPalette
+            open={palette}
+            onClose={() => setPalette(false)}
+            commands={commands}
+        />
+    );
+
+    if (bare) {
+        return (
+            <>
+                {skipLink}
+                {paletteDialog}
+            </>
+        );
+    }
 
     return (
         <header className="flex h-[54px] shrink-0 items-center gap-3 border-b border-border-default bg-bg-surface px-3 sm:px-5">
             {/* First stop for a keyboard: past the header and the sidebar
                 (about 40 Tab presses) straight to the page's work. */}
-            <a
-                href={skipTo}
-                onClick={(event) => skip(event, skipTo)}
-                data-a="skip"
-                className="sr-only rounded-control bg-brand-fill px-3 py-2 text-[13px] font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-2 focus:z-[60]"
-            >
-                {skipLabel}
-            </a>
+            {skipLink}
 
             {/*
               * The brand mark, from ecrivain-brand-assets. The symbol is the
@@ -230,11 +257,7 @@ export default function AppHeader({
                 <UserMenu user={user} account={account} bookId={book} />
             </div>
 
-            <CommandPalette
-                open={palette}
-                onClose={() => setPalette(false)}
-                commands={commands}
-            />
+            {paletteDialog}
         </header>
     );
 }

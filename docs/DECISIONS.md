@@ -2423,3 +2423,120 @@ colour, opacity, panel and shadow; proportional at 800px; glyph fallback;
 bound text from the book; the print wrap's front at print resolution),
 `CoverTextParityTest.php` (PHP and JS agree), and
 `tests/Browser/cover.spec.js` at 1440px and 390px.
+
+## ADR-00XX — Customisable writing workspace
+
+**Status:** accepted (2026-10-28)
+
+**Context.** The Writing Studio was a fixed grid: top nav, book sidebar,
+credit strip, then `268px | manuscript | 392px` with a 236px row of cards
+underneath, and one escape hatch (distraction-free, ADR-0023). The owner
+asked for "full and complete flexibility" on the canvas: hide and show any
+panel or sub-panel. Scrivener, Ulysses, VS Code and Word all let a writer
+arrange their room; an author on a 13" laptop and one on a 32" monitor do
+not want the same one.
+
+**Decisions.**
+
+- *Every region is a panel.* Top nav, book sidebar, credit balance, chapter
+  outline, the AI editor panel (findings, comments, research, checks), the
+  bottom cards, the formatting toolbar and the status bar each have a
+  switch. Inside them: the outline's tabs, its search-and-actions row and
+  its word-goal rings; each tab of the AI panel (one must stay — hiding all
+  is hiding the panel); each bottom card (the rest share its width).
+  Hidden by class, never unmounted (as distraction-free), so the editor,
+  its save state and a panel's own state survive a toggle. A hidden top nav
+  leaves search (Ctrl+K) and the skip link behind.
+- *Splitters.* `Studio/Splitter.jsx` between the outline and the
+  manuscript, the manuscript and the AI panel, and above the bottom cards:
+  the WAI-ARIA window splitter — `role="separator"`, `aria-valuenow/min/max`,
+  focusable, arrows step 16px (Shift 64), Home/End to the bounds, Enter
+  collapses the panel to its icon rail, double-click resets. Bounds are the
+  schema's (outline 200–480, AI panel 300–640, bottom 120–480), and a side
+  splitter also stops where the manuscript would drop under 360px. The size
+  moves live while dragging and is saved once, on release.
+- *Icon rails and sides.* A side panel collapses to a 44px rail (expand,
+  plus one-tap actions: add/import a chapter; each AI tab with its count),
+  and "Swap side panels" puts the outline on the right and the AI panel on
+  the left. Placed with CSS `order`, so swapping moves no DOM and the
+  editor keeps focus and selection.
+- *View.* `Studio/ViewMenu.jsx`, a button in the chapter header — the one
+  row that is always there while writing, since the top nav can be hidden.
+  A non-modal popover (a bottom sheet on a phone): layouts, panel switches
+  with their shortcuts, sub-panels, canvas, "this book only", reset. Every
+  switch is a labelled button with `aria-pressed`; the trigger has
+  `aria-expanded`; Escape closes it and returns focus to the trigger. The
+  same commands are in search (Ctrl+K), group "View", with shortcuts shown.
+- *Shortcuts*, matched on the physical key (`event.code`), so a French or
+  Haitian AZERTY keyboard — where AltGr+8 types "\" and reports Ctrl+Alt —
+  never toggles a panel by typing a character:
+
+  | Shortcut | Does |
+  |---|---|
+  | Ctrl/⌘+\ | Chapter outline (the chapters drawer below 768px) |
+  | Ctrl/⌘+Alt+\ | AI editor panel (its drawer below 1280px) |
+  | Ctrl/⌘+J | Bottom cards |
+  | Ctrl/⌘+Shift+F | Distraction-free (unchanged); Escape leaves |
+  | Ctrl/⌘+K | Search, now with every View command |
+
+  None clashes with Tiptap's (Mod-b/i/u/e/z/y, Mod-Shift-7/8/9/b/s,
+  Mod-Alt-0/c). Ctrl+J is the browser's downloads shortcut; a page may take
+  it, as VS Code for the web does. Ctrl+Alt+digit was rejected for presets:
+  on AZERTY that is AltGr, which types ~ # { [.
+- *Layouts.* Write (outline + editor), Edit (editor + AI panel on its AI
+  Editor tab), Research (editor + AI panel on Research, bottom cards on),
+  Focus (editor alone, at the medium measure, centred), Everything. A
+  preset names only what it decides; sizes and the font stay the author's.
+  "Save current layout as…" keeps up to 12 named layouts on the account
+  (the same name replaces); a change by hand leaves the preset.
+- *Canvas.* Text width narrow 560 / medium 720 / wide 900 / full / custom
+  400–1600px; font Source Serif or Inter (bundled) or Georgia or monospace
+  (system); size 13–28px; line spacing 1.2–2.0; plain or paper background
+  (a warm tint, dark-aware); toolbar docked or floating (laid over the top
+  of the writing area while text is selected, so the text never moves);
+  typewriter scrolling (ADR-0024, now saved with the layout); page view (the
+  chapter on a sheet). CSS variables on `.manuscript` (`--ws-font`,
+  `--ws-size`, `--ws-leading`, `--ws-measure`) that fall back to the
+  handoff's values; only the writing view reads them, never the book's
+  design or an export. Light/dark follows the app theme (ADR-0023).
+- *Persistence.* Per author: `users.workspace` (`{settings, presets}`);
+  per author and book: `book_workspaces` ("use this layout for this book
+  only"; unticking deletes the row and the author's own layout applies).
+  `App\Workspace\WorkspaceSchema` names every key with its type and bounds
+  and refuses anything else, at any depth, with the key's path in the
+  error; requests may send part of a layout, which is merged and stored
+  whole, with a `version`. `App\Workspace\Workspace` reads and writes it.
+  Endpoints (JSON, signed in): `GET/PUT/DELETE /workspace` (`?book=`),
+  `DELETE /workspace/books/{book}`, `POST /workspace/presets`,
+  `DELETE /workspace/presets/{id}`; a book scope needs `view` on the book.
+  `workspace` is hidden from `auth.user` and sent to the editor as its own
+  prop, so first paint is already the author's layout.
+- *Never blocks typing.* `Studio/workspace.js` (`useWorkspace`) applies a
+  change at once, saves it debounced (500ms) and fire-and-forget, flushes
+  with `keepalive` on `pagehide`, and keeps an unconfirmed change in
+  localStorage (flagged pending) to send on the next visit or when the
+  browser comes back online. Only a pending copy is preferred to the
+  server's; anything else the server has is newer.
+- *Focus.* A panel closed with focus inside it hands focus to the
+  manuscript; collapsing to a rail focuses the rail's expand button;
+  expanding focuses into the panel.
+- *Phones.* The mobile shell (ADR-0024) stays; View is in the chapter
+  header there too, as a sheet with the canvas, toolbar and status bar.
+  Between 1024 and 1279px the AI panel is still a drawer: its switch hides
+  the AI pill and its shortcut opens the drawer.
+
+**Not done.** Dragging a panel to an arbitrary dock position or floating
+it as a window; resizing the book sidebar; per-device layouts (one layout
+follows the author everywhere; the phone simply has fewer panels).
+
+**Tests.** `tests/Feature/WorkspaceTest.php` (defaults, partial merge
+stored whole, unknown keys at every depth, types and bounds, per-author
+isolation, per-book override and its end, someone else's book refused,
+reset keeps presets, presets named/replaced/deleted/capped, first paint
+and not in `auth.user`, older stored layouts upgraded);
+`tests/Browser/workspace.spec.js` at 1440, 1024 and 390px (each panel
+hides and shows, persisted across reload, shortcuts and focus, splitters
+by mouse and keyboard with reload and double-click, rails, every preset, a
+custom preset, canvas width/font/size/spacing/paper/page/floating toolbar,
+sub-panels, this-book-only, tablet and phone, no sideways scroll, no
+console errors).

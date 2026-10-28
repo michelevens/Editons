@@ -29,11 +29,22 @@ import MobileNav from '@/Components/Studio/MobileNav';
 import NotesPanel from '@/Components/Studio/NotesPanel';
 import ReferencesPanel from '@/Components/Studio/ReferencesPanel';
 import ResearchLibrary from '@/Components/Studio/ResearchLibrary';
+import Splitter from '@/Components/Studio/Splitter';
 import StudioSidebar from '@/Components/Studio/StudioSidebar';
 import TeamPanel from '@/Components/Studio/TeamPanel';
 import TemplatesPanel from '@/Components/Studio/TemplatesPanel';
+import ViewMenu, { PANEL_LABELS } from '@/Components/Studio/ViewMenu';
 import WorkflowBoard from '@/Components/Studio/WorkflowBoard';
 import { destination } from '@/Components/Studio/navigation';
+import {
+    BUILTIN_PRESETS,
+    CANVAS_FONTS,
+    canvasMeasure,
+    SHORTCUTS,
+    shortcutLabel,
+    SIZE_LIMITS,
+    useWorkspace,
+} from '@/Components/Studio/workspace';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -72,8 +83,19 @@ function HouseBanner({ house }) {
     );
 }
 
-export default function Editor({ book, binder, activeSection, agents, sources, pane: initialPane, house = null }) {
+/** The width of a panel collapsed to its icons. */
+const RAIL = 44;
+
+/** The narrowest the manuscript may be squeezed by a splitter. */
+const MIN_MANUSCRIPT = 360;
+
+export default function Editor({ book, binder, activeSection, agents, sources, pane: initialPane, house = null, workspace = null }) {
     const { auth } = usePage().props;
+
+    // The author's arrangement of the studio (ADR — customisable writing
+    // workspace), from the server on first paint.
+    const ws = useWorkspace({ initial: workspace, bookId: book.id, userId: auth?.user?.id });
+    const layout = ws.settings;
 
     const [section, setSection] = useState(activeSection);
     const [bookWords, setBookWords] = useState(book.word_count);
@@ -137,13 +159,26 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // top takes Escape first; see Components/Dialog).
     const [focusMode, setFocusMode] = useState(false);
 
+    // The panel shortcuts (workspace.js SHORTCUTS), through a ref so the
+    // listener is added once and still calls today's handlers.
+    const shortcuts = useRef({});
+
     useEffect(() => {
         const onKey = (event) => {
-            if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
+            if (SHORTCUTS.focus.match(event)) {
                 event.preventDefault();
                 setFocusMode((on) => !on);
             } else if (event.key === 'Escape') {
                 setFocusMode(false);
+            } else {
+                for (const name of ['outline', 'right', 'bottom']) {
+                    if (SHORTCUTS[name].match(event) && shortcuts.current[name]) {
+                        event.preventDefault();
+                        shortcuts.current[name]();
+
+                        return;
+                    }
+                }
             }
         };
 
@@ -522,6 +557,150 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     const focused = focusMode && isStudio;
     const openFindings = findings.filter((f) => f.status === 'open');
 
+    // --- The workspace: panels, splitters, presets ----------------------
+
+    // A region is shown when the author keeps it and distraction-free is off.
+    const shown = (key) => !focused && layout.panels[key];
+
+    // Sizes while a splitter is being dragged; saved once, on release.
+    const [live, setLive] = useState({});
+    const size = (key) => live[key] ?? layout.sizes[key];
+
+    // The room the side panels share, so a splitter cannot squeeze the
+    // manuscript below MIN_MANUSCRIPT.
+    const row = useRef(null);
+    const [rowWidth, setRowWidth] = useState(0);
+
+    useEffect(() => {
+        if (!row.current || typeof ResizeObserver === 'undefined') return undefined;
+
+        const observer = new ResizeObserver(([entry]) => setRowWidth(entry.contentRect.width));
+        observer.observe(row.current);
+
+        return () => observer.disconnect();
+    }, [isStudio]);
+
+    /**
+     * Never lose focus to a panel closing: if what had focus is gone or
+     * hidden once the change lands, focus moves to `fallback` (or the
+     * manuscript), rather than dropping to <body>.
+     */
+    const keepFocus = useCallback((fallback = null) => {
+        window.requestAnimationFrame(() => {
+            const now = document.activeElement;
+            const lost = !now || now === document.body || !now.isConnected || now.getClientRects().length === 0;
+
+            if (!lost) return;
+
+            const target = (fallback && document.querySelector(fallback)) ?? document.querySelector('.manuscript .ProseMirror');
+
+            target?.focus({ preventScroll: true });
+        });
+    }, []);
+
+    const togglePanel = useCallback((key) => {
+        keepFocus();
+        ws.update((current) => ({ panels: { [key]: !current.panels[key] } }));
+    }, [keepFocus, ws.update]);
+
+    const toggleRail = useCallback((key, expandTo = null) => {
+        const collapsing = !layout.rails[key];
+
+        ws.update((current) => ({ rails: { [key]: !current.rails[key] }, panels: { [key]: true } }));
+        // Into the rail's first button, or back into the panel.
+        keepFocus(collapsing ? `[data-a="rail:${key}:expand"]` : expandTo);
+    }, [keepFocus, layout.rails, ws.update]);
+
+    const applyPreset = useCallback((preset) => {
+        keepFocus();
+        ws.update(preset.layout, { preset: preset.name });
+
+        if (preset.tab) setPanelTab({ tab: preset.tab, at: Date.now() });
+    }, [keepFocus, ws.update]);
+
+    // Below their breakpoints the side panels are drawers, and their
+    // shortcuts open and close those instead.
+    shortcuts.current = isStudio
+        ? {
+              outline: () => (window.matchMedia('(min-width: 768px)').matches ? togglePanel('outline') : setBinderOpen((open) => !open)),
+              right: () => (wide() ? togglePanel('right') : setPanelOpen((open) => !open)),
+              bottom: () => togglePanel('bottom'),
+          }
+        : {};
+
+    // View, in search as well: every panel, layout and the reset.
+    const viewCommands = useMemo(() => {
+        if (!isStudio) return [];
+
+        const list = Object.entries(PANEL_LABELS).map(([key, label]) => ({
+            key: `view:${key}`,
+            label: `${layout.panels[key] ? 'Hide' : 'Show'} ${label.toLowerCase()}`,
+            group: 'View',
+            icon: 'layout',
+            shortcut: ['outline', 'right', 'bottom'].includes(key) ? shortcutLabel(key) : null,
+            run: () => togglePanel(key),
+        }));
+
+        list.push({
+            key: 'view:focus',
+            label: focused ? 'Leave distraction-free mode' : 'Distraction-free mode',
+            group: 'View',
+            icon: 'expand',
+            shortcut: shortcutLabel('focus'),
+            run: () => setFocusMode((on) => !on),
+        });
+        list.push({
+            key: 'view:swap',
+            label: 'Swap side panels',
+            group: 'View',
+            icon: 'layout',
+            run: () => ws.update((current) => ({ swap: !current.swap })),
+        });
+
+        for (const preset of [...BUILTIN_PRESETS, ...ws.presets]) {
+            list.push({
+                key: `view:preset:${preset.id}`,
+                label: `Layout: ${preset.name}`,
+                group: 'View',
+                icon: 'layout',
+                run: () => applyPreset(preset),
+            });
+        }
+
+        list.push({
+            key: 'view:reset',
+            label: 'Reset workspace layout',
+            group: 'View',
+            icon: 'reset',
+            run: () => ws.reset(),
+        });
+
+        return list;
+    }, [isStudio, layout.panels, focused, ws.presets, ws.update, ws.reset, togglePanel, applyPreset]);
+
+    // Room left for one side panel, given the other and the manuscript.
+    const roomFor = (key) => {
+        if (!rowWidth) return null;
+
+        const other = key === 'outline' ? 'right' : 'outline';
+        const otherShown = layout.panels[other] && (other === 'outline' || wide());
+        const otherWidth = !otherShown ? 0 : layout.rails[other] ? RAIL : size(other);
+
+        return rowWidth - otherWidth - MIN_MANUSCRIPT - 20;
+    };
+
+    const outlineShown = shown('outline');
+    const rightShown = shown('right');
+    const cardsKept = Object.values(layout.subpanels.bottomCards).some(Boolean);
+    const bottomShown = shown('bottom') && cardsKept;
+    const measure = focused ? null : canvasMeasure(layout.canvas);
+    const canvasStyle = {
+        '--ws-font': CANVAS_FONTS.find((f) => f.key === layout.canvas.font)?.css,
+        '--ws-size': `${layout.canvas.fontSize}px`,
+        '--ws-leading': layout.canvas.lineHeight,
+        ...(measure ? { '--ws-measure': `${measure}px` } : {}),
+    };
+
     // Undo for a decided finding: an applied fix comes back out of the
     // chapter through the server's own undo, then the finding is open again.
     const reopen = async (finding) => {
@@ -574,8 +753,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         <div className="relative flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
             <Head title={book.title} />
 
-            {!focused && (
+            {/* Hidden (by the workspace or distraction-free), the header
+                leaves search, its Ctrl+K and the skip link behind. */}
             <AppHeader
+                bare={!shown('topNav')}
+                extraCommands={viewCommands}
                 active={nav}
                 bookId={book.id}
                 // The top nav names an area; destination() says which pane
@@ -589,12 +771,12 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 skipTo={isStudio ? '#manuscript' : '#main'}
                 skipLabel={isStudio ? 'Skip to manuscript' : 'Skip to content'}
             />
-            )}
 
             <div className="flex min-h-0 flex-1">
                 {/* Static at >=1024, a drawer below: Components/Studio/StudioSidebar. */}
                 {!focused && (
                     <StudioSidebar
+                        hidden={!layout.panels.sidebar}
                         open={sidebarOpen}
                         onClose={closeSidebar}
                         activeNav={nav}
@@ -613,7 +795,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                     {/* Not on a phone: forty pixels of a 390px screen, on
                         every pane, for a figure the avatar menu also has. */}
                     {!focused && (
-                        <div className="max-sm:hidden">
+                        <div className={`max-sm:hidden ${layout.panels.credits ? '' : 'hidden'}`} data-ws-panel="credits">
                             <CreditStrip balance={credits} />
                         </div>
                     )}
@@ -744,33 +926,93 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             milestone="a later milestone"
                         />
                     ) : (
-                        <div className={`grid min-h-0 flex-1 gap-[11px] ${focused ? '' : 'lg:grid-rows-[minmax(0,1fr)_auto]'}`}>
+                        <div className="flex min-h-0 flex-1 flex-col">
                             {/*
+                              * The writing row: outline, manuscript, AI panel,
+                              * each a panel the author can hide, resize,
+                              * collapse to icons and swap (ADR — customisable
+                              * writing workspace). Placed with CSS order, so
+                              * swapping sides moves no DOM and the editor
+                              * keeps its focus and selection.
+                              *
                               * On a phone the manuscript is the whole screen.
                               * The binder and the AI panel become drawers,
                               * reached from the bar at the bottom, because a
                               * 268px column beside a 390px viewport leaves
                               * nothing to write in — which is what it did.
                               */}
-                            <div className={`grid min-h-0 gap-[10px] ${focused ? 'grid-cols-1' : 'md:[grid-template-columns:268px_minmax(0,1fr)] xl:[grid-template-columns:268px_minmax(0,1fr)_392px]'}`}>
-                                <div className={`flex min-h-0 max-md:hidden ${focused ? 'hidden' : ''}`}>
-                                    <ManuscriptOutline
-                                        nodes={binder}
-                                        activeId={section?.id}
-                                        tab={leftTab}
-                                        onTab={(t) => (t === 'Notes' ? go('notes') : setLeftTab(t))}
-                                        onSelect={openSection}
-                                        onAddChapter={addChapter}
-                                        onImport={() => setImporting(true)}
-                                        adding={adding}
-                                        {...binderActions}
-                                    />
+                            <div ref={row} className="flex min-h-0 flex-1">
+                                <div
+                                    id="ws-outline"
+                                    data-ws-panel="outline"
+                                    data-rail={layout.rails.outline ? 'true' : undefined}
+                                    className={`flex min-h-0 shrink-0 max-md:hidden ${outlineShown ? '' : 'hidden'}`}
+                                    style={{ order: layout.swap ? 5 : 1, width: layout.rails.outline ? RAIL : size('outline') }}
+                                >
+                                    {layout.rails.outline && (
+                                        <Rail
+                                            name="outline"
+                                            label="Chapter outline"
+                                            side={layout.swap ? 'right' : 'left'}
+                                            onExpand={() => toggleRail('outline', '#ws-outline [data-a="outline:search"]')}
+                                            items={[
+                                                { key: 'add', icon: 'plus', label: 'Add chapter', run: addChapter },
+                                                { key: 'import', icon: 'fDoc', label: 'Import chapters', run: () => setImporting(true) },
+                                            ]}
+                                        />
+                                    )}
+                                    <div className={`flex min-h-0 w-full ${layout.rails.outline ? 'hidden' : ''}`}>
+                                        <ManuscriptOutline
+                                            nodes={binder}
+                                            activeId={section?.id}
+                                            tab={leftTab}
+                                            onTab={(t) => (t === 'Notes' ? go('notes') : setLeftTab(t))}
+                                            onSelect={openSection}
+                                            onAddChapter={addChapter}
+                                            onImport={() => setImporting(true)}
+                                            adding={adding}
+                                            showTabs={layout.subpanels.outlineTabs}
+                                            showTools={layout.subpanels.outlineTools}
+                                            showGoals={layout.subpanels.outlineGoals}
+                                            {...binderActions}
+                                        />
+                                    </div>
                                 </div>
+
+                                {outlineShown && (
+                                    layout.rails.outline ? (
+                                        <div aria-hidden="true" className="w-[10px] shrink-0 max-md:hidden" style={{ order: layout.swap ? 4 : 2 }} />
+                                    ) : (
+                                        <Splitter
+                                            label="Resize chapter outline"
+                                            controls="ws-outline"
+                                            data-a="splitter:outline"
+                                            className="max-md:hidden"
+                                            edge={layout.swap ? 'start' : 'end'}
+                                            value={size('outline')}
+                                            min={SIZE_LIMITS.outline.min}
+                                            max={SIZE_LIMITS.outline.max}
+                                            limit={roomFor('outline')}
+                                            defaultValue={ws.defaults.sizes.outline}
+                                            onLive={(n) => setLive({ outline: n })}
+                                            onCommit={(n) => {
+                                                setLive({});
+                                                ws.update({ sizes: { outline: n } }, { preset: layout.preset });
+                                            }}
+                                            onCollapse={() => toggleRail('outline')}
+                                            order={layout.swap ? 4 : 2}
+                                        />
+                                    )
+                                )}
 
                                 <section
                                     id="manuscript"
                                     aria-label="Manuscript"
-                                    className={`manuscript flex min-h-0 min-w-0 flex-col overflow-hidden border-border-default bg-bg-surface sm:rounded-panel sm:border ${
+                                    data-measure={measure ? 'true' : undefined}
+                                    data-paper={layout.canvas.background === 'paper' ? 'true' : undefined}
+                                    data-page={layout.canvas.pageView && !focused ? 'true' : undefined}
+                                    style={{ order: 3, ...canvasStyle }}
+                                    className={`manuscript flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-border-default bg-bg-surface sm:rounded-panel sm:border ${
                                         focused ? 'mx-auto w-full max-w-[860px]' : 'lg:max-xl:pb-12'
                                     }`}
                                 >
@@ -785,21 +1027,37 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         onShowChanges={showChanges}
                                         wordGoal={section?.word_goal ?? null}
                                         onGoals={(words) => setGoals({ sectionId: section.id, liveWords: words })}
+                                        showToolbar={layout.panels.toolbar}
+                                        toolbarStyle={layout.canvas.toolbarStyle}
+                                        showStatusBar={layout.panels.statusBar}
+                                        typewriter={layout.canvas.typewriter}
+                                        onTypewriter={(on) => ws.update({ canvas: { typewriter: on } }, { preset: layout.preset })}
                                         headerActions={
-                                            <button
-                                                type="button"
-                                                data-a="editor:focus-mode"
-                                                onClick={() => setFocusMode((on) => !on)}
-                                                aria-pressed={focused}
-                                                aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
-                                                title={focused ? 'Leave distraction-free mode (Esc)' : 'Distraction-free mode (Ctrl+Shift+F)'}
-                                                className="grid h-7 w-7 shrink-0 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary"
-                                            >
-                                                <Icon name="expand" size={15} />
-                                                <span className="sr-only">
-                                                    {focused ? 'Leave distraction-free mode' : 'Distraction-free mode'}
-                                                </span>
-                                            </button>
+                                            <>
+                                                <ViewMenu
+                                                    ws={ws}
+                                                    bookId={book.id}
+                                                    focused={focused}
+                                                    onToggleFocus={() => setFocusMode((on) => !on)}
+                                                    onTogglePanel={togglePanel}
+                                                    onToggleRail={(key) => toggleRail(key)}
+                                                    onApplyPreset={applyPreset}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    data-a="editor:focus-mode"
+                                                    onClick={() => setFocusMode((on) => !on)}
+                                                    aria-pressed={focused}
+                                                    aria-keyshortcuts={SHORTCUTS.focus.keys}
+                                                    title={focused ? 'Leave distraction-free mode (Esc)' : `Distraction-free mode (${shortcutLabel('focus')})`}
+                                                    className="grid h-7 w-7 shrink-0 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary"
+                                                >
+                                                    <Icon name="expand" size={15} />
+                                                    <span className="sr-only">
+                                                        {focused ? 'Leave distraction-free mode' : 'Distraction-free mode'}
+                                                    </span>
+                                                </button>
+                                            </>
                                         }
                                     />
 
@@ -813,8 +1071,60 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                     />
                                 </section>
 
-                                <div className={`flex min-h-0 max-xl:hidden ${focused ? 'hidden' : ''}`}>
-                                    <AIEditorPanel {...panelProps} />
+                                {rightShown && (
+                                    layout.rails.right ? (
+                                        <div aria-hidden="true" className="w-[10px] shrink-0 max-xl:hidden" style={{ order: layout.swap ? 2 : 4 }} />
+                                    ) : (
+                                        <Splitter
+                                            label="Resize AI editor panel"
+                                            controls="ws-right"
+                                            data-a="splitter:right"
+                                            className="max-xl:hidden"
+                                            edge={layout.swap ? 'end' : 'start'}
+                                            value={size('right')}
+                                            min={SIZE_LIMITS.right.min}
+                                            max={SIZE_LIMITS.right.max}
+                                            limit={roomFor('right')}
+                                            defaultValue={ws.defaults.sizes.right}
+                                            onLive={(n) => setLive({ right: n })}
+                                            onCommit={(n) => {
+                                                setLive({});
+                                                ws.update({ sizes: { right: n } }, { preset: layout.preset });
+                                            }}
+                                            onCollapse={() => toggleRail('right')}
+                                            order={layout.swap ? 2 : 4}
+                                        />
+                                    )
+                                )}
+
+                                <div
+                                    id="ws-right"
+                                    data-ws-panel="right"
+                                    data-rail={layout.rails.right ? 'true' : undefined}
+                                    className={`flex min-h-0 shrink-0 max-xl:hidden ${rightShown ? '' : 'hidden'}`}
+                                    style={{ order: layout.swap ? 1 : 5, width: layout.rails.right ? RAIL : size('right') }}
+                                >
+                                    {layout.rails.right && (
+                                        <Rail
+                                            name="right"
+                                            label="AI editor panel"
+                                            side={layout.swap ? 'left' : 'right'}
+                                            onExpand={() => toggleRail('right', '#ws-right [role="tab"][aria-selected="true"]')}
+                                            items={RIGHT_RAIL
+                                                .filter((item) => layout.subpanels.rightTabs[item.key])
+                                                .map((item) => ({
+                                                    ...item,
+                                                    count: item.key === 'editor' ? openFindings.length : item.key === 'comments' ? changes.length : 0,
+                                                    run: () => {
+                                                        setPanelTab({ tab: item.tab, at: Date.now() });
+                                                        toggleRail('right', '#ws-right [role="tab"][aria-selected="true"]');
+                                                    },
+                                                }))}
+                                        />
+                                    )}
+                                    <div className={`flex min-h-0 w-full ${layout.rails.right ? 'hidden' : ''}`}>
+                                        <AIEditorPanel {...panelProps} visibleTabs={layout.subpanels.rightTabs} />
+                                    </div>
                                 </div>
                             </div>
 
@@ -822,9 +1132,33 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                 phone that is four screens of scrolling before
                                 the manuscript, so it waits for the tablet
                                 breakpoint. */}
-                            <div className={`h-[236px] min-h-0 max-lg:hidden ${focused ? 'hidden' : ''}`}>
+                            {bottomShown && (
+                                <Splitter
+                                    label="Resize bottom cards"
+                                    controls="ws-bottom"
+                                    data-a="splitter:bottom"
+                                    className="max-lg:hidden"
+                                    edge="top"
+                                    value={size('bottom')}
+                                    min={SIZE_LIMITS.bottom.min}
+                                    max={SIZE_LIMITS.bottom.max}
+                                    defaultValue={ws.defaults.sizes.bottom}
+                                    onLive={(n) => setLive({ bottom: n })}
+                                    onCommit={(n) => {
+                                        setLive({});
+                                        ws.update({ sizes: { bottom: n } }, { preset: layout.preset });
+                                    }}
+                                />
+                            )}
+                            <div
+                                id="ws-bottom"
+                                data-ws-panel="bottom"
+                                className={`min-h-0 shrink-0 max-lg:hidden ${bottomShown ? '' : 'hidden'}`}
+                                style={{ height: size('bottom') }}
+                            >
                                 <BottomRow
                                     sources={library}
+                                    cards={layout.subpanels.bottomCards}
                                     onOpenLibrary={openLibrary}
                                     onAddSource={openLibrary}
                                     onOpenLayout={() => go('layout')}
@@ -840,7 +1174,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             {/* Between 1024 and 1280 the tab bar is gone and the AI panel
                 has not yet joined the grid; this is its way in there. Below
                 1024 it is the tab bar's AI tab. */}
-            {isStudio && !focused && (
+            {isStudio && shown('right') && (
                 <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 hidden justify-center lg:flex xl:hidden">
                     <button
                         data-a="mobile:ai-pill"
@@ -899,6 +1233,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                             setImporting(true);
                         }}
                         adding={adding}
+                        showGoals={layout.subpanels.outlineGoals}
                         {...binderActions}
                     />
                 </Dialog>
@@ -920,7 +1255,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         <CloseButton onClick={() => setPanelOpen(false)} label="Close AI Editor" />
                     </div>
                     <div className="flex min-h-0 flex-1">
-                        <AIEditorPanel {...panelProps} />
+                        <AIEditorPanel {...panelProps} visibleTabs={layout.subpanels.rightTabs} />
                     </div>
                 </Dialog>
             )}
@@ -958,6 +1293,61 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 </div>
             )}
         </div>
+    );
+}
+
+/** The AI panel's tabs, as icons on its rail. */
+const RIGHT_RAIL = [
+    { key: 'editor', tab: 'AI Editor', icon: 'sugg', label: 'AI Editor' },
+    { key: 'comments', tab: 'Comments', icon: 'chat', label: 'Comments' },
+    { key: 'research', tab: 'Research', icon: 'refs', label: 'Research' },
+    { key: 'checks', tab: 'Checks', icon: 'check', label: 'Checks' },
+];
+
+/**
+ * A side panel collapsed to a strip of icons: the first expands it, the
+ * rest do one thing each (open a tab, add a chapter) and expand it too
+ * where that thing is inside the panel.
+ */
+function Rail({ name, label, side, onExpand, items }) {
+    return (
+        <nav
+            aria-label={`${label}, collapsed`}
+            data-a={`rail:${name}`}
+            className="flex w-full flex-col items-center gap-1 rounded-panel border border-border-default bg-bg-surface py-2"
+        >
+            <button
+                type="button"
+                data-a={`rail:${name}:expand`}
+                aria-expanded="false"
+                aria-controls={`ws-${name}`}
+                onClick={onExpand}
+                title={`Expand ${label.toLowerCase()}`}
+                className="grid h-8 w-8 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary"
+            >
+                <Icon name={side === 'left' ? 'right' : 'left'} size={15} />
+                <span className="sr-only">Expand {label.toLowerCase()}</span>
+            </button>
+            <span aria-hidden="true" className="my-1 h-px w-6 bg-border-divider" />
+            {items.map((item) => (
+                <button
+                    key={item.key}
+                    type="button"
+                    data-a={`rail:${name}:${item.key}`}
+                    onClick={item.run}
+                    title={item.label}
+                    className="relative grid h-8 w-8 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-brand-primary"
+                >
+                    <Icon name={item.icon} size={16} />
+                    <span className="sr-only">{item.label}{item.count ? ` (${item.count})` : ''}</span>
+                    {item.count > 0 && (
+                        <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 grid h-[15px] min-w-[15px] place-items-center rounded-badge bg-brand-fill px-1 text-[9.5px] font-semibold text-white">
+                            {item.count}
+                        </span>
+                    )}
+                </button>
+            ))}
+        </nav>
     );
 }
 
