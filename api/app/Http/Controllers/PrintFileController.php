@@ -18,6 +18,8 @@ class PrintFileController extends Controller
     public function __invoke(BookExport $export): StreamedResponse
     {
         abort_unless(in_array($export->format, ['pdf_interior', 'cover_wrap'], true), 404);
+        // A print service is only ever sent the whole book (ExportOptions).
+        abort_unless($export->isFullBook(), 404);
         abort_unless($export->status === 'ready' && $export->path && Storage::disk('files')->exists($export->path), 404);
 
         return Storage::disk('files')->response($export->path, $export->format === 'cover_wrap' ? 'cover.pdf' : 'interior.pdf', [

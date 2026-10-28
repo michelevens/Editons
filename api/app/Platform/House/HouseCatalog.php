@@ -67,6 +67,7 @@ final class HouseCatalog
     public function row(Book $book): array
     {
         $exports = BookExport::where('book_id', $book->id)
+            ->fullBook()
             ->whereIn('format', self::EXPORTS)
             ->latest('id')
             ->get(['id', 'format', 'status', 'created_at', 'options'])

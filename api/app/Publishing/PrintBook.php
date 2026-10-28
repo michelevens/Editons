@@ -622,8 +622,17 @@ class PrintBook
                 'start' => $i === $restart ? 'recto' : $page['start'],
             ];
 
-            if (in_array($kind, ['half-title', 'series', 'title-page', 'copyright', 'contents'], true)) {
+            if (in_array($kind, ['half-title', 'series', 'title-page', 'copyright', 'contents', 'notice', 'closing'], true)) {
                 $add($kind, $page, $folio + ['section' => $section]);
+
+                continue;
+            }
+
+            // The notes of every chapter, at the end of the book (an export
+            // profile's notes placement): listed in the contents, headed
+            // like back matter.
+            if ($kind === 'book-notes') {
+                $add($kind, $page, $folio + ['toc' => true, 'running' => $page['title'], 'title' => $page['title']]);
 
                 continue;
             }
@@ -684,7 +693,8 @@ class PrintBook
         }
 
         return ['blocks' => $blocks, 'words' => $words, 'language' => $language, 'partsRecto' => $opener['parts_recto'],
-            'tocDepth' => (int) $book->layout()['toc']['depth']];
+            // The design's contents depth, unless an export profile sets one.
+            'tocDepth' => (int) (ExportOptions::active($book)?->values['toc_depth'] ?? $book->layout()['toc']['depth'])];
     }
 
     /** What a page of the anatomy is drawn as. */
@@ -696,6 +706,10 @@ class PrintBook
             $page['part'] === 'title_page' => 'title-page',
             $page['part'] === 'copyright_page' => 'copyright',
             $page['part'] === 'table_of_contents' => 'contents',
+            // Pages an export profile adds (ExportOptions).
+            $page['part'] === 'review_notice' => 'notice',
+            $page['part'] === 'continue_reading' => 'closing',
+            $page['part'] === 'book_notes' => 'book-notes',
             $section === null => 'matter',
             $section->type === 'part' => 'part',
             in_array($page['part'], ['dedication', 'epigraph', 'frontispiece'], true),
@@ -1002,6 +1016,20 @@ class PrintBook
      */
     private function decorate(int $page, Canvas $canvas, FontMetrics $metrics, array $starts, array $plan, Book $book): void
     {
+        $this->headsAndFolios($page, $canvas, $metrics, $starts, $plan, $book);
+
+        // A review copy's watermark, on every page, blanks and covers too,
+        // over whatever else the page carries (ExportOptions).
+        if ($watermark = ExportOptions::active($book)?->values['watermark']) {
+            $layout = $book->layout();
+            [$width, $height] = $this->trim($layout['trim']);
+            $this->watermark($canvas, $metrics, $watermark, (float) ExportOptions::active($book)->values['opacity'], $width * 72, $height * 72, $layout);
+        }
+    }
+
+    /** The running heads, folios and covers of decorate(). */
+    private function headsAndFolios(int $page, Canvas $canvas, FontMetrics $metrics, array $starts, array $plan, Book $book): void
+    {
         $current = null;
         $opens = false;
 
@@ -1107,6 +1135,37 @@ class PrintBook
         foreach ($runs as [$run, $runFace]) {
             $canvas->text($x, $headY, $run, $runFace, $head['size'], $grey, 0, $head['spacing']);
             $x += $metrics->getTextWidth($run, $runFace, $head['size'], 0, $head['spacing']);
+        }
+    }
+
+    /**
+     * The watermark: the text set diagonally across the page from the
+     * lower left, centred, as large as fits three quarters of the
+     * diagonal (at most 54 pt), in grey at the profile's opacity.
+     */
+    private function watermark(Canvas $canvas, FontMetrics $metrics, string $text, float $opacity, float $w, float $h, array $layout): void
+    {
+        $font = $metrics->getFont(InteriorFonts::name($layout['font']), 'normal');
+        $angle = rad2deg(atan2($h, $w));
+        $diagonal = sqrt($w * $w + $h * $h);
+        $size = min(54.0, 0.75 * $diagonal / max(1.0, $metrics->getTextWidth($text, $font, 1.0)));
+        $width = $metrics->getTextWidth($text, $font, $size);
+        $rise = deg2rad($angle);
+
+        // From the point that puts the line's middle at the page's centre,
+        // the baseline dropped by a third of the size so the letters, not
+        // the baseline, are centred.
+        $x = $w / 2 - cos($rise) * $width / 2 + sin($rise) * $size / 3;
+        $y = $h / 2 + sin($rise) * $width / 2 + cos($rise) * $size / 3;
+
+        if (method_exists($canvas, 'set_opacity')) {
+            $canvas->set_opacity($opacity);
+        }
+
+        $canvas->text($x, $y, $text, $font, $size, [0.45, 0.45, 0.45], 0.0, 0.0, -$angle);
+
+        if (method_exists($canvas, 'set_opacity')) {
+            $canvas->set_opacity(1.0);
         }
     }
 
@@ -1354,10 +1413,20 @@ class PrintBook
         ])));
     }
 
+    /**
+     * Notes gathered from the chapters for the book's Notes page, while a
+     * document with one is being set (an export profile's notes placement).
+     */
+    private ?\ArrayObject $bookNotes = null;
+
     /** The whole document, as HTML; $dompdf when it is for the PDF. */
     private function document(Book $book, array $plan, float $factor = 1.0, bool $dompdf = false): string
     {
         $body = '';
+        // Filled afresh by every pass, in reading order, before the Notes
+        // page that reads it.
+        $added = collect($plan['blocks'])->pluck('kind')->intersect(['notice', 'closing', 'book-notes'])->isNotEmpty();
+        $this->bookNotes = collect($plan['blocks'])->contains('kind', 'book-notes') ? new \ArrayObject : null;
 
         foreach ($plan['blocks'] as $block) {
             if ($block['blankBefore']) {
@@ -1378,8 +1447,17 @@ class PrintBook
             .'<head><meta charset="utf-8">'
             .'<meta name="viewport" content="width=device-width, initial-scale=1">'
             .'<title>'.e($book->title).'</title>'
-            .'<style>'.$this->css($book, $factor).'</style></head>'."\n"
+            .'<style>'.$this->css($book, $factor).($added ? self::addedCss() : '').'</style></head>'."\n"
             .'<body>'."\n".$body.'</body></html>'."\n";
+    }
+
+    /** The pages an export profile adds: the review notice, the closing page, the book's notes. */
+    private static function addedCss(): string
+    {
+        return ".notice-text { margin-top: 35%; text-align: center; font-size: 1.3em; font-weight: bold; }\n"
+            .".closing-text { margin-top: 25%; text-align: center; }\n"
+            .".closing-text p { text-indent: 0; text-align: center; }\n"
+            .".book-notes h2 { font-size: 1em; margin: 1.2em 0 .3em; }\n";
     }
 
     /**
@@ -1577,6 +1655,18 @@ class PrintBook
             'dedication' => $open('dedication')
                 .'<div class="dedication-text">'.$this->renderer->withMath('svg')->withNumbering($this->numbering)->html($section).'</div></section>',
 
+            // Pages an export profile adds (ExportOptions).
+            'notice' => $open('notice').'<p class="notice-text">'.e($data['text'] ?? '').'</p></section>',
+
+            'closing' => $open('closing').'<div class="closing-text"><h1 class="opener-title">'.e($data['heading'] ?? '').'</h1>'
+                .'<p>'.e($data['text'] ?? '').'</p>'
+                .(! empty($data['url']) ? '<p><a href="'.e($data['url']).'">'.e($data['link']).'</a><br>'.e($data['url']).'</p>' : '')
+                .'</div></section>',
+
+            'book-notes' => $open('book-notes')
+                .'<div class="opener opener-quiet"><h1 class="opener-title">'.e($block['title']).'</h1><div class="rule"></div></div>'
+                .'<div class="text">'.($this->bookNotes ? $this->renderer->withMath('svg')->bookNotesHtml($this->bookNotes) : '').'</div></section>',
+
             'contents' => $open('contents')
                 .'<div class="opener opener-quiet"><h1 class="opener-title">'.e($block['title'] ?? $plan['words']['contents']).'</h1>'
                 .'<div class="rule"></div></div>'
@@ -1710,9 +1800,10 @@ class PrintBook
         // SVG equations: dompdf has no math engine, but draws SVG paths.
         // Fitted to the measure, so a long one is scaled rather than squeezed.
         $layout = $book->layout();
-        $html = $this->renderer->withMath('svg')->withNumbering($this->numbering)->withLanguage($language)
-            ->withMeasure(($this->trim($layout['trim'])[0] - array_sum($this->sides($layout))) * 72, (float) $layout['size'])
-            ->html($copy);
+        $renderer = $this->renderer->withMath('svg')->withNumbering($this->numbering)->withLanguage($language)
+            ->withMeasure(($this->trim($layout['trim'])[0] - array_sum($this->sides($layout))) * 72, (float) $layout['size']);
+        // Notes kept for the book's Notes page, when it has one.
+        $html = ($this->bookNotes ? $renderer->withBookNotes($this->bookNotes) : $renderer)->html($copy);
         // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
         if (! $this->linkImages) {
             $html = $this->images->inline($html, $book->id);

@@ -20,7 +20,7 @@ class StoreReadiness
     /** @return array<string, array<string, mixed>> channel => result */
     public function all(Book $book): array
     {
-        $epub = $book->exports()->where('format', 'epub')->where('status', 'ready')->latest('id')->first();
+        $epub = $book->exports()->fullBook()->where('format', 'epub')->where('status', 'ready')->latest('id')->first();
 
         return collect(BookChannel::CHANNELS)
             ->filter(fn ($meta) => $meta[1] === 'ebook')

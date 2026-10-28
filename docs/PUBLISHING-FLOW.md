@@ -85,7 +85,9 @@ review or live) cannot be unticked: unpublish it there first.
   - ISBN from the plan, or "Get a free KDP ISBN"; publisher (imprint);
   - paperback print options: ink and paper, trim, "No Bleed", cover finish;
   - the files to upload (fresh exports, with download links) and the front
-    cover JPG;
+    cover JPG — always Full-book exports: a Sample, a review copy or any
+    other export profile (ADR — Export profiles) is never offered here, to
+    Google Play, to Lulu or to a buyer;
   - the AI-content answers confirmed in ISBN & Rights (`AiDisclosure`);
   - prices in USD for Amazon.com with the royalty from `Royalties`.
   "Open KDP" goes to `https://kdp.amazon.com/`. **I've submitted it** takes

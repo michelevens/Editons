@@ -222,6 +222,28 @@ export default function ProductEditor({ bookId, onSaved }) {
                 <p className="mt-1 text-[11px] text-text-secondary">Plain text. Line breaks are kept.</p>
             </Field>
 
+            {/* "Read a sample" (App\Commerce\Sample): a Sample-profile
+                export made on Export & Publish, linked from the page. */}
+            <div className="mb-3 rounded-input border border-border-default p-2.5">
+                <label className="flex items-start gap-2 text-[12.5px] text-text-body">
+                    <input
+                        type="checkbox"
+                        data-a="store:sample"
+                        checked={!!form.sample_enabled}
+                        onChange={(e) => set('sample_enabled', e.target.checked)}
+                        className="mt-0.5"
+                    />
+                    <span>
+                        Offer “Read a sample” on the page
+                        <span className="block text-[11px] leading-snug text-text-secondary">
+                            {data.samples?.length
+                                ? `Readers get your latest Sample file (${data.samples.map((f) => f.toUpperCase()).join(', ')}).`
+                                : 'Make an EPUB or PDF with the Sample profile on Export & Publish first; until then no link shows.'}
+                        </span>
+                    </span>
+                </label>
+            </div>
+
             {data.partners && (
                 <PartnerOptions
                     partners={data.partners}
@@ -280,6 +302,7 @@ function toForm(data) {
         license: p?.license ?? data.options.licenses[0]?.key,
         title: p?.title ?? '',
         description: p?.description ?? '',
+        sample_enabled: p?.sample_enabled ?? false,
         // Sent only when the partner program is on for this account.
         ...(data.partners
             ? {

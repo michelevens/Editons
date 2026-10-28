@@ -51,7 +51,10 @@ class Freshness
      */
     public static function file(Book $book, string $format, ?string $service = null, ?Carbon $changed = null, ?string $fingerprint = null): array
     {
+        // Only a Full-book export goes to a store or a printer: a Sample
+        // or a review copy is never offered (ExportOptions).
         $query = BookExport::where('book_id', $book->id)
+            ->fullBook()
             ->where('format', $format)
             ->where('status', 'ready')
             ->latest('id');

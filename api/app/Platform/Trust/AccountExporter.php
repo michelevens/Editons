@@ -138,7 +138,7 @@ final class AccountExporter
                     'updated_at' => $book->updated_at?->toIso8601String(),
                 ]));
 
-                $epub = $book->exports()->where('format', 'epub')->where('status', 'ready')->latest('id')->first();
+                $epub = $book->exports()->fullBook()->where('format', 'epub')->where('status', 'ready')->latest('id')->first();
 
                 if ($epub && $epub->path && $disk->exists($epub->path)) {
                     $local = tempnam(sys_get_temp_dir(), 'acxe');

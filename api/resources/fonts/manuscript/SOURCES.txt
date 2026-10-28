@@ -1,0 +1,16 @@
+Standard manuscript format faces (App\Publishing\Manuscript)
+=============================================================
+
+Both families are licensed under the SIL Open Font License 1.1; each
+licence is beside it as OFL-<Family>.txt. Shipped unmodified, October 2026.
+
+Times-like: Liberation Serif 2.1.5 (metric-compatible with Times New Roman)
+  https://github.com/liberationfonts/liberation-fonts
+  release liberation-fonts-ttf-2.1.5.tar.gz:
+  LiberationSerif-Regular.ttf, -Italic, -Bold, -BoldItalic; LICENSE copied as
+  OFL-LiberationSerif.txt. Reserved Font Names: Liberation; Arimo, Tinos, Cousine.
+
+Courier-like: Courier Prime
+  https://github.com/google/fonts ofl/courierprime/
+  CourierPrime-Regular.ttf, -Italic, -Bold, -BoldItalic; OFL.txt copied as
+  OFL-CourierPrime.txt.

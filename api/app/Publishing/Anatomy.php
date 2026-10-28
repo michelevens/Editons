@@ -7,6 +7,7 @@ use App\Models\Isbn;
 use App\Models\ManuscriptSection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
@@ -225,7 +226,7 @@ class Anatomy
             return null;
         }
 
-        $fold = fn (?string $s) => mb_strtolower(trim(\Illuminate\Support\Str::ascii((string) $s)));
+        $fold = fn (?string $s) => mb_strtolower(trim(Str::ascii((string) $s)));
         $p = $book->publication();
         $houses = array_filter([$p['imprint'] ?? null, $p['publisher'] ?? null, $book->series_name, config('app.name')]);
 
@@ -458,7 +459,10 @@ class Anatomy
             // cover image; it is never part of the print-ready interior,
             // which the printer binds inside a separately supplied cover.
             'cover' => ['reading_pdf' => true, 'epub' => true, 'print_interior' => false],
-            'pages' => self::paginate($pages),
+            // While an export runs, its profile and the book's matter set
+            // for that format narrow the pages (ExportOptions); otherwise
+            // they are the whole book.
+            'pages' => self::paginate(ExportOptions::filterPages($book, $pages, $language)),
         ];
     }
 

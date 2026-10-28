@@ -76,6 +76,59 @@ class DocumentRenderer
         return $copy;
     }
 
+    /**
+     * Notes gathered for the end of the book rather than set at each
+     * chapter's end (an export profile's notes placement). Shared by every
+     * copy made from this one, so the chapters fill it and the book's
+     * Notes page reads it (bookNotesHtml). $target is the document the
+     * notes are set in, for links between EPUB files.
+     */
+    private ?\ArrayObject $bookNotes = null;
+
+    private string $noteTarget = '';
+
+    public function withBookNotes(\ArrayObject $sink, string $target = ''): static
+    {
+        $copy = clone $this;
+        $copy->bookNotes = $sink;
+        $copy->noteTarget = $target;
+
+        return $copy;
+    }
+
+    /**
+     * The notes gathered by withBookNotes(), under the title of the chapter
+     * each came from, numbered as the chapter numbered them. In EPUB each
+     * is an endnote whose number links back to its reference.
+     */
+    public function bookNotesHtml(\ArrayObject $sink): string
+    {
+        $out = '';
+
+        foreach ($sink as $chapter) {
+            $items = '';
+            $back = $this->sectionFiles[$chapter['section']] ?? '';
+
+            foreach ($chapter['notes'] as $i => $text) {
+                $n = $i + 1;
+                $id = $chapter['prefix'].'-'.$n;
+
+                $items .= $this->noteMode === 'epub'
+                    ? '<li epub:type="endnote" role="doc-endnote" id="fn-'.$id.'"><p><a href="'.e($back).'#fnref-'.$id.'">'.$n.'.</a> '.$this->noteText($text).'</p></li>'
+                    : '<li id="fn-'.$id.'" role="doc-endnote"><p>'.$this->noteText($text)
+                        .($this->mathMode === 'svg' ? '' : ' <a href="'.e($back).'#fnref-'.$id.'" role="doc-backlink" aria-label="Back to note '.$n.'">↩</a>').'</p></li>';
+            }
+
+            $out .= '<section class="book-notes-chapter"><h2>'.e($chapter['title']).'</h2>'
+                .'<ol'.($this->noteMode === 'epub' ? ' class="endnotes-list"' : '').'>'.$items.'</ol></section>'.'
+';
+        }
+
+        return $this->noteMode === 'epub'
+            ? '<section class="footnotes book-notes" epub:type="endnotes" role="doc-endnotes">'.$out.'</section>'
+            : '<section class="footnotes book-notes" role="doc-endnotes">'.$out.'</section>';
+    }
+
     /** Numbers and targets for the whole book (Numbering::forBook), or null. */
     private ?array $numbering = null;
 
@@ -251,7 +304,17 @@ class DocumentRenderer
         $this->notePrefix = 's'.($section->id ?? 'x');
 
         try {
-            return $this->sectionHtml($nodes).$this->notesHtml();
+            $html = $this->sectionHtml($nodes);
+
+            if ($this->bookNotes !== null) {
+                if ($this->notes !== []) {
+                    $this->bookNotes[] = ['section' => $section->id, 'title' => $section->title, 'prefix' => $this->notePrefix, 'notes' => $this->notes];
+                }
+
+                return $html;
+            }
+
+            return $html.$this->notesHtml();
         } finally {
             $this->sectionId = $this->top = null;
         }
@@ -536,7 +599,7 @@ class DocumentRenderer
         $id = "{$this->notePrefix}-{$n}";
         $epub = $this->noteMode === 'epub' ? ' epub:type="noteref"' : '';
 
-        return '<sup class="fn-ref"><a href="#fn-'.$id.'" id="fnref-'.$id.'" role="doc-noteref"'.$epub.'>'.$n.'</a></sup>';
+        return '<sup class="fn-ref"><a href="'.($this->bookNotes !== null ? e($this->noteTarget) : '').'#fn-'.$id.'" id="fnref-'.$id.'" role="doc-noteref"'.$epub.'>'.$n.'</a></sup>';
     }
 
     private function notesHtml(): string

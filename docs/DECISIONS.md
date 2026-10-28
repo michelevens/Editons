@@ -2959,3 +2959,147 @@ every glyph's sheet position, both directions), and
 copy box — it neither moves nor re-sizes; upload a logo; drop it on the
 barcode and see it moved clear; spine bottom to top; customise the spine;
 the full wrap; reload persists; no console errors).
+
+## ADR-00XX — Export profiles
+
+**Status:** accepted (2026-10-28). Number assigned at merge.
+
+**Context.** The flexibility audit's item 8 (P1, E3, D10, P3). An export
+had no options but the cover wrap's service: the reading PDF always
+carried the cover and the interior never did, and there was no chapter
+range or sample, no review-copy watermark, no standard manuscript format
+for agents and editors, no way to leave front or back matter out (in one
+format or all), notes always went at the end of each chapter, and the
+store product page had no "Look inside". `BookExport.options` existed.
+
+**Decisions.**
+
+- *A profile narrows the book through its anatomy.*
+  `App\Publishing\ExportOptions` holds one export's options: `range`
+  (`first` N chapters, or `from`/`to` two sections of the text, both
+  included), `cover`, `exclude` (Anatomy keys of front and back matter,
+  plus `other_front` / `other_back` for sections nobody named),
+  `watermark` and `opacity`, `manuscript` (+ `manuscript_font`,
+  `contact`), `notes` (`chapter` | `book`), `toc_depth` (1–3 or the
+  design's) and `closing`. While an export runs, `ExportOptions::within()`
+  puts them in force and `Anatomy::plan` filters its pages before
+  paginating them (`filterPages`): every renderer — PrintBook, the EPUB
+  spine and nav, the Word sections, the HTML and Markdown structure, the
+  numbering — reads the book through the plan, so the range, the contents
+  and the matter follow without a renderer of their own. A range keeps the
+  text from the first kept chapter to the end of the last one's own
+  sections, with the parts they sit in; front and back matter are left to
+  the exclusions. The pages a profile adds (a review notice, the book's
+  notes, "Continue reading") are generated pages in the plan, drawn by
+  each renderer like the title page. Cleared afterwards, so previews and
+  the next job read the book whole.
+- *Presets.* **Full book** (today's output), **Review copy** (watermark
+  "Review copy — not for sale"), **Sample** (first 2 chapters; title page,
+  copyright and contents kept, every other front and all back matter left
+  out; a closing "Continue reading" page linking the store product when it
+  is on sale), **Manuscript submission** (manuscript format, no cover, no
+  generated or authored matter). A preset changed by hand is "Custom".
+- *Saved profiles* are `export_profiles` rows per book (name unique per
+  book whatever its case, never a preset's name; options validated exactly
+  as an export's). Using one sends its id; another book's id is refused.
+- *Stored on the export.* `BookExport.options.profile` holds the normalised
+  options (with the chapters a range covered, so the label stays right
+  after the book changes); Full book with nothing changed is stored as no
+  profile, so old and new Full-book rows read alike. The interior keeps its
+  print-check fields beside it. A missing file is made again with the
+  options it was made with. One render per format at a time: asking for a
+  Full EPUB while a Sample EPUB renders is refused with a reason.
+- *Labels and where files may go.* `BookExport::label()` appends the
+  profile ("EPUB · Sample · ch. 1–2", "PDF · Review copy", a saved
+  profile's name), and the history marks it "Not for stores". Only
+  Full-book exports (`BookExport::scopeFullBook`, `isFullBook`) are sold
+  (`Listing::readyExport`, store downloads and their rebuilds), offered to
+  the publish flow, KDP, Google Play and Lulu (`Freshness::file`), served
+  to a print service (`PrintFileController`), counted for the spine
+  (`PrintPages::known`), or counted by the submission and store checks,
+  royalties, the house catalog and the account data export. Enforced on
+  the server.
+- *Watermark.* PDF only (reading PDF and print interior): drawn last in
+  PrintBook's page decoration, on every page — covers and blanks too —
+  diagonally from the lower left, centred, as large as three quarters of
+  the diagonal allows (at most 54 pt), grey at the chosen opacity (5–60 %,
+  15 % default), at most 80 characters. EPUB, Word, print-ready HTML and
+  HTML get a notice page after the title page instead (Markdown a bold
+  line); the UI says so.
+- *Standard manuscript format* (PDF and Word only; refused elsewhere):
+  `App\Publishing\Manuscript`. 12 pt Liberation Serif (Times-metric) or
+  Courier Prime, both OFL, shipped in `resources/fonts/manuscript` with
+  their licences and sources; double-spaced (dompdf's line height
+  corrected by the face's height, as PrintBook does), 1 in margins, ragged
+  right, 0.5 in first-line indents, no space between paragraphs; US Letter
+  for English, A4 otherwise; a title page with the contact block (the
+  profile's, else the author's name) top left, "about N words" (rounded to
+  the nearest thousand, hundred below 1,000) top right, the title in
+  capitals and the byline (none for an anonymous book); each chapter on a
+  new page with its title a third of the way down; scene breaks "#";
+  "Surname / SHORT TITLE / page" at the top right of every page but the
+  title page. Word: the same in styles (24 half-points, line 480,
+  first-line 720), a header part with a PAGE field, `titlePg` on the title
+  page. The prose is DocumentRenderer's.
+- *Notes.* End of chapter (as before) or end of the book: DocumentRenderer
+  gathers each chapter's notes into a shared sink (`withBookNotes`) and
+  `bookNotesHtml` sets them under their chapter titles, numbered as each
+  chapter numbered them; PDF, print-ready HTML, HTML and EPUB (a
+  `notes.xhtml` of endnotes, references linking across files, listed in
+  the nav). Page-foot notes are refused with the reason: dompdf cannot
+  measure a page to place them. Word keeps Word's own footnotes, which are
+  at the page foot already; Markdown keeps its footnotes.
+- *Contents depth* overrides the design's for the printed contents, the
+  EPUB nav and Word's TOC field (`\o "1-n"`).
+- *Matter per format, for every export (E3).* `books.meta.export_matter`
+  `{ebook: [...], print: [...]}`: pages left out of every EPUB, or of every
+  print file (PDF, Word, HTML, Markdown), Full book included, since the
+  file a store receives is a Full-book one. Empty (the default, and removed
+  when emptied) is today's anatomy. The EPUB already left out the half
+  title and has no blank pages.
+- *Store sample (P3).* `products.sample_enabled`, toggled on the product
+  editor. The product page shows "Read a sample" with EPUB and/or PDF links
+  when it is on and a ready Sample-preset export exists
+  (`App\Commerce\Sample`): a relative signed link valid 60 minutes, like
+  purchased downloads, on `store.sample` (`signed:relative`,
+  `throttle:20,1`), only while the product is on sale.
+- *Permissions.* Generating with a profile, saving profiles and the matter
+  set need `update` on the book (the export right; a reviewer or a
+  stranger is refused), and the plan's format entitlement as before.
+- *Defaults unchanged, checked.* Three local books — an Écrivain Prépa book
+  (Reyisi egzamen 9e AF — Kreyòl, 68k words, 299-page interior), Building
+  an Independent Practice and Small Systems (Leaves and Roots is not in the
+  local database) — rendered in six formats before and after, inside a
+  rolled-back transaction: PDF page counts and extracted text per page,
+  EPUB file lists with every XHTML/OPF/CSS and the cover's hash, DOCX
+  parts, HTML and Markdown are identical (18 of 18).
+
+**Not done.** Page-foot notes (renderer); the watermark on Word or HTML
+pages (a notice page instead); a sample of the paperback's interior on the
+store page (EPUB/PDF only); per-store matter sets beyond EPUB and print;
+the full-screen preview does not apply the matter set; real epubcheck in
+the suite (no Java on the machine; the tests check the structural rules
+epubcheck enforces that these changes could break).
+
+**Tests.** `tests/Feature/ExportProfilesTest.php` (presets and the stored
+default; unknown keys, ranges, watermark length, opacity, page-foot notes
+and depth refused; manuscript only for PDF and Word, nothing on a cover
+wrap; from-to ranges and their recorded chapters; HTTP generate with
+labels and 422s; reviewer and stranger refused; saved profiles — unique
+names, presets' names refused, another book's id refused, update, delete
+keeping the export's label; one profile per rendering format; range
+exports with contents listing only them in EPUB and PDF; cover and matter
+left out in EPUB, Word, HTML and PDF; the matter set per format on a
+Full-book export; the watermark on every PDF page and the EPUB notice
+page; manuscript PDF at 12 pt with 24 pt baselines, the header per page,
+the rounded word count, the chapter a third down and "#"; manuscript Word
+styles, header and XML validity; notes at the end of the book in EPUB and
+PDF; the Sample's closing page with the store link; profiled exports
+never sold, fresh for the publish flow, counted for the spine or served to
+a printer; a file made again with its profile; the Full book preset
+identical to no profile; the store's Read a sample link signed, served,
+refused unsigned, gone when turned off), and
+`tests/Browser/export-profiles.spec.js` at 1440 and 390 px (Sample chip by
+keyboard, the EPUB labelled in the history, Customise with a watermark and
+book-end notes saved as a profile, still there after a reload, no
+overflow, no console errors).
