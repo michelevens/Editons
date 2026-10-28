@@ -14,6 +14,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\ContentReportController;
 use App\Http\Controllers\CoverAiController;
+use App\Http\Controllers\CoverFontController;
 use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
@@ -413,6 +414,20 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover.paint');
     Route::delete('/books/{book}/cover/artwork', [DesignController::class, 'removeArtwork'])
         ->name('design.cover.artwork.destroy');
+    // Text layers: "Customise text" turns the layout into layers, and
+    // "Reset to layout" goes back (CoverLayers, ADR "Cover Studio text layers").
+    Route::post('/books/{book}/cover/layers', [DesignController::class, 'customiseCover'])
+        ->name('design.cover.layers');
+    Route::delete('/books/{book}/cover/layers', [DesignController::class, 'resetCover'])
+        ->name('design.cover.layers.destroy');
+    // The faces cover layers are set in, and their metrics, for the live
+    // canvas (CoverFonts).
+    Route::get('/cover-fonts/{face}/metrics', [CoverFontController::class, 'metrics'])
+        ->where('face', '[a-z0-9.-]+')
+        ->name('cover-fonts.metrics');
+    Route::get('/cover-fonts/{face}', [CoverFontController::class, 'file'])
+        ->where('face', '[a-z0-9.-]+')
+        ->name('cover-fonts.file');
 
     // The full-screen preview (PreviewController): contents first, then a
     // page at a time.

@@ -2,6 +2,9 @@
 
 namespace App\Publishing;
 
+use App\Covers\CoverFonts;
+use App\Covers\CoverLayers;
+use App\Covers\CoverText;
 use App\Models\Book;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -19,6 +22,11 @@ use RuntimeException;
  * Rendered once per distinct design: the file is named for a hash of the
  * settings, so a change makes a new file and an unchanged cover is served
  * from the bucket.
+ *
+ * Two ways to set the type. A layout (classic, bold, band, finished) places
+ * and fits it automatically. Text layers (App\Covers\CoverLayers) put each
+ * box exactly where the author dragged it, set by CoverText — the same
+ * algorithm Cover Studio's live canvas runs — so the canvas is the file.
  */
 class CoverRenderer
 {
@@ -37,8 +45,11 @@ class CoverRenderer
         'finished' => 'Finished cover',
     ];
 
-    /** Bumped when the drawing changes, so every cover is redrawn once. */
-    private const VERSION = 1;
+    /**
+     * Bumped when the drawing changes, so every cover is redrawn once.
+     * 2: text layers, and the background-only image Cover Studio draws on.
+     */
+    private const VERSION = 2;
 
     private const MARGIN = 150;
 
@@ -59,7 +70,27 @@ class CoverRenderer
             'layout' => array_key_exists($cover['layout'] ?? '', self::LAYOUTS) ? $cover['layout'] : 'classic',
             'shade' => max(0, min(100, (int) ($cover['shade'] ?? 45))),
             'artwork' => $cover['artwork'] ?? null,
+            // Text layers, when the author has customised the text; null
+            // keeps the layout. A stored document that no longer validates
+            // (a face withdrawn) falls back to the layout, not to an error.
+            'layers' => $this->layers($cover),
+            // What bound layers show; only layered covers depend on them.
+            'texts' => isset($cover['layers']) ? CoverLayers::texts($book) : null,
         ];
+    }
+
+    /** @return array{version: int, items: array<int, array<string, mixed>>}|null */
+    private function layers(array $cover): ?array
+    {
+        if (! isset($cover['layers'])) {
+            return null;
+        }
+
+        try {
+            return CoverLayers::validate($cover['layers']);
+        } catch (\Illuminate\Validation\ValidationException) {
+            return null;
+        }
     }
 
     /** A short hash of the design, for the file name and the URL. */
@@ -102,6 +133,27 @@ class CoverRenderer
         }
 
         return $path;
+    }
+
+    /**
+     * The front cover as JPEG bytes for a print wrap, $width pixels wide.
+     *
+     * A layered cover is drawn at that width, its type set at print
+     * resolution; a layout cover is the stored 1600 × 2560 file, which the
+     * wrap scales as before.
+     */
+    public function front(Book $book, int $width): string
+    {
+        $disk = Storage::disk('files');
+        $settings = $this->settings($book);
+
+        if ($settings['layers'] === null || $width <= self::WIDTH) {
+            return (string) $disk->get($this->ensure($book));
+        }
+
+        $artwork = $settings['artwork'] && $disk->exists($settings['artwork']) ? $disk->get($settings['artwork']) : null;
+
+        return $this->render($settings, $artwork, $width);
     }
 
     public function thumbPath(Book $book): string
@@ -160,8 +212,15 @@ class CoverRenderer
         return (string) ob_get_clean();
     }
 
-    /** Draw a cover and return it as JPEG bytes. */
-    public function render(array $settings, ?string $artwork = null): string
+    /**
+     * Draw a cover and return it as JPEG bytes.
+     *
+     * $width draws a layered cover at another size (CoverWrap's print
+     * resolution): layers are fractions of the cover, so they scale; a
+     * layout is drawn at 1600 × 2560 and scaled. $withText false draws the
+     * background alone, which Cover Studio's live canvas sets type over.
+     */
+    public function render(array $settings, ?string $artwork = null, ?int $width = null, bool $withText = true): string
     {
         if (! function_exists('imagecreatetruecolor')) {
             throw new RuntimeException('Cover rendering needs the GD extension.');
@@ -175,8 +234,17 @@ class CoverRenderer
             throw new RuntimeException('That artwork is too large to use. Use an image under 40 megapixels.');
         }
 
+        $layers = $settings['layers'] ?? null;
+
+        if ($layers === null && $withText && $width !== null && $width !== self::WIDTH) {
+            return $this->scale($this->render($settings, $artwork), $width);
+        }
+
+        $width = $layers !== null ? ($width ?? self::WIDTH) : self::WIDTH;
+        $height = (int) round($width * self::HEIGHT / self::WIDTH);
+
         $palette = AccessibilityAudit::PALETTES[$settings['palette']] ?? AccessibilityAudit::PALETTES[0];
-        $image = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
+        $image = imagecreatetruecolor($width, $height);
         imagealphablending($image, true);
 
         $art = $artwork !== null ? @imagecreatefromstring($artwork) : false;
@@ -190,20 +258,318 @@ class CoverRenderer
         $onArt = (bool) $art;
         $ink = $onArt ? '#ffffff' : $palette['ink'];
 
-        // A finished cover from a designer already carries its type: it is
-        // the cover, untouched. Without artwork there is nothing finished, so
-        // the classic layout draws instead.
-        match ($art ? $settings['layout'] : ($settings['layout'] === 'finished' ? 'classic' : $settings['layout'])) {
-            'finished' => null,
-            'bold' => $this->bold($image, $settings, $ink, $onArt),
-            'band' => $this->band($image, $settings, $palette, $onArt),
-            default => $this->classic($image, $settings, $ink, $onArt),
-        };
+        if ($layers !== null || ! $withText) {
+            // Layers keep the layout's treatment of the picture: classic
+            // and bold darken it under the type; band carries its band as
+            // a layer of its own, and a finished cover is left alone.
+            if ($onArt && in_array($settings['layout'], ['classic', 'bold'], true)) {
+                $this->shade($image, $settings['shade'], top: true, bottom: true);
+            }
+
+            if ($withText && $layers !== null) {
+                $this->drawLayers($image, $layers['items'], $settings['texts'] ?? []);
+            }
+        } else {
+            // A finished cover from a designer already carries its type: it
+            // is the cover, untouched. Without artwork there is nothing
+            // finished, so the classic layout draws instead.
+            match ($art ? $settings['layout'] : ($settings['layout'] === 'finished' ? 'classic' : $settings['layout'])) {
+                'finished' => null,
+                'bold' => $this->bold($image, $settings, $ink, $onArt),
+                'band' => $this->band($image, $settings, $palette, $onArt),
+                default => $this->classic($image, $settings, $ink, $onArt),
+            };
+        }
 
         ob_start();
         imagejpeg($image, null, 90);
 
         return (string) ob_get_clean();
+    }
+
+    // --- Text layers -------------------------------------------------------
+
+    /**
+     * The drop shadow under a layer's type: offset right and down, as
+     * fractions of the cover's width and height, and its opacity. Cover
+     * Studio draws the same (the payload hands it these).
+     */
+    public const SHADOWS = [
+        'soft' => ['dx' => 0.0025, 'dy' => 0.002, 'opacity' => 0.37],
+        'strong' => ['dx' => 0.004, 'dy' => 0.003, 'opacity' => 0.75],
+    ];
+
+    /**
+     * Each visible layer in order, the first at the back: its background
+     * panel, its shadow, then its type, every glyph where CoverText put it.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<string, string>  $texts
+     */
+    private function drawLayers($image, array $items, array $texts): void
+    {
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $points = 1 / $this->pixelsPerPoint();
+
+        foreach ($items as $layer) {
+            if (! $layer['visible']) {
+                continue;
+            }
+
+            $set = CoverText::layout($layer, CoverLayers::text($layer, $texts), $width, $height);
+
+            if ($panel = $layer['background']) {
+                $box = $set['box'];
+                $pad = $panel['padding'] * $width;
+
+                imagefilledrectangle(
+                    $image,
+                    (int) round($box['x'] - $pad),
+                    (int) round($box['y'] - $pad),
+                    (int) round($box['x'] + $box['width'] + $pad) - 1,
+                    (int) round($box['y'] + $box['height'] + $pad) - 1,
+                    $this->color($image, $panel['color'], $this->alpha($panel['opacity'])),
+                );
+            }
+
+            $size = $set['size'] * $points;
+
+            if ($shadow = self::SHADOWS[$layer['shadow']] ?? null) {
+                $dark = $this->color($image, '#000000', $this->alpha($shadow['opacity'] * $layer['opacity']));
+                $this->glyphs($image, $set['lines'], $size, $dark, $shadow['dx'] * $width, $shadow['dy'] * $height);
+            }
+
+            $this->glyphs($image, $set['lines'], $size, $this->color($image, $layer['color'], $this->alpha($layer['opacity'])), 0, 0);
+        }
+    }
+
+    /** @param  array<int, array<string, mixed>>  $lines */
+    private function glyphs($image, array $lines, float $points, int $color, float $dx, float $dy): void
+    {
+        foreach ($lines as $line) {
+            $y = (int) round($line['baseline'] + $dy);
+
+            foreach ($line['glyphs'] as $glyph) {
+                if (trim($glyph['char']) === '') {
+                    continue;
+                }
+
+                imagettftext($image, $points, 0, (int) round($glyph['x'] + $dx), $y, $color, CoverFonts::file($glyph['face']), $glyph['char']);
+            }
+        }
+    }
+
+    /** GD's 0 (opaque) – 127 (clear) from an opacity 0–1. */
+    private function alpha(float $opacity): int
+    {
+        return (int) round(127 * (1 - max(0, min(1, $opacity))));
+    }
+
+    /**
+     * Pixels per point of GD's type size.
+     *
+     * libgd sets type at 96 dpi, so a 72pt em is 96 pixels; layers are
+     * sized in pixels. Measured once from a face's own advances rather than
+     * assumed, in case a build of GD sets another resolution.
+     */
+    private function pixelsPerPoint(): float
+    {
+        static $ratio = null;
+
+        if ($ratio !== null) {
+            return $ratio;
+        }
+
+        $face = 'eb-garamond.regular';
+        $file = CoverFonts::file($face);
+        $metrics = CoverFonts::metrics($face);
+        $eleven = imagettfbbox(100, 0, $file, str_repeat('H', 11));
+        $one = imagettfbbox(100, 0, $file, 'H');
+        $measured = (($eleven[2] - $one[2]) / 10) / ($metrics['adv'][ord('H')] / $metrics['upm'] * 100);
+
+        return $ratio = abs($measured - 4 / 3) < 0.03 ? 4 / 3 : $measured;
+    }
+
+    /**
+     * The current layout as layers: the same text, where the layout puts
+     * it, at the size it fitted, in the same face and colour. "Customise
+     * text" starts the author from what they see.
+     *
+     * A finished cover's artwork already carries its type, so it starts
+     * with none.
+     *
+     * @return array{version: int, items: array<int, array<string, mixed>>}
+     */
+    public function layersFromLayout(Book $book): array
+    {
+        $book = $book->replicate();
+        $book->cover = array_diff_key($book->cover ?? [], ['layers' => true]);
+        $s = $this->settings($book);
+        $disk = Storage::disk('files');
+        $onArt = $s['artwork'] && $disk->exists($s['artwork']) && @imagecreatefromstring((string) $disk->get($s['artwork']));
+        $palette = AccessibilityAudit::PALETTES[$s['palette']] ?? AccessibilityAudit::PALETTES[0];
+        $layout = $onArt ? $s['layout'] : ($s['layout'] === 'finished' ? 'classic' : $s['layout']);
+
+        if ($layout === 'finished') {
+            return ['version' => CoverLayers::VERSION, 'items' => []];
+        }
+
+        $family = $s['font'] === 'sans' ? 'source-sans' : 'eb-garamond';
+        $ink = $onArt ? '#ffffff' : $palette['ink'];
+        $shadow = $onArt && $layout !== 'band' ? 'soft' : 'none';
+        $r = $this->pixelsPerPoint();
+        $width = self::WIDTH - 2 * self::MARGIN;
+        $items = [];
+
+        // A layer from a layout block: its first baseline in pixels, its
+        // size and spacing in GD points (the layouts' units).
+        $block = function (string $source, string $weight, bool $italic, float $points, int $baseline, float $leading, string $align, int $boxWidth, string $text, bool $uppercase = false, float $tracking = 0) use ($family, $ink, $shadow, $r) {
+            $px = $points * $r;
+            $face = CoverFonts::metrics(CoverFonts::faceKey($family, $weight, $italic));
+            $layer = CoverLayers::make($source, [
+                'id' => $source,
+                'x' => $align === 'left' ? self::MARGIN / self::WIDTH : (self::WIDTH - $boxWidth) / 2 / self::WIDTH,
+                'y' => max(0, ($baseline - $face['asc'] / $face['upm'] * $px) / self::HEIGHT),
+                'width' => $boxWidth / self::WIDTH,
+                'align' => $align,
+                'font' => $family, 'weight' => $weight, 'italic' => $italic,
+                'size' => $px / self::HEIGHT,
+                'color' => $ink,
+                'uppercase' => $uppercase,
+                // The layouts space letters and lines in points.
+                'tracking' => $tracking / $r,
+                'leading' => $leading / $r,
+                'shadow' => $shadow,
+            ]);
+
+            // No kerning in layers, so a line the layout just fitted can
+            // measure a hair wider: widen the box rather than break it.
+            $widest = 0.0;
+
+            foreach (CoverText::layout(array_merge($layer, ['x' => 0.0, 'width' => 1.0]), $text, self::WIDTH, self::HEIGHT)['lines'] as $line) {
+                $widest = max($widest, $line['width']);
+            }
+
+            if ($widest > $boxWidth) {
+                $grown = min(self::WIDTH - ($align === 'left' ? self::MARGIN : 0), $widest + 2);
+                $layer['width'] = $grown / self::WIDTH;
+                $layer['x'] = $align === 'left' ? $layer['x'] : (self::WIDTH - $grown) / 2 / self::WIDTH;
+            }
+
+            return $layer;
+        };
+
+        $last = fn (int $first, int $count, float $points, float $leading) => $first + ($count - 1) * (int) round($points * $leading);
+        $titleWeight = $family === 'source-sans' ? 'semibold' : 'regular';
+        $title = $s['title'] ?: 'Untitled';
+
+        if ($layout === 'band') {
+            $titleFace = $this->face($s['font'], $s['font'] === 'sans' ? 'bold' : 'regular');
+            $italic = $this->face($s['font'], 'italic');
+            [$size, $lines] = $this->fit($title, $titleFace, 170, 3, $width);
+            [$subSize, $subLines] = $s['subtitle'] !== '' ? $this->fit($s['subtitle'], $italic, 62, 2, $width) : [0, []];
+
+            $authorBaseline = self::HEIGHT - 170;
+            $cursor = $s['author'] !== '' ? $authorBaseline - 64 - 90 : self::HEIGHT - 170;
+            $subFirst = null;
+
+            if ($subLines !== []) {
+                $subFirst = $cursor - (int) round((count($subLines) - 1) * $subSize * 1.3);
+                $cursor = $subFirst - (int) round($subSize * 0.95) - 40;
+            }
+
+            $titleFirst = $cursor - (int) round($size * 0.28) - (int) round((count($lines) - 1) * $size * 1.08);
+            $top = min((int) (self::HEIGHT * 0.58), $titleFirst - (int) round($size * 0.8) - 110);
+
+            $items[] = CoverLayers::make('custom', [
+                'id' => 'band', 'text' => '', 'x' => 0, 'y' => $top / self::HEIGHT, 'width' => 1,
+                'height' => (self::HEIGHT - $top) / self::HEIGHT, 'color' => $ink,
+                'background' => ['color' => $onArt ? '#141414' : $palette['from'], 'opacity' => $onArt ? 1 - 8 / 127 : 1, 'padding' => 0],
+            ]);
+            $items[] = $block('title', $titleWeight, false, $size, $titleFirst, 1.08, 'center', $width, $title);
+
+            if ($subFirst !== null) {
+                $items[] = $block('subtitle', 'regular', true, $subSize, $subFirst, 1.3, 'center', $width, $s['subtitle']);
+            }
+        } elseif ($layout === 'bold') {
+            [$size, $lines] = $this->fit(mb_strtoupper($title), $this->face($s['font'], 'bold'), 230, 5, $width);
+            $first = 300 + (int) ($size * 0.8);
+            $items[] = $block('title', 'semibold', false, $size, $first, 1.0, 'left', $width, $title, true);
+
+            if ($s['subtitle'] !== '') {
+                [$subSize] = $this->fit($s['subtitle'], $this->face($s['font'], 'regular'), 72, 3, $width);
+                $items[] = $block('subtitle', 'regular', false, $subSize, $this->below($last($first, count($lines), $size, 1.0), $size, $subSize, 0.6), 1.3, 'left', $width, $s['subtitle']);
+            }
+        } else {
+            [$size, $lines] = $this->fit($title, $this->face($s['font'], $s['font'] === 'sans' ? 'bold' : 'regular'), 210, 4, $width);
+            $items[] = $block('title', $titleWeight, false, $size, 560, 1.08, 'center', $width, $title);
+            $y = $last(560, count($lines), $size, 1.08);
+            $lastSize = $size;
+
+            if ($s['subtitle'] !== '') {
+                [$subSize, $subLines] = $this->fit($s['subtitle'], $this->face($s['font'], 'italic'), 70, 3, (int) ($width * 0.9));
+                $subFirst = $this->below($y, $size, $subSize, 0.55);
+                $items[] = $block('subtitle', 'regular', true, $subSize, $subFirst, 1.3, 'center', (int) ($width * 0.9), $s['subtitle']);
+                $y = $last($subFirst, count($subLines), $subSize, 1.3);
+                $lastSize = $subSize;
+            }
+
+            $ruleY = $y + (int) ($lastSize * 0.45) + 60;
+            $items[] = CoverLayers::make('custom', [
+                'id' => 'rule', 'text' => '', 'x' => (self::WIDTH / 2 - 90) / self::WIDTH, 'y' => $ruleY / self::HEIGHT,
+                'width' => 181 / self::WIDTH, 'height' => 5 / self::HEIGHT, 'color' => $ink,
+                'background' => ['color' => $ink, 'opacity' => 1 - 40 / 127, 'padding' => 0],
+            ]);
+        }
+
+        if ($s['author'] !== '') {
+            [$authorSize] = $this->fit(mb_strtoupper($s['author']), $this->face($s['font'], $s['font'] === 'sans' ? 'bold' : 'regular'), 64, 1, $width, 0.2);
+            $baseline = match ($layout) {
+                'bold' => self::HEIGHT - 200,
+                'band' => self::HEIGHT - 170,
+                default => self::HEIGHT - 250,
+            };
+            $items[] = $block('author', $titleWeight, false, $authorSize, $baseline, 1.0, $layout === 'bold' ? 'left' : 'center', $width, $s['author'], true, 0.2);
+        }
+
+        // Through the validator, so a conversion can never store what an
+        // edit would be refused.
+        return CoverLayers::validate(['version' => CoverLayers::VERSION, 'items' => $items]);
+    }
+
+    /** The background alone, for Cover Studio's live canvas. */
+    public function backgroundPath(Book $book): string
+    {
+        $s = $this->settings($book);
+        $hash = substr(md5(self::VERSION.'|bg|'.json_encode([$s['palette'], $s['layout'], $s['shade'], $s['artwork']])), 0, 12);
+
+        return "covers/book-{$book->id}/background-{$hash}.jpg";
+    }
+
+    public function ensureBackground(Book $book): string
+    {
+        $disk = Storage::disk('files');
+        $path = $this->backgroundPath($book);
+
+        if ($disk->exists($path)) {
+            return $path;
+        }
+
+        $settings = $this->settings($book);
+        $artwork = $settings['artwork'] && $disk->exists($settings['artwork']) ? $disk->get($settings['artwork']) : null;
+
+        // The live canvas is at most a few hundred pixels wide; half the
+        // full size is plenty and loads at once.
+        $disk->put($path, $this->scale($this->render($settings, $artwork, withText: false), 800));
+
+        foreach ($disk->files("covers/book-{$book->id}") as $file) {
+            if ($file !== $path && str_starts_with(basename($file), 'background-')) {
+                $disk->delete($file);
+            }
+        }
+
+        return $path;
     }
 
     // --- Layouts ----------------------------------------------------------
@@ -480,14 +846,15 @@ class CoverRenderer
     {
         $w = imagesx($art);
         $h = imagesy($art);
-        $scale = max(self::WIDTH / $w, self::HEIGHT / $h);
-        $cropW = (int) round(self::WIDTH / $scale);
-        $cropH = (int) round(self::HEIGHT / $scale);
+        [$width, $height] = [imagesx($image), imagesy($image)];
+        $scale = max($width / $w, $height / $h);
+        $cropW = (int) round($width / $scale);
+        $cropH = (int) round($height / $scale);
 
         imagecopyresampled(
             $image, $art, 0, 0,
             (int) (($w - $cropW) / 2), (int) (($h - $cropH) / 2),
-            self::WIDTH, self::HEIGHT, $cropW, $cropH,
+            $width, $height, $cropW, $cropH,
         );
     }
 
@@ -496,15 +863,17 @@ class CoverRenderer
         [$r1, $g1, $b1] = $this->rgb($from);
         [$r2, $g2, $b2] = $this->rgb($to);
 
-        for ($y = 0; $y < self::HEIGHT; $y++) {
-            $t = $y / (self::HEIGHT - 1);
+        [$width, $height] = [imagesx($image), imagesy($image)];
+
+        for ($y = 0; $y < $height; $y++) {
+            $t = $y / ($height - 1);
             $color = imagecolorallocate(
                 $image,
                 (int) round($r1 + ($r2 - $r1) * $t),
                 (int) round($g1 + ($g2 - $g1) * $t),
                 (int) round($b1 + ($b2 - $b1) * $t),
             );
-            imageline($image, 0, $y, self::WIDTH, $y, $color);
+            imageline($image, 0, $y, $width, $y, $color);
         }
     }
 
@@ -521,9 +890,10 @@ class CoverRenderer
         }
 
         $max = $strength / 100;
+        [$width, $height] = [imagesx($image), imagesy($image)];
 
-        for ($y = 0; $y < self::HEIGHT; $y++) {
-            $t = $y / self::HEIGHT;
+        for ($y = 0; $y < $height; $y++) {
+            $t = $y / $height;
             $amount = 0.0;
 
             if ($top && $t < 0.6) {
@@ -536,7 +906,7 @@ class CoverRenderer
 
             if ($amount > 0) {
                 $alpha = (int) round(127 * (1 - min(1, $amount)));
-                imageline($image, 0, $y, self::WIDTH, $y, imagecolorallocatealpha($image, 0, 0, 0, $alpha));
+                imageline($image, 0, $y, $width, $y, imagecolorallocatealpha($image, 0, 0, 0, $alpha));
             }
         }
     }

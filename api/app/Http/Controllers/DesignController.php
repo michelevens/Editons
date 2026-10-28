@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Covers\CoverArtist;
 use App\Covers\CoverConcepts;
+use App\Covers\CoverFonts;
+use App\Covers\CoverLayers;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Platform\Ai\AiControls;
@@ -84,9 +86,55 @@ class DesignController extends Controller
             'layout' => ['sometimes', 'string', Rule::in(array_keys(CoverRenderer::LAYOUTS))],
             // How much the artwork is darkened under the type, 0-100.
             'shade' => ['sometimes', 'integer', 'min:0', 'max:100'],
+            // A line a tagline layer shows (bound, like the title).
+            'tagline' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // The whole layer document, checked by CoverLayers below.
+            'layers' => ['sometimes', 'nullable'],
         ]);
 
-        $book->update(['cover' => array_merge($book->cover ?? [], $data)]);
+        if (array_key_exists('layers', $data)) {
+            // Null is "Reset to layout"; anything else must be a valid
+            // document, and is stored as CoverLayers normalised it.
+            $data['layers'] = $data['layers'] === null ? null : CoverLayers::validate($data['layers']);
+        }
+
+        $cover = array_merge($book->cover ?? [], $data);
+
+        if (array_key_exists('layers', $data) && $data['layers'] === null) {
+            unset($cover['layers']);
+        }
+
+        $book->update(['cover' => $cover]);
+
+        return response()->json($this->payload($book->fresh(), null));
+    }
+
+    /**
+     * "Customise text": the current layout, converted once into text
+     * layers placed where the layout drew them. A cover that already has
+     * layers keeps them.
+     */
+    public function customiseCover(Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if (! isset(($book->cover ?? [])['layers'])) {
+            $book->update(['cover' => array_merge($book->cover ?? [], [
+                'layers' => $this->covers->layersFromLayout($book),
+            ])]);
+        }
+
+        return response()->json($this->payload($book->fresh(), null));
+    }
+
+    /** "Reset to layout": drop the layers; the layout sets the type again. */
+    public function resetCover(Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $cover = $book->cover ?? [];
+        unset($cover['layers']);
+        $book->update(['cover' => $cover]);
 
         return response()->json($this->payload($book->fresh(), null));
     }
@@ -143,10 +191,13 @@ class DesignController extends Controller
     {
         $this->authorize('view', $book);
 
-        // ?size=thumb is the 320px rendition the shelf and the sidebar show.
-        $path = $request->query('size') === 'thumb'
-            ? $this->covers->ensureThumb($book)
-            : $this->covers->ensure($book);
+        // ?size=thumb is the 320px rendition the shelf and the sidebar show;
+        // ?part=background the picture alone, under Cover Studio's canvas.
+        $path = match (true) {
+            $request->query('part') === 'background' => $this->covers->ensureBackground($book),
+            $request->query('size') === 'thumb' => $this->covers->ensureThumb($book),
+            default => $this->covers->ensure($book),
+        };
 
         return Storage::disk('files')->response($path, null, [
             'Content-Type' => 'image/jpeg',
@@ -221,6 +272,27 @@ class DesignController extends Controller
                 // How the artwork was made, and the brief for the next one.
                 'artwork_source' => $cover['artwork_source'] ?? null,
                 'brief' => $cover['brief'] ?? '',
+                'tagline' => $cover['tagline'] ?? '',
+                // Text layers (null: the layout sets the type), what their
+                // bound sources say, and the picture they sit on.
+                'layers' => $this->covers->settings($book)['layers'],
+                'texts' => CoverLayers::texts($book),
+                'background' => route('design.cover.image', [
+                    'book' => $book->id,
+                    'part' => 'background',
+                    'v' => substr(md5($this->covers->backgroundPath($book)), 0, 12),
+                ]),
+            ],
+            // What the layer editor draws with: the same faces, shadows and
+            // safe margin the server renders with.
+            'editor' => [
+                'width' => CoverRenderer::WIDTH,
+                'height' => CoverRenderer::HEIGHT,
+                'safe' => CoverLayers::SAFE,
+                'shadows' => CoverRenderer::SHADOWS,
+                'fonts' => CoverFonts::catalog(),
+                'fallback' => CoverFonts::urls(CoverFonts::FALLBACK),
+                'sources' => CoverLayers::SOURCES,
             ],
             'concepts' => $cover['concepts'] ?? null,
             'ai' => [

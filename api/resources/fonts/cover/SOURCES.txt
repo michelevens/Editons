@@ -1,0 +1,43 @@
+Cover Studio typefaces (App\Covers\CoverFonts)
+=============================================
+
+Every face here is licensed under the SIL Open Font License 1.1; each
+family's licence is beside it as OFL-<Family>.txt, copied from the family's
+folder in https://github.com/google/fonts (ofl/<family>/OFL.txt), October 2026.
+EB Garamond and Source Sans 3 are one level up (resources/fonts) with their
+own licences; the print PDF uses them too.
+
+Unmodified (families with a Reserved Font Name, shipped exactly as published;
+only the file name changed):
+
+  PlayfairDisplay-Regular-VF.ttf   ofl/playfairdisplay/PlayfairDisplay[wght].ttf
+  PlayfairDisplay-Italic-VF.ttf    ofl/playfairdisplay/PlayfairDisplay-Italic[wght].ttf
+  Lora-Regular-VF.ttf              ofl/lora/Lora[wght].ttf
+  Lora-Italic-VF.ttf               ofl/lora/Lora-Italic[wght].ttf
+  LibreBaskerville-Regular-VF.ttf  ofl/librebaskerville/LibreBaskerville[wght].ttf
+  LibreBaskerville-Italic-VF.ttf   ofl/librebaskerville/LibreBaskerville-Italic[wght].ttf
+  BebasNeue-Regular.ttf            ofl/bebasneue/BebasNeue-Regular.ttf
+  GreatVibes-Regular.ttf           ofl/greatvibes/GreatVibes-Regular.ttf
+
+  These are variable fonts. GD (FreeType through imagettftext) draws a
+  variable font at its default instance and cannot choose another, so only
+  the default — weight 400 in all three — is offered. Making static bold
+  instances would be a Modified Version, which may not carry a Reserved
+  Font Name.
+
+Static instances (no Reserved Font Name), cut from the variable fonts with
+fontTools 4.66 (varLib.instancer at wght 400, 600, 700), subset to Latin,
+Latin Extended-A/B, Latin Extended Additional, IPA modifiers, combining
+marks and general punctuation, hinting dropped:
+
+  CormorantGaramond-{Regular,SemiBold,Bold}.ttf          ofl/cormorantgaramond/CormorantGaramond[wght].ttf
+  CormorantGaramond-{Italic,SemiBoldItalic,BoldItalic}.ttf  ofl/cormorantgaramond/CormorantGaramond-Italic[wght].ttf
+  Cinzel-{Regular,SemiBold,Bold}.ttf                     ofl/cinzel/Cinzel[wght].ttf
+  Montserrat-{Regular,SemiBold,Bold}.ttf                 ofl/montserrat/Montserrat[wght].ttf
+  Montserrat-{Italic,SemiBoldItalic,BoldItalic}.ttf      ofl/montserrat/Montserrat-Italic[wght].ttf
+  Oswald-{Regular,SemiBold,Bold}.ttf                     ofl/oswald/Oswald[wght].ttf
+
+Every face sets "Réussir l'examen — Kreyòl Ayisyen" and the French and
+Haitian Creole accents (tests/Feature/CoverLayersTest.php checks each
+face's character map). Raleway was considered and left out: it has a
+Reserved Font Name and its variable font's default instance is Thin.
