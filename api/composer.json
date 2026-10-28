@@ -24,6 +24,8 @@
         "league/flysystem-aws-s3-v3": "^3.0",
         "pragmarx/google2fa": "^8.0",
         "resend/resend-php": "^1.17",
+        "setasign/fpdf": "^1.8",
+        "setasign/fpdi": "^2.6",
         "tightenco/ziggy": "^2.0",
         "vanderlee/syllable": "^1.9"
     },

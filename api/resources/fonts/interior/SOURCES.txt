@@ -1,0 +1,56 @@
+Interior (book text) typefaces
+==============================
+
+Every face here is licensed under the SIL Open Font License 1.1; each
+family's licence is beside it as OFL-<Family>.txt, copied unchanged from the
+source named below, October 2026. All files are static TrueType (glyf
+outlines), not variable, for dompdf / php-font-lib.
+
+Unmodified (shipped exactly as published; only the file name changed where
+noted):
+
+  Lora — Reserved Font Name "Lora" (yes). Static TTFs from the upstream
+  release https://github.com/cyrealtype/Lora-Cyrillic/releases/tag/v3.021
+  (Lora.zip, ttf/); licence = that release's OFL.txt (identical to
+  google/fonts ofl/lora/OFL.txt). Weights 400 / 700.
+
+  Lora-Regular.ttf                 ttf/Lora-Regular.ttf
+  Lora-Italic.ttf                  ttf/Lora-Italic.ttf
+  Lora-Bold.ttf                    ttf/Lora-Bold.ttf
+  Lora-BoldItalic.ttf              ttf/Lora-BoldItalic.ttf
+
+  Spectral — no Reserved Font Name. Static TTFs from
+  https://github.com/google/fonts (ofl/spectral/); licence =
+  ofl/spectral/OFL.txt. Weights 400 / 600.
+
+  Spectral-Regular.ttf             ofl/spectral/Spectral-Regular.ttf
+  Spectral-Italic.ttf              ofl/spectral/Spectral-Italic.ttf
+  Spectral-SemiBold.ttf            ofl/spectral/Spectral-SemiBold.ttf
+  Spectral-SemiBoldItalic.ttf      ofl/spectral/Spectral-SemiBoldItalic.ttf
+
+Static instances (no Reserved Font Name; licence = google/fonts
+ofl/<family>/OFL.txt), cut from the google/fonts variable fonts with
+fontTools 4.66 (varLib.instancer), subset to Basic Latin, Latin-1
+Supplement, Latin Extended-A/B, IPA spacing modifiers, combining marks,
+Latin Extended Additional, General Punctuation, currency symbols and a few
+common symbols (№ ™ − ≤ ≥ ≠ ≈ ∞ arrows, fi/fl), all OpenType layout features
+kept, hinting dropped; name table and OS/2 weight/style bits set for the
+instance:
+
+  CrimsonPro-{Regular,SemiBold}.ttf               ofl/crimsonpro/CrimsonPro[wght].ttf           wght 400, 600
+  CrimsonPro-{Italic,SemiBoldItalic}.ttf          ofl/crimsonpro/CrimsonPro-Italic[wght].ttf    wght 400, 600
+  Literata-{Regular,Bold}.ttf                     ofl/literata/Literata[opsz,wght].ttf          wght 400, 700; opsz 12
+  Literata-{Italic,BoldItalic}.ttf                ofl/literata/Literata-Italic[opsz,wght].ttf   wght 400, 700; opsz 12
+  Alegreya-{Regular,Bold}.ttf                     ofl/alegreya/Alegreya[wght].ttf               wght 400, 700
+  Alegreya-{Italic,BoldItalic}.ttf                ofl/alegreya/Alegreya-Italic[wght].ttf        wght 400, 700
+
+Every face sets "Réussir l'examen — Kreyòl Ayisyen « Bonjou »", the French
+and Haitian Creole accents, all Latin-1 Supplement letters and Latin
+Extended-A (apart from the archaic/deprecated ĸ U+0138, ŉ U+0149 and
+ſ U+017F, which some of these designs do not draw).
+
+Considered and left out: Source Serif 4 (lacks Ĭ ĭ Ĳ ĳ Ŧ ŧ in Latin
+Extended-A, both in google/fonts and in Adobe's 4.005 static release, whose
+licence also reserves the name "Source"); Libre Baskerville (Reserved Font
+Name and google/fonts ships only variable files, no bold italic); Cardo (no
+bold italic).
