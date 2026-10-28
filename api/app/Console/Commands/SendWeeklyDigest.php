@@ -11,9 +11,7 @@ use Illuminate\Console\Command;
 /**
  * Send last week's writing digest.
  *
- * Not scheduled. To turn it on, add to routes/console.php:
- *
- *     Schedule::command('emails:weekly-digest')->weeklyOn(1, '8:00');
+ * Scheduled in routes/console.php: Mondays at 8:00 New York time.
  *
  * "Last week" is the previous Monday-to-Sunday. People who switched the
  * digest off are skipped by Notify; people with no books are skipped here;

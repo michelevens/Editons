@@ -18,7 +18,7 @@ Every email Écrivain sends: what each one says, what triggers it, how preferenc
 | Sample data for every email | `App\Mail\Support\EmailCatalog` |
 | Preview gallery (local only) | `/dev/emails`, `/dev/emails/{name}`, `/dev/emails/{name}?format=text` |
 | Event listeners and the credits observer | `App\Providers\MailServiceProvider`, `App\Observers\CreditTransactionObserver` |
-| Weekly digest | `php artisan emails:weekly-digest` (not scheduled) |
+| Weekly digest | `php artisan emails:weekly-digest` (scheduled: Mondays 8:00 New York time) |
 
 ## The standard
 
@@ -82,7 +82,7 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Reviewer assigned | `Collaboration\ReviewerAssignedMail` | collaboration | queued | **Wired**: `WorkflowController::assign` (only on a change, only to someone who can open the book) |
 | Editorial review complete | `Writing\EditorialReviewCompleteMail` | writing | queued | Helper `Notify::editorialReviewComplete($review)` |
 | Book Director report | `Writing\BookDirectorReportMail` | writing | queued | Helper `Notify::bookDirectorReport($book, $findings)` |
-| Weekly digest | `Writing\WeeklyDigestMail` | digest | queued | **Command**: `emails:weekly-digest` (not scheduled) |
+| Weekly digest | `Writing\WeeklyDigestMail` | digest | queued | **Command**: `emails:weekly-digest`, scheduled Mondays 8:00 New York time |
 | Broadcast | `Growth\BroadcastMail` | news | sent by the broadcast's throttled jobs | **Command**: `growth:send-broadcasts` (every minute), from the console |
 | Invitation to join | `Growth\AuthorInvitationMail` | collaboration | queued | **Wired**: console → Business → Invitations (`Growth\Invitations\Invitations::invite`, `::bulk`, `::resend`). Carries the only copy of the `/join/{token}` link, so `ContainsSecrets`: metadata only in the email log, never resent from there (Send again in the console mints a new link) |
 | Lifecycle | `Growth\LifecycleMail` | tips | immediate, from the command | **Command**: `growth:lifecycle` (hourly), campaigns switched on in the console |
@@ -193,9 +193,11 @@ Download links must be minted as signed, expiring URLs before they reach `orderR
 
 ### Scheduling the digest
 
+Scheduled since 2026-10-28 (owner decision):
+
 ```php
 // routes/console.php
-Schedule::command('emails:weekly-digest')->weeklyOn(1, '8:00');
+Schedule::command('emails:weekly-digest')->weeklyOn(1, '8:00')->timezone('America/New_York')->withoutOverlapping();
 ```
 Options: `--user=ID`, `--include-quiet` (also send to people who wrote nothing), `--dry-run`.
 

@@ -66,3 +66,12 @@ Schedule::command('partners:statements')->monthlyOn(1, '09:30')->withoutOverlapp
  | SHIPPED). Does nothing until Lulu's keys are set.
  */
 Schedule::command('lulu:poll')->everyThirtyMinutes()->withoutOverlapping();
+
+/*
+ | The Monday writing digest ("Weekly progress" in email preferences). Built
+ | with its command but never scheduled, so the preference did nothing
+ | (flexibility audit, 2026-10-28). 8:00 New York time, not the server's UTC;
+ | Notify skips people who switched it off, the command people with no books
+ | and people who wrote nothing.
+ */
+Schedule::command('emails:weekly-digest')->weeklyOn(1, '8:00')->timezone('America/New_York')->withoutOverlapping();
