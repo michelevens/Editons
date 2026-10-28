@@ -2293,3 +2293,133 @@ keys, validation from signed links, offer, paid order to print job with
 address, idempotent retry, polling and tracking email, refusal and retry,
 no keys or shipping, permissions). `tests/Browser/publish.spec.js` at 390
 px and desktop.
+
+## ADR-00XX — Cover Studio text layers
+
+**Status:** accepted (2026-10-27). Number assigned at merge.
+
+**Context.** The owner: "the text I enter keeps moving … move text boxes
+around, change text colour, turn a field on and off, change style, typeface
+and size, and move left, right, up and down." Cover Studio had three text
+fields, a serif/sans switch and four layouts (ADR-0016); the server drew
+the type wherever the layout put it.
+
+**Why the text moved.** Three causes, all in the code:
+
+1. *Every keystroke re-fitted the layout.* `CoverRenderer::fit()` picks the
+   largest size (from 210pt down in 6% steps) at which the title fits four
+   lines, and re-balances the last line. Each debounced save (500 ms) drew
+   a new JPEG, so one more letter could drop the title a size, re-break its
+   lines, and move everything placed under it: classic sets the subtitle
+   and rule below the title's last baseline, and band lays out from the
+   foot up, so a longer subtitle pushed the title and the band's top edge
+   upward. The preview jumped as the author typed.
+2. *Replies clobbered newer typing.* `save()` replaced the whole cover with
+   the server's reply, which held the values of *its* request. Letters
+   typed while the request was in flight vanished from the field (the caret
+   jumped to the end) and came back a save later. Two overlapping requests
+   could also land out of order.
+3. *The preview blanked on every save.* The `<img>` was keyed by its URL,
+   so React replaced it; until the new 1600 × 2560 JPEG arrived the box was
+   empty and the page reflowed.
+
+Fixes: (2) a reply lands only if it answers the latest request, and under
+the edits still waiting to be sent; a pending edit is flushed when the pane
+closes. (3) the layout preview swaps images only once the new one has
+loaded. (1) is what layers are for: in layer mode nothing is fitted, and a
+box stays where the author put it while its text changes.
+
+**Decisions.**
+
+- *Layers, stored in `cover.layers`* as `{version: 1, items: [...]}`
+  (`App\Covers\CoverLayers`), drawn in order, the first at the back. Each
+  layer: `id`; `source` (title, subtitle, author, series, edition, tagline,
+  custom); `text` (custom only — bound layers read the book's title,
+  subtitle, author, series name and number, edition statement, or the new
+  `cover.tagline`, so renaming the book renames the cover); `visible`; `x`,
+  `y`, `width` (fractions of the cover: the box's top-left and width);
+  optional `height` (a minimum, which makes an empty custom layer with a
+  panel a shape); `align`; `font`; `weight` (regular/semibold/bold where
+  the family has it); `italic`; `size` (fraction of the cover's height);
+  `color`; `opacity`; `uppercase`; `tracking` (em); `leading` (× size);
+  `shadow` (none/soft/strong: an offset copy in black at a fixed opacity);
+  `background` (null, or colour, opacity and padding). Validated on every
+  write; unknown keys, bad colours, boxes outside the cover, unknown faces
+  and styles a family lacks are refused. A stored document that stops
+  validating (a face withdrawn) draws the layout rather than failing. Up to
+  24 layers.
+- *No rotation.* GD can rotate `imagettftext`, but a rotated box makes
+  hit-testing, snapping, panels and the shared wrap much harder for little
+  use on a book cover. Left for later.
+- *One wrap, two implementations, tested equal.* `App\Covers\CoverText`
+  and `resources/js/Components/Studio/cover/coverText.js` are a line-for-line
+  port: greedy breaks at spaces, explicit line breaks in custom text, a
+  too-wide word broken between characters, no kerning or ligatures, NFC
+  first. Both measure with the same numbers — each face's hmtx advances,
+  read with php-font-lib and served as JSON (`/cover-fonts/{face}/metrics`)
+  — summed in the same order, so the floats agree exactly.
+  `CoverTextParityTest` runs the JavaScript under node on 30 cases and
+  requires identical breaks and glyph positions (to 1e-6 px). The browser
+  is handed every glyph's x (one `tspan` each) and does no layout of its
+  own; GD draws glyph by glyph at the same x. The first baseline is one
+  ascender (hhea) below the box's top; a box grows downward as its text
+  wraps.
+- *Server render.* `CoverRenderer::render()` draws layers at any width;
+  `front($book, $width)` gives CoverWrap the front at its panel's print
+  width, so layered type is set at print resolution rather than enlarged
+  (a layout cover is still the stored 1600px file). Characters a face lacks
+  are set in DejaVu Sans, as the PDF does (ADR-0018), on both ends. GD's
+  point size is calibrated once against the metrics (libgd sets type at
+  96 dpi). Layers keep the layout's treatment of artwork: classic and bold
+  darken it (the shade slider), band's band becomes a shape layer, a
+  finished cover is left alone. Renderer VERSION 2: every cover is redrawn
+  once. A book without layers draws exactly as before.
+- *Customise and reset.* `POST /books/{book}/cover/layers` converts the
+  current layout once, with the layout's own fitted sizes, baselines,
+  faces, ink, letter-spacing and shadow (a box is widened a hair if a
+  fitted line measures wider without kerning, rather than re-breaking it);
+  the classic rule and the band become shapes; a finished cover with
+  artwork starts with no layers. `DELETE` returns to the layout.
+- *Fonts.* Nine OFL families added under `resources/fonts/cover` from
+  github.com/google/fonts with their OFL.txt (provenance in `SOURCES.txt`):
+  Playfair Display, Cormorant Garamond, Lora, Libre Baskerville, Cinzel,
+  Montserrat, Oswald, Bebas Neue, Great Vibes; EB Garamond and Source Sans
+  3 kept. Families with a Reserved Font Name ship unmodified, which with GD
+  means their default instance only (regular and italic); the others were
+  instanced to static 400/600/700 with fontTools and subset to Latin.
+  Every face is checked to set "Réussir l'examen — Kreyòl Ayisyen" and the
+  French and Kreyòl accents. Raleway was left out (RFN, and its default
+  instance is Thin). The browser loads the same files through the FontFace
+  API, each face as its own family so nothing is synthesised. About 6 MB.
+- *The editor* (`cover/LayerEditor.jsx`, `cover/CoverCanvas.jsx`): SVG at
+  the cover's aspect over a background-only render (`?part=background`,
+  800px); click a box or the list to select; drag to move (pointer events,
+  so touch too); side handles change the width; arrows nudge 1px of the
+  1600px cover, Shift 10; ← ↑ ↓ → buttons nudge 10 on touch; snapping to
+  the centre lines and the safe margin (6% of the width, a dashed overlay),
+  Alt to disable; Delete hides a bound layer and deletes a custom one.
+  Inspector: visible, text, typeface (each shown in its face), weight,
+  italic, capitals, size, colour (palette swatches, picker, hex), opacity,
+  alignment, letter-spacing, line height, shadow, background panel; add
+  text or a missing book field, duplicate, delete, bring forward / send
+  back; a layer list with eyes, arrows and drag to reorder; a 160px
+  thumbnail beside the saved JPEG. Undo/redo (Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z
+  and buttons; a slider drag or a burst of typing is one step). Changes
+  autosave, debounced; the JPEG follows. On a phone the inspector is a
+  bottom sheet.
+
+**Not done.** Rotation; per-layer contrast in the Accessibility screen (it
+still checks the palette's ink); AI concepts change layout and font but
+leave layers alone; kerning (neither end kerns, by design, so they agree).
+
+**Tests.** `tests/Feature/CoverLayersTest.php` (schema: colours, ranges,
+fonts, styles, unknown keys, bound text, version, ids, count; endpoints,
+reset, permissions; bound text and redraw; classic, bold, band and finished
+conversion with positions; fallback when invalid; font routes; every face
+covers the French/Kreyòl sample and has its licence),
+`CoverLayerRenderTest.php` (ink within 2% of the model for five families
+and alignments; wrapping grows down without moving the box; hidden layers;
+colour, opacity, panel and shadow; proportional at 800px; glyph fallback;
+bound text from the book; the print wrap's front at print resolution),
+`CoverTextParityTest.php` (PHP and JS agree), and
+`tests/Browser/cover.spec.js` at 1440px and 390px.
