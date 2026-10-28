@@ -2676,7 +2676,7 @@ editor, styled and kept after a reload).
 
 ---
 
-## ADR-00XX — Mirrored margins, trims, typography and house styles
+## ADR-0041 — Mirrored margins, trims, typography and house styles
 
 **Status:** accepted (2026-10-28). Number assigned at merge.
 
