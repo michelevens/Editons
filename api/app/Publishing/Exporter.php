@@ -379,6 +379,18 @@ class Exporter
     }
 
     /**
+     * A chapter's opening pages for the Design & Layout screen, set by
+     * PrintBook over the same sections the PDF sets (PrintBook::
+     * designPreview); null when the book has nothing to show yet.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function designPreview(Book $book, ?int $sectionId): ?array
+    {
+        return $this->print->designPreview($book, $this->structure($book), self::languageCode($book->language), $sectionId);
+    }
+
+    /**
      * The reader's documents, in the EPUB's order, with what it takes to
      * render each.
      *
@@ -1267,8 +1279,10 @@ class Exporter
 
             // The chapter's own sections, one level down: a reader of a
             // textbook goes to "1.4 Méthodes", not just to chapter 1.
+            // As deep as the design's EPUB contents depth (InteriorDesign):
+            // 2, the default, lists level 1 and 2 headings; 3 adds level 3.
             if ($section->type !== 'part') {
-                array_push($entries, ...$this->headingEntries($section, $id.'.xhtml', (int) $page['depth'] + 1));
+                array_push($entries, ...$this->headingEntries($section, $id.'.xhtml', (int) $page['depth'] + 1, (int) $book->layout()['toc']['epub']));
             }
 
             // Where the text begins: the first arabic page.
@@ -1447,18 +1461,23 @@ class Exporter
     }
 
     /**
-     * Contents entries for a chapter's own headings (levels 1 and 2), each
-     * linked to its anchor, the first left out when it repeats the title.
+     * Contents entries for a chapter's own headings (levels 1 and 2, and 3
+     * one level further in at depth 3; none at depth 1), each linked to its
+     * anchor, the first left out when it repeats the title.
      *
      * @return list<array{depth: int, href: string, title: string}>
      */
-    private function headingEntries(ManuscriptSection $section, string $href, int $depth): array
+    private function headingEntries(ManuscriptSection $section, string $href, int $depth, int $levels = 2): array
     {
         $entries = [];
         $first = true;
 
+        if ($levels < 2) {
+            return [];
+        }
+
         foreach (array_values(Suggestions::published($section->content)['content'] ?? []) as $i => $node) {
-            if (! is_array($node) || ($node['type'] ?? '') !== 'heading' || (int) ($node['attrs']['level'] ?? 2) > 2) {
+            if (! is_array($node) || ($node['type'] ?? '') !== 'heading' || (int) ($node['attrs']['level'] ?? 2) > ($levels >= 3 ? 3 : 2)) {
                 if (is_array($node) && trim($this->plainOf($node)) !== '') {
                     $first = false;
                 }
@@ -1475,7 +1494,7 @@ class Exporter
             }
 
             $first = false;
-            $entries[] = ['depth' => $depth, 'href' => $href.'#'.Textbook::headingAnchor($node, $section->id, $i), 'title' => $title];
+            $entries[] = ['depth' => $depth + ((int) ($node['attrs']['level'] ?? 2) > 2 ? 1 : 0), 'href' => $href.'#'.Textbook::headingAnchor($node, $section->id, $i), 'title' => $title];
         }
 
         return $entries;
@@ -1601,7 +1620,9 @@ class Exporter
             .".ex-link { font-size: .85em; font-style: italic; margin-left: .3em; }\n"
             ."table.grid th, table.grid td { border: 1px solid #000; padding: .3em .4em; }\n"
             ."table.grid td.write-in { height: 1.8em; min-width: 3em; }\n"
-            ."table.grid tr.total td { font-weight: bold; }\n";
+            ."table.grid tr.total td { font-weight: bold; }\n"
+            // The book's own box styles, when it has changed them.
+            .InteriorDesign::calloutCss($layout['callouts'], 'epub');
     }
 
     /** One content document; $matter is the body's epub:type (frontmatter, bodymatter, backmatter). */

@@ -12,6 +12,8 @@ use App\Platform\Ai\AiControls;
 use App\Platform\Features;
 use App\Publishing\CoverRenderer;
 use App\Publishing\DocumentRenderer;
+use App\Publishing\Exporter;
+use App\Publishing\InteriorDesign;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -38,13 +40,45 @@ class DesignController extends Controller
     {
         $this->authorize('view', $book);
 
-        return response()->json($this->payload($book, $request->integer('section')));
+        return response()->json($this->payload($book, $request->integer('section'), $request->boolean('print')));
+    }
+
+    /**
+     * The box styles for the manuscript editor: the same table PrintBook
+     * and the EPUB set boxes from (InteriorDesign), as CSS on the
+     * editor's blockquotes, and the types its picker offers.
+     */
+    public function callouts(Book $book): JsonResponse
+    {
+        $this->authorize('view', $book);
+
+        $language = Exporter::languageCode($book->language);
+
+        return response()->json([
+            'css' => InteriorDesign::calloutCss($book->layout()['callouts'], 'editor', $language),
+            'types' => collect(InteriorDesign::CALLOUT_TYPES)->map(fn ($type) => [
+                'key' => $type,
+                'name' => InteriorDesign::CALLOUT_NAMES[$type],
+            ])->all(),
+        ]);
     }
 
     /** Interior layout. */
     public function updateLayout(Request $request, Book $book): JsonResponse
     {
         $this->authorize('update', $book);
+
+        $basic = ['trim', 'margins', 'font', 'size', 'leading', 'dropcap', 'headers'];
+        $input = $request->except(['section', 'print']);
+
+        // A key the screen does not offer is refused, not dropped: a client
+        // that thinks it saved something should hear that it did not.
+        $unknown = array_diff(array_keys($input), $basic, array_keys(InteriorDesign::DEFAULTS));
+
+        if ($unknown !== []) {
+            throw ValidationException::withMessages(collect($unknown)
+                ->mapWithKeys(fn ($key) => [$key => "“{$key}” is not a layout setting."])->all());
+        }
 
         $data = $request->validate([
             'trim' => ['sometimes', 'string', 'in:'.implode(',', Book::TRIMS)],
@@ -58,18 +92,26 @@ class DesignController extends Controller
             'headers' => ['sometimes', 'boolean'],
         ]);
 
-        $book->update(['layout' => array_merge($book->layout(), $data)]);
+        // Openers, running heads, folios, contents and boxes: checked whole
+        // by InteriorDesign, which also merges a group sent in part.
+        $layout = $book->layout();
+        $design = InteriorDesign::validate(
+            array_intersect_key($input, InteriorDesign::DEFAULTS),
+            InteriorDesign::resolve($layout),
+        );
 
-        return response()->json($this->payload($book->fresh(), $request->integer('section')));
+        $book->update(['layout' => array_merge($layout, $data, $design)]);
+
+        return response()->json($this->payload($book->fresh(), $request->integer('section'), true));
     }
 
-    public function resetLayout(Book $book): JsonResponse
+    public function resetLayout(Request $request, Book $book): JsonResponse
     {
         $this->authorize('update', $book);
 
         $book->update(['layout' => Book::DEFAULT_LAYOUT]);
 
-        return response()->json($this->payload($book->fresh(), null));
+        return response()->json($this->payload($book->fresh(), $request->integer('section') ?: null, true));
     }
 
     /** Cover text and artwork. */
@@ -236,7 +278,7 @@ class DesignController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function payload(Book $book, ?int $sectionId): array
+    private function payload(Book $book, ?int $sectionId, bool $print = false): array
     {
         $cover = $book->cover ?? [];
 
@@ -309,6 +351,11 @@ class DesignController extends Controller
                 ->map(fn ($name, $key) => ['key' => $key, 'name' => $name])
                 ->values(),
             'palettes' => self::PALETTES,
+            // The chosen chapter's opening pages as the PDF sets them, for
+            // Design & Layout (PrintBook::designPreview); only when asked,
+            // since Cover Studio shares this payload.
+            'print' => $print ? app(Exporter::class)->designPreview($book, $sectionId ?: null) : null,
+            'design' => $this->designOptions(),
             'preview' => $section ? [
                 'id' => $section->id,
                 'title' => $section->title,
@@ -323,6 +370,31 @@ class DesignController extends Controller
                     'title' => $section->title,
                 ])
                 ->all(),
+        ];
+    }
+
+    /**
+     * The choices Design & Layout offers for the interior design controls,
+     * from InteriorDesign, so the screen never offers what the server refuses.
+     *
+     * @return array<string, mixed>
+     */
+    private function designOptions(): array
+    {
+        $pairs = fn (array $map) => collect($map)->map(fn ($name, $key) => ['key' => $key, 'name' => $name])->values()->all();
+
+        return [
+            'opener_styles' => $pairs(InteriorDesign::OPENER_STYLES),
+            'labels' => InteriorDesign::LABELS,
+            'head_sources' => InteriorDesign::HEAD_SOURCES,
+            'head_styles' => InteriorDesign::HEAD_STYLES,
+            'head_sizes' => array_keys(InteriorDesign::HEAD_SIZES),
+            'folios' => InteriorDesign::FOLIOS,
+            'callout_types' => $pairs(InteriorDesign::CALLOUT_NAMES),
+            'callout_presets' => array_keys(InteriorDesign::CALLOUT_PRESETS),
+            'callout_styles' => InteriorDesign::CALLOUT_PRESETS,
+            'borders' => InteriorDesign::BORDERS,
+            'tints' => InteriorDesign::TINTS,
         ];
     }
 

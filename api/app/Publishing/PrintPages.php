@@ -30,6 +30,9 @@ class PrintPages
             ->first();
 
         return substr(md5(json_encode([
+            // The interior renderer's version: the same settings set
+            // differently once it changes (InteriorDesign::VERSION).
+            InteriorDesign::VERSION,
             $book->layout(),
             $book->publication(),
             [$book->title, $book->subtitle, $book->author_name, $book->series_name, $book->series_number, $book->language],

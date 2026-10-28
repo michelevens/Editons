@@ -2,6 +2,7 @@
 
 namespace App\Publishing;
 
+use App\Models\Book;
 use App\Models\ManuscriptSection;
 use Illuminate\Support\Str;
 
@@ -237,6 +238,8 @@ class DocumentRenderer
 
         $this->bookId = $section->book_id;
         $this->sectionId = $section->id;
+        // Box styles are read afresh for every section (calloutStyle).
+        $this->stylesFor = null;
         $nodes = array_values($this->numbered($section));
 
         // One typesetting call per section, not one per equation.
@@ -445,21 +448,66 @@ class DocumentRenderer
     private function calloutHtml(array $node, array $callout): string
     {
         $children = $node['content'] ?? [];
-        $first = array_shift($children);
-        $rest = array_slice($first['content'] ?? [], 1);
-        $glyph = Textbook::GLYPHS[$callout['type']] ?? null;
+        $style = $this->calloutStyle($callout['type']);
+        $glyph = $style['icon'] ? (Textbook::GLYPHS[$callout['type']] ?? Textbook::EXTRA_GLYPHS[$callout['type']] ?? null) : null;
 
-        // A label run straight into its text ("Piège." then the warning),
-        // as the author wrote it, with its glyph before it.
-        $label = '<strong class="callout-label">'
-            .($glyph ? '<span class="callout-glyph" aria-hidden="true">'.$glyph.'</span>&#160;' : '')
-            .e($callout['label']).'</strong>';
-        $lead = '<p class="callout-first">'.$label.($rest !== [] ? $this->inlineHtml($rest) : '')."</p>\n";
+        if ($callout['labelled'] ?? true) {
+            // A label run straight into its text ("Piège." then the
+            // warning), as the author wrote it, with its glyph before it.
+            $first = array_shift($children);
+            $rest = array_slice($first['content'] ?? [], 1);
+            $text = $callout['label'];
+        } else {
+            // A box chosen in the editor with no label of its own: the
+            // book's label for the type, or the type's word, run into the
+            // first paragraph the same way.
+            $text = $style['label'] ?? InteriorDesign::calloutWord($callout['type'], $this->language) ?? '';
+            $text = $text !== '' && ! preg_match('/[.:!?]$/u', $text) ? $text.'.' : $text;
+            $first = ($children[0]['type'] ?? null) === 'paragraph' ? array_shift($children) : null;
+            $rest = $first === null || ($first['content'] ?? []) === [] ? [] : array_merge([['type' => 'text', 'text' => ' ']], $first['content']);
+        }
+
+        $label = $text !== '' || $glyph
+            ? '<strong class="callout-label">'
+                .($glyph ? '<span class="callout-glyph" aria-hidden="true">'.$glyph.'</span>'.($text !== '' ? '&#160;' : '') : '')
+                .e($text).'</strong>'
+            : '';
+        // With no label, the paragraph starts at its own text, not the space.
+        $rest = $label === '' && ! ($callout['labelled'] ?? true) ? array_slice($rest, 1) : $rest;
+        $lead = $label !== '' || $rest !== []
+            ? '<p class="callout-first">'.$label.($rest !== [] ? $this->inlineHtml($rest) : '')."</p>\n"
+            : '';
         $class = 'callout callout-'.$callout['type'];
+        $name = rtrim($text !== '' ? $text : (InteriorDesign::CALLOUT_NAMES[$callout['type']] ?? 'Note'), '.: ');
 
         return $this->mathMode === 'svg'
             ? '<div class="'.$class.'">'.$lead.$this->nodesToHtml($children)."</div>\n"
-            : '<aside class="'.$class.'" role="note" aria-label="'.e(rtrim($callout['label'], '.: ')).'">'.$lead.$this->nodesToHtml($children)."</aside>\n";
+            : '<aside class="'.$class.'" role="note" aria-label="'.e($name).'">'.$lead.$this->nodesToHtml($children)."</aside>\n";
+    }
+
+    /** The book whose box styles $calloutStyles holds, if loaded. */
+    private ?int $stylesFor = null;
+
+    /** @var array<string, array{border: string, tint: int, icon: bool, label: ?string}> */
+    private array $calloutStyles = [];
+
+    /**
+     * A box type's style in the book being rendered (InteriorDesign): the
+     * glyph and the label are markup, the borders and tints CSS. Loaded
+     * once per section, so a change of style is never served stale.
+     *
+     * @return array{border: string, tint: int, icon: bool, label: ?string}
+     */
+    private function calloutStyle(string $type): array
+    {
+        if ($this->stylesFor !== ($this->bookId ?? 0)) {
+            $this->stylesFor = $this->bookId ?? 0;
+            $book = $this->bookId ? Book::find($this->bookId) : null;
+            $this->calloutStyles = InteriorDesign::calloutStyles($book ? $book->layout()['callouts'] : InteriorDesign::DEFAULTS['callouts']);
+        }
+
+        // The exam furniture types keep their own look.
+        return $this->calloutStyles[$type] ?? ['border' => 'box', 'tint' => 0, 'icon' => isset(Textbook::GLYPHS[$type]), 'label' => null];
     }
 
     /** A checklist (Textbook::isChecklist): boxes to tick, not bullets. */
