@@ -143,6 +143,25 @@ export default function Product({ product, series, partner = null }) {
                             {product.license.terms}
                         </p>
 
+                        {/* "Read a sample": the author's Sample file, by a signed,
+                            expiring link (App\Commerce\Sample). */}
+                        {product.samples && Object.keys(product.samples).length > 0 && (
+                            <p data-a="store:sample" className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                                <span className="font-semibold text-text-primary">Read a sample</span>
+                                {Object.entries(product.samples).map(([format, sample]) => (
+                                    <a
+                                        key={format}
+                                        href={sample.url}
+                                        data-a={`store:sample-${format}`}
+                                        rel="nofollow"
+                                        className="font-medium text-brand-primary underline-offset-2 hover:underline"
+                                    >
+                                        {sample.label}
+                                    </a>
+                                ))}
+                            </p>
+                        )}
+
                         {product.paperback && (
                             <div data-a="store:paperback" className="mt-4 border-t border-border-default pt-4">
                                 <p className="flex flex-wrap items-baseline gap-2">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import ExportProfiles, { formatProblem, profileInput } from './ExportProfiles';
 import Icon from './Icon';
 import PrintKit from './PrintKit';
 
@@ -17,6 +18,8 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
     const [loadedAt, setLoadedAt] = useState(0);
     const [now, setNow] = useState(() => Date.now());
     const [busy, setBusy] = useState(null);
+    // The export profile the next file is made with (ExportProfiles).
+    const [choice, setChoice] = useState(null);
     // A reply that lands after the panel closed must not set state.
     const alive = useRef(true);
     const pending = useRef(null);
@@ -174,11 +177,11 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
         return () => clearInterval(timer);
     }, [generating, load]);
 
-    const generate = async (format, options = undefined) => {
+    const generate = async (format, options = undefined, profile = undefined) => {
         setBusy(`format:${format}`);
 
         try {
-            const response = await window.axios.post(`/books/${bookId}/exports`, { format, options });
+            const response = await window.axios.post(`/books/${bookId}/exports`, { format, options, profile });
             apply(response.data.book);
             onNotify?.(
                 response.data.already
@@ -198,7 +201,13 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
         return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
     }
 
-    const { book, channels, formats, exports, blockers, categories, warnings = {} } = data;
+    const { book, channels, formats, exports, blockers, categories, warnings = {}, profiles } = data;
+    const current = choice ?? { key: 'full', options: profiles.presets[0].options, changed: false };
+    // A failed or expired file is made again as it was made.
+    const again = (item) =>
+        item.profile_options
+            ? { ...item.profile_options, preset: profiles.presets.some((p) => p.key === item.profile_options.preset) ? item.profile_options.preset : 'custom' }
+            : undefined;
     // Shown from the start rather than only after a failed attempt: an
     // author should be able to see what is left before trying.
     const problem = (key) => blockers[key];
@@ -481,9 +490,21 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                 Files
                             </h3>
 
+                            <ExportProfiles
+                                bookId={bookId}
+                                profiles={profiles}
+                                choice={current}
+                                onChoose={setChoice}
+                                onSaved={apply}
+                                onNotify={onNotify}
+                            />
+
                             {/* The print cover is made from Print & price,
                                 where its service and paper are chosen. */}
-                            {formats.filter((format) => format.format !== 'cover_wrap').map((format) => (
+                            {formats.filter((format) => format.format !== 'cover_wrap').map((format) => {
+                                const reason = formatProblem(current, format.format, profiles);
+
+                                return (
                                 <div
                                     key={format.format}
                                     className="flex items-center justify-between gap-3 border-b border-border-default py-2 last:border-0"
@@ -493,7 +514,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                             {format.label}
                                         </p>
                                         <p className="text-[11px] leading-snug text-text-secondary">
-                                            {format.description}
+                                            {reason ?? format.description}
                                         </p>
                                     </div>
 
@@ -501,9 +522,11 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                         data-a={`publish:generate:${format.format}`}
                                         disabled={
                                             busy === `format:${format.format}` ||
-                                            rendering(format.format)
+                                            rendering(format.format) ||
+                                            reason !== null
                                         }
-                                        onClick={() => generate(format.format)}
+                                        title={reason ?? undefined}
+                                        onClick={() => generate(format.format, undefined, profileInput(current))}
                                         className="shrink-0 rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
                                     >
                                         {busy === `format:${format.format}` ||
@@ -512,7 +535,8 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                             : 'Generate'}
                                     </button>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </section>
                     </div>
                 </div>
@@ -564,8 +588,13 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                             key={item.id}
                                             className="border-b border-border-default last:border-0"
                                         >
-                                            <td className="py-1.5 pr-3 text-text-primary">
+                                            <td className="py-1.5 pr-3 text-text-primary" data-a={`publish:label:${item.id}`}>
                                                 {item.label}
+                                                {!item.full_book && (
+                                                    <span className="ml-1.5 whitespace-nowrap rounded-full bg-bg-subtle px-1.5 py-px text-[10.5px] font-medium text-text-secondary">
+                                                        Not for stores
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="py-1.5 pr-3 text-right tabular-nums text-text-body">
                                                 {item.word_count.toLocaleString()}
@@ -609,7 +638,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                                                         busy !== null ||
                                                                         rendering(item.format)
                                                                     }
-                                                                    onClick={() => generate(item.format)}
+                                                                    onClick={() => generate(item.format, undefined, again(item))}
                                                                     className="font-semibold text-brand-primary hover:underline disabled:opacity-50"
                                                                 >
                                                                     {item.status === 'expired'

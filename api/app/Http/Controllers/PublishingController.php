@@ -478,7 +478,6 @@ class PublishingController extends Controller
     {
         $chapters = ExportOptions::chapterIds($book);
         $titles = $book->sections()->pluck('title', 'id');
-        $language = substr(Exporter::languageCode($book->language), 0, 2);
         $label = fn (string $key) => match ($key) {
             'other_front' => 'Other front matter',
             'other_back' => 'Other back matter',
@@ -512,7 +511,6 @@ class PublishingController extends Controller
             'watermarked' => ExportOptions::WATERMARKED,
             'watermark_max' => ExportOptions::WATERMARK_MAX,
             'page_notes_reason' => ExportOptions::PAGE_NOTES_REASON,
-            'language' => $language,
         ];
     }
 
@@ -628,6 +626,9 @@ class PublishingController extends Controller
             // store, a printer or a buyer.
             'full_book' => $export->isFullBook(),
             'profile' => $export->isFullBook() ? null : ExportOptions::fromExport($export)->label(),
+            // What it was made with, to make it again (without the saved
+            // profile it came from, which may since have changed).
+            'profile_options' => $export->isFullBook() ? null : array_diff_key($export->options['profile'], ['id' => 0, 'name' => 0]),
         ];
     }
 
