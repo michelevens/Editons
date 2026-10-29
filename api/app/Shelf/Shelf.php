@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 /**
  * A shelf of books: the author's own (scope "books") or the console's House
  * catalog (scope "house"), searched, filtered, sorted, grouped and paged on
- * the server (ADR-00XX — Shelf views and bulk actions).
+ * the server (ADR-0045 — Shelf views and bulk actions).
  *
  * The state a person looks at the shelf with is one array (normalise()),
  * so the same thing is read from the address bar, saved as a view

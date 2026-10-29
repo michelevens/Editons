@@ -36,7 +36,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class HouseController extends Controller
 {
     /**
-     * The catalog as a shelf (ADR-00XX — Shelf views and bulk actions):
+     * The catalog as a shelf (ADR-0045 — Shelf views and bulk actions):
      * searched, sorted, grouped and paged on the server, each page's books
      * with the catalog's full row. Counts and sales totals are the whole
      * catalog's.

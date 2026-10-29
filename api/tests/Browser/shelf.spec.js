@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { signIn, watchForErrors } from './helpers.js';
 
 /**
- * Shelf views and bulk actions (ADR-00XX), on a desktop and on a phone:
+ * Shelf views and bulk actions (ADR-0045), on a desktop and on a phone:
  * three books put in one series in the order ticked, found again by a
  * search without the accent, grouped by series, shown as a table with
  * chosen columns that survives a reload; stale files regenerated with

@@ -34,7 +34,7 @@ class BookController extends Controller
      * The author's shelf.
      *
      * Searched, sorted, grouped and paged on the server (App\Shelf\Shelf,
-     * ADR-00XX — Shelf views and bulk actions), in the way the author last
+     * ADR-0045 — Shelf views and bulk actions), in the way the author last
      * left it unless the address says otherwise. With no saved view it is
      * the shelf as it always was: every book, last updated first, as cards.
      *

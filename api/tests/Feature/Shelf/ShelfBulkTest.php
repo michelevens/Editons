@@ -11,7 +11,7 @@ use App\Shelf\ShelfBulk;
 use Illuminate\Support\Facades\Bus;
 
 /*
- * Bulk actions on the shelf (ADR-00XX — Shelf views and bulk actions): each
+ * Bulk actions on the shelf (ADR-0045 — Shelf views and bulk actions): each
  * book checked through the BookPolicy on its own, skipped with a reason when
  * the person cannot change it, never named when they cannot see it; house
  * books changed by staff are audited with the reason given.

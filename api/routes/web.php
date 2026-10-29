@@ -542,7 +542,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('throttle:10,1')->name('publish.google-play.many');
     Route::get('/publish/kdp-checklist', [PublishFlowController::class, 'checklist'])->name('publish.checklist');
 
-    // Shelf views and bulk actions (ADR-00XX): the author's shelf and the
+    // Shelf views and bulk actions (ADR-0045): the author's shelf and the
     // console's House catalog, each book permission-checked on its own.
     Route::put('/shelf/{view}/current', [ShelfController::class, 'remember'])->whereIn('view', ['books', 'house'])->name('shelf.current');
     Route::post('/shelf/{view}/views', [ShelfController::class, 'store'])->whereIn('view', ['books', 'house'])->name('shelf.views.store');

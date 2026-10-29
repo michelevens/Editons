@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Saved shelf views, per person and per shelf (ADR-00XX — Shelf views and
+ * Saved shelf views, per person and per shelf (ADR-0045 — Shelf views and
  * bulk actions).
  *
  * Each person has one "current" view per shelf — how they last looked at

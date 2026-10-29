@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * Shelf views and bulk actions (ADR-00XX — Shelf views and bulk actions).
+ * Shelf views and bulk actions (ADR-0045 — Shelf views and bulk actions).
  *
  * - shelf_views: how a person last looked at a shelf (name null: restored
  *   on return) and the few views they named. Per user and per shelf: the

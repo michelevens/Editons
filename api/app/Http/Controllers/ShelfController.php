@@ -17,7 +17,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Saved views and bulk actions for a shelf: the author's (view "books") or
- * the console's House catalog ("house", staff only) (ADR-00XX — Shelf views
+ * the console's House catalog ("house", staff only) (ADR-0045 — Shelf views
  * and bulk actions). The listing itself is BookController::index and
  * Admin\HouseController::index; this is what the Shelf component calls.
  */

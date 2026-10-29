@@ -12,7 +12,7 @@ use App\Shelf\Shelf;
 use Illuminate\Support\Facades\DB;
 
 /*
- * The shelf (ADR-00XX — Shelf views and bulk actions): search, sort, series
+ * The shelf (ADR-0045 — Shelf views and bulk actions): search, sort, series
  * groups, pages and table columns on the server; saved views per person;
  * never another account's books.
  */

@@ -54,7 +54,7 @@ export default function HouseIndex({ houses, books, totals, options, results, ca
 
             {results && <Results results={results} />}
 
-            {/* The catalog as a shelf (ADR-00XX — Shelf views): search, sort,
+            {/* The catalog as a shelf (ADR-0045 — Shelf views): search, sort,
                 series groups, a table with chosen columns, saved views, and
                 the shelf's bulk actions; the catalog's own (export, price,
                 on sale) stay in their panel below the bar. */}

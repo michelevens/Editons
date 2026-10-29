@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
- * One action across the books selected on a shelf (ADR-00XX — Shelf views
+ * One action across the books selected on a shelf (ADR-0045 — Shelf views
  * and bulk actions): the author's, or the House catalog's.
  *
  * Each book is checked on its own, through the BookPolicy, as the single

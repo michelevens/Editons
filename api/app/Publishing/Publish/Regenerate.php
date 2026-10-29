@@ -48,7 +48,7 @@ class Regenerate
     }
 
     /**
-     * The shelf's "Regenerate stale files" (ADR-00XX — shelf views): of the
+     * The shelf's "Regenerate stale files" (ADR-0045 — shelf views): of the
      * formats chosen, every Full-book file of this book that is out of date
      * (Freshness), and with $missing also those never made. A cover wrap is
      * made for each print service the book's Publish plan chose, or the one

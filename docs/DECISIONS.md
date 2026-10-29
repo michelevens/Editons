@@ -3249,7 +3249,7 @@ kept; books without placement unchanged) and
 its handle and wrapped right, a table made zebra with a column
 right-aligned and resized, both kept after a reload, no console errors).
 
-## ADR-00XX — Shelf views and bulk actions
+## ADR-0045 — Shelf views and bulk actions
 
 **Status:** accepted (2026-10-29). Number assigned at merge.
 

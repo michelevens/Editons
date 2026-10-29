@@ -3,7 +3,7 @@ import { Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
- * A shelf of books (ADR-00XX — Shelf views and bulk actions): the author's
+ * A shelf of books (ADR-0045 — Shelf views and bulk actions): the author's
  * own, and the console's House catalog. Search, sort, group by series, cards
  * or a table with chosen columns, all done on the server (App\Shelf\Shelf);
  * the state lives in the address bar and is remembered per person, so the
