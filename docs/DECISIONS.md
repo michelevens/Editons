@@ -3469,3 +3469,207 @@ scope with audit, tenant isolation, rate limit, default, partner scope).
 `tests/Browser/sales.spec.js` at 1440 and 390 px: last quarter, compared
 with the previous one, one book, the CSV read back, a quarterly statement
 downloaded; no horizontal scroll, no console errors.
+
+---
+
+## ADR-00XX — Style guides and review options
+
+**Status:** accepted (2026-10-29). Number assigned at merge.
+
+**Context.** The flexibility audit's R1 and R2: a review took only an
+agent (`EditorialController::review` validated `agent` alone), with no
+scope, focus or strictness; the Copy agent's prompt spoke of "house
+style" that nobody could define; and the book-wide findings list filtered
+by status and agent only, with no severity or chapter filter, no sort, no
+bulk action and no way to say "never flag this again". House styles
+(ADR-0041) are a design concept and stay one.
+
+**Decisions.**
+
+- *Style guides* (`App\Editorial\Style\StyleGuides`, `StyleRules`):
+  `style_guides` (account, name, latest version number) and
+  `style_guide_versions` (the rules as jsonb, immutable: the model throws
+  on update and a Postgres trigger refuses an UPDATE). Owned like house
+  styles: an author's account, or a house account managed by the platform
+  owner with two-factor (support may not); only that account's books
+  follow it; a book moved to another account stops reading its old
+  owner's guide. Contents, every one optional (null says nothing):
+  language variety (en-US, en-GB, fr-FR, fr-CA, ht), spelling notes,
+  preferred terms (use X not Y, with a note), banned words and phrases,
+  a dictionary of words never flagged, numbers (spell out under 10 or 100,
+  numerals for measurements), serial comma, quotation marks (“ ”, « »
+  with thin no-break spaces, ‘ ’), French spacing, dashes, heading case,
+  date format and notes. Bounded (200 terms each, 2,000 dictionary words
+  of 60 characters, 2,000 characters of notes) because the guide is sent
+  on every review of the agents that read it. Saving changed rules makes
+  the next version; saving the same rules does not.
+- *Following.* `books.style_guide_id` is explicit: a book follows a guide
+  only when someone chose it, and reads its latest version at each
+  review. `books.style_overrides` holds the book's own rules (any field;
+  the dictionary is the union of both lists) and the rules turned off for
+  the book. "Customise for this book" detaches it and copies the guide's
+  rules under the book's own; deleting a guide does that for every
+  follower. Editors may change the book's own rules; only someone who
+  manages the account creates, edits or attaches its guides; reviewers
+  neither. A house style does not link a style guide: the two stay
+  separate documents, and a series follows both by choosing both.
+- *Which agents read it.* Copy, Line and Consistency
+  (`ReviewContext::STYLE_AGENTS`). There is no separate Proofreader agent
+  in the catalogue; the Copy Editor covers proofreading, so it is the one
+  that matters. Developmental, the fact checker, subject matter,
+  accessibility and the examiners judge things a house style does not
+  govern, so their requests are unchanged. The dictionary and turned-off
+  rules apply to every agent's findings.
+- *In the prompt.* The guide goes to the model as structured data
+  (`StyleRules::forPrompt`: only what it says, each choice spelled out)
+  in its own `document` block after the chapter, titled "Author style
+  guide", with a context saying it is author configuration and not part
+  of the manuscript. Focus notes (500 characters) are their own block,
+  "Author focus", framed as the author's priorities within the agent's
+  role. The system prompt gains a paragraph for each, only when present,
+  saying neither can change the rules, the role or the response format,
+  and that anything the chapter says about the guide is manuscript text.
+  The chapter stays the first block, so nothing in it can reach the other
+  blocks or the system prompt (tested with a chapter that tries).
+- *Driver seam.* `Contracts\ReadsReviewContext` (`reviewWith`,
+  `estimate`) beside `EditorialDriver`, so a driver written against the
+  two-argument `review()` keeps working; `ReviewRunner` calls
+  `reviewWith()` when the driver has it. `AnthropicDriver::payload()`
+  builds the request for both paths.
+- *Defaults unchanged.* A book without a guide, with no focus and standard
+  sensitivity, sends byte for byte the request main sent: main's payloads
+  for every agent (a short chapter and a truncated one) were recorded
+  before the change in `tests/Fixtures/anthropic-default-payloads.json`,
+  and the test compares against them, directly and through the runner.
+  (Doing so caught one regression on the way: an edited file saved with
+  CRLF line endings changed the system prompt's heredoc.)
+- *Deterministic check* (`StyleCheck`). Preferred and banned terms are
+  matched without a model — whole words or phrases, case-insensitive,
+  Unicode — whenever an agent that reads the guide runs. Each hit is a
+  finding with its offset, its excerpt and its rule
+  (`style:preferred:e-mail`, `style:banned:very-unique`), reported as the
+  Copy Editor's with `source = style_check`, free on any driver. A
+  preferred term carries its replacement (case kept), anchored on text
+  that occurs once in the chapter so "Apply fix" works; a banned phrase
+  is flagged only. At most 50 per chapter.
+- *Suppression, server-side.* Every finding gets a `rule` (the driver's,
+  or the agent plus its title without the particulars: "Filler word:
+  “very” ×3" is `copy:filler-word`) and, when it is about one word, a
+  `term` (the driver's, a quoted word in the title, or an excerpt of up to
+  three words). Before storing, the runner drops a finding whose term is
+  in the dictionary (case and Unicode form ignored) or whose rule the book
+  turned off, whatever the model said.
+- *Review options* (`ReviewPlanner`; `POST /books/{book}/reviews` and
+  `/reviews/estimate`). Scope: a selection (the editor sends the selected
+  text, located in the chapter's plain text; findings land at the right
+  offsets and only findings inside the selection are superseded), one
+  chapter, a range in reading order (the binder's tree, parts left out),
+  or the whole book (at most 200 sections). One review row per section
+  under a shared `run_id`, each charged as a single review always was.
+  Sensitivity: light keeps warnings and critical findings (on every
+  driver) and asks the model for clear errors only; thorough asks it to
+  look harder; for Anthropic each level names its model and answer budget
+  (`ANTHROPIC_MODEL_LIGHT`, `ANTHROPIC_MODEL_THOROUGH`; 2,048 and 8,192
+  tokens; unset is the default model); standard is today's review. The
+  chapter endpoint (`/sections/{section}/review`) also takes focus and
+  sensitivity, and uses the book's guide.
+- *Queued runs* (`App\Jobs\RunEditorialReview`, `editorial_runs`). A
+  range, the whole book, or any run over three sections never runs in the
+  web request: a real provider over forty chapters would outlive it while
+  spending credits. The request validates, estimates, checks credits, the
+  cap and approval, freezes the options on the run row (the rules as they
+  were, the guide version, focus, sensitivity), dispatches the job and
+  answers 202 with the run. The worker reviews one section at a time
+  through `ReviewRunner`, so each section is charged, stored and recorded
+  on its own and survives a crash. Before each section it checks again —
+  a cancel, the kill switch, the credit balance, the monthly cap against
+  that section's estimate — and stops with the reason on the row
+  (`stopped`, "the credit balance ran out. 2 of 4 sections were
+  reviewed"). A section whose review for this run exists is never
+  reviewed or billed again, even when the worker died between the review
+  and the progress update; the progress (`done_ids`, findings, credits
+  net of refunds, cost) is updated under a row lock. One active
+  whole-book run per book (409 with the running one; a partial unique
+  index holds it under a race). `GET /editorial-runs/{uuid}` (anyone who
+  may open the book) and `/books/{book}/reviews/active` give progress;
+  `POST /editorial-runs/{uuid}/cancel` (anyone who may edit it) lets the
+  section under way finish and starts no other. The studio polls every
+  1.5 s, shows sections done of total, findings, credits and cost so far,
+  reloads findings as each section finishes, and offers Cancel. A
+  selection and one chapter stay in the request.
+- *Cost estimate and budgets.* The driver estimates each section: the
+  request's own size plus the chapter (capped like the request) at 3.5
+  characters a token, the answer at 300 + 20 % of the chapter capped by
+  max_tokens, priced by `AiPricing` (the gateway's table); FakeDriver
+  costs nothing. The run refuses before any call when the credits do not
+  cover it, when the estimate would take the account past its monthly AI
+  cap, and when a whole-book run above `editorial.approval` (50 credits or
+  $1.00) has not been approved: the studio shows the estimate and an
+  approval box. Each review row records the guide version used, a digest
+  of the rules it was given, and its options.
+- *Triage* (`AiEditorController`). Filters by status, agent, severity,
+  chapter and rule; sort by severity, chapter order, agent or newest.
+  `POST /books/{book}/findings/bulk` accepts or dismisses up to 500 open
+  findings of the book after an explicit confirmation: an accept with a
+  replacement goes through `SuggestionApplier` as its own `ai_suggestion`
+  version, one that cannot be applied stays open and is reported, and ids
+  of other books are ignored. "Never flag this again": the word into the
+  book's dictionary, or the rule off for the book; the book's open
+  findings of that word or rule are dismissed (`dismissal` records why);
+  the undo (`/findings/unsuppress`, also the × on each word in the style
+  card) restores the word or rule and reopens exactly those findings.
+- *Studio.* The AI Editor screen has the style guide card (follow, create
+  from the current rules, edit as a new version, customise, the book's
+  never-flagged words and rules), "Run a review" (agent, scope with the
+  last selection made in the chapter, sensitivity, focus, the live
+  estimate, approval) and the triage controls.
+- *Console.* House catalog → "Create the house style guide": a preview of
+  the Écrivain Prépa guide's rules and dictionary, then creation with a
+  reason (`house.style_guide_created`). Nothing is seeded. Its dictionary
+  is read, read-only, from the house account's Kreyòl books' glossary
+  sections (titles with Leksik, Lexique, Glossaire or Glossary): bold runs
+  of one to four words, letters only, three letters or more. Its other
+  rules are proposals for staff to edit (fr-FR, « » with French spacing,
+  spaced en dashes, sentence-case headings, numbers spelled out under 10,
+  no serial comma, Kreyòl rather than Créole, no claim of MENFP
+  endorsement or of guaranteed results). Run over the series' source
+  manuscripts it would hold 216 Kreyòl terms from three sections (9e
+  Kreyòl "Leksik ak rapèl", 80; NS4 Kreyòl chapter 9, 125; NS4 Kreyòl
+  "Leksik ak rapèl", 92) plus five names.
+
+**Not done.** Number, quotation, dash and spacing rules are checked by
+the model, not deterministically (only terms are). The guide does not
+drive the editor or the renderers (smart quotes, French spaces in PDF and
+EPUB: audit N2). A series guide is an account guide the series' books
+follow; there is no series object. A selection review takes the first
+occurrence of the selected text. Credits are checked against the
+estimate when a run is queued and before each section, not reserved:
+a balance spent elsewhere meanwhile stops the run cleanly instead.
+
+**Tests.** `tests/Feature/StyleGuideTest.php` (creation and every field;
+ten refusals; normalisation; versions immutable in the model and the
+database; follow, the book's own rules, detach, latest version, delete;
+cross-account refusals and a transferred book; editor and reviewer
+rights; the house account and support; the console's preview and audited
+creation from a Kreyòl glossary, read-only).
+`tests/Feature/ReviewOptionsTest.php` (main's payload for every agent,
+directly and through the runner; the guide block for the style agents and
+none for the others; the injection test; no other tenant's guide in a
+prompt; version and digest recorded; the term check's locations and
+rules; its findings stored, free and applied; dictionary suppression on
+Anthropic and FakeDriver; chapter, range, whole book and selection; the
+estimate against AiPricing; credit and cap refusals with nothing sent;
+approval; sensitivity's model, budget, prompt and threshold; filters and
+sorts; bulk accept and dismiss; never flag a word and a rule, with their
+undo). `tests/Browser/style-guide.spec.js` at 1440 and 390 px: a guide
+created and edited to version 2, a Copy review of one chapter with its
+estimate, filters by rule, severity and chapter, never-flag and undo, a
+bulk dismiss after confirming, then a two-chapter range followed on the
+queue to the end; no horizontal scroll, no console errors.
+`tests/Feature/QueuedReviewRunTest.php` (range and whole book dispatched,
+not run in the request, while one chapter is; per-section persistence
+with a failing section refunded and the run going on; a stop when the
+credits run out and when the cap would be passed; a retried job that
+bills nothing twice; cancel; one active whole-book run per book, in the
+controller and the database; progress and cancel refused to strangers,
+progress open and cancel refused to a reviewer).

@@ -271,6 +271,8 @@ class Book extends Model
             'meta' => 'array',
             'rights' => 'array',
             'publication' => 'array',
+            // The book's own style rules over its guide (App\Editorial\Style\StyleGuides).
+            'style_overrides' => 'array',
             'series_number' => 'integer',
             'launch_date' => 'date',
             'launch_tasks' => 'array',
@@ -285,6 +287,12 @@ class Book extends Model
     public function houseStyle(): BelongsTo
     {
         return $this->belongsTo(HouseStyle::class);
+    }
+
+    /** The style guide this book follows, if any (App\Editorial\Style\StyleGuides). */
+    public function styleGuide(): BelongsTo
+    {
+        return $this->belongsTo(StyleGuide::class);
     }
 
     /** Stores this book is offered in. */

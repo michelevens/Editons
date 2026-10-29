@@ -25,6 +25,8 @@ class EditorialFinding extends Model
         'editorial_review_id', 'manuscript_section_id', 'agent', 'severity',
         'title', 'detail', 'excerpt', 'suggestion', 'applied_version_id',
         'from_offset', 'to_offset', 'status', 'resolved_by', 'resolved_at',
+        // Triage and "never flag this again" (ADR — Style guides and review options).
+        'rule', 'term', 'source', 'dismissal',
     ];
 
     protected function casts(): array

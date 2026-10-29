@@ -51,6 +51,7 @@ export default function HouseIndex({ houses, books, totals, options, results, ca
             )}
 
             {can.manage && houses.length > 0 && <Transfer houses={houses} />}
+            {can.manage && houses.length > 0 && <HouseStyleGuide houses={houses} />}
 
             {results && <Results results={results} />}
 
@@ -217,6 +218,87 @@ function Transfer({ houses }) {
                                 </button>
                             </>
                         )}
+                    </div>
+                )}
+            </form>
+        </Panel>
+    );
+}
+
+/**
+ * The house style guide for the AI editors (ADR — Style guides and review
+ * options): preview what it would hold — its rules and the Kreyòl glossary
+ * words read from the house's own books — then create it with a reason.
+ */
+function HouseStyleGuide({ houses }) {
+    const [open, setOpen] = useState(false);
+    const [preview, setPreview] = useState(null);
+    const [error, setError] = useState(null);
+    const form = useForm({ house: houses[0]?.slug ?? '', reason: '' });
+
+    const look = async () => {
+        setError(null);
+        setPreview(null);
+        try {
+            const { data } = await window.axios.post(route('admin.house.style-guide.preview'), { house: form.data.house });
+            setPreview(data);
+        } catch (e) {
+            setError(e.response?.data?.message ?? 'The preview failed.');
+        }
+    };
+
+    const create = (event) => {
+        event.preventDefault();
+        form.post(route('admin.house.style-guide'), { preserveScroll: true, onSuccess: () => { setOpen(false); setPreview(null); form.reset('reason'); } });
+    };
+
+    if (!open) {
+        return (
+            <div className="mt-3">
+                <button type="button" data-a="admin:house:style-guide" onClick={() => setOpen(true)} className={`${buttonClass} border border-border-default text-text-primary hover:bg-bg-subtle`}>
+                    Create the house style guide
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <Panel title="House style guide" detail="The rules the AI editors review the house's books against. Preview first: nothing is created until you confirm." className="mt-3">
+            <form onSubmit={create} data-a="admin:house:style-guide-form">
+                <div className="flex flex-wrap items-end gap-2">
+                    <Field label="House" id="hsg-house">
+                        <select id="hsg-house" value={form.data.house} onChange={(e) => { form.setData('house', e.target.value); setPreview(null); }} className={inputClass}>
+                            {houses.map((h) => (
+                                <option key={h.id} value={h.slug}>{h.name}</option>
+                            ))}
+                        </select>
+                    </Field>
+                    <button type="button" data-a="admin:house:style-guide:preview" onClick={look} className={`${buttonClass} border border-border-default text-text-primary hover:bg-bg-subtle`}>
+                        Preview
+                    </button>
+                    <button type="button" onClick={() => { setOpen(false); setPreview(null); }} className={`${buttonClass} text-text-secondary hover:bg-bg-subtle`}>
+                        Cancel
+                    </button>
+                </div>
+                {error && <p role="alert" className="mt-2 text-[12.5px] text-status-danger">{error}</p>}
+                {preview && (
+                    <div className="mt-3 space-y-2 text-[12.5px]" data-a="admin:house:style-guide:plan">
+                        <p className="font-semibold text-text-primary">{preview.name}</p>
+                        <p className="text-text-secondary">
+                            {preview.rules.language} · quotes {preview.rules.quotes} · French spacing {preview.rules.french_spacing ? 'on' : 'off'} · {preview.rules.preferred_terms.length} preferred terms · {preview.rules.banned.length} banned
+                        </p>
+                        <p className="text-text-secondary">
+                            {preview.rules.dictionary.length} words never flagged
+                            {preview.sources.length > 0 ? `, from ${preview.sources.map((s) => `${s.title} (${s.words})`).join(', ')}` : ' (no Kreyòl glossary found in the house books)'}
+                        </p>
+                        <p className="max-h-24 overflow-y-auto break-words rounded-tile bg-bg-subtle p-2 text-text-secondary">{preview.rules.dictionary.join(', ')}</p>
+                        <Field label="Reason (kept in the audit log)" id="hsg-reason">
+                            <textarea id="hsg-reason" data-a="admin:house:style-guide:reason" required minLength={4} rows={2} value={form.data.reason} onChange={(e) => form.setData('reason', e.target.value)} className={inputClass} />
+                        </Field>
+                        <Errors errors={form.errors} />
+                        <button type="submit" data-a="admin:house:style-guide:create" disabled={form.processing} className={`${buttonClass} bg-brand-fill text-white hover:bg-brand-primary-hover`}>
+                            Create “{preview.name}”
+                        </button>
                     </div>
                 )}
             </form>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Editorial\Style\HouseGuideTemplate;
 use App\Models\Book;
 use App\Models\HouseStyle;
 use App\Platform\House\HouseAccounts;
@@ -147,6 +148,27 @@ class HouseController extends Controller
         $catalog->isbnPlan($book, $data['edition'], $data['source'], $request->user(), $data['reason']);
 
         return back()->with('platform_notice', 'ISBN plan saved.');
+    }
+
+    /**
+     * The house style guide (ADR — Style guides and review options): what
+     * it would hold — its rules and the Kreyòl glossary words found in the
+     * house's own books — before anything is created.
+     */
+    public function styleGuidePreview(Request $request, HouseAccounts $accounts, HouseGuideTemplate $template): JsonResponse
+    {
+        $data = $request->validate(['house' => ['required']]);
+
+        return response()->json($template->preview($this->house($accounts, (string) $data['house'])));
+    }
+
+    /** Create it on the house account, with a reason, audited. */
+    public function styleGuide(Request $request, HouseAccounts $accounts, HouseGuideTemplate $template): RedirectResponse
+    {
+        $data = $request->validate(['house' => ['required'], 'reason' => ['required', 'string', 'min:4', 'max:1000']]);
+        $guide = $template->create($this->house($accounts, (string) $data['house']), $request->user(), $data['reason']);
+
+        return back()->with('platform_notice', "Style guide “{$guide->name}” created. Attach it to the house's books from the AI Editor.");
     }
 
     /** One action across the selected books; each book's result is shown. */
