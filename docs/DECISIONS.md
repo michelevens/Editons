@@ -3674,7 +3674,7 @@ bills nothing twice; cancel; one active whole-book run per book, in the
 controller and the database; progress and cancel refused to strangers,
 progress open and cancel refused to a reviewer).
 
-## ADR-00XX — Configurable shortcuts and mobile tabs
+## ADR-0048 — Configurable shortcuts and mobile tabs
 
 **Status:** accepted (2026-10-29)
 
