@@ -1,5 +1,7 @@
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { ShortcutHost } from '../ShortcutSheet';
+import { seedPrefs } from '../../shortcuts';
 
 /**
  * The platform layer around every page: the "View as" banner, the
@@ -17,7 +19,10 @@ import { useEffect, useState } from 'react';
  * remounts the page under it — an open editor keeps its state.
  */
 export default function PlatformFrame({ children }) {
-    const { platform } = usePage().props;
+    const { platform, prefs } = usePage().props;
+    // The author's shortcuts, tabs and swipes, before anything below reads
+    // them (resources/js/shortcuts.js).
+    seedPrefs(prefs ?? null);
     const impersonation = platform?.impersonation ?? null;
     const announcement = platform?.announcement ?? null;
     const maintenance = Boolean(platform?.maintenance);
@@ -53,6 +58,7 @@ export default function PlatformFrame({ children }) {
                 {children}
             </div>
             <Notice />
+            <ShortcutHost />
         </div>
     );
 }

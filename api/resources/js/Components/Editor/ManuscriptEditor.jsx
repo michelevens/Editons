@@ -23,6 +23,7 @@ import { PlacedImage, PlacedTable, PlacedTableView, setTextBlock } from './Place
 import { ImageBar, TableBar } from './PlacementBar';
 import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
+import { matches } from '../../shortcuts';
 
 /**
  * The writing canvas.
@@ -449,10 +450,11 @@ export default function ManuscriptEditor({
         };
     }, [status, flush]);
 
-    // Ctrl/Cmd+S forces a save and a version, because writers press it.
+    // Ctrl/Cmd+S forces a save and a version, because writers press it
+    // (editor.save in the shortcut registry: the author may move it).
     useEffect(() => {
         const onKey = (e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+            if (matches('editor.save', e)) {
                 e.preventDefault();
 
                 if (editor && ! editor.isDestroyed && sectionId.current) {

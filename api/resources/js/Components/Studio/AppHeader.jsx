@@ -5,6 +5,7 @@ import CommandPalette from './CommandPalette';
 import Icon from './Icon';
 import { goTo } from './navigation';
 import UserMenu from './UserMenu';
+import { ariaKeys, matches, openShortcutSheet, shortcutLabel, usePrefs } from '../../shortcuts';
 
 /**
  * The product header: logo, top nav, search, avatar.
@@ -73,6 +74,8 @@ export default function AppHeader({
     const { recent_book_id: recentBookId } = usePage().props;
     const book = bookId ?? recentBookId ?? null;
     const [palette, setPalette] = useState(false);
+    // Re-rendered when the author remaps search, so its label follows.
+    usePrefs();
 
     const select = (item) => (onSelect ? onSelect(item) : goTo(book, item.key));
     const navigate = (key) => (onNavigate ? onNavigate(key) : goTo(book, key));
@@ -80,7 +83,7 @@ export default function AppHeader({
     // ⌘K / Ctrl+K from anywhere, as the label has always promised.
     useEffect(() => {
         const onKey = (event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+            if (matches('app.search', event)) {
                 event.preventDefault();
                 setPalette((open) => !open);
             }
@@ -125,6 +128,15 @@ export default function AppHeader({
                 run: () => onOpenChapter?.(chapter.id),
             });
         }
+
+        list.push({
+            key: 'help:shortcuts',
+            label: 'Keyboard shortcuts',
+            group: 'Help',
+            icon: 'help',
+            shortcut: '?',
+            run: openShortcutSheet,
+        });
 
         return [...extraCommands, ...list];
     }, [book, chapters, onSelect, onNavigate, onOpenChapter, extraCommands]);
@@ -240,14 +252,14 @@ export default function AppHeader({
                 <button
                     data-a="palette:open"
                     onClick={() => setPalette(true)}
-                    aria-label="Search (Ctrl+K)"
-                    aria-keyshortcuts="Control+K Meta+K"
+                    aria-label={`Search (${shortcutLabel('app.search')})`}
+                    aria-keyshortcuts={ariaKeys('app.search')}
                     className="flex h-[33px] w-[33px] items-center justify-center gap-2 rounded-control border border-border-input text-left text-[12.5px] text-text-secondary transition hover:border-brand-primary/40 xl:w-[206px] xl:justify-start xl:px-2.5"
                 >
                     <Icon name="search" size={15} />
                     <span className="hidden flex-1 xl:inline" aria-hidden="true">Search...</span>
                     <kbd className="hidden font-sans text-[11px] text-text-secondary xl:inline" aria-hidden="true">
-                        ⌘ K
+                        {shortcutLabel('app.search')}
                     </kbd>
                 </button>
 

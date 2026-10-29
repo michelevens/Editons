@@ -3,6 +3,7 @@ import { router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 import ProgressRing, { ringLabel } from './ProgressRing';
+import { ariaKeys, matches } from '../../shortcuts';
 
 /**
  * The left panel: Manuscript tree, Outline table, Notes.
@@ -582,12 +583,13 @@ function TreeNode({
             return;
         }
 
-        if (!onMove || !event.altKey) return;
+        if (!onMove) return;
 
-        if (event.key === 'ArrowUp' && index > 0) {
+        // binder.up / binder.down in the shortcut registry (Alt+↑ / Alt+↓).
+        if (matches('binder.up', event) && index > 0) {
             event.preventDefault();
             onMove(node, parentId, index - 1);
-        } else if (event.key === 'ArrowDown' && index < count - 1) {
+        } else if (matches('binder.down', event) && index < count - 1) {
             event.preventDefault();
             onMove(node, parentId, index + 1);
         }
@@ -737,7 +739,7 @@ function TreeNode({
                         if (swallowClick.current) event.preventDefault();
                     }}
                     aria-disabled={isPart || reordering || undefined}
-                    aria-keyshortcuts={onMove ? 'Alt+ArrowUp Alt+ArrowDown Shift+F10' : 'Shift+F10'}
+                    aria-keyshortcuts={onMove ? `${ariaKeys('binder.up')} ${ariaKeys('binder.down')} Shift+F10` : 'Shift+F10'}
                     // iOS shows its own callout on a long press; the row's
                     // actions are what the press is for here.
                     style={{ WebkitTouchCallout: 'none' }}

@@ -1,0 +1,102 @@
+{
+    "_comment": "Every keyboard shortcut in the app and the phone tab bar's choices, read by resources/js/shortcuts.js and App\\Workspace\\Preferences alike so the browser and the server agree on what may be remapped (ADR - Configurable shortcuts and mobile tabs). A binding is modifiers in the order Mod, Alt, Shift, then a key: Mod is Ctrl, or Cmd on a Mac.",
+    "scopes": {
+        "global": { "label": "Everywhere", "typing": true },
+        "editor": { "label": "Writing", "typing": true },
+        "binder": { "label": "Chapter outline", "typing": true },
+        "deck": { "label": "Review deck", "typing": false },
+        "cover": { "label": "Cover Studio", "typing": false }
+    },
+    "shortcuts": [
+        { "id": "app.search", "scope": "global", "description": "Search and commands", "keys": ["Mod+KeyK"], "remap": true },
+        { "id": "app.shortcuts", "scope": "global", "description": "Keyboard shortcuts (this sheet)", "keys": ["?"], "remap": false },
+
+        { "id": "editor.save", "scope": "editor", "description": "Save now and keep a version", "keys": ["Mod+KeyS"], "remap": true },
+        { "id": "view.outline", "scope": "editor", "description": "Show or hide the chapter outline", "keys": ["Mod+Backslash"], "remap": true },
+        { "id": "view.right", "scope": "editor", "description": "Show or hide the AI editor panel", "keys": ["Mod+Alt+Backslash"], "remap": true },
+        { "id": "view.bottom", "scope": "editor", "description": "Show or hide the bottom cards", "keys": ["Mod+KeyJ"], "remap": true },
+        { "id": "view.focus", "scope": "editor", "description": "Distraction-free mode", "keys": ["Mod+Shift+KeyF"], "remap": true },
+        { "id": "view.leave", "scope": "editor", "description": "Leave distraction-free mode", "keys": ["Escape"], "remap": false },
+        { "id": "format.bold", "scope": "editor", "description": "Bold", "keys": ["Mod+KeyB"], "remap": false },
+        { "id": "format.italic", "scope": "editor", "description": "Italic", "keys": ["Mod+KeyI"], "remap": false },
+        { "id": "format.underline", "scope": "editor", "description": "Underline", "keys": ["Mod+KeyU"], "remap": false },
+        { "id": "format.code", "scope": "editor", "description": "Inline code", "keys": ["Mod+KeyE"], "remap": false },
+        { "id": "format.strike", "scope": "editor", "description": "Strikethrough", "keys": ["Mod+Shift+KeyS"], "remap": false },
+        { "id": "format.quote", "scope": "editor", "description": "Block quote", "keys": ["Mod+Shift+KeyB"], "remap": false },
+        { "id": "format.numbered", "scope": "editor", "description": "Numbered list", "keys": ["Mod+Shift+Digit7"], "remap": false },
+        { "id": "format.bullets", "scope": "editor", "description": "Bulleted list", "keys": ["Mod+Shift+Digit8"], "remap": false },
+        { "id": "format.paragraph", "scope": "editor", "description": "Paragraph", "keys": ["Mod+Alt+Digit0"], "remap": false },
+        { "id": "format.undo", "scope": "editor", "description": "Undo", "keys": ["Mod+KeyZ"], "remap": false },
+        { "id": "format.redo", "scope": "editor", "description": "Redo", "keys": ["Mod+KeyY", "Mod+Shift+KeyZ"], "remap": false },
+
+        { "id": "binder.up", "scope": "binder", "description": "Move the chapter up", "keys": ["Alt+ArrowUp"], "remap": true },
+        { "id": "binder.down", "scope": "binder", "description": "Move the chapter down", "keys": ["Alt+ArrowDown"], "remap": true },
+        { "id": "binder.actions", "scope": "binder", "description": "The chapter's actions", "keys": ["Shift+F10"], "remap": false },
+
+        { "id": "deck.next", "scope": "deck", "description": "Next finding", "keys": ["ArrowRight", "KeyN"], "remap": true },
+        { "id": "deck.previous", "scope": "deck", "description": "Previous finding", "keys": ["ArrowLeft"], "remap": true },
+        { "id": "deck.apply", "scope": "deck", "description": "Apply the fix", "keys": ["KeyA"], "remap": true },
+        { "id": "deck.dismiss", "scope": "deck", "description": "Dismiss the finding", "keys": ["KeyD"], "remap": true },
+
+        { "id": "cover.nudge", "scope": "cover", "description": "Move the selected layer", "keys": ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"], "remap": false },
+        { "id": "cover.nudgeFar", "scope": "cover", "description": "Move it further", "keys": ["Shift+ArrowUp", "Shift+ArrowDown", "Shift+ArrowLeft", "Shift+ArrowRight"], "remap": false },
+        { "id": "cover.hide", "scope": "cover", "description": "Hide the selected layer", "keys": ["Delete", "Backspace"], "remap": false },
+        { "id": "cover.deselect", "scope": "cover", "description": "Deselect", "keys": ["Escape"], "remap": false },
+        { "id": "cover.undo", "scope": "cover", "description": "Undo", "keys": ["Mod+KeyZ"], "remap": false },
+        { "id": "cover.redo", "scope": "cover", "description": "Redo", "keys": ["Mod+KeyY", "Mod+Shift+KeyZ"], "remap": false }
+    ],
+    "reserved": {
+        "Mod+KeyW": "closes the tab",
+        "Mod+KeyT": "opens a tab",
+        "Mod+Shift+KeyT": "reopens a closed tab",
+        "Mod+KeyN": "opens a window",
+        "Mod+Shift+KeyN": "opens a private window",
+        "Mod+Tab": "switches tabs",
+        "Mod+Shift+Tab": "switches tabs",
+        "Mod+KeyQ": "quits the browser on a Mac",
+        "Mod+KeyL": "goes to the address bar",
+        "Mod+KeyR": "reloads the page",
+        "Mod+KeyC": "copies",
+        "Mod+KeyV": "pastes",
+        "Mod+KeyX": "cuts",
+        "Mod+KeyA": "selects all",
+        "Mod+KeyF": "finds in the page",
+        "Mod+KeyP": "prints",
+        "F5": "reloads the page",
+        "Tab": "moves focus",
+        "Shift+Tab": "moves focus",
+        "Enter": "presses the focused button",
+        "Space": "presses the focused button",
+        "Escape": "closes dialogs and menus"
+    },
+    "mobileTabs": {
+        "library": {
+            "label": "Shelf",
+            "default": ["books", "continue", "store-sales", "inbox"],
+            "allowed": ["books", "continue", "store-sales", "inbox", "billing", "purchases", "account", "support"]
+        },
+        "write": {
+            "label": "Writing",
+            "default": ["overview", "manuscript", "ai", "research"],
+            "allowed": "book"
+        },
+        "review": {
+            "label": "Reviewing",
+            "default": ["manuscript", "ai", "comments", "workflow"],
+            "allowed": "book"
+        },
+        "publish": {
+            "label": "Publishing",
+            "default": ["manuscript", "layout", "cover", "export"],
+            "allowed": "book"
+        },
+        "sell": {
+            "label": "Selling",
+            "default": ["manuscript", "distribution", "launch", "analytics"],
+            "allowed": "book"
+        }
+    },
+    "bookTabs": ["overview", "manuscript", "ai", "research", "terms", "references", "notes", "templates", "settings", "comments", "workflow", "team", "analytics", "layout", "cover", "publish", "export", "preview", "rights", "editions", "a11y", "distribution", "royalties", "launch", "marketing"],
+    "maxTabs": 4,
+    "swipes": ["normal", "swapped", "off"]
+}

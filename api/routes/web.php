@@ -53,6 +53,7 @@ use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\WorkflowController;
+use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -105,6 +106,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/workspace/books/{book}', [WorkspaceController::class, 'forgetBook'])->name('workspace.book.forget');
     Route::post('/workspace/presets', [WorkspaceController::class, 'storePreset'])->name('workspace.presets.store');
     Route::delete('/workspace/presets/{preset}', [WorkspaceController::class, 'destroyPreset'])->name('workspace.presets.destroy');
+    // Keyboard shortcuts, phone tabs and review-deck swipes (JSON).
+    Route::get('/preferences', [PreferencesController::class, 'show'])->name('preferences.show');
+    Route::put('/preferences', [PreferencesController::class, 'update'])->name('preferences.update');
+    Route::delete('/preferences/{section}', [PreferencesController::class, 'destroy'])->name('preferences.destroy');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Two-factor sign-in (App\Platform\TwoFactor). Throttled: each takes a

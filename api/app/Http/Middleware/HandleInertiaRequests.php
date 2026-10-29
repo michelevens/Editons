@@ -9,6 +9,7 @@ use App\Platform\Features;
 use App\Platform\Impersonation;
 use App\Platform\PlatformSettings;
 use App\Platform\Trust\StatusPage;
+use App\Workspace\Preferences;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -107,6 +108,11 @@ class HandleInertiaRequests extends Middleware
                     : false,
                 'staff_name' => config('platform.staff_name'),
             ],
+
+            // The author's own shortcuts, phone tabs and review-deck swipes
+            // (App\Workspace\Preferences): only what they changed. Every
+            // page needs them: shortcuts and the tab bar are everywhere.
+            'prefs' => fn () => $request->user() ? Preferences::for($request->user()) : null,
 
             // Modules switched on for this person (App\Platform\Features): a
             // module that is off disappears from the sidebar, the More sheet

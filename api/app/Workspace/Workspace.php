@@ -152,6 +152,9 @@ final class Workspace
         return [
             'settings' => is_array($raw['settings'] ?? null) ? $raw['settings'] : null,
             'presets' => $presets,
+            // Shortcuts, phone tabs and swipes (App\Workspace\Preferences):
+            // carried through untouched, so saving a layout keeps them.
+            ...(is_array($raw['prefs'] ?? null) ? ['prefs' => $raw['prefs']] : []),
         ];
     }
 

@@ -4,6 +4,7 @@ import Icon from './Icon';
 import { currentTheme, setTheme } from '../../theme';
 import { goTo } from './navigation';
 import { NAV_FEATURES, useFeatures } from '../../features';
+import { openShortcutSheet } from '../../shortcuts';
 
 /**
  * The account menu behind the avatar.
@@ -23,9 +24,9 @@ import { NAV_FEATURES, useFeatures } from '../../features';
 /**
  * `route` is the destination; `book` items open a screen of the current book.
  *
- * Clients, Integrations, Audit log, Help center and Keyboard shortcuts were
- * listed here with nowhere to go, so clicking them only closed the menu. They
- * come back when they exist.
+ * Clients, Integrations, Audit log and Help center were listed here with
+ * nowhere to go, so clicking them only closed the menu. They come back when
+ * they exist. Keyboard shortcuts is back: the shortcut sheet (`?`).
  */
 const ITEMS = [
     [
@@ -44,6 +45,7 @@ const ITEMS = [
         { key: 'account', label: 'Account settings', icon: 'user', route: 'profile.edit' },
         // Write to Ecrivain support (Pages/Support).
         { key: 'support', label: 'Help', icon: 'help', route: 'support.index' },
+        { key: 'shortcuts', label: 'Keyboard shortcuts', icon: 'help', run: openShortcutSheet },
     ],
 ];
 
@@ -245,7 +247,8 @@ function MenuItem({ item, bookId, count = 0, onDone }) {
             role="menuitem"
             onClick={() => {
                 onDone();
-                if (item.book) goTo(bookId, item.book);
+                if (item.run) item.run();
+                else if (item.book) goTo(bookId, item.book);
                 else router.get(route(item.route));
             }}
             className="flex h-[38px] w-full items-center gap-3 px-4 text-left text-[13.5px] text-text-body transition hover:bg-bg-subtle"

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import { isTyping, matches, savePrefs, shortcutLabel, usePrefs } from '../../shortcuts';
 
 /**
  * Findings one at a time: the card, the passage, Apply / Dismiss / Next.
@@ -10,7 +11,9 @@ import Icon from './Icon';
  *
  * Nothing changes the manuscript without the author's tap. A swipe is only a
  * shortcut for the buttons beside it (right applies a fix, left dismisses),
- * and every decision can be undone for a few seconds afterwards — through
+ * which an author can swap (left-handed) or turn off (buttons only), saved
+ * on the account (ADR — Configurable shortcuts and mobile tabs); and every
+ * decision can be undone for a few seconds afterwards — through
  * the same server undo the AI Editor screen uses, so an applied fix really
  * comes back out of the chapter.
  */
@@ -25,6 +28,10 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
     const [dx, setDx] = useState(0);
     const start = useRef(null);
     const wanted = useRef(null);
+    const prefs = usePrefs();
+    const swipe = prefs.reviewDeck.swipe;
+    // +1: a swipe right applies. Swapped, a swipe left does.
+    const applySide = swipe === 'swapped' ? -1 : 1;
 
     // Out of range once the last card is decided; an undone finding comes
     // back wherever the server lists it, so the deck goes to it.
@@ -94,6 +101,8 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
 
     // Swipe, horizontal only: a vertical drag is the card scrolling.
     const onTouchStart = (event) => {
+        if (swipe === 'off') return;
+
         const t = event.touches[0];
         start.current = { x: t.clientX, y: t.clientY, horizontal: null };
     };
@@ -114,19 +123,20 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
         const moved = dx;
         start.current = null;
 
-        if (moved > SWIPE && finding?.suggestion) decide('accepted');
-        else if (moved < -SWIPE) decide('dismissed');
+        if (moved * applySide > SWIPE && finding?.suggestion) decide('accepted');
+        else if (moved * applySide < -SWIPE) decide('dismissed');
         else setDx(0);
     };
 
-    // Arrow keys and A / D / N, for a tablet with a keyboard.
+    // Arrow keys and A / D / N, for a tablet with a keyboard: the deck.*
+    // shortcuts of the registry, so the author's own keys if they moved them.
     useEffect(() => {
         const onKey = (event) => {
-            if (event.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
-            if (event.key === 'ArrowRight' || event.key === 'n') step(1);
-            else if (event.key === 'ArrowLeft') step(-1);
-            else if (event.key === 'a') decide('accepted');
-            else if (event.key === 'd') decide('dismissed');
+            if (isTyping(event) || document.querySelector('[aria-modal="true"]')) return;
+            if (matches('deck.next', event)) step(1);
+            else if (matches('deck.previous', event)) step(-1);
+            else if (matches('deck.apply', event)) decide('accepted');
+            else if (matches('deck.dismiss', event)) decide('dismissed');
         };
 
         window.addEventListener('keydown', onKey);
@@ -144,7 +154,20 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                 >
                     <Icon name="left" size={14} /> All agents
                 </button>
-                <span className="ml-auto text-[12px] tabular-nums text-text-secondary" aria-live="polite">
+                <label className="ml-auto flex items-center gap-1 text-[11.5px] text-text-secondary">
+                    Swipes
+                    <select
+                        data-a="review:swipe"
+                        value={swipe}
+                        onChange={(event) => savePrefs({ reviewDeck: { swipe: event.target.value } }).catch(() => {})}
+                        className="rounded-control border border-border-default bg-bg-surface py-0.5 pl-1.5 pr-6 text-[11.5px] text-text-body"
+                    >
+                        <option value="normal">Right applies</option>
+                        <option value="swapped">Left applies</option>
+                        <option value="off">Off (buttons only)</option>
+                    </select>
+                </label>
+                <span className="text-[12px] tabular-nums text-text-secondary" aria-live="polite">
                     {open.length === 0 ? 'All done' : `${index + 1} of ${open.length}`}
                 </span>
             </div>
@@ -179,9 +202,9 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                         transition: dx ? 'none' : 'transform 160ms ease-out',
                     }}
                     className={`relative rounded-panel border bg-bg-surface p-4 shadow-sm ${
-                        dx > SWIPE && finding.suggestion
+                        dx * applySide > SWIPE && finding.suggestion
                             ? 'border-status-success'
-                            : dx < -SWIPE
+                            : dx * applySide < -SWIPE
                               ? 'border-status-danger'
                               : 'border-border-default'
                     }`}
@@ -240,8 +263,15 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                         </button>
                     )}
 
-                    <p className="mt-3 text-[11px] text-text-secondary pointer-fine:hidden">
-                        Swipe {finding.suggestion ? 'right to apply, ' : ''}left to dismiss.
+                    {swipe !== 'off' && (
+                        <p className="mt-3 text-[11px] text-text-secondary pointer-fine:hidden" data-a="review:swipe-hint">
+                            Swipe {finding.suggestion ? `${applySide > 0 ? 'right' : 'left'} to apply, ` : ''}
+                            {applySide > 0 ? 'left' : 'right'} to dismiss.
+                        </p>
+                    )}
+                    <p className="mt-3 text-[11px] text-text-secondary pointer-coarse:hidden">
+                        Keys: {shortcutLabel('deck.apply')} applies, {shortcutLabel('deck.dismiss')} dismisses,{' '}
+                        {shortcutLabel('deck.previous')} {shortcutLabel('deck.next')} move.
                     </p>
                 </article>
             )}

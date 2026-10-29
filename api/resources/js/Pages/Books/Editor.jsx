@@ -45,6 +45,7 @@ import {
     SIZE_LIMITS,
     useWorkspace,
 } from '@/Components/Studio/workspace';
+import { matches, usePrefs } from '@/shortcuts';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -162,13 +163,15 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // The panel shortcuts (workspace.js SHORTCUTS), through a ref so the
     // listener is added once and still calls today's handlers.
     const shortcuts = useRef({});
+    // Re-rendered when the author remaps one, so labels follow.
+    const prefs = usePrefs();
 
     useEffect(() => {
         const onKey = (event) => {
             if (SHORTCUTS.focus.match(event)) {
                 event.preventDefault();
                 setFocusMode((on) => !on);
-            } else if (event.key === 'Escape') {
+            } else if (matches('view.leave', event)) {
                 setFocusMode(false);
             } else {
                 for (const name of ['outline', 'right', 'bottom']) {
@@ -701,7 +704,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         });
 
         return list;
-    }, [isStudio, layout.panels, focused, ws.presets, ws.update, ws.reset, togglePanel, applyPreset]);
+    }, [isStudio, layout.panels, focused, ws.presets, ws.update, ws.reset, togglePanel, applyPreset, prefs]);
 
     // Room left for one side panel, given the other and the manuscript.
     const roomFor = (key) => {
