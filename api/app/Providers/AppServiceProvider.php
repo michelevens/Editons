@@ -136,7 +136,7 @@ class AppServiceProvider extends ServiceProvider
         ]);
         // Sending invitations, per staff member: a list is one request, so
         // the daily cap (Invitations::remainingToday) does the counting.
-        // Sales CSVs and royalty statements (ADR-00XX — Sales reports): each
+        // Sales CSVs and royalty statements (ADR-0046 — Sales reports): each
         // one walks a range of orders, so a person gets a few a minute.
         RateLimiter::for('sales-exports', fn (Request $request) => [
             Limit::perMinute(10)->by('sales-exports-minute|'.$request->user()?->id),

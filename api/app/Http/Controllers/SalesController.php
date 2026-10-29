@@ -144,7 +144,7 @@ class SalesController extends Controller
 
     /**
      * Every direct sale this author has made, across their books, over a
-     * date range (ADR-00XX — Sales reports and royalty statements).
+     * date range (ADR-0046 — Sales reports and royalty statements).
      *
      * Scoped to the signed-in seller: there is no parameter to point it at
      * anybody else. Staff may ask for `scope=house`, the house accounts'

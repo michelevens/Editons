@@ -3384,7 +3384,7 @@ horizontal scroll, no console errors).
 
 ---
 
-## ADR-00XX — Sales reports and royalty statements
+## ADR-0046 — Sales reports and royalty statements
 
 **Status:** accepted (2026-10-29). Number assigned at merge.
 

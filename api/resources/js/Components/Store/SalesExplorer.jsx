@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
  * Everything the report shows comes from the server for the range in the
  * URL, so a view can be bookmarked or sent to someone; the controls change
  * the URL and the server answers. Money is never added across currencies:
- * every total, row and chart is per currency (ADR-00XX — Sales reports and
+ * every total, row and chart is per currency (ADR-0046 — Sales reports and
  * royalty statements).
  */
 

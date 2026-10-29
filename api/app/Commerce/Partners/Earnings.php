@@ -10,7 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * A partner's own commissions over a date range, and as CSV (ADR-00XX —
+ * A partner's own commissions over a date range, and as CSV (ADR-0046 —
  * Sales reports and royalty statements; the audit's PP2).
  *
  * Only ever the partner's own rows — every query starts from partner_id,

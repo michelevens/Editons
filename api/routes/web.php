@@ -652,7 +652,7 @@ Route::middleware('auth')->group(function () {
         ->name('sales.show');
     Route::get('/sales', [SalesController::class, 'overview'])
         ->name('sales.overview');
-    // The report's CSVs and royalty statements (ADR-00XX — Sales reports
+    // The report's CSVs and royalty statements (ADR-0046 — Sales reports
     // and royalty statements): the same scope as the report, rate-limited.
     Route::get('/sales/export/{kind}.csv', [SalesController::class, 'export'])
         ->whereIn('kind', ['lines', 'summary'])
@@ -743,7 +743,7 @@ Route::middleware(['auth', 'feature:partners'])->group(function () {
         ->name('partners.apply.store');
 
     Route::get('/partner', [PartnerController::class, 'dashboard'])->name('partners.dashboard');
-    // The partner's own commissions in a date range, as CSV (ADR-00XX).
+    // The partner's own commissions in a date range, as CSV (ADR-0046).
     Route::get('/partner/commissions.csv', [PartnerController::class, 'exportCommissions'])
         ->middleware('throttle:sales-exports')
         ->name('partners.commissions.export');

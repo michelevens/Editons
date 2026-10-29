@@ -57,7 +57,7 @@ class SalesController extends Controller
     }
 
     /**
-     * One account's royalty statement for a month or quarter (ADR-00XX —
+     * One account's royalty statement for a month or quarter (ADR-0046 —
      * Sales reports and royalty statements). Read by all staff, like the
      * royalties table it is downloaded from; every download is audited.
      */

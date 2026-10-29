@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /*
- * Sales reports and royalty statements (ADR-00XX): date ranges cut in the
+ * Sales reports and royalty statements (ADR-0046): date ranges cut in the
  * account's timezone, comparisons, filters, breakdowns that add up to the
  * totals, CSVs, PDF statements whose numbers are the report's, partner
  * earnings, and nobody seeing anybody else's money.

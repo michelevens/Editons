@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 import { DEMO, signIn, watchForErrors } from './helpers.js';
 
 /**
- * Sales reports and royalty statements (ADR-00XX), on a desktop and on a
+ * Sales reports and royalty statements (ADR-0046), on a desktop and on a
  * phone: the e2e account's storefront sales over two quarters, then last
  * quarter chosen, compared with the previous one, filtered to one book;
  * the CSV of those sales downloaded and read; a quarterly statement

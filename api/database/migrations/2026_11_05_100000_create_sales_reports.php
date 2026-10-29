@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Sales reports and royalty statements (ADR-00XX — Sales reports and
+ * Sales reports and royalty statements (ADR-0046 — Sales reports and
  * royalty statements).
  *
  * - users.timezone: the IANA zone a person's reports cut days in. Null
