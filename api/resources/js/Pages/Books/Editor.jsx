@@ -189,6 +189,31 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
     useEffect(() => setSection(activeSection), [activeSection?.id]);
 
+    // The last text selected in the chapter, for the AI Editor's "Review
+    // the selection" (ADR — Style guides and review options). Kept when the
+    // author moves to that screen, which is when the selection collapses.
+    const [lastSelection, setLastSelection] = useState(null);
+
+    useEffect(() => {
+        const onChange = () => {
+            const selected = window.getSelection();
+
+            if (!selected || selected.isCollapsed || !section) return;
+
+            const node = selected.anchorNode instanceof Element ? selected.anchorNode : selected.anchorNode?.parentElement;
+
+            if (!node?.closest('.ProseMirror')) return;
+
+            const text = selected.toString().trim();
+
+            if (text) setLastSelection({ sectionId: section.id, text: text.slice(0, 20000) });
+        };
+
+        document.addEventListener('selectionchange', onChange);
+
+        return () => document.removeEventListener('selectionchange', onChange);
+    }, [section?.id]);
+
     const notify = useCallback((message) => {
         setToast(message);
         window.setTimeout(() => setToast(null), 3200);
@@ -806,7 +831,14 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         </Panel>
                     ) : nav === 'ai' ? (
                         <Panel>
-                            <AiEditorScreen bookId={book.id} onOpenSection={openSection} onNotify={notify} agent={aiAgent} />
+                            <AiEditorScreen
+                                bookId={book.id}
+                                onOpenSection={openSection}
+                                onNotify={notify}
+                                agent={aiAgent}
+                                currentSectionId={section?.id ?? null}
+                                selection={lastSelection?.sectionId === section?.id ? lastSelection : null}
+                            />
                         </Panel>
                     ) : !liveNav ? (
                         <NotBuilt
