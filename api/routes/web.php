@@ -23,6 +23,7 @@ use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\GoalsController;
 use App\Http\Controllers\GrowthController;
 use App\Http\Controllers\HouseStyleController;
+use App\Http\Controllers\StyleGuideController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InvitationController;
@@ -210,6 +211,22 @@ Route::middleware('auth')->group(function () {
         ->name('editorial.findings');
     Route::patch('/findings/{finding}', [EditorialController::class, 'resolve'])
         ->name('editorial.resolve');
+
+    // Review options (ADR — Style guides and review options): a selection,
+    // a chapter, a range or the whole book, estimated before it runs.
+    Route::post('/books/{book}/reviews/estimate', [EditorialController::class, 'estimate'])
+        ->name('editorial.estimate');
+    Route::post('/books/{book}/reviews', [EditorialController::class, 'reviewBook'])
+        ->name('editorial.review-book');
+
+    // Style guides: the account's editorial rules, followed by its books.
+    Route::get('/books/{book}/style-guide', [StyleGuideController::class, 'show'])->name('style-guides.show');
+    Route::post('/books/{book}/style-guide', [StyleGuideController::class, 'store'])->name('style-guides.store');
+    Route::post('/books/{book}/style-guide/follow', [StyleGuideController::class, 'follow'])->name('style-guides.follow');
+    Route::post('/books/{book}/style-guide/detach', [StyleGuideController::class, 'detach'])->name('style-guides.detach');
+    Route::put('/books/{book}/style-guide/own', [StyleGuideController::class, 'overrides'])->name('style-guides.overrides');
+    Route::put('/style-guides/{guide}', [StyleGuideController::class, 'update'])->name('style-guides.update');
+    Route::delete('/style-guides/{guide}', [StyleGuideController::class, 'destroy'])->name('style-guides.destroy');
 });
 
 /*
@@ -310,6 +327,13 @@ Route::middleware('auth')->group(function () {
         ->name('ai.index');
     Route::patch('/findings/{finding}/reopen', [AiEditorController::class, 'reopen'])
         ->name('ai.reopen');
+    // Triage: many at once, and "never flag this again" with its undo.
+    Route::post('/books/{book}/findings/bulk', [AiEditorController::class, 'bulk'])
+        ->name('ai.bulk');
+    Route::post('/findings/{finding}/never-flag', [AiEditorController::class, 'neverFlag'])
+        ->name('ai.never-flag');
+    Route::post('/books/{book}/findings/unsuppress', [AiEditorController::class, 'unsuppress'])
+        ->name('ai.unsuppress');
 
     Route::get('/books/{book}/references', [ReferencesController::class, 'show'])
         ->name('references.show');

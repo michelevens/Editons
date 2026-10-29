@@ -7,6 +7,8 @@ use App\Editorial\BookDirector;
 use App\Editorial\DriverFactory;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ManuscriptMemory;
+use App\Editorial\ReviewContext;
+use App\Editorial\ReviewPlanner;
 use App\Editorial\ReviewRunner;
 use App\Editorial\SuggestionApplier;
 use App\Journey\Coach;
@@ -17,6 +19,7 @@ use App\Platform\Ai\AiControls;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class EditorialController extends Controller
 {
@@ -79,6 +82,9 @@ class EditorialController extends Controller
 
         $data = $request->validate([
             'agent' => ['required', 'string'],
+            // Optional review options (ADR — Style guides and review options).
+            'focus' => ['nullable', 'string', 'max:'.ReviewContext::MAX_FOCUS],
+            'sensitivity' => ['nullable', 'string', 'in:'.implode(',', ReviewContext::SENSITIVITIES)],
         ]);
 
         $agent = EditorialAgent::tryFrom($data['agent']);
@@ -96,7 +102,9 @@ class EditorialController extends Controller
             $this->entitlements->assertCanAfford($request->user(), $agent->costLabel());
         }
 
-        $review = $this->runner->run($section, $agent, $request->user()->id);
+        $focus = trim((string) ($data['focus'] ?? ''));
+        $context = $this->runner->contextFor($section, $focus === '' ? null : $focus, $data['sensitivity'] ?? 'standard');
+        $review = $this->runner->run($section, $agent, $request->user()->id, $context, options: ['scope' => 'chapter']);
 
         return response()->json([
             'review' => [
@@ -112,6 +120,72 @@ class EditorialController extends Controller
             // Returned so the credit strip updates with the result rather
             // than needing a second request to notice the spend.
             'billing' => $this->entitlements->summaryFor($request->user()->fresh()),
+        ]);
+    }
+
+    /**
+     * What a review would cover and cost, before it runs: sections, tokens,
+     * USD from the gateway's prices, credits, and whether it needs approval
+     * (ReviewPlanner). Nothing is spent or sent.
+     */
+    public function estimate(Request $request, Book $book, ReviewPlanner $planner): JsonResponse
+    {
+        $this->authorize('update', $book);
+        $data = $request->validate(ReviewPlanner::rules());
+
+        return response()->json(['estimate' => $planner->estimate($planner->plan($book, $data), $request->user())]);
+    }
+
+    /**
+     * Run one agent over a selection, a chapter, a range or the whole book.
+     *
+     * Every refusal before any work: the kill switch, the plan, the credit
+     * balance and the monthly AI cap against the estimate, and approval for
+     * a large whole-book run. Then one review per section, each charged and
+     * recorded as a single review always was, under one run id.
+     */
+    public function reviewBook(Request $request, Book $book, ReviewPlanner $planner): JsonResponse
+    {
+        $this->authorize('update', $book);
+        $data = $request->validate(ReviewPlanner::rules());
+        $user = $request->user();
+
+        app(AiControls::class)->assertAllowed('editorial_review', $user);
+        $plan = $planner->plan($book, $data);
+        $this->entitlements->assertCanRunAgent($user, $plan['agent']);
+        $estimate = $planner->estimate($plan, $user);
+
+        if ($estimate['needs_approval'] && ! ($data['approved'] ?? false)) {
+            return response()->json(['message' => 'A whole-book review of this size needs your approval of the estimate first.', 'needs_approval' => true, 'estimate' => $estimate], 409);
+        }
+
+        $planner->enforce($estimate, (bool) ($data['approved'] ?? false));
+
+        $runId = (string) Str::uuid();
+        $results = [];
+
+        foreach ($plan['items'] as $item) {
+            $review = $this->runner->run($item['section'], $plan['agent'], $user->id, $plan['context'], $item['selection'], ['scope' => $plan['scope'], 'run_id' => $runId]);
+
+            $results[] = [
+                'section_id' => $item['section']->id,
+                'title' => $item['section']->title,
+                'status' => $review->status,
+                'error' => $review->error,
+                'findings' => $review->findings()->count(),
+            ];
+        }
+
+        return response()->json([
+            'run_id' => $runId,
+            'agent' => $plan['agent']->value,
+            'scope' => $plan['scope'],
+            'reviews' => $results,
+            'findings' => array_sum(array_column($results, 'findings')),
+            'failed' => count(array_filter($results, fn ($r) => $r['status'] === 'failed')),
+            'simulated' => $this->runner->simulated(),
+            'estimate' => $estimate,
+            'billing' => $this->entitlements->summaryFor($user->fresh()),
         ]);
     }
 
@@ -238,6 +312,9 @@ class EditorialController extends Controller
                 'excerpt' => $f->excerpt,
                 'suggestion' => $f->suggestion,
                 'status' => $f->status,
+                'rule' => $f->rule,
+                'term' => $f->term,
+                'source' => $f->source,
                 // Computed, not stored: the document moves after a review
                 // runs, and an author should see which findings no longer
                 // match their text rather than chasing deleted sentences.

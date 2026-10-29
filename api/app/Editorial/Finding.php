@@ -16,6 +16,8 @@ final class Finding
      * @param  'critical'|'warning'|'suggestion'  $severity
      * @param  string|null  $excerpt   the text this is about, copied verbatim
      * @param  string|null  $suggestion proposed replacement, or null to flag only
+     * @param  string|null  $rule  the rule broken, when the driver knows it (style:banned:…)
+     * @param  string|null  $term  the word or phrase flagged, for "never flag this again"
      */
     public function __construct(
         public readonly string $severity,
@@ -25,5 +27,7 @@ final class Finding
         public readonly ?string $suggestion = null,
         public readonly ?int $fromOffset = null,
         public readonly ?int $toOffset = null,
+        public readonly ?string $rule = null,
+        public readonly ?string $term = null,
     ) {}
 }

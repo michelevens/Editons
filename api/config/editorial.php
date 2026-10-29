@@ -56,6 +56,14 @@ return [
             // when it has truncated, so a cut-off chapter is not flagged as
             // badly structured.
             'maxCharacters' => (int) env('ANTHROPIC_MAX_CHARACTERS', 24000),
+
+            // Review sensitivity (ADR — Style guides and review options):
+            // the model and answer budget for a light or thorough review. A
+            // null model is the one above; standard is always the above.
+            'sensitivity' => [
+                'light' => ['model' => env('ANTHROPIC_MODEL_LIGHT'), 'maxTokens' => 2048],
+                'thorough' => ['model' => env('ANTHROPIC_MODEL_THOROUGH'), 'maxTokens' => 8192],
+            ],
         ],
 
         /*
@@ -81,5 +89,35 @@ return [
          */
 
     ],
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Review options (ADR — Style guides and review options)
+    |--------------------------------------------------------------------------
+    |
+    | Sensitivity, for every driver: the lowest severity kept. Light keeps
+    | warnings and critical findings; standard and thorough keep everything
+    | (thorough also asks the model to look harder, in the driver's own
+    | settings above).
+    |
+    | A whole-book run estimated above either threshold needs the author's
+    | explicit approval of the estimate before it starts. max_sections caps
+    | one run: past that, review the book in ranges.
+    |
+    */
+
+    'sensitivity' => [
+        'light' => ['min_severity' => 'warning'],
+        'standard' => ['min_severity' => 'suggestion'],
+        'thorough' => ['min_severity' => 'suggestion'],
+    ],
+
+    'approval' => [
+        'credits' => (int) env('EDITORIAL_APPROVAL_CREDITS', 50),
+        'usd' => (float) env('EDITORIAL_APPROVAL_USD', 1.00),
+    ],
+
+    'max_sections' => (int) env('EDITORIAL_MAX_SECTIONS', 200),
 
 ];

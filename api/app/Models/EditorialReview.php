@@ -18,6 +18,7 @@ class EditorialReview extends Model
         'manuscript_section_id', 'user_id', 'agent', 'status',
         'section_version', 'driver', 'model', 'input_tokens',
         'output_tokens', 'cost_usd', 'error', 'completed_at',
+        'style_guide_version_id', 'style_digest', 'options',
     ];
 
     protected function casts(): array
@@ -26,6 +27,7 @@ class EditorialReview extends Model
             'agent' => EditorialAgent::class,
             'completed_at' => 'datetime',
             'cost_usd' => 'decimal:6',
+            'options' => 'array',
         ];
     }
 
