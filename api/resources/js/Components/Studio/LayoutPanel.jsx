@@ -564,6 +564,14 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                             <Select value={String(layout.toc.epub)} name="toc-epub" onChange={(value) => group('toc', { epub: Number(value) }, { immediate: true })}
                                 options={DEPTHS} />
                         </Field>
+                        <Field label="Figure and table numbers">
+                            <Select value={layout.numbering ?? ''} name="numbering" onChange={(value) => save({ numbering: value === '' ? null : value }, { immediate: true })}
+                                options={NUMBERING} />
+                        </Field>
+                        <p className="-mt-1 mb-1 text-[11px] leading-snug text-text-secondary">
+                            How tables and figures are numbered in every export and in the editor. Automatic numbers by chapter when a
+                            caption is typed with a dot (Table 2.1), otherwise straight through the book.
+                        </p>
                     </Card>
 
                     <Card title="Boxes">
@@ -906,6 +914,14 @@ function Card({ title, children }) {
         </section>
     );
 }
+
+/** Figure and table numbering (InteriorDesign `numbering`; null infers it from the captions). */
+const NUMBERING = {
+    '': 'Automatic (from the captions)',
+    continuous: 'Continuous (Table 1, 2, 3…)',
+    chapter: 'By chapter (Table 2.1)',
+    part: 'By part (Table 2.1 in Part 2)',
+};
 
 function Select({ value, name, options, onChange, disabled = false }) {
     return (

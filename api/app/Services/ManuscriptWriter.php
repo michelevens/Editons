@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ManuscriptSection;
 use App\Models\ManuscriptVersion;
 use App\Publishing\Numbering;
+use App\Publishing\Placement;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -59,6 +60,11 @@ class ManuscriptWriter
             // Lock the row: two autosaves racing could otherwise both read
             // the same version_number and one would violate the unique index.
             $section = ManuscriptSection::lockForUpdate()->findOrFail($section->id);
+
+            // Placement values (a picture's width, a table's style) are
+            // checked as they arrive: an unknown one is dropped, a width
+            // held to its bounds, so what is stored is what renders.
+            $content = Placement::sanitize($content);
 
             $contentChanged = ! $this->sameDocument($section->content, $content);
             $titleChanged = $title !== null && $title !== $section->title;

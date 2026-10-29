@@ -23,6 +23,23 @@ class PrintPages
     public const RECORDING = ['pdf_interior', 'cover_wrap'];
 
     /** What the page count depends on, as a short hash. */
+    /**
+     * The layout as the fingerprint reads it. A numbering scheme left
+     * automatic (null) is left out, so books that never chose one keep the
+     * fingerprint they had before the setting existed and their print
+     * files stay current.
+     */
+    private static function layoutPrint(Book $book): array
+    {
+        $layout = $book->layout();
+
+        if (($layout['numbering'] ?? null) === null) {
+            unset($layout['numbering']);
+        }
+
+        return $layout;
+    }
+
     public static function fingerprint(Book $book): string
     {
         $sections = $book->sections()
@@ -33,7 +50,7 @@ class PrintPages
             // The interior renderer's version: the same settings set
             // differently once it changes (InteriorDesign::VERSION).
             InteriorDesign::VERSION,
-            $book->layout(),
+            self::layoutPrint($book),
             $book->publication(),
             [$book->title, $book->subtitle, $book->author_name, $book->series_name, $book->series_number, $book->language],
             [$sections?->n, (string) $sections?->changed, $sections?->words],

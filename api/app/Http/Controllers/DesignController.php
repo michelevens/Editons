@@ -505,6 +505,7 @@ class DesignController extends Controller
             'head_styles' => InteriorDesign::HEAD_STYLES,
             'head_sizes' => array_keys(InteriorDesign::HEAD_SIZES),
             'folios' => InteriorDesign::FOLIOS,
+            'numbering' => InteriorDesign::NUMBERING,
             'callout_types' => $pairs(InteriorDesign::CALLOUT_NAMES),
             'callout_presets' => array_keys(InteriorDesign::CALLOUT_PRESETS),
             'fonts' => InteriorFonts::catalog(),

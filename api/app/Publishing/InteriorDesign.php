@@ -165,7 +165,13 @@ class InteriorDesign
             'h4' => ['size' => 0.8, 'weight' => 'normal', 'italic' => false, 'case' => 'upper', 'above' => 1.3, 'below' => 0.35, 'align' => 'left', 'face' => 'heading'],
         ],
         'heading_font' => null,
+        // Figure and table numbering (ADR-00XX — Image and table placement):
+        // null infers it from the captions, as Numbering always has.
+        'numbering' => null,
     ];
+
+    /** The figure and table numbering schemes a book can choose. */
+    public const NUMBERING = ['continuous', 'chapter', 'part'];
 
     public const HEADING_LEVELS = ['h1', 'h2', 'h3', 'h4'];
 
@@ -311,6 +317,7 @@ class InteriorDesign
             'text.widows', 'text.orphans' => is_int($v) && $v >= self::RANGES['lines'][0] && $v <= self::RANGES['lines'][1],
             'headings.h1', 'headings.h2', 'headings.h3', 'headings.h4' => self::validHeading($v),
             'heading_font.' => $v === null || (is_string($v) && isset(InteriorFonts::FAMILIES[$v])),
+            'numbering.' => $v === null || in_array($v, self::NUMBERING, true),
             default => false,
         };
     }
@@ -435,6 +442,7 @@ class InteriorDesign
             'text.widows', 'text.orphans' => 'Keep between 1 and 5 lines together.',
             'headings.h1', 'headings.h2', 'headings.h3', 'headings.h4' => 'A heading style takes size (0.7–2.5 em), weight (normal or bold), italic, case ('.implode(', ', self::HEADING_CASES).'), above (0–4 em), below (0–3 em), align ('.implode(', ', self::ALIGNS).') and face (body or heading).',
             'heading_font.' => 'The heading face is one of: '.implode(', ', InteriorFonts::keys()).', or none for the body face.',
+            'numbering.' => 'Figures and tables are numbered '.implode(', ', self::NUMBERING).', or automatically (none).',
             default => 'That value is not allowed.',
         };
     }

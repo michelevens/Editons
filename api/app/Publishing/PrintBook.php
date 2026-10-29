@@ -564,7 +564,7 @@ class PrintBook
         // Captions, equations and cross-references number from the same
         // sections, in the same order, as the pages.
         $ordered = collect($pages)->pluck('model')->filter()->values();
-        $this->numbering = Numbering::forBook($ordered);
+        $this->numbering = Numbering::forBook($ordered, $book->layout()['numbering']);
 
         // The first arabic page restarts the count at 1. Recomputed here,
         // since the page the anatomy marked may be an empty one left out.
@@ -1800,8 +1800,12 @@ class PrintBook
         // SVG equations: dompdf has no math engine, but draws SVG paths.
         // Fitted to the measure, so a long one is scaled rather than squeezed.
         $layout = $book->layout();
+        [$trimWidth, $trimHeight] = $this->trim($layout['trim']);
+        $margins = PageSetup::margins($layout);
         $renderer = $this->renderer->withMath('svg')->withNumbering($this->numbering)->withLanguage($language)
-            ->withMeasure(($this->trim($layout['trim'])[0] - array_sum($this->sides($layout))) * 72, (float) $layout['size']);
+            ->withMeasure(($trimWidth - array_sum($this->sides($layout))) * 72, (float) $layout['size'])
+            // Pictures on a page of their own are scaled to the text block.
+            ->withTextBlock([$trimWidth - array_sum($this->sides($layout)), $trimHeight - $margins['top'] - $margins['bottom']]);
         // Notes kept for the book's Notes page, when it has one.
         $html = ($this->bookNotes ? $renderer->withBookNotes($this->bookNotes) : $renderer)->html($copy);
         // Pictures as data: the PDF renderer cannot fetch the app's own URLs.
@@ -2305,7 +2309,9 @@ class PrintBook
         .toc-matter .toc-title, .toc-references .toc-title { font-style: italic; }
         .toc-part td { padding: 1.05em 0 .3em; font-size: .78em; letter-spacing: .16em; text-transform: uppercase; }
         .toc-part-label { color: #555555; }
-        CSS.$this->designCss($layout, $lh);
+        CSS.$this->designCss($layout, $lh)
+            // Placed pictures and styled tables, only in a book that has them.
+            .(Placement::bookUses($book) ? "\n".Placement::printCss() : '');
     }
 
     /**
