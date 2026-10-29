@@ -4,9 +4,11 @@ namespace App\Publishing\Publish;
 
 use App\Models\Book;
 use App\Models\BookExport;
+use App\Models\ManuscriptSection;
 use App\Publishing\CoverWrap;
 use App\Publishing\PrintPages;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Are the files a store will receive still the book as it is now?
@@ -64,13 +66,24 @@ class Freshness
         }
 
         $export = $query->first();
+
+        return self::verdict($book, $format, $export, $export ? ($changed ?? self::lastChange($book)) : $changed, $fingerprint);
+    }
+
+    /**
+     * Whether $export is still the book as it is now: the one comparison
+     * file() and many() both make, so the shelf never disagrees with the
+     * Publish screen.
+     *
+     * @return array{format: string, label: string, export: ?BookExport, fresh: bool, reason: ?string}
+     */
+    public static function verdict(Book $book, string $format, ?BookExport $export, ?Carbon $changed, ?string $fingerprint = null): array
+    {
         $label = self::FILES[$format] ?? (BookExport::FORMATS[$format][0] ?? $format);
 
         if (! $export) {
             return ['format' => $format, 'label' => $label, 'export' => null, 'fresh' => false, 'reason' => 'Not generated yet.'];
         }
-
-        $changed ??= self::lastChange($book);
 
         if ($changed && $export->created_at->lt($changed)) {
             return ['format' => $format, 'label' => $label, 'export' => $export, 'fresh' => false,
@@ -96,6 +109,68 @@ class Freshness
         }
 
         return ['format' => $format, 'label' => $label, 'export' => $export, 'fresh' => true, 'reason' => null];
+    }
+
+    /**
+     * The latest ready Full-book file of each format for many books, and
+     * whether each is fresh, in a fixed number of queries whatever the
+     * number of books (the shelf's "Last export" column). A cover wrap is
+     * the latest for any service. "rendering" says one is being made now.
+     *
+     * @param  Collection<int, Book>  $books
+     * @param  list<string>  $formats
+     * @return array<int, array<string, array{at: ?string, fresh: bool, reason: ?string, rendering: bool, service: ?string}>>
+     */
+    public static function many(Collection $books, array $formats): array
+    {
+        $ids = $books->pluck('id')->all();
+
+        if ($ids === [] || $formats === []) {
+            return [];
+        }
+
+        // Newest first, so the first of each (book, format) is the latest.
+        $exports = BookExport::whereIn('book_id', $ids)
+            ->fullBook()
+            ->whereIn('format', $formats)
+            ->whereIn('status', ['ready', 'generating'])
+            ->orderByDesc('id')
+            ->get(['id', 'book_id', 'format', 'status', 'created_at', 'options']);
+
+        $ready = $exports->where('status', 'ready')->groupBy(fn ($e) => $e->book_id.'|'.$e->format)->map->first();
+        $rendering = $exports->where('status', 'generating')->groupBy(fn ($e) => $e->book_id.'|'.$e->format);
+
+        $changed = ManuscriptSection::withTrashed()->whereIn('book_id', $ids)
+            ->groupBy('book_id')
+            ->selectRaw('book_id, max(updated_at) as updated, max(deleted_at) as deleted')
+            ->get()
+            ->mapWithKeys(function ($row) {
+                $times = array_filter([$row->updated, $row->deleted]);
+
+                return [$row->book_id => $times === [] ? null : Carbon::parse(max($times))];
+            });
+
+        $aggregates = array_intersect($formats, PrintPages::RECORDING) !== [] ? PrintPages::sectionsAggregate($ids) : [];
+        $out = [];
+
+        foreach ($books as $book) {
+            $fingerprint = isset($aggregates[$book->id]) ? PrintPages::fingerprint($book, $aggregates[$book->id]) : null;
+
+            foreach ($formats as $format) {
+                $export = $ready[$book->id.'|'.$format] ?? null;
+                $verdict = self::verdict($book, $format, $export, $changed[$book->id] ?? null, $fingerprint);
+
+                $out[$book->id][$format] = [
+                    'at' => $export?->created_at?->toIso8601String(),
+                    'fresh' => $verdict['fresh'],
+                    'reason' => $verdict['reason'],
+                    'rendering' => isset($rendering[$book->id.'|'.$format]),
+                    'service' => $export?->options['service'] ?? null,
+                ];
+            }
+        }
+
+        return $out;
     }
 
     /**

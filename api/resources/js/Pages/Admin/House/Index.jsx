@@ -3,7 +3,8 @@ import AdminLayout, { Panel, buttonClass, formatDate, inputClass } from '@/Layou
 import { Badge, Errors, ReasonAction } from '@/Components/Admin/Kit';
 import { Check, Field, FormDialog } from '@/Components/Admin/BusinessKit';
 import { router, useForm } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import Shelf from '@/Components/Shelf/Shelf';
+import { useState } from 'react';
 
 /**
  * The House catalog (ADR — house catalog and house publisher accounts): the
@@ -17,10 +18,14 @@ const STATE_LABEL = { on_sale: 'On sale', draft: 'Draft', taken_down: 'Taken dow
 const EXPORT_TONE = { ready: 'success', generating: 'info', failed: 'danger', expired: 'neutral' };
 const PRINT_TONE = { pass: 'success', warn: 'warning', fail: 'danger' };
 
-export default function HouseIndex({ houses, books, totals, options, results, can }) {
+export default function HouseIndex({ houses, books, totals, options, results, can, shelf, counts }) {
     const [selected, setSelected] = useState([]);
-    const allIds = useMemo(() => books.map((b) => b.id), [books]);
-    const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+    const filters = [
+        { key: 'all', label: 'All', count: counts.all },
+        { key: 'active', label: 'Not archived', count: counts.active },
+        { key: 'published', label: 'Published', count: counts.published },
+        { key: 'archived', label: 'Archived', count: counts.archived },
+    ];
 
     return (
         <AdminLayout title="House catalog" active="house">
@@ -49,20 +54,32 @@ export default function HouseIndex({ houses, books, totals, options, results, ca
 
             {results && <Results results={results} />}
 
-            {can.manage && books.length > 0 && (
-                <Bulk selected={selected} allIds={allIds} setSelected={setSelected} options={options} />
-            )}
-
-            <ul className="mt-4 space-y-3" data-a="admin:house:books">
-                {books.length === 0 && (
-                    <li className="rounded-panel border border-border-default bg-bg-surface p-6 text-center text-[13px] text-text-secondary">
+            {/* The catalog as a shelf (ADR-00XX — Shelf views): search, sort,
+                series groups, a table with chosen columns, saved views, and
+                the shelf's bulk actions; the catalog's own (export, price,
+                on sale) stay in their panel below the bar. */}
+            <Shelf
+                shelf={shelf}
+                books={books}
+                routeName="admin.house.index"
+                filters={filters}
+                prefix="admin:house"
+                canSelect={can.manage}
+                selected={selected}
+                setSelected={setSelected}
+                houseStyles={options.house_styles ?? []}
+                linkFor={(book) => book.studio.edit}
+                cardsClassName="space-y-3"
+                empty={
+                    <p className="mt-4 rounded-panel border border-border-default bg-bg-surface p-6 text-center text-[13px] text-text-secondary" data-a="admin:house:books">
                         No house books yet.
-                    </li>
+                    </p>
+                }
+                renderCard={(book, { selected: on, toggle }) => (
+                    <BookRow book={book} options={options} can={can} selected={on} onToggle={toggle} />
                 )}
-                {books.map((book) => (
-                    <BookRow key={book.id} book={book} options={options} can={can} selected={selected.includes(book.id)} onToggle={() => toggle(book.id)} />
-                ))}
-            </ul>
+                extraBulk={(ids) => <Bulk selected={ids} allIds={shelf.ids} setSelected={setSelected} options={options} />}
+            />
         </AdminLayout>
     );
 }
