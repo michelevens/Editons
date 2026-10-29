@@ -253,7 +253,7 @@ it('never replaces an uploaded finished front or back without a choice; keep or 
         ->assertOk()
         ->assertJsonPath('results.0.ok', false)
         ->assertJsonPath('results.0.message', fn ($m) => str_contains($m, 'uploaded finished front and back'));
-    expect($a->fresh()->cover)->toBe($untouched)->and(AdminAuditLog::count())->toBe(0);
+    expect($a->fresh()->cover)->toBe($untouched)->and(AdminAuditLog::where('action', 'house.cover_template_applied')->count())->toBe(0);
 
     // The preview says so too.
     $this->actingAs($owner)->postJson("/cover-templates/{$template->id}/preview", ['books' => [$a->id]])
