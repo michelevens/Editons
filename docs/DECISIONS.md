@@ -3954,10 +3954,13 @@ partner for their readers. The marketing site has its own French page.
   reviewers' channel. No AI provider was used to translate.
 
 **Defaults unchanged.** English strings were moved into `en.json` verbatim
-from the JSX they replaced (whitespace collapsed as JSX renders it); a
-page's visible text for an English account was compared before (main's
-JavaScript) and after, at 1440 px, for the sign-in, shelf, overview and
-editor screens (Playwright, scratchpad i18n-shots/en-diff.json).
+from the JSX they replaced (whitespace collapsed as JSX renders it). The
+visible text, aria-labels, placeholders, titles and `<title>` of the sign-in,
+register, forgot-password, shelf, overview and editor screens and the account
+menu, for an English account at 1440 and 390 px, were captured with main's
+JavaScript and with this branch's against the same database: identical,
+except for the added language switch (account menu, foot of the sign-in
+pages). English pages receive no catalogue on the wire.
 
 **Not done.** Tiers (c) and (d) of the extraction (Export & Publish, Cover
 Studio, Design & Layout, AI Editor, sales, partner dashboard, settings,
