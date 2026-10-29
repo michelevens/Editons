@@ -53,7 +53,7 @@ return new class extends Migration
         // Saved versions never change. The model refuses too; this holds
         // for anything that writes past it.
         DB::unprepared(<<<'SQL'
-            CREATE FUNCTION style_guide_versions_immutable() RETURNS trigger AS $$
+            CREATE OR REPLACE FUNCTION style_guide_versions_immutable() RETURNS trigger AS $$
             BEGIN
                 RAISE EXCEPTION 'style guide versions are immutable';
             END;

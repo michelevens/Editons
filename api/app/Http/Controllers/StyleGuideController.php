@@ -49,7 +49,7 @@ class StyleGuideController extends Controller
     public function update(Request $request, StyleGuide $guide): JsonResponse
     {
         $data = $request->validate([
-            'rules' => ['required', 'array'],
+            'rules' => ['present', 'array'],
             'name' => ['sometimes', 'string', 'min:2', 'max:80'],
             'book' => ['sometimes', 'integer'],
         ]);
@@ -93,7 +93,7 @@ class StyleGuideController extends Controller
     /** The book's own rules over its guide (dictionary, any rule). */
     public function overrides(Request $request, Book $book): JsonResponse
     {
-        $data = $request->validate(['rules' => ['required', 'array']]);
+        $data = $request->validate(['rules' => ['present', 'array']]);
         $this->guides->saveOverrides($book, $request->user(), $data['rules']);
 
         return response()->json(['style' => $this->guides->summary($book->fresh(), $request->user())]);

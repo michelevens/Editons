@@ -11,6 +11,7 @@ use App\Editorial\Style\StyleGuides;
 use App\Editorial\Style\StyleRules;
 use App\Editorial\Style\Suppression;
 use App\Inbox\Inbox;
+use App\Models\Book;
 use App\Models\CreditTransaction;
 use App\Models\EditorialFinding;
 use App\Models\EditorialReview;
@@ -237,7 +238,9 @@ class ReviewRunner
      */
     public function contextFor(ManuscriptSection $section, ?string $focus = null, string $sensitivity = 'standard'): ReviewContext
     {
-        $effective = app(StyleGuides::class)->effective($section->book);
+        // Read fresh: a loaded relation may predate a word added to the
+        // dictionary a moment ago.
+        $effective = app(StyleGuides::class)->effective(Book::findOrFail($section->book_id));
 
         return new ReviewContext(
             style: $effective['configured'] ? $effective['rules'] : null,

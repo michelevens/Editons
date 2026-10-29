@@ -128,6 +128,9 @@ Route::prefix('admin')->name('admin.')->middleware('platform.admin')->group(func
             Route::post('/transfer/preview', [HouseController::class, 'preview'])->name('transfer.preview');
             Route::post('/transfer', [HouseController::class, 'transfer'])->name('transfer');
             Route::post('/bulk', [HouseController::class, 'bulk'])->name('bulk');
+            // The house style guide (ADR — Style guides and review options).
+            Route::post('/style-guide/preview', [HouseController::class, 'styleGuidePreview'])->name('style-guide.preview');
+            Route::post('/style-guide', [HouseController::class, 'styleGuide'])->name('style-guide');
             // Publish in three steps, for many books (ADR — publish in three steps).
             Route::post('/prepare', [HouseController::class, 'prepare'])->name('prepare');
             Route::get('/google-play', [HouseController::class, 'googlePlay'])->name('google-play');
