@@ -338,6 +338,13 @@ bulk panel (export, price, on/off sale) sits in the same bar.
   saved as you, {name}*; every version, export and comment is recorded under
   the staff member's account. Support opens it read-only. Staff also find
   house books under *House catalog* on their own shelf.
+- **House style guide** (owner, with a reason, audited
+  `house.style_guide_created`): *Create the house style guide* previews the
+  Écrivain Prépa guide the AI editors review the house's books against —
+  its rules, and the Kreyòl glossary words read from the house's own books
+  — then creates it on the house account. Nothing is seeded; it is attached
+  to books and edited from the studio's AI Editor. Design: ADR — Style
+  guides and review options.
 - **Per book** (owner, with a reason, audited): export (PDF, print interior,
   print cover wrap for a service, EPUB — queued on the worker), price and
   formats, put on / take off sale (held to the storefront's rule: a price

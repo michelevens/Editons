@@ -141,7 +141,8 @@ final class HouseGuideTemplate
     }
 
     /**
-     * Bold runs that look like a term: one to four words, letters only.
+     * Bold runs that look like a term: one to four words, letters only,
+     * three letters or more.
      *
      * @return list<string>
      */
@@ -152,7 +153,9 @@ final class HouseGuideTemplate
         if (($node['type'] ?? null) === 'text' && collect($node['marks'] ?? [])->contains(fn ($m) => ($m['type'] ?? null) === 'bold')) {
             $term = trim(preg_replace('/\s+/u', ' ', (string) ($node['text'] ?? '')), " \t\n.,;:!?()—–-");
 
-            if ($term !== '' && mb_strlen($term) <= 60 && preg_match('/^[\p{L}\'’ ]+$/u', $term) && count(explode(' ', $term)) <= 4) {
+            // Three letters at least: the glossaries bold single letters
+            // and particles in their examples (a, k, l).
+            if (mb_strlen($term) >= 3 && mb_strlen($term) <= 60 && preg_match('/^[\p{L}\'’ ]+$/u', $term) && count(explode(' ', $term)) <= 4) {
                 $out[] = StyleRules::nfc($term);
             }
         }
