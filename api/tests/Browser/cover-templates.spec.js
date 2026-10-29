@@ -93,7 +93,8 @@ for (const size of [
 
             // --- Apply it to three books from the shelf. -------------------
             await page.goto('/books');
-            const boxes = page.locator(size.phone ? '[data-a^="shelf:compact-select:"], [data-a^="books:select:"]' : '[data-a^="books:select:"]');
+            await page.click('[data-a="books:prepare:start"]');
+            const boxes = page.locator('[data-a^="books:select:"]');
             await expect(boxes.nth(2)).toBeAttached();
             const ids = [];
             for (const n of [0, 1, 2]) {
@@ -104,7 +105,8 @@ for (const size of [
             await expect(page.locator('[data-a="shelf:selected"]')).toHaveText('3 selected');
             await page.click('[data-a="shelf:bulk:cover_template"]');
             const pick = page.locator('[data-a="shelf:cover-template:pick"]');
-            await pick.selectOption({ label: new RegExp(NAME) });
+            const value = await pick.locator('option', { hasText: NAME }).first().getAttribute('value');
+            await pick.selectOption(value);
             await page.click('[data-a="shelf:cover-template:preview"]');
             await expect(page.locator('[data-a^="shelf:cover-template:preview:"] img')).toHaveCount(3, { timeout: 60_000 });
             await shot(page, `${size.name}-3-preview`);
