@@ -3472,7 +3472,7 @@ downloaded; no horizontal scroll, no console errors.
 
 ---
 
-## ADR-00XX — Style guides and review options
+## ADR-0047 — Style guides and review options
 
 **Status:** accepted (2026-10-29). Number assigned at merge.
 
