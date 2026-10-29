@@ -33,7 +33,10 @@ function icuParams(string $message): array
     return array_values(array_unique($m[1]));
 }
 
-/** Every key the JSX names literally: t('…') calls and tKey: '…' entries. */
+/**
+ * Every key the JSX names literally: t('…') calls (tr('…') where a file
+ * imports t under that name), and tKey: '…' / blurbKey: '…' entries.
+ */
 function jsxKeys(): array
 {
     $keys = [];
@@ -47,7 +50,7 @@ function jsxKeys(): array
         $source = file_get_contents($file->getPathname());
         $relative = str_replace('\\', '/', substr($file->getPathname(), strlen(resource_path('js')) + 1));
 
-        preg_match_all("/(?<![\\w.])t\\(\\s*'([a-z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)'/", $source, $calls);
+        preg_match_all("/(?<![\\w.])tr?\\(\\s*'([a-z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)'/", $source, $calls);
         preg_match_all("/\b(?:tKey|blurbKey):\\s*'([^']+)'/", $source, $entries);
 
         foreach (array_merge($calls[1], $entries[1]) as $key) {

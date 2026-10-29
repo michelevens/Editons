@@ -228,7 +228,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                     </div>
                 )}
 
-                <div className="mt-auto flex items-center gap-2 pt-3">
+                <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
                     {archived ? (
                         <button
                             data-a={`books:restore:${book.id}`}

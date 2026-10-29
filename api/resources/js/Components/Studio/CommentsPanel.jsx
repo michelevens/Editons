@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onComments, publishComments } from './commentsBus';
 import Icon from './Icon';
+import { formatDate, t, useI18n } from '../../i18n';
 
 /**
  * Comment threads across the book.
@@ -14,6 +15,7 @@ import Icon from './Icon';
  * processor keeps suggestions and comments in the same margin.
  */
 export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChanged, changes = [], onDecide = null, onShowChange = null }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [filter, setFilter] = useState('open');
     const [draft, setDraft] = useState('');
@@ -96,7 +98,7 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
     };
 
     if (!data) {
-        return <p className="p-4 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-4 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const threads = data.threads.filter((thread) =>
@@ -111,9 +113,9 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
 
             <div className="mb-3 flex gap-1.5">
                 {[
-                    { key: 'open', label: 'Open', count: data.counts.open },
-                    { key: 'resolved', label: 'Resolved', count: data.counts.resolved },
-                    { key: 'all', label: 'All', count: data.counts.open + data.counts.resolved },
+                    { key: 'open', label: t('comments.open'), count: data.counts.open },
+                    { key: 'resolved', label: t('comments.resolved'), count: data.counts.resolved },
+                    { key: 'all', label: t('shelf.filter_all'), count: data.counts.open + data.counts.resolved },
                 ].map((tab) => (
                     <button
                         key={tab.key}
@@ -138,8 +140,8 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                     disabled={!sectionId}
                     placeholder={
                         sectionId
-                            ? 'Select a passage, then write a comment about it.'
-                            : 'Open a chapter to comment.'
+                            ? t('comments.placeholder')
+                            : t('comments.open_chapter')
                     }
                     onChange={(event) => setDraft(event.target.value)}
                     className="w-full rounded-control border border-border-input p-2.5 text-[12.5px] placeholder:text-text-secondary focus:border-brand-primary focus:ring-0 disabled:bg-bg-subtle"
@@ -149,15 +151,15 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                     data-a="comments:post"
                     className="mt-2 h-[32px] w-full rounded-control bg-brand-fill text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
-                    {busy ? 'Posting…' : 'Comment'}
+                    {busy ? t('comments.posting') : t('comments.post')}
                 </button>
             </form>
 
             {threads.length === 0 ? (
                 <p className="px-1 text-[11.5px] leading-relaxed text-text-secondary">
                     {filter === 'open'
-                        ? 'No open comments.'
-                        : 'Nothing under this filter.'}
+                        ? t('comments.none_open')
+                        : t('comments.none_filter')}
                 </p>
             ) : (
                 <ul className="space-y-2.5">
@@ -187,7 +189,7 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
 
                             {thread.detached && (
                                 <p className="mt-1.5 rounded bg-status-warning-bg px-1.5 py-1 text-[10.5px] font-semibold text-status-warning">
-                                    The passage this refers to has been edited away.
+                                    {t('comments.detached')}
                                 </p>
                             )}
 
@@ -229,14 +231,14 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                                             onClick={() => reply(thread)}
                                             className="rounded-control bg-brand-fill px-2.5 py-1 text-[11.5px] font-semibold text-white"
                                         >
-                                            Reply
+                                            {t('comments.reply')}
                                         </button>
                                         <button
                                             data-a={`comments:reply-cancel:${thread.id}`}
                                             onClick={() => setReplyTo(null)}
                                             className="text-[11.5px] text-text-secondary"
                                         >
-                                            Cancel
+                                            {t('common.cancel')}
                                         </button>
                                     </div>
                                 </div>
@@ -250,7 +252,7 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                                         onClick={() => setReplyTo(thread.id)}
                                         className="text-[11.5px] font-medium text-brand-primary hover:underline"
                                     >
-                                        Reply
+                                        {t('comments.reply')}
                                     </button>
                                     <button
                                         data-a={`comments:resolve:${thread.id}`}
@@ -262,12 +264,12 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                                         }
                                         className="text-[11.5px] font-medium text-text-secondary hover:text-text-primary"
                                     >
-                                        {thread.status === 'open' ? 'Resolve' : 'Reopen'}
+                                        {thread.status === 'open' ? t('comments.resolve') : t('comments.reopen')}
                                     </button>
                                     <button
                                         data-a={`comments:delete:${thread.id}`}
                                         onClick={() => remove(thread)}
-                                        title="Delete this thread"
+                                        title={t('comments.delete')}
                                         className="ml-auto text-text-secondary hover:text-status-danger"
                                     >
                                         <Icon name="x" size={13} />
@@ -288,11 +290,11 @@ export function ago(iso) {
 
     const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
 
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
+    if (seconds < 60) return t('time.just_now');
+    if (seconds < 3600) return t('time.min_ago', { n: Math.floor(seconds / 60) });
+    if (seconds < 86400) return t('time.h_ago', { n: Math.floor(seconds / 3600) });
 
-    return new Date(iso).toLocaleDateString();
+    return formatDate(iso, {});
 }
 
 /** What a change does, in a line: the struck words, then the new ones. */
@@ -318,11 +320,13 @@ export function ChangeText({ change }) {
  * then the ordinary save); this list only asks for it.
  */
 function ChangesList({ changes, onDecide, onShow }) {
+    useI18n();
+
     return (
-        <section data-a="changes:list" aria-label="Suggested changes" className="mb-4 rounded-tile border border-border-default bg-bg-surface">
+        <section data-a="changes:list" aria-label={t('changes.title')} className="mb-4 rounded-tile border border-border-default bg-bg-surface">
             <div className="flex flex-wrap items-center gap-2 border-b border-border-divider px-2.5 py-2">
                 <h3 className="mr-auto text-[12.5px] font-semibold text-text-primary">
-                    Suggested changes <span className="font-normal text-text-secondary">({changes.length})</span>
+                    {t('changes.title')} <span className="font-normal text-text-secondary">({changes.length})</span>
                 </h3>
                 <button
                     type="button"
@@ -330,7 +334,7 @@ function ChangesList({ changes, onDecide, onShow }) {
                     onClick={() => onDecide(null, true)}
                     className="tap rounded-control bg-brand-fill px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-brand-primary-hover"
                 >
-                    Accept all
+                    {t('changes.accept_all')}
                 </button>
                 <button
                     type="button"
@@ -338,7 +342,7 @@ function ChangesList({ changes, onDecide, onShow }) {
                     onClick={() => onDecide(null, false)}
                     className="tap rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-semibold text-text-primary hover:bg-bg-subtle"
                 >
-                    Reject all
+                    {t('changes.reject_all')}
                 </button>
             </div>
             <ul className="divide-y divide-border-divider">
@@ -349,7 +353,7 @@ function ChangesList({ changes, onDecide, onShow }) {
                             data-a={`changes:show:${change.id}`}
                             onClick={() => onShow?.(change)}
                             className="min-w-0 flex-1 text-left"
-                            title="Show in the text"
+                            title={t('changes.show')}
                         >
                             <span className="block text-[11px] text-text-secondary">
                                 <span className="font-semibold text-text-primary">{change.author}</span>
@@ -363,8 +367,8 @@ function ChangesList({ changes, onDecide, onShow }) {
                             type="button"
                             data-a={`changes:accept:${change.id}`}
                             onClick={() => onDecide([change.id], true)}
-                            aria-label={`Accept change by ${change.author}`}
-                            title="Accept"
+                            aria-label={t('changes.accept_by', { author: change.author })}
+                            title={t('changes.accept')}
                             className="tap grid h-8 w-8 shrink-0 place-items-center rounded-control text-status-success hover:bg-status-success-bg"
                         >
                             <Icon name="check" size={15} strokeWidth={2.2} />
@@ -373,8 +377,8 @@ function ChangesList({ changes, onDecide, onShow }) {
                             type="button"
                             data-a={`changes:reject:${change.id}`}
                             onClick={() => onDecide([change.id], false)}
-                            aria-label={`Reject change by ${change.author}`}
-                            title="Reject"
+                            aria-label={t('changes.reject_by', { author: change.author })}
+                            title={t('changes.reject')}
                             className="tap grid h-8 w-8 shrink-0 place-items-center rounded-control text-status-danger hover:bg-status-danger-bg"
                         >
                             <Icon name="x" size={14} strokeWidth={2.2} />
