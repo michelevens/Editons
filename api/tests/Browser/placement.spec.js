@@ -3,7 +3,7 @@ import { deflateSync } from 'node:zlib';
 import { firstBookId, signIn, watchForErrors } from './helpers';
 
 /**
- * Pictures and tables placed in the editor (ADR-00XX — Image and table
+ * Pictures and tables placed in the editor (ADR-0044 — Image and table
  * placement): a picture resized by its corner handle and wrapped right, a
  * table styled zebra with a column right-aligned and resized, each kept
  * after a reload, at desktop and phone widths. Every test leaves the demo

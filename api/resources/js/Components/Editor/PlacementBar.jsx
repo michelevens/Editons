@@ -2,7 +2,7 @@ import { IMAGE_WIDTHS, MIN_DPI, TABLE_STYLES, clampSize, printDpi, selectedImage
 
 /**
  * The toolbar's controls for the picture or the table under the cursor
- * (ADR-00XX — Image and table placement). Every control is a button, a
+ * (ADR-0044 — Image and table placement). Every control is a button, a
  * select or a number field in the toolbar's tab order, so placement needs
  * no pointer: the handle on the picture is a shortcut, not the only way.
  */

@@ -5,7 +5,7 @@ import { selectedRect } from '@tiptap/pm/tables';
 import { captionKind } from './CrossRef';
 
 /**
- * Where a picture or a table sits and how it is set (ADR-00XX — Image and
+ * Where a picture or a table sits and how it is set (ADR-0044 — Image and
  * table placement), as attributes on Tiptap's own image and table nodes, so
  * every existing manuscript loads and saves as it did. App\Publishing\
  * Placement reads the same attributes for the PDF, the EPUB and Word; a

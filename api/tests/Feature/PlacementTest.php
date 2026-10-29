@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Process;
 
 /**
- * Image and table placement (ADR-00XX — Image and table placement): the
+ * Image and table placement (ADR-0044 — Image and table placement): the
  * attributes and their checking, pictures sized, aligned, wrapped and set
  * on a page of their own in print (read back from the PDF), the EPUB and
  * Word; full bleed refused; the 300 dpi warning; table styles, widths,

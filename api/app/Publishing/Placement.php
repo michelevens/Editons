@@ -5,7 +5,7 @@ namespace App\Publishing;
 use App\Models\Book;
 
 /**
- * Where a picture or a table sits and how it is set (ADR-00XX — Image and
+ * Where a picture or a table sits and how it is set (ADR-0044 — Image and
  * table placement).
  *
  * The editor stores the choices as attributes on the nodes it already has,

@@ -165,7 +165,7 @@ class InteriorDesign
             'h4' => ['size' => 0.8, 'weight' => 'normal', 'italic' => false, 'case' => 'upper', 'above' => 1.3, 'below' => 0.35, 'align' => 'left', 'face' => 'heading'],
         ],
         'heading_font' => null,
-        // Figure and table numbering (ADR-00XX — Image and table placement):
+        // Figure and table numbering (ADR-0044 — Image and table placement):
         // null infers it from the captions, as Numbering always has.
         'numbering' => null,
     ];

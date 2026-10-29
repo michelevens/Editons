@@ -3106,7 +3106,7 @@ overflow, no console errors).
 
 ---
 
-## ADR-00XX — Image and table placement
+## ADR-0044 — Image and table placement
 
 **Status:** accepted (2026-10-28). Number assigned at merge.
 
