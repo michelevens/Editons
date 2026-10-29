@@ -6,6 +6,7 @@ import Icon from './Icon';
 import { goTo } from './navigation';
 import UserMenu from './UserMenu';
 import { ariaKeys, matches, openShortcutSheet, shortcutLabel, usePrefs } from '../../shortcuts';
+import { useI18n } from '../../i18n';
 
 /**
  * The product header: logo, top nav, search, avatar.
@@ -24,14 +25,14 @@ import { ariaKeys, matches, openShortcutSheet, shortcutLabel, usePrefs } from '.
  */
 
 export const TOP_NAV = [
-    { key: 'books', label: 'My Books', ready: true },
-    { key: 'writing', label: 'Writing Studio', ready: true },
-    { key: 'ai', label: 'AI Editor', ready: true },
-    { key: 'research', label: 'Research', ready: true },
-    { key: 'design', label: 'Design', ready: true },
-    { key: 'publishing', label: 'Publishing', ready: true },
-    { key: 'sales', label: 'Sales', ready: true },
-    { key: 'analytics', label: 'Analytics', ready: true },
+    { key: 'books', label: 'My Books', tKey: 'nav.books', ready: true },
+    { key: 'writing', label: 'Writing Studio', tKey: 'nav.writing', ready: true },
+    { key: 'ai', label: 'AI Editor', tKey: 'nav.ai', ready: true },
+    { key: 'research', label: 'Research', tKey: 'nav.research', ready: true },
+    { key: 'design', label: 'Design', tKey: 'nav.design', ready: true },
+    { key: 'publishing', label: 'Publishing', tKey: 'nav.publishing', ready: true },
+    { key: 'sales', label: 'Sales', tKey: 'nav.sales', ready: true },
+    { key: 'analytics', label: 'Analytics', tKey: 'nav.analytics', ready: true },
 ];
 
 /**
@@ -63,7 +64,7 @@ export default function AppHeader({
     user,
     account,
     skipTo = '#main',
-    skipLabel = 'Skip to content',
+    skipLabel = null,
     // The studio's View commands (toggle a panel, apply a layout), listed
     // with the rest in search.
     extraCommands = [],
@@ -74,6 +75,7 @@ export default function AppHeader({
     const { recent_book_id: recentBookId } = usePage().props;
     const book = bookId ?? recentBookId ?? null;
     const [palette, setPalette] = useState(false);
+    const { t, locale } = useI18n();
     // Re-rendered when the author remaps search, so its label follows.
     usePrefs();
 
@@ -97,8 +99,8 @@ export default function AppHeader({
     const commands = useMemo(() => {
         const list = TOP_NAV.map((item) => ({
             key: `nav:${item.key}`,
-            label: item.label,
-            group: 'Go to',
+            label: t(item.tKey),
+            group: t('palette.go_to'),
             icon: 'search',
             run: () => select(item),
         }));
@@ -108,10 +110,8 @@ export default function AppHeader({
                 for (const item of group.items) {
                     list.push({
                         key: `side:${item.key}`,
-                        label: item.label,
-                        group: group.group
-                            ? group.group[0] + group.group.slice(1).toLowerCase()
-                            : 'Book',
+                        label: t(item.tKey),
+                        group: group.group ? t(group.tKey) : t('palette.book'),
                         icon: item.icon,
                         run: () => navigate(item.key),
                     });
@@ -123,7 +123,7 @@ export default function AppHeader({
             list.push({
                 key: `chapter:${chapter.id}`,
                 label: chapter.title,
-                group: 'Chapter',
+                group: t('palette.chapter'),
                 icon: 'doc',
                 run: () => onOpenChapter?.(chapter.id),
             });
@@ -131,15 +131,15 @@ export default function AppHeader({
 
         list.push({
             key: 'help:shortcuts',
-            label: 'Keyboard shortcuts',
-            group: 'Help',
+            label: t('menu.shortcuts'),
+            group: t('palette.help'),
             icon: 'help',
             shortcut: '?',
             run: openShortcutSheet,
         });
 
         return [...extraCommands, ...list];
-    }, [book, chapters, onSelect, onNavigate, onOpenChapter, extraCommands]);
+    }, [book, chapters, onSelect, onNavigate, onOpenChapter, extraCommands, locale]);
 
     const skipLink = (
         <a
@@ -148,7 +148,7 @@ export default function AppHeader({
             data-a="skip"
             className="sr-only rounded-control bg-brand-fill px-3 py-2 text-[13px] font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-2 focus:z-[60]"
         >
-            {skipLabel}
+            {skipLabel ?? t('header.skip')}
         </a>
     );
 
@@ -186,7 +186,7 @@ export default function AppHeader({
             <Link
                 href={route('books.index')}
                 className="flex items-center gap-2.5"
-                aria-label="Ecrivain home"
+                aria-label={t('header.home')}
             >
                 <img
                     src="/brand/symbol.svg"
@@ -210,7 +210,7 @@ export default function AppHeader({
               */}
             <nav
                 className="ml-4 hidden min-w-0 shrink items-center gap-4 lg:flex xl:ml-[46px] xl:gap-[34px]"
-                aria-label="Main"
+                aria-label={t('header.main_nav')}
             >
                 {TOP_NAV.map((item) => {
                     const isActive = active === item.key;
@@ -220,7 +220,7 @@ export default function AppHeader({
                             key={item.key}
                             data-a={`nav:${item.key}`}
                             onClick={() => select(item)}
-                            title={item.ready ? undefined : 'Not built yet'}
+                            title={item.ready ? undefined : t('common.not_built')}
                             aria-current={isActive ? 'page' : undefined}
                             className={`relative whitespace-nowrap py-[17px] text-[14.5px] transition ${
                                 isActive
@@ -230,7 +230,7 @@ export default function AppHeader({
                                       : 'text-text-secondary'
                             }`}
                         >
-                            {item.label}
+                            {t(item.tKey)}
                             {!item.ready && (
                                 <span className="ml-1 align-super text-[9px]">•</span>
                             )}
@@ -252,12 +252,12 @@ export default function AppHeader({
                 <button
                     data-a="palette:open"
                     onClick={() => setPalette(true)}
-                    aria-label={`Search (${shortcutLabel('app.search')})`}
+                    aria-label={t('header.search_label', { keys: shortcutLabel('app.search') })}
                     aria-keyshortcuts={ariaKeys('app.search')}
                     className="flex h-[33px] w-[33px] items-center justify-center gap-2 rounded-control border border-border-input text-left text-[12.5px] text-text-secondary transition hover:border-brand-primary/40 xl:w-[206px] xl:justify-start xl:px-2.5"
                 >
                     <Icon name="search" size={15} />
-                    <span className="hidden flex-1 xl:inline" aria-hidden="true">Search...</span>
+                    <span className="hidden flex-1 xl:inline" aria-hidden="true">{t('header.search')}</span>
                     <kbd className="hidden font-sans text-[11px] text-text-secondary xl:inline" aria-hidden="true">
                         {shortcutLabel('app.search')}
                     </kbd>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Dialog from '../Dialog';
 import Icon from './Icon';
+import { useI18n } from '../../i18n';
 
 /**
  * Search: jump to a screen or a chapter by typing its name.
@@ -14,6 +15,7 @@ import Icon from './Icon';
  */
 export default function CommandPalette({ open, onClose, commands }) {
     const [query, setQuery] = useState('');
+    const { t } = useI18n();
     const [index, setIndex] = useState(0);
     const input = useRef(null);
 
@@ -59,7 +61,7 @@ export default function CommandPalette({ open, onClose, commands }) {
 
     return (
         <Dialog
-            label="Search"
+            label={t('palette.search')}
             onClose={onClose}
             align="top"
             className="w-full max-w-[560px] overflow-hidden rounded-panel border border-border-default bg-bg-surface shadow-xl"
@@ -69,13 +71,13 @@ export default function CommandPalette({ open, onClose, commands }) {
                 <input
                     ref={input}
                     data-autofocus
-                    aria-label="Go to a screen or a chapter"
+                    aria-label={t('palette.placeholder_label')}
                     aria-controls="palette-results"
                     data-a="palette:input"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={onKeyDown}
-                    placeholder="Go to a screen or a chapter…"
+                    placeholder={t('palette.placeholder')}
                     className="h-[48px] flex-1 border-0 bg-transparent px-0 text-[14.5px] text-text-primary placeholder:text-text-secondary focus:ring-0"
                 />
                 <kbd className="font-sans text-[11px] text-text-secondary">Esc</kbd>
@@ -84,7 +86,7 @@ export default function CommandPalette({ open, onClose, commands }) {
             <ul className="max-h-[52vh] overflow-y-auto py-1.5" id="palette-results" aria-label="Results">
                 {matches.length === 0 && (
                     <li className="px-4 py-6 text-center text-[13px] text-text-secondary">
-                        Nothing matches “{query}”.
+                        {t('palette.nothing', { query })}
                     </li>
                 )}
 

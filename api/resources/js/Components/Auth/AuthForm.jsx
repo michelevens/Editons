@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * The pieces every auth screen shares.
@@ -94,6 +95,8 @@ export function AuthField({
 }
 
 export function AuthSubmit({ processing, children }) {
+    const { t } = useI18n();
+
     return (
         <button
             type="submit"
@@ -106,7 +109,7 @@ export function AuthSubmit({ processing, children }) {
                         aria-hidden="true"
                         className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
                     />
-                    Working…
+                    {t('signin.working')}
                 </>
             ) : (
                 <>

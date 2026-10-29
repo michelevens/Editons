@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import axios from 'axios';
 import registry from './prefs.json';
+import { t } from './i18n';
 
 /**
  * Every keyboard shortcut in the app, and the author's own bindings for
@@ -233,6 +234,19 @@ export function formatBinding(binding, mac = isMac()) {
     return [mod && 'Ctrl', alt && 'Alt', shift && 'Shift', keyLabel(key)].filter(Boolean).join('+');
 }
 
+/**
+ * What a shortcut does, and a scope's name, in the reader's language
+ * (shortcut.<id> and shortcut_scope.<scope> in lang/*.json; English is
+ * prefs.json's own wording).
+ */
+export function describeShortcut(id) {
+    return BY_ID[id] ? t(`shortcut.${id}`) : id;
+}
+
+export function scopeLabel(scope) {
+    return SCOPES[scope] ? t(`shortcut_scope.${scope}`) : scope;
+}
+
 /** The label for a shortcut's first binding, for buttons and menus. */
 export function shortcutLabel(id, prefs = state) {
     const [first] = bindingsOf(id, prefs);
@@ -284,10 +298,12 @@ function hasModifier(binding) {
 export function conflictFor(id, binding, prefs = state) {
     const entry = BY_ID[id];
 
-    if (!entry) return 'Unknown shortcut.';
-    if (RESERVED[binding]) return `The browser keeps ${formatBinding(binding)}: it ${RESERVED[binding]}.`;
+    if (!entry) return t('shortcuts.unknown');
+    if (RESERVED[binding]) {
+        return t('shortcuts.reserved', { keys: formatBinding(binding), does: t(`shortcut_reserved.${binding.replaceAll('+', '_')}`) });
+    }
     if (SCOPES[entry.scope]?.typing && !hasModifier(binding)) {
-        return 'Here a shortcut needs Ctrl (⌘) or Alt, or it would fire while you type.';
+        return t('shortcuts.needs_modifier');
     }
 
     for (const other of registry.shortcuts) {
@@ -296,7 +312,7 @@ export function conflictFor(id, binding, prefs = state) {
         const meets = other.scope === entry.scope || other.scope === 'global' || entry.scope === 'global';
 
         if (meets && bindingsOf(other.id, prefs).includes(binding)) {
-            return `${formatBinding(binding)} is already “${other.description}”.`;
+            return t('shortcuts.taken', { keys: formatBinding(binding), other: describeShortcut(other.id) });
         }
     }
 

@@ -2,9 +2,11 @@ import { AuthField, AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /** The second step of signing in: a code from the app, or a recovery code. */
 export default function TwoFactorChallenge() {
+    const { t } = useI18n();
     const [recovery, setRecovery] = useState(false);
     const { data, setData, post, processing, errors, reset } = useForm({ code: '', recovery_code: '' });
 
@@ -15,22 +17,18 @@ export default function TwoFactorChallenge() {
 
     return (
         <GuestLayout>
-            <Head title="Two-factor sign-in" />
+            <Head title={t('twofactor.title')} />
 
             <AuthHeading
-                title="Two-factor sign-in"
-                subtitle={
-                    recovery
-                        ? 'Enter one of the recovery codes you saved when you turned two-factor on. Each works once.'
-                        : 'Enter the six-digit code from your authenticator app.'
-                }
+                title={t('twofactor.title')}
+                subtitle={recovery ? t('twofactor.subtitle_recovery') : t('twofactor.subtitle')}
             />
 
             <form onSubmit={submit} className="space-y-5">
                 {recovery ? (
                     <AuthField
                         id="recovery_code"
-                        label="Recovery code"
+                        label={t('twofactor.recovery_code')}
                         value={data.recovery_code}
                         error={errors.recovery_code}
                         autoComplete="off"
@@ -41,7 +39,7 @@ export default function TwoFactorChallenge() {
                 ) : (
                     <AuthField
                         id="code"
-                        label="Code"
+                        label={t('twofactor.code')}
                         value={data.code}
                         error={errors.code}
                         autoComplete="one-time-code"
@@ -52,7 +50,7 @@ export default function TwoFactorChallenge() {
                     />
                 )}
 
-                <AuthSubmit processing={processing}>Sign in</AuthSubmit>
+                <AuthSubmit processing={processing}>{t('signin.sign_in')}</AuthSubmit>
             </form>
 
             <div className="mt-5 flex justify-between text-[13px]">
@@ -65,10 +63,10 @@ export default function TwoFactorChallenge() {
                     }}
                     className="text-brand-primary hover:underline"
                 >
-                    {recovery ? 'Use a code from the app' : 'Use a recovery code'}
+                    {recovery ? t('twofactor.use_app') : t('twofactor.use_recovery')}
                 </button>
                 <Link href={route('login')} className="text-text-secondary hover:underline">
-                    Start again
+                    {t('twofactor.start_again')}
                 </Link>
             </div>
         </GuestLayout>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 
 /**
  * The one accessible modal.
@@ -214,12 +215,14 @@ export default function Dialog({
 }
 
 /** The visible close control drawers and dialogs share. */
-export function CloseButton({ onClick, label = 'Close', className = '' }) {
+export function CloseButton({ onClick, label = null, className = '' }) {
+    const { t } = useI18n();
+
     return (
         <button
             type="button"
             onClick={onClick}
-            aria-label={label}
+            aria-label={label ?? t('common.close')}
             data-a="dialog:close"
             className={`grid h-8 w-8 shrink-0 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary ${className}`}
         >

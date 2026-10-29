@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import Dialog, { CloseButton } from '../Dialog';
 import { TOP_NAV } from './AppHeader';
 import BookSidebar from './BookSidebar';
+import { useI18n } from '../../i18n';
 
 /**
  * The book sidebar, static at 1024px and wider, a drawer below.
@@ -25,6 +26,7 @@ export default function StudioSidebar({
     hidden = false,
     ...sidebar
 }) {
+    const { t } = useI18n();
     // Grown past the breakpoint with the drawer open: the static column is
     // back, so the drawer would be a second copy over it.
     useEffect(() => {
@@ -52,7 +54,7 @@ export default function StudioSidebar({
             {open && (
                 <Dialog
                     variant="drawer"
-                    label="Menu"
+                    label={t('more.menu')}
                     onClose={onClose}
                     data-a="drawer:menu"
                     className="flex h-full max-w-[86vw] flex-col bg-bg-sidebar shadow-popover lg:hidden"
@@ -63,7 +65,7 @@ export default function StudioSidebar({
                         </span>
                         <CloseButton
                             onClick={onClose}
-                            label="Close menu"
+                            label={t('more.close')}
                             className="text-text-sidebar hover:bg-bg-sidebar-active hover:text-white"
                         />
                     </div>

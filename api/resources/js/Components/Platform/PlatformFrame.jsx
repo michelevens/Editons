@@ -163,6 +163,7 @@ function AnnouncementBanner({ announcement, onDismiss }) {
  */
 function Notice() {
     const { flash } = usePage().props;
+    const { t } = useI18n();
     const text = flash?.notice ?? flash?.error ?? null;
     const [shown, setShown] = useState(text);
 
@@ -188,7 +189,7 @@ function Notice() {
                 <button
                     type="button"
                     onClick={() => setShown(null)}
-                    aria-label="Dismiss"
+                    aria-label={t('common.dismiss')}
                     className="shrink-0 text-[16px] leading-none opacity-70 hover:opacity-100"
                 >
                     ×

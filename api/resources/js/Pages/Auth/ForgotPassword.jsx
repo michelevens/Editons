@@ -1,8 +1,10 @@
 import { AuthField, AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { useI18n } from '@/i18n';
 
 export default function ForgotPassword({ status }) {
+    const { t } = useI18n();
     const { data, setData, post, processing, errors } = useForm({ email: '' });
 
     const submit = (event) => {
@@ -12,11 +14,11 @@ export default function ForgotPassword({ status }) {
 
     return (
         <GuestLayout>
-            <Head title="Reset your password" />
+            <Head title={t('forgot.title')} />
 
             <AuthHeading
-                title="Reset your password"
-                subtitle="Tell us the address on your account and we'll email a link to choose a new password."
+                title={t('forgot.title')}
+                subtitle={t('forgot.subtitle')}
             />
 
             {status && (
@@ -28,27 +30,27 @@ export default function ForgotPassword({ status }) {
             <form onSubmit={submit} className="space-y-5">
                 <AuthField
                     id="email"
-                    label="Email address"
+                    label={t('signin.email')}
                     type="email"
                     value={data.email}
                     error={errors.email}
                     autoComplete="username"
-                    placeholder="you@example.com"
+                    placeholder={t('signin.email_placeholder')}
                     required
                     isFocused
                     onChange={(value) => setData('email', value)}
                 />
 
-                <AuthSubmit processing={processing}>Email reset link</AuthSubmit>
+                <AuthSubmit processing={processing}>{t('forgot.submit')}</AuthSubmit>
             </form>
 
             <p className="mt-6 text-center text-[13.5px] text-text-secondary">
-                Remembered it?{' '}
+                {t('forgot.remembered')}{' '}
                 <Link
                     href={route('login')}
                     className="font-semibold text-brand-primary hover:text-outline-active-text"
                 >
-                    Sign in
+                    {t('signin.sign_in')}
                 </Link>
             </p>
         </GuestLayout>

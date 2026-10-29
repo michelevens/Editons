@@ -1,8 +1,10 @@
 import { AuthField, AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, useForm } from '@inertiajs/react';
+import { useI18n } from '@/i18n';
 
 export default function ResetPassword({ token, email }) {
+    const { t } = useI18n();
     const { data, setData, post, processing, errors, reset } = useForm({
         token,
         email,
@@ -20,17 +22,17 @@ export default function ResetPassword({ token, email }) {
 
     return (
         <GuestLayout>
-            <Head title="Choose a new password" />
+            <Head title={t('reset.title')} />
 
             <AuthHeading
-                title="Choose a new password"
-                subtitle="Signing in again afterwards will use this password."
+                title={t('reset.title')}
+                subtitle={t('reset.subtitle')}
             />
 
             <form onSubmit={submit} className="space-y-5">
                 <AuthField
                     id="email"
-                    label="Email address"
+                    label={t('signin.email')}
                     type="email"
                     value={data.email}
                     error={errors.email}
@@ -40,12 +42,12 @@ export default function ResetPassword({ token, email }) {
 
                 <AuthField
                     id="password"
-                    label="New password"
+                    label={t('reset.new_password')}
                     type="password"
                     value={data.password}
                     error={errors.password}
                     autoComplete="new-password"
-                    placeholder="At least 8 characters"
+                    placeholder={t('signin.new_password_placeholder')}
                     required
                     isFocused
                     onChange={(value) => setData('password', value)}
@@ -53,17 +55,17 @@ export default function ResetPassword({ token, email }) {
 
                 <AuthField
                     id="password_confirmation"
-                    label="Confirm password"
+                    label={t('signin.confirm_password')}
                     type="password"
                     value={data.password_confirmation}
                     error={errors.password_confirmation}
                     autoComplete="new-password"
-                    placeholder="Type it again"
+                    placeholder={t('signin.type_again')}
                     required
                     onChange={(value) => setData('password_confirmation', value)}
                 />
 
-                <AuthSubmit processing={processing}>Save new password</AuthSubmit>
+                <AuthSubmit processing={processing}>{t('reset.submit')}</AuthSubmit>
             </form>
         </GuestLayout>
     );

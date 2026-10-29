@@ -1,15 +1,17 @@
 import { AuthField, AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { useI18n } from '@/i18n';
 
 /** "A, B, C and D" */
-function listOf(items) {
+function listOf(items, t) {
     if (items.length <= 1) return items.join('');
 
-    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+    return t('common.list_and', { head: items.slice(0, -1).join(', '), last: items[items.length - 1] });
 }
 
 export default function Register({ offer = null, signups_open: signupsOpen = true }) {
+    const { t } = useI18n();
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: '',
@@ -27,18 +29,19 @@ export default function Register({ offer = null, signups_open: signupsOpen = tru
 
     return (
         <GuestLayout>
-            <Head title="Create your account" />
+            <Head title={t('register.head')} />
 
             <AuthHeading
-                title="Start writing"
+                title={t('register.title')}
                 subtitle={
                     offer
-                        ? `${offer.books === 1 ? 'Your first book' : `${offer.books} books`}, ${
-                              offer.agents_free.length
-                          } of the ${offer.agents_total} editorial agents (${listOf(
-                              offer.agents_free,
-                          )}), and a research library — free.`
-                        : 'Your first book and a research library — free.'
+                        ? t('register.subtitle_offer', {
+                              books: offer.books,
+                              free: offer.agents_free.length,
+                              total: offer.agents_total,
+                              agents: listOf(offer.agents_free, t),
+                          })
+                        : t('register.subtitle')
                 }
             />
 
@@ -50,7 +53,7 @@ export default function Register({ offer = null, signups_open: signupsOpen = tru
                     data-a="register:closed"
                     className="mb-6 rounded-xl bg-status-warning-bg px-3.5 py-3 text-[13px] text-status-warning"
                 >
-                    New accounts are not open at the moment. Please try again later.
+                    {t('register.closed')}
                 </p>
             )}
 
@@ -73,20 +76,18 @@ export default function Register({ offer = null, signups_open: signupsOpen = tru
                     <path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
                 </svg>
                 <p className="text-[12.5px] leading-relaxed text-outline-active-text">
-                    The free plan includes {offer?.credits ?? 100} AI credits a
-                    month and needs no card. Nothing is charged unless you choose
-                    a paid plan.
+                    {t('register.free_plan', { credits: offer?.credits ?? 100 })}
                 </p>
             </div>
 
             <form onSubmit={submit} className="space-y-5">
                 <AuthField
                     id="name"
-                    label="Your name"
+                    label={t('register.name')}
                     value={data.name}
                     error={errors.name}
                     autoComplete="name"
-                    placeholder="Jordan Lee"
+                    placeholder={t('register.name_placeholder')}
                     required
                     isFocused
                     onChange={(value) => setData('name', value)}
@@ -94,56 +95,55 @@ export default function Register({ offer = null, signups_open: signupsOpen = tru
 
                 <AuthField
                     id="email"
-                    label="Email address"
+                    label={t('signin.email')}
                     type="email"
                     value={data.email}
                     error={errors.email}
                     autoComplete="username"
-                    placeholder="you@example.com"
+                    placeholder={t('signin.email_placeholder')}
                     required
                     onChange={(value) => setData('email', value)}
                 />
 
                 <AuthField
                     id="password"
-                    label="Password"
+                    label={t('signin.password')}
                     type="password"
                     value={data.password}
                     error={errors.password}
                     autoComplete="new-password"
-                    placeholder="At least 8 characters"
-                    hint="Eight characters minimum. A passphrase beats a short complicated one."
+                    placeholder={t('signin.new_password_placeholder')}
+                    hint={t('register.password_hint')}
                     required
                     onChange={(value) => setData('password', value)}
                 />
 
                 <AuthField
                     id="password_confirmation"
-                    label="Confirm password"
+                    label={t('signin.confirm_password')}
                     type="password"
                     value={data.password_confirmation}
                     error={errors.password_confirmation}
                     autoComplete="new-password"
-                    placeholder="Type it again"
+                    placeholder={t('signin.type_again')}
                     required
                     onChange={(value) => setData('password_confirmation', value)}
                 />
 
-                <AuthSubmit processing={processing}>Create account</AuthSubmit>
+                <AuthSubmit processing={processing}>{t('register.submit')}</AuthSubmit>
 
                 <p className="text-center text-[12px] leading-relaxed text-text-secondary">
-                    Your manuscript stays yours. Export it as Markdown at any
-                    time, and nothing you write is used to train a model.
+                    {t('register.yours')}
                 </p>
             </form>
 
             <p className="mt-6 text-center text-[13.5px] text-text-secondary">
-                Already have an account?{' '}
+                {t('register.have_account')}{' '}
                 <Link
                     href={route('login')}
                     className="font-semibold text-brand-primary hover:text-outline-active-text"
                 >
-                    Sign in
+                    {t('signin.sign_in')}
                 </Link>
             </p>
         </GuestLayout>

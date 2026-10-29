@@ -5,6 +5,8 @@ import { currentTheme, setTheme } from '../../theme';
 import { goTo } from './navigation';
 import { NAV_FEATURES, useFeatures } from '../../features';
 import { openShortcutSheet } from '../../shortcuts';
+import { useI18n } from '../../i18n';
+import LanguageSwitch from '../LanguageSwitch';
 
 /**
  * The account menu behind the avatar.
@@ -30,22 +32,22 @@ import { openShortcutSheet } from '../../shortcuts';
  */
 const ITEMS = [
     [
-        { key: 'inbox', label: 'Inbox', icon: 'bell', route: 'inbox.index' },
-        { key: 'billing', label: 'Plans & billing', icon: 'card', route: 'billing.show' },
-        { key: 'sales', label: 'Storefront sales', icon: 'sales', route: 'sales.overview' },
-        { key: 'purchases', label: 'Your purchases', icon: 'doc', route: 'purchases.index' },
+        { key: 'inbox', label: 'Inbox', tKey: 'menu.inbox', icon: 'bell', route: 'inbox.index' },
+        { key: 'billing', label: 'Plans & billing', tKey: 'menu.billing', icon: 'card', route: 'billing.show' },
+        { key: 'sales', label: 'Storefront sales', tKey: 'menu.sales', icon: 'sales', route: 'sales.overview' },
+        { key: 'purchases', label: 'Your purchases', tKey: 'menu.purchases', icon: 'doc', route: 'purchases.index' },
         // Écrivain Partners: the dashboard, or the application form.
-        { key: 'partner', label: 'Partner program', icon: 'coin', route: 'partners.dashboard' },
+        { key: 'partner', label: 'Partner program', tKey: 'menu.partner', icon: 'coin', route: 'partners.dashboard' },
     ],
     [
-        { key: 'books', label: 'My books', icon: 'doc', route: 'books.index' },
+        { key: 'books', label: 'My books', tKey: 'menu.books', icon: 'doc', route: 'books.index' },
         // Team is per book, so it needs one; called without, route()
         // threw and the menu stayed open.
-        { key: 'team', label: 'Team members', icon: 'users', book: 'team' },
-        { key: 'account', label: 'Account settings', icon: 'user', route: 'profile.edit' },
+        { key: 'team', label: 'Team members', tKey: 'menu.team', icon: 'users', book: 'team' },
+        { key: 'account', label: 'Account settings', tKey: 'menu.account', icon: 'user', route: 'profile.edit' },
         // Write to Ecrivain support (Pages/Support).
-        { key: 'support', label: 'Help', icon: 'help', route: 'support.index' },
-        { key: 'shortcuts', label: 'Keyboard shortcuts', icon: 'help', run: openShortcutSheet },
+        { key: 'support', label: 'Help', tKey: 'menu.support', icon: 'help', route: 'support.index' },
+        { key: 'shortcuts', label: 'Keyboard shortcuts', tKey: 'menu.shortcuts', icon: 'help', run: openShortcutSheet },
     ],
 ];
 
@@ -55,6 +57,7 @@ export default function UserMenu({ user, account, bookId = null }) {
     const unread = usePage().props.inbox_unread ?? 0;
     const staff = Boolean(usePage().props.platform?.role);
     const on = useFeatures();
+    const { t, formatNumber } = useI18n();
 
     // Close on an outside click or Escape. Without both, a menu that opens
     // over the manuscript has to be dismissed by navigating away.
@@ -82,7 +85,7 @@ export default function UserMenu({ user, account, bookId = null }) {
                 onClick={() => setOpen((value) => !value)}
                 aria-haspopup="menu"
                 aria-expanded={open}
-                aria-label={unread > 0 ? `Account, ${unread} unread in the inbox` : 'Account'}
+                aria-label={unread > 0 ? t('menu.account_unread', { count: unread }) : t('menu.account_label')}
                 className="relative grid h-[37px] w-[37px] shrink-0 place-items-center rounded-full bg-brand-primary-subtle text-[12.5px] font-semibold text-brand-primary transition hover:ring-2 hover:ring-brand-primary/25"
             >
                 {initials(user?.name)}
@@ -102,14 +105,12 @@ export default function UserMenu({ user, account, bookId = null }) {
                 >
                     <div className="border-b border-border-divider px-4 pb-3.5 pt-3.5">
                         <p className="truncate text-[15px] font-bold text-text-primary">
-                            {user?.name ?? 'Signed in'}
+                            {user?.name ?? t('menu.signed_in')}
                         </p>
                         <p className="mt-0.5 truncate text-[12px] text-text-secondary">
-                            {account?.plan_name ?? 'Free'} plan
+                            {t('menu.plan', { plan: account?.plan_name ?? t('menu.free') })}
                             {typeof account?.books_active === 'number' &&
-                                ` · ${account.books_active} active book${
-                                    account.books_active === 1 ? '' : 's'
-                                }`}
+                                ` · ${t('menu.active_books', { count: account.books_active })}`}
                         </p>
 
                         {account && (
@@ -120,7 +121,7 @@ export default function UserMenu({ user, account, bookId = null }) {
                                     }`}
                                 >
                                     <Icon name="bolt" size={15} />
-                                    {account.credits.toLocaleString()} AI credits left
+                                    {t('menu.credits_left', { credits: formatNumber(account.credits) })}
                                 </p>
 
                                 {/* Only when there is a monthly allowance to be a
@@ -172,6 +173,8 @@ export default function UserMenu({ user, account, bookId = null }) {
 
                     <ThemeSwitch />
 
+                    <LanguageSwitch variant="menu" className="border-t border-border-divider px-4 py-2.5" />
+
                     <div className="border-t border-border-divider py-1">
                         <Link
                             as="button"
@@ -182,7 +185,7 @@ export default function UserMenu({ user, account, bookId = null }) {
                             className="flex h-[38px] w-full items-center gap-3 px-4 text-left text-[13.5px] text-text-body transition hover:bg-bg-subtle"
                         >
                             <Icon name="go" size={17} className="shrink-0 opacity-70" />
-                            Sign out
+                            {t('signin.sign_out')}
                         </Link>
                     </div>
                 </div>
@@ -196,18 +199,19 @@ export default function UserMenu({ user, account, bookId = null }) {
  * the account menu is on every screen; Account settings has the same switch.
  */
 const THEME_CHOICES = [
-    { key: 'system', label: 'Auto', icon: 'tablet' },
-    { key: 'light', label: 'Light', icon: 'sun' },
-    { key: 'dark', label: 'Dark', icon: 'moon' },
+    { key: 'system', label: 'Auto', tKey: 'theme.system', icon: 'tablet' },
+    { key: 'light', label: 'Light', tKey: 'theme.light', icon: 'sun' },
+    { key: 'dark', label: 'Dark', tKey: 'theme.dark', icon: 'moon' },
 ];
 
 export function ThemeSwitch({ className = 'border-t border-border-divider px-4 py-2.5', menu = true }) {
     const [theme, setLocal] = useState(() => currentTheme());
+    const { t } = useI18n();
 
     return (
         <div className={className}>
             <p id="theme-label" className="mb-1.5 text-[11.5px] font-medium text-text-secondary">
-                Appearance
+                {t('theme.label')}
             </p>
             <div
                 role={menu ? 'group' : 'radiogroup'}
@@ -232,7 +236,7 @@ export function ThemeSwitch({ className = 'border-t border-border-divider px-4 p
                         }`}
                     >
                         <Icon name={choice.icon} size={13} />
-                        {choice.label}
+                        {t(choice.tKey)}
                     </button>
                 ))}
             </div>
@@ -241,6 +245,8 @@ export function ThemeSwitch({ className = 'border-t border-border-divider px-4 p
 }
 
 function MenuItem({ item, bookId, count = 0, onDone }) {
+    const { t } = useI18n();
+
     return (
         <button
             data-a={`user:${item.key}`}
@@ -254,11 +260,11 @@ function MenuItem({ item, bookId, count = 0, onDone }) {
             className="flex h-[38px] w-full items-center gap-3 px-4 text-left text-[13.5px] text-text-body transition hover:bg-bg-subtle"
         >
             <Icon name={item.icon} size={17} className="shrink-0 opacity-70" />
-            <span className="flex-1 truncate">{item.label}</span>
+            <span className="flex-1 truncate">{item.tKey ? t(item.tKey) : item.label}</span>
             {count > 0 && (
                 <span className="rounded-badge bg-brand-fill px-1.5 text-[11px] font-semibold leading-[18px] text-white">
                     {count > 99 ? '99+' : count}
-                    <span className="sr-only"> unread</span>
+                    <span className="sr-only"> {t('common.unread')}</span>
                 </span>
             )}
         </button>

@@ -1,8 +1,10 @@
 import { AuthHeading, AuthSubmit } from '@/Components/Auth/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { useI18n } from '@/i18n';
 
 export default function VerifyEmail({ status }) {
+    const { t } = useI18n();
     const { post, processing } = useForm({});
 
     const submit = (event) => {
@@ -12,21 +14,21 @@ export default function VerifyEmail({ status }) {
 
     return (
         <GuestLayout>
-            <Head title="Verify your email" />
+            <Head title={t('verify.head')} />
 
             <AuthHeading
-                title="Check your email"
-                subtitle="We sent a verification link to the address you signed up with. Open it to finish setting up your account."
+                title={t('verify.title')}
+                subtitle={t('verify.subtitle')}
             />
 
             {status === 'verification-link-sent' && (
                 <div className="mb-5 rounded-xl bg-status-success-bg px-3.5 py-3 text-[13px] font-medium text-status-success">
-                    A fresh link is on its way to your inbox.
+                    {t('verify.sent')}
                 </div>
             )}
 
             <form onSubmit={submit} className="space-y-5">
-                <AuthSubmit processing={processing}>Resend the link</AuthSubmit>
+                <AuthSubmit processing={processing}>{t('verify.resend')}</AuthSubmit>
             </form>
 
             <p className="mt-6 text-center text-[13.5px] text-text-secondary">
@@ -36,7 +38,7 @@ export default function VerifyEmail({ status }) {
                     as="button"
                     className="font-semibold text-brand-primary hover:text-outline-active-text"
                 >
-                    Sign out
+                    {t('signin.sign_out')}
                 </Link>
             </p>
         </GuestLayout>
