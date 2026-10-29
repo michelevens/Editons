@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Platform\House\House;
 use App\Publishing\Publish\Freshness;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -234,7 +235,10 @@ final class Shelf
             ? BookChannel::whereIn('book_id', $ids)->where('status', 'live')->orderBy('id')->get(['book_id', 'channel'])->groupBy('book_id')
             : collect();
         $exports = $want('exports') ? Freshness::many($books, self::EXPORT_FORMATS) : [];
-        $styles = $want('house_style') ? $books->loadMissing('houseStyle:id,name') : null;
+
+        if ($want('house_style')) {
+            (new EloquentCollection($books->all()))->loadMissing('houseStyle:id,name');
+        }
 
         $out = [];
 

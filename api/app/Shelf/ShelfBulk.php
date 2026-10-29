@@ -13,6 +13,7 @@ use App\Publishing\HouseStyles;
 use App\Publishing\PrintPages;
 use App\Publishing\Publish\BulkPrepare;
 use App\Publishing\Publish\Regenerate;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -59,7 +60,7 @@ final class ShelfBulk
 
         $books = $this->books($ids);
 
-        if ($action === 'regenerate' && count($books) > self::MAX_REGENERATE) {
+        if ($action === 'regenerate' && count(array_unique(array_map('intval', $ids))) > self::MAX_REGENERATE) {
             throw ValidationException::withMessages(['books' => 'Regenerate at most '.self::MAX_REGENERATE.' books at a time.']);
         }
 
@@ -328,7 +329,7 @@ final class ShelfBulk
     {
         $gate = Gate::forUser($actor);
         $byId = $books->keyBy('id');
-        $allowed = collect();
+        $allowed = new EloquentCollection;
         $rows = [];
 
         foreach (array_values(array_unique(array_map('intval', $ids))) as $id) {
