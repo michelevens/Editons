@@ -1,6 +1,6 @@
 import Image from '@tiptap/extension-image';
 import { Table, TableView } from '@tiptap/extension-table';
-import { NodeSelection } from '@tiptap/pm/state';
+import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { selectedRect } from '@tiptap/pm/tables';
 import { captionKind } from './CrossRef';
 
@@ -392,7 +392,80 @@ export class PlacedTableView extends TableView {
     }
 }
 
+/**
+ * Column widths are shares of the measure, so they mean something only when
+ * every column has one. Dragging one column's edge sets that column alone:
+ * the others are given the widths they have on screen, once, so the table
+ * the exports set is the one the author sees.
+ */
+const completeWidths = new Plugin({
+    key: new PluginKey('placedTableWidths'),
+    view: () => ({
+        update(view) {
+            const { state } = view;
+            const tr = state.tr;
+
+            state.doc.descendants((node, pos) => {
+                if (node.type.name !== 'table') return true;
+
+                const row = node.firstChild;
+                const widths = [];
+                let partial = false;
+                let some = false;
+
+                row?.forEach((cell) => {
+                    const set = Array.isArray(cell.attrs.colwidth) && cell.attrs.colwidth.every((w) => w > 0);
+                    some ||= set;
+                    partial ||= !set;
+                    widths.push(set);
+                });
+
+                if (!some || !partial) return false;
+
+                const table = view.nodeDOM(pos)?.querySelector?.('table');
+                const cols = table ? [...table.querySelectorAll(':scope > colgroup > col')] : [];
+                const cells = table?.rows?.[0] ? [...table.rows[0].cells] : [];
+
+                if (cells.length === 0) return false;
+
+                let rowPos = pos + 1;
+                node.forEach((tableRow) => {
+                    let cellPos = rowPos + 1;
+                    let column = 0;
+
+                    tableRow.forEach((cell) => {
+                        const span = cell.attrs.colspan ?? 1;
+
+                        if (!(Array.isArray(cell.attrs.colwidth) && cell.attrs.colwidth.every((w) => w > 0))) {
+                            const colwidth = Array.from({ length: span }, (_, j) => {
+                                const col = cols[column + j];
+                                const px = col ? parseFloat(col.style.width) || col.getBoundingClientRect().width : 0;
+
+                                return Math.max(25, Math.round(px || cells[Math.min(column + j, cells.length - 1)].getBoundingClientRect().width));
+                            });
+                            tr.setNodeMarkup(cellPos, undefined, { ...cell.attrs, colwidth });
+                        }
+
+                        column += span;
+                        cellPos += cell.nodeSize;
+                    });
+
+                    rowPos += tableRow.nodeSize;
+                });
+
+                return false;
+            });
+
+            if (tr.docChanged) view.dispatch(tr);
+        },
+    }),
+});
+
 export const PlacedTable = Table.extend({
+    addProseMirrorPlugins() {
+        return [...(this.parent?.() ?? []), completeWidths];
+    },
+
     addAttributes() {
         return {
             ...this.parent?.(),
