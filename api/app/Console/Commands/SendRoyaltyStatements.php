@@ -55,8 +55,10 @@ class SendRoyaltyStatements extends Command
             ->when($this->option('user'), fn ($q, $id) => $q->where('seller_id', $id))
             ->whereHas('order', fn ($q) => $q
                 ->whereNotNull('paid_at')
-                ->where('paid_at', '>=', $month)
-                ->where('paid_at', '<', $month->copy()->addMonth()))
+                // A day either side: each seller's month is cut in their
+                // own timezone (SalesReport::month decides exactly).
+                ->where('paid_at', '>=', $month->copy()->subDay())
+                ->where('paid_at', '<', $month->copy()->addMonth()->addDay()))
             ->distinct()
             ->pluck('seller_id');
 

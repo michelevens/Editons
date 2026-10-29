@@ -3,20 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Commerce\Partners\Applications;
+use App\Commerce\Partners\Earnings;
 use App\Commerce\Partners\Handles;
 use App\Commerce\Partners\Insights;
 use App\Commerce\Partners\Invitations;
 use App\Commerce\Partners\Ledger;
 use App\Commerce\Partners\PartnerPages;
 use App\Commerce\Partners\Program;
+use App\Commerce\Reports\ReportRange;
 use App\Models\Partner;
+use App\Models\PartnerCommission;
 use App\Models\Payout;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Écrivain Partners, for the partner: applying, the dashboard, the page
@@ -98,6 +103,7 @@ class PartnerController extends Controller
             : 'overview';
 
         $balances = array_values($ledger->balances($partner));
+        [$range, $earnings] = $this->earnings($request, $partner);
 
         return Inertia::render('Partners/Dashboard', [
             'tab' => $tab,
@@ -130,7 +136,14 @@ class PartnerController extends Controller
             'timeline' => Insights::timeline($partner),
             'balances' => $balances,
             'eligibility' => collect($balances)->mapWithKeys(fn (array $b) => [$b['currency'] => $ledger->eligibility($partner, $b['currency'])]),
-            'commissions' => Insights::commissions($partner),
+            // In the chosen range (all time unless one is picked: what the
+            // tab always showed), with its totals and a CSV of the same.
+            'commissions' => $earnings->rows($range),
+            'earnings' => [
+                'range' => $range->toArray(),
+                'totals' => $earnings->totals($range),
+                'presets' => collect(ReportRange::LABELS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
+            ],
             'payouts' => $ledger->payouts($partner)->map(fn (Payout $p) => [
                 'id' => $p->id,
                 'amount_cents' => $p->amount_cents,
@@ -263,6 +276,28 @@ class PartnerController extends Controller
     }
 
     // ── Internals ───────────────────────────────────────────────────────
+
+    /**
+     * The partner's own commissions as CSV, for the range the tab shows.
+     * Only the signed-in account's partner record; rate-limited.
+     */
+    public function exportCommissions(Request $request): StreamedResponse
+    {
+        $partner = $this->own($request);
+        [$range, $earnings] = $this->earnings($request, $partner);
+
+        return SalesController::csv($earnings->csv($range), 'partner-commissions-'.$range->from->toDateString().'-'.$range->to->toDateString().'.csv');
+    }
+
+    /** @return array{0: ReportRange, 1: Earnings} */
+    private function earnings(Request $request, Partner $partner): array
+    {
+        $tz = $request->user()->reportTimezone();
+        $input = $request->query() + ['range' => 'all'];
+        $first = $input['range'] === 'all' ? PartnerCommission::where('partner_id', $partner->id)->min('created_at') : null;
+
+        return [ReportRange::fromInput($input, $tz, $first ? Carbon::parse($first, 'UTC') : null), new Earnings($partner)];
+    }
 
     private function own(Request $request): Partner
     {

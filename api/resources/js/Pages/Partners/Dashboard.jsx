@@ -457,12 +457,79 @@ function PageEditor({ partner, page, shelf, catalogue, shelf_max: shelfMax, loca
     );
 }
 
-function Commissions({ commissions, hold_days: holdDays }) {
+/**
+ * The range the Commissions tab shows (all time unless one is picked) and
+ * its totals, with a CSV of the same rows: only this partner's own.
+ */
+function EarningsRange({ earnings }) {
+    const range = earnings.range;
+    const [preset, setPreset] = useState(range.preset);
+    const [custom, setCustom] = useState({ from: range.from, to: range.to });
+    const control = 'h-[34px] min-w-0 rounded-control border border-border-input bg-bg-surface px-2.5 text-[12.5px] text-text-primary';
+    const go = (next) => router.get(route('partners.dashboard'), { tab: 'commissions', ...(next.range === 'all' ? {} : next) }, { preserveScroll: true, preserveState: true });
+    const current = range.preset === 'custom' ? { range: 'custom', from: range.from, to: range.to } : range.preset === 'all' ? {} : { range: range.preset };
+    const search = new URLSearchParams(current).toString();
+
+    return (
+        <section className="mb-3 rounded-panel border border-border-default bg-bg-surface p-3" data-a="partner:earnings">
+            <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-0.5 text-[10.5px] font-medium uppercase tracking-wide text-text-secondary">
+                    Range
+                    <select
+                        data-a="partner:earnings:range"
+                        value={preset}
+                        onChange={(e) => {
+                            setPreset(e.target.value);
+                            if (e.target.value !== 'custom') go({ range: e.target.value });
+                        }}
+                        className={control}
+                    >
+                        {earnings.presets.map((p) => (
+                            <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                    </select>
+                </label>
+                {preset === 'custom' && (
+                    <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); go({ range: 'custom', ...custom }); }}>
+                        <input type="date" aria-label="From" required value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} className={control} />
+                        <input type="date" aria-label="To" required value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} className={control} />
+                        <button type="submit" className="tap h-[34px] rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white">Apply</button>
+                    </form>
+                )}
+                <a
+                    href={route('partners.commissions.export') + (search ? `?${search}` : '')}
+                    data-a="partner:earnings:csv"
+                    download
+                    className="tap ml-auto inline-flex min-h-[34px] items-center rounded-control border border-border-input px-3 text-[12.5px] font-semibold text-text-body"
+                >
+                    Download CSV
+                </a>
+            </div>
+            <p className="mt-2 text-[11.5px] text-text-secondary">
+                {range.span}
+                {earnings.totals.map((t) => ` · ${t.sales} sale${t.sales === 1 ? '' : 's'}, ${money(t.net_cents, t.currency)} earned (${money(t.pending_cents, t.currency)} pending)`).join('')}
+            </p>
+        </section>
+    );
+}
+
+function Commissions({ commissions, earnings, hold_days: holdDays }) {
+    const range = earnings ? <EarningsRange earnings={earnings} /> : null;
+
     if (commissions.length === 0) {
-        return <p className="rounded-panel border border-border-default bg-bg-surface p-4 text-[13px] text-text-secondary" data-a="partner:commissions:none">No commissions yet. They appear here the moment a reader pays.</p>;
+        return (
+            <>
+                {range}
+                <p className="rounded-panel border border-border-default bg-bg-surface p-4 text-[13px] text-text-secondary" data-a="partner:commissions:none">
+                    {earnings && earnings.range.preset !== 'all' ? 'No commissions in this range.' : 'No commissions yet. They appear here the moment a reader pays.'}
+                </p>
+            </>
+        );
     }
 
     return (
+        <>
+        {range}
         <section className="rounded-panel border border-border-default bg-bg-surface p-2 sm:p-4">
             <ul className="divide-y divide-border-divider" data-a="partner:commissions">
                 {commissions.map((c) => (
@@ -488,6 +555,7 @@ function Commissions({ commissions, hold_days: holdDays }) {
                 Pending commissions wait {holdDays} days (the refund window). A refund reduces a commission in proportion; one refunded after it was paid comes off your next earnings.
             </p>
         </section>
+        </>
     );
 }
 

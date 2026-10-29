@@ -22,6 +22,13 @@ use Illuminate\Support\Facades\Route;
 Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
 Route::get('/plans', [PlansController::class, 'index'])->name('plans.index');
 Route::get('/sales', [SalesController::class, 'index'])->name('sales.index');
+// An author's (or a house imprint's) royalty statement as a PDF: every
+// download is audited, since it is another account's money.
+Route::get('/sales/statements/{user}/{period}.pdf', [SalesController::class, 'statement'])
+    ->whereNumber('user')
+    ->where('period', '\d{4}-(0[1-9]|1[0-2]|Q[1-4])')
+    ->middleware('throttle:sales-exports')
+    ->name('sales.statement');
 Route::get('/onboarding', [OnboardingController::class, 'index'])->name('onboarding.index');
 
 Route::prefix('growth')->name('growth.')->group(function () {

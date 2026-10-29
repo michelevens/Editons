@@ -4,16 +4,27 @@ namespace App\Http\Controllers;
 
 use App\Commerce\Partners\Program;
 use App\Commerce\Partners\SellerPartners;
+use App\Commerce\Reports\ReportRange;
+use App\Commerce\Reports\RoyaltyStatements;
+use App\Commerce\Reports\SalesExplorer;
 use App\Commerce\SalesReport;
 use App\Models\Book;
 use App\Models\BookChannel;
+use App\Models\User;
+use App\Platform\AdminAudit;
 use App\Platform\Features;
+use App\Platform\House\House;
 use App\Publishing\PrintPages;
 use App\Publishing\Royalties;
+use App\Shelf\ShelfBulk;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Sales & Distribution, and Royalties.
@@ -132,19 +143,41 @@ class SalesController extends Controller
     }
 
     /**
-     * Every direct sale this author has made, across their books.
+     * Every direct sale this author has made, across their books, over a
+     * date range (ADR-00XX — Sales reports and royalty statements).
      *
      * Scoped to the signed-in seller: there is no parameter to point it at
-     * anybody else.
+     * anybody else. Staff may ask for `scope=house`, the house accounts'
+     * sales (ADR-0035) — the console's own books, never another author's.
+     *
+     * The range, comparison and filters are query parameters, so a report
+     * can be bookmarked and shared; with none it is the last 30 days.
      */
     public function overview(Request $request): Response
     {
         $user = $request->user();
+        [$explorer, $tz, $house] = $this->explorer($request);
+        [$range, $compare] = $this->range($request, $explorer, $tz);
 
         return Inertia::render('Sales', [
             'enabled' => Features::enabled('storefront', $user),
-            'report' => SalesReport::for($user, null, 30),
-            'products' => $user->products()
+            'report' => $explorer->report($range, $compare),
+            'query' => [
+                'scope' => $house ? 'house' : null,
+                'range' => $range->preset,
+                'from' => $range->from->toDateString(),
+                'to' => $range->to->toDateString(),
+                'compare' => $compare,
+            ] + $explorer->filters,
+            'options' => $explorer->options() + [
+                'presets' => collect(ReportRange::LABELS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
+                'timezones' => self::timezones($tz),
+            ],
+            'timezone' => $tz,
+            'scope' => $house ? 'house' : 'own',
+            'can_house' => House::canViewCatalog($user),
+            'statements' => $this->statementList($request, $explorer, $tz, $house),
+            'products' => $house ? [] : $user->products()
                 ->with('book:id,title')
                 ->get()
                 ->map(fn ($product) => [
@@ -158,7 +191,147 @@ class SalesController extends Controller
                 ])
                 ->all(),
             // Écrivain Partners selling this author's books (SellerPartners).
-            'partners' => Program::enabled($user) ? SellerPartners::for($user) : null,
+            'partners' => ! $house && Program::enabled($user) ? SellerPartners::for($user) : null,
         ]);
+    }
+
+    /**
+     * The current view as CSV: one row per order line (`lines`) or the
+     * totals and every breakdown (`summary`). Streamed, with a byte-order
+     * mark, every text cell defused (ShelfBulk::csvCell, ADR-0045).
+     */
+    public function export(Request $request, string $kind): StreamedResponse
+    {
+        [$explorer, $tz, $house] = $this->explorer($request);
+        [$range, $compare] = $this->range($request, $explorer, $tz);
+
+        if ($house) {
+            AdminAudit::transaction(fn () => AdminAudit::record('sales.exported', null, null, [
+                'scope' => 'house',
+                'kind' => $kind,
+                'range' => [$range->from->toDateString(), $range->to->toDateString()],
+                'filters' => $explorer->filters,
+            ], 'Sales CSV from the house sales report', $request->user()));
+        }
+
+        $rows = $kind === 'summary'
+            ? SalesExplorer::csvSummary($explorer->report($range, $compare))
+            : $explorer->csvLines($range);
+
+        return self::csv($rows, ($house ? 'house-' : '').'sales-'.$kind.'-'.$range->from->toDateString().'-'.$range->to->toDateString().'.csv');
+    }
+
+    /** A royalty statement for one period and currency, as a PDF. */
+    public function statement(Request $request, string $period, RoyaltyStatements $statements): HttpResponse
+    {
+        [$explorer, , $house] = $this->explorer($request);
+        $currency = $request->validate(['currency' => ['required', Rule::in(config('commerce.currencies'))]])['currency'];
+
+        // The payee: the signed-in author, or one of the house accounts.
+        $payee = $house
+            ? User::where('account_kind', 'house')->whereKey((int) $request->query('payee'))->first()
+            : $request->user();
+        abort_unless($payee && in_array($payee->id, $explorer->sellerIds, true), 404);
+
+        $statement = $statements->build($payee, $period, $currency);
+
+        if ($house) {
+            AdminAudit::transaction(fn () => AdminAudit::record('sales.statement_downloaded', $payee, null, [
+                'period' => $period, 'currency' => $currency,
+            ], 'Royalty statement from the house sales report', $request->user()));
+        }
+
+        return self::pdf($statements, $statement);
+    }
+
+    /** The zone this account's reports cut days in. */
+    public function timezone(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['timezone' => ['required', 'string', Rule::in(\DateTimeZone::listIdentifiers())]]);
+        $request->user()->forceFill(['timezone' => $data['timezone']])->save();
+
+        return back()->with('platform_notice', 'Sales reports now use '.$data['timezone'].'.');
+    }
+
+    /**
+     * Rows as a CSV download: streamed, a byte-order mark so Excel reads
+     * "Réussir" as UTF-8, every cell defused (ShelfBulk::csvCell).
+     *
+     * @param  iterable<list<mixed>>  $rows
+     */
+    public static function csv(iterable $rows, string $filename): StreamedResponse
+    {
+        return response()->streamDownload(function () use ($rows) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+
+            foreach ($rows as $row) {
+                fputcsv($out, array_map([ShelfBulk::class, 'csvCell'], $row), ',', '"', '');
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8', 'Cache-Control' => 'no-store']);
+    }
+
+    /** @param  array<string, mixed>  $statement */
+    public static function pdf(RoyaltyStatements $statements, array $statement): HttpResponse
+    {
+        return response($statements->pdf($statement), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.RoyaltyStatements::filename($statement).'"',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    /**
+     * Whose sales, in which zone: the signed-in seller's own, or — for
+     * staff asking for scope=house — every house account's.
+     *
+     * @return array{0: SalesExplorer, 1: string, 2: bool}
+     */
+    private function explorer(Request $request): array
+    {
+        $user = $request->user();
+        $filters = SalesExplorer::filtersFrom($request->query());
+
+        if ($request->query('scope') === 'house') {
+            abort_unless(House::canViewCatalog($user), 403);
+
+            return [new SalesExplorer(User::where('account_kind', 'house')->orderBy('id')->pluck('id')->all(), $filters, true), $user->reportTimezone(), true];
+        }
+
+        return [new SalesExplorer([$user->id], $filters, $user->isHouse()), $user->reportTimezone(), false];
+    }
+
+    /** @return array{0: ReportRange, 1: ?string} */
+    private function range(Request $request, SalesExplorer $explorer, string $tz): array
+    {
+        $range = ReportRange::fromInput($request->query(), $tz, $request->query('range') === 'all' ? $explorer->firstSale() : null);
+        $compare = in_array($request->query('compare'), ReportRange::COMPARE, true) ? $request->query('compare') : null;
+
+        return [$range, $compare];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function statementList(Request $request, SalesExplorer $explorer, string $tz, bool $house): array
+    {
+        $payees = $house
+            ? User::whereIn('id', $explorer->sellerIds)->orderBy('name')->get(['id', 'name', 'account_kind'])
+            : collect([$request->user()]);
+
+        return $payees->flatMap(fn (User $payee) => collect(RoyaltyStatements::periods([$payee->id], $tz, 12))
+            ->map(fn (array $p) => $p + ['payee' => ['id' => $payee->id, 'name' => $payee->name]]))
+            ->values()
+            ->all();
+    }
+
+    /** A short list for the zone picker, with the current zone in it. @return list<string> */
+    private static function timezones(string $current): array
+    {
+        return collect(['America/New_York', 'America/Port-au-Prince', 'America/Toronto', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/Paris', 'Europe/London', 'UTC'])
+            ->push($current)
+            ->unique()
+            ->values()
+            ->all();
     }
 }

@@ -12,7 +12,18 @@ import { useState } from 'react';
  */
 const ORDER_TONE = { paid: 'success', partially_refunded: 'warning', refunded: 'neutral', cancelled: 'neutral', pending: 'info' };
 
+/** Last calendar month, as YYYY-MM: the statement most often wanted. */
+function lastMonth() {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function Sales({ enabled, totals, totals_30d: totals30, daily, top, orders, filters, royalties, payouts, methods, currencies, statuses, fee, platform_rate: platformRate, payments, can_edit: canEdit }) {
+    const [period, setPeriod] = useState(lastMonth);
+
     return (
         <AdminLayout title="Book sales" active="sales">
             {!enabled && (
@@ -71,11 +82,19 @@ export default function Sales({ enabled, totals, totals_30d: totals30, daily, to
                 detail="Earned (after estimated fees and refunds) less payouts recorded below. Stripe Connect is not built: pay authors outside Écrivain, then record it here."
                 data-a="admin:sales:royalties"
             >
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
+                    <label htmlFor="admin-statement-period">Statements for</label>
+                    <input id="admin-statement-period" type="month" value={period} onChange={(e) => setPeriod(e.target.value)} data-a="admin:sales:statement-period" className={`${inputClass} w-auto`} />
+                    <span>· every download is audited ·</span>
+                    <Link href={route('sales.overview', { scope: 'house' })} className="font-semibold text-brand-primary hover:underline" data-a="admin:sales:house-report">
+                        House catalog sales report
+                    </Link>
+                </div>
                 {royalties.length === 0 ? (
                     <Empty>No royalties earned yet.</Empty>
                 ) : (
                     <Table
-                        head={['Author', 'Currency', 'Earned', 'Paid', 'Owed', 'Last paid', '']}
+                        head={['Author', 'Currency', 'Earned', 'Paid', 'Owed', 'Last paid', 'Statement', '']}
                         rows={royalties.map((r) => [
                             <AccountLink key="a" account={r.account} />,
                             r.currency.toUpperCase(),
@@ -83,6 +102,11 @@ export default function Sales({ enabled, totals, totals_30d: totals30, daily, to
                             money(r.paid_cents, r.currency),
                             <span key="o" className={r.owed_cents > 0 ? 'font-semibold text-text-primary' : ''}>{money(r.owed_cents, r.currency)}</span>,
                             r.last_paid ? formatDate(r.last_paid, false) : '—',
+                            r.account && /^\d{4}-\d{2}$/.test(period) ? (
+                                <a key="s" href={`${route('admin.sales.statement', { user: r.account.id, period })}?currency=${r.currency}`} className="text-brand-primary hover:underline" data-a="admin:sales:statement">
+                                    PDF
+                                </a>
+                            ) : null,
                             canEdit && r.account && r.owed_cents > 0 ? <PayoutForm key="p" row={r} methods={methods} /> : null,
                         ])}
                     />

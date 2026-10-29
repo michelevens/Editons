@@ -291,6 +291,14 @@ authors over 30 days, and gross per day.
   can never be more than is owed.
 - Refund an order (all or part) from its row. A full refund revokes the
   buyer's download links.
+- **Royalty statements**: pick a month above the Royalties owed table and
+  download any author's statement as a PDF (payee, period, books, units,
+  net, rate, royalty due, already paid, balance). Every download is in the
+  audit log (`sales.statement_downloaded`). The **House catalog sales
+  report** link opens the studio's Sales page on `scope=house`: the house
+  imprints' sales with the same range, filters, CSVs and statements, each
+  CSV audited (`sales.exported`). Design: `docs/DECISIONS.md` (ADR —
+  Sales reports and royalty statements).
 
 ### House catalog (`/admin/house`)
 

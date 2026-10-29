@@ -158,7 +158,9 @@ Overview (visits, orders, conversion, pending / approved / paid, balance,
 next payout), Links (page link, share bar, a link + WhatsApp + QR per book,
 and the `?partner=` code), My page (editor with a live preview; Edit /
 Preview toggle on a phone), Commissions (book, date, rate, amount, status —
-never the buyer; at most "a reader in {country}"), Payouts (balance,
+never the buyer; at most "a reader in {country}"; a date range — all time by
+default — with its totals, and a CSV of the same rows at
+`/partner/commissions.csv`, only the partner's own), Payouts (balance,
 history, payout details) and Agreement. On a phone the tab bar switches to
 the dashboard's own tabs. While "View as" runs, every partner write is
 refused (`App\Platform\Impersonation`).
