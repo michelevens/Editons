@@ -5,6 +5,7 @@ import { useTyping } from '../Editor/useKeyboard';
 import Icon from './Icon';
 import { goTo } from './navigation';
 import { NAV_FEATURES, useFeatures } from '../../features';
+import { PREFS_REGISTRY, savePrefs, usePrefs } from '../../shortcuts';
 
 /**
  * The tab bar along the bottom of a phone or tablet.
@@ -23,6 +24,11 @@ import { NAV_FEATURES, useFeatures } from '../../features';
  * writing, reviewing, publishing and selling each put their own screens
  * under the thumb, and every book set keeps a way back to the manuscript.
  * More is always last and always holds everything.
+ *
+ * An author can pin their own tabs (one to four) for each of those places,
+ * from "Edit tabs" in More; they are saved on the account (ADR —
+ * Configurable shortcuts and mobile tabs) and the server checks them
+ * against resources/js/prefs.json. Without a choice, the sets below.
  *
  * `current` is the screen on show (a pane key such as 'manuscript' or
  * 'cover', or an account page). A page that switches panes in place (the
@@ -51,6 +57,23 @@ const T = {
     'partner-links': { label: 'Links', icon: 'mega' },
     'partner-page': { label: 'My page', icon: 'layout' },
     'partner-earnings': { label: 'Earnings', icon: 'coin' },
+    // Only as pinned tabs: the rest of More.
+    billing: { label: 'Billing', icon: 'card' },
+    purchases: { label: 'Purchases', icon: 'doc' },
+    account: { label: 'Account', icon: 'user' },
+    support: { label: 'Help', icon: 'help' },
+    terms: { label: 'Terms', icon: 'users' },
+    references: { label: 'Citations', icon: 'refs' },
+    notes: { label: 'Notes', icon: 'note' },
+    templates: { label: 'Templates', icon: 'tmpl' },
+    settings: { label: 'Settings', icon: 'gear' },
+    team: { label: 'Team', icon: 'users' },
+    preview: { label: 'Preview', icon: 'eye' },
+    rights: { label: 'ISBN', icon: 'hash' },
+    editions: { label: 'Editions', icon: 'copies' },
+    a11y: { label: 'Access', icon: 'access' },
+    royalties: { label: 'Royalties', icon: 'coin' },
+    marketing: { label: 'Marketing', icon: 'mega' },
 };
 
 const SETS = {
@@ -95,8 +118,10 @@ export default function MobileNav({
     const book = bookId ?? recentBookId ?? null;
     const set = tabSet(current, Boolean(bookId));
     const on = useFeatures();
-    // A module switched off for this account leaves the bar (App\Platform\Features).
-    const tabs = SETS[set].filter((key) => (key !== 'continue' || book) && on(NAV_FEATURES[key]));
+    const prefs = usePrefs();
+    // The author's pinned tabs for this place, or the set it always had. A
+    // module switched off for this account leaves the bar (App\Platform\Features).
+    const tabs = (prefs.mobileTabs[set] ?? SETS[set]).filter((key) => T[key] && (key !== 'continue' || book) && on(NAV_FEATURES[key]));
     const [sheet, setSheet] = useState(false);
     // Out of the way while the keyboard is up: the keys, the formatting
     // bar and the text are what a phone has room for then.
@@ -114,6 +139,10 @@ export default function MobileNav({
         if (key === 'inbox') return router.get(route('inbox.index'));
         if (key === 'store-sales') return router.get(route('sales.overview'));
         if (key === 'continue') return goTo(book, 'manuscript');
+        if (key === 'billing') return router.get(route('billing.show'));
+        if (key === 'purchases') return router.get(route('purchases.index'));
+        if (key === 'account') return router.get(route('profile.edit'));
+        if (key === 'support') return router.get(route('support.index'));
         if (key.startsWith('partner-')) {
             const tab = { 'partner-overview': 'overview', 'partner-links': 'links', 'partner-page': 'page', 'partner-earnings': 'commissions' }[key];
 
@@ -182,6 +211,8 @@ export default function MobileNav({
                 <MoreSheet
                     book={book}
                     title={bookTitle}
+                    context={set}
+                    pinned={tabs}
                     onOpen={open}
                     onClose={() => setSheet(false)}
                 />
@@ -244,8 +275,10 @@ const BOOK_GROUPS = [
     },
 ];
 
-function MoreSheet({ book, title, onOpen, onClose }) {
+function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
     const on = useFeatures();
+    const [editing, setEditing] = useState(false);
+    const customisable = Boolean(PREFS_REGISTRY.mobileTabs[context]);
     const account = [
         { key: 'inbox', label: 'Inbox', icon: 'bell', href: route('inbox.index') },
         { key: 'billing', label: 'Plans & billing', icon: 'card', href: route('billing.show') },
@@ -276,8 +309,22 @@ function MoreSheet({ book, title, onOpen, onClose }) {
                         <p className="truncate text-[12.5px] text-text-secondary">{title}</p>
                     )}
                 </div>
+                {customisable && !editing && (
+                    <button
+                        type="button"
+                        data-a="sheet:edit-tabs"
+                        onClick={() => setEditing(true)}
+                        className="rounded-control px-2 py-1.5 text-[13px] font-medium text-brand-primary hover:bg-bg-subtle"
+                    >
+                        Edit tabs
+                    </button>
+                )}
                 <CloseButton onClick={onClose} label="Close menu" className="h-10 w-10" />
             </div>
+
+            {editing ? (
+                <TabPicker context={context} pinned={pinned} hasBook={Boolean(book)} onDone={() => setEditing(false)} />
+            ) : (
 
             <div className="safe-bottom min-h-0 overflow-y-auto px-3 pb-3">
                 {book &&
@@ -340,6 +387,111 @@ function MoreSheet({ book, title, onOpen, onClose }) {
                     </ul>
                 </section>
             </div>
+            )}
         </Dialog>
+    );
+}
+
+/**
+ * Edit tabs: which of this place's screens sit on the bar, in the order
+ * tapped (one to four; More is always added). Saved on the account.
+ */
+function TabPicker({ context, pinned, hasBook, onDone }) {
+    const on = useFeatures();
+    const meta = PREFS_REGISTRY.mobileTabs[context];
+    const max = PREFS_REGISTRY.maxTabs;
+    const choices = (meta.allowed === 'book' ? PREFS_REGISTRY.bookTabs : meta.allowed).filter(
+        (key) => T[key] && (key !== 'continue' || hasBook) && on(NAV_FEATURES[key]),
+    );
+    const [picked, setPicked] = useState(pinned);
+    const [error, setError] = useState(null);
+    const [busy, setBusy] = useState(false);
+
+    const toggle = (key) => {
+        setError(null);
+        setPicked((list) => (list.includes(key) ? list.filter((k) => k !== key) : list.length < max ? [...list, key] : list));
+    };
+
+    const save = async (value) => {
+        setBusy(true);
+
+        try {
+            await savePrefs({ mobileTabs: { [context]: value } });
+            onDone();
+        } catch (errors) {
+            setError(Object.values(errors).flat()[0] ?? 'Not saved. Try again.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="safe-bottom min-h-0 overflow-y-auto px-3 pb-3" data-a="sheet:tab-picker">
+            <section className="rounded-panel bg-bg-surface p-3">
+                <h3 className="text-[14px] font-semibold text-text-primary">Tabs while {meta.label.toLowerCase()}</h3>
+                <p className="mt-0.5 text-[12.5px] text-text-secondary">
+                    Pick up to {max}, in the order you want them. More is always last.
+                </p>
+                <p className="mt-2 text-[12.5px] text-text-body" aria-live="polite" data-a="sheet:tab-count">
+                    {picked.length} of {max} pinned
+                </p>
+                <ul className="mt-2 grid grid-cols-4 gap-1">
+                    {choices.map((key) => {
+                        const at = picked.indexOf(key);
+
+                        return (
+                            <li key={key} className="flex">
+                                <button
+                                    type="button"
+                                    data-a={`sheet:pin:${key}`}
+                                    aria-pressed={at >= 0}
+                                    disabled={at < 0 && picked.length >= max}
+                                    onClick={() => toggle(key)}
+                                    className={`relative flex min-h-[70px] flex-1 flex-col items-center gap-1 rounded-control border px-1 pt-2 text-center text-[11.5px] transition disabled:opacity-40 ${
+                                        at >= 0 ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary' : 'border-border-divider text-text-body'
+                                    }`}
+                                >
+                                    <Icon name={T[key].icon} size={19} />
+                                    {T[key].label}
+                                    {at >= 0 && (
+                                        <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-fill text-[10px] font-semibold text-white" aria-hidden="true">
+                                            {at + 1}
+                                        </span>
+                                    )}
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+                {error && (
+                    <p role="alert" className="mt-2 text-[12.5px] text-status-danger">
+                        {error}
+                    </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        data-a="sheet:tabs-save"
+                        disabled={busy || picked.length === 0}
+                        onClick={() => save(picked)}
+                        className="h-10 rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white disabled:opacity-50"
+                    >
+                        Save tabs
+                    </button>
+                    <button
+                        type="button"
+                        data-a="sheet:tabs-reset"
+                        disabled={busy}
+                        onClick={() => save(null)}
+                        className="h-10 rounded-control border border-border-default px-3 text-[13.5px] text-text-body"
+                    >
+                        Back to the usual tabs
+                    </button>
+                    <button type="button" onClick={onDone} className="h-10 px-3 text-[13.5px] text-text-secondary">
+                        Cancel
+                    </button>
+                </div>
+            </section>
+        </div>
     );
 }

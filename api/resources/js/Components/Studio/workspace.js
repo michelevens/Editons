@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ariaKeys, matches, shortcutLabel as registryLabel } from '../../shortcuts';
 
 /**
  * The writing workspace: which studio panels show, their sizes and sides,
@@ -137,28 +138,29 @@ export const BUILTIN_PRESETS = [
 ];
 
 /**
- * Keyboard shortcuts. Matched on the physical key (event.code), so a French
- * or Haitian keyboard, where AltGr+8 types "\", never toggles a panel by
- * typing a character. None clashes with the editor's own (Mod-b/i/u/e/z/y,
- * Mod-Shift-7/8/9/b/s, Mod-Alt-0/c) or a browser's that a page cannot take.
+ * The panel shortcuts, now entries of the app's shortcut registry
+ * (resources/js/shortcuts.js: view.outline, view.right, view.bottom,
+ * view.focus), so an author can remap them and the View menu, search and
+ * the handlers all follow. Kept under their old names for the studio.
  */
-export const SHORTCUTS = {
-    outline: { keys: 'Control+Backslash Meta+Backslash', label: 'Ctrl+\\', match: (e) => mod(e) && !e.altKey && !e.shiftKey && e.code === 'Backslash' },
-    right: { keys: 'Control+Alt+Backslash Meta+Alt+Backslash', label: 'Ctrl+Alt+\\', match: (e) => mod(e) && e.altKey && !e.shiftKey && e.code === 'Backslash' },
-    bottom: { keys: 'Control+J Meta+J', label: 'Ctrl+J', match: (e) => mod(e) && !e.altKey && !e.shiftKey && e.code === 'KeyJ' },
-    focus: { keys: 'Control+Shift+F Meta+Shift+F', label: 'Ctrl+Shift+F', match: (e) => mod(e) && e.shiftKey && !e.altKey && e.code === 'KeyF' },
-};
+const VIEW_IDS = { outline: 'view.outline', right: 'view.right', bottom: 'view.bottom', focus: 'view.focus' };
 
-function mod(event) {
-    return event.ctrlKey || event.metaKey;
-}
+export const SHORTCUTS = Object.fromEntries(
+    Object.entries(VIEW_IDS).map(([name, id]) => [
+        name,
+        {
+            id,
+            get keys() {
+                return ariaKeys(id);
+            },
+            match: (event) => matches(id, event),
+        },
+    ]),
+);
 
-/** The label with ⌘ for a Mac, Ctrl elsewhere. */
+/** The label with ⌘ for a Mac, Ctrl elsewhere, as the author has it. */
 export function shortcutLabel(name) {
-    const label = SHORTCUTS[name]?.label ?? '';
-    const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
-
-    return mac ? label.replace('Ctrl+', '⌘').replace('Alt+', '⌥') : label;
+    return VIEW_IDS[name] ? registryLabel(VIEW_IDS[name]) : '';
 }
 
 function structuredCloneSafe(value) {
