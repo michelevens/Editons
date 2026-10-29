@@ -26,6 +26,15 @@ class BookInvitationMail extends EcrivainMail implements ContainsSecrets, Should
         return $this->member->user;
     }
 
+    /**
+     * Somebody invited by address has no language of their own yet; the
+     * person who invited them is the best guess (they share a book).
+     */
+    public function fallbackLocale(): ?string
+    {
+        return ($this->member->inviter ?? $this->member->book?->user)?->preferredLocale();
+    }
+
     public function acceptUrl(): string
     {
         return route('invitations.show', $this->member->invite_token);

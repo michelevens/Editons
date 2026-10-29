@@ -51,6 +51,15 @@ abstract class EcrivainMail extends Mailable
         return null;
     }
 
+    /**
+     * The language to write in when the recipient has no account to say
+     * (App\Mail\Notify). Null: the application's default, English.
+     */
+    public function fallbackLocale(): ?string
+    {
+        return null;
+    }
+
     public function category(): string
     {
         return static::CATEGORY;

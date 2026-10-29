@@ -5,12 +5,14 @@ namespace App\Http\Middleware;
 use App\Billing\Entitlements;
 use App\Editorial\DriverFactory;
 use App\Http\Controllers\InboxController;
+use App\I18n\Locales;
 use App\Platform\Features;
 use App\Platform\Impersonation;
 use App\Platform\PlatformSettings;
 use App\Platform\Trust\StatusPage;
 use App\Workspace\Preferences;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -137,6 +139,23 @@ class HandleInertiaRequests extends Middleware
             // The account it names must be treated as public. Keep it on its
             // own books, and never promote it or let it hold anything real.
             'demo' => $this->demoCredentials(),
+
+            /*
+             | The interface language (App\I18n\Locales, set by SetLocale).
+             | The strings themselves are a once prop: sent on the first
+             | visit and again only when the language or the catalogue
+             | changes, not with every page. English sends none (the bundle
+             | has en.json, which is also every other language's fallback).
+             */
+            'i18n' => fn () => [
+                'locale' => app()->getLocale(),
+                'intl' => Locales::intl(app()->getLocale()),
+                'locales' => collect(Locales::NAMES)
+                    ->map(fn ($name, $code) => ['code' => $code, 'name' => $name])
+                    ->values(),
+            ],
+            'i18n_messages' => Inertia::once(fn () => (object) Locales::messagesFor(app()->getLocale()))
+                ->as('i18n:'.app()->getLocale().':'.Locales::version(app()->getLocale())),
 
             // Whether editorial reviews here are sample output (heuristics,
             // no model). The studio labels findings and the credit strip

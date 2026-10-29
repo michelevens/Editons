@@ -4,9 +4,11 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Billing\PlanCatalog;
+use App\I18n\Locales;
 use App\Notifications\ResetPasswordNotification;
 use App\Notifications\VerifyEmailNotification;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -38,7 +40,7 @@ use Laravel\Cashier\Billable;
     // The studio layout: sent to the editor on its own, not to every page.
     'workspace',
 ])]
-class User extends Authenticatable
+class User extends Authenticatable implements HasLocalePreference
 {
     /** @use HasFactory<UserFactory> */
     use Billable, HasFactory, Notifiable;
@@ -54,6 +56,16 @@ class User extends Authenticatable
      * settings and roles; support can look, take notes and "View as".
      */
     public const PLATFORM_ROLES = ['owner', 'support'];
+
+    /**
+     * The account's interface language, which its email uses too (Laravel
+     * reads this for notifications; App\Mail\Notify passes it on). Null
+     * until the first visit stores one: the application's default.
+     */
+    public function preferredLocale(): ?string
+    {
+        return Locales::supported($this->locale) ? $this->locale : null;
+    }
 
     public function isPlatformAdmin(): bool
     {

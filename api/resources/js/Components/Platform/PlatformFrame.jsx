@@ -2,6 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { ShortcutHost } from '../ShortcutSheet';
 import { seedPrefs } from '../../shortcuts';
+import { useDocumentLanguage, useI18n } from '../../i18n';
 
 /**
  * The platform layer around every page: the "View as" banner, the
@@ -23,6 +24,10 @@ export default function PlatformFrame({ children }) {
     // The author's shortcuts, tabs and swipes, before anything below reads
     // them (resources/js/shortcuts.js).
     seedPrefs(prefs ?? null);
+    // The interface language, likewise first: t() outside components reads
+    // what this sets (resources/js/i18n.js), and <html lang> follows it.
+    useI18n();
+    useDocumentLanguage();
     const impersonation = platform?.impersonation ?? null;
     const announcement = platform?.announcement ?? null;
     const maintenance = Boolean(platform?.maintenance);
