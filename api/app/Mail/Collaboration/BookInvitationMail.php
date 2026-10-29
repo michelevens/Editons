@@ -51,7 +51,7 @@ class BookInvitationMail extends EcrivainMail implements ContainsSecrets, Should
         return Letter::make(__(':inviter invited you to “:title”', ['inviter' => $inviter, 'title' => $book->title]))
             ->preheader(__('Join as :role. The invitation is open until :date.', [
                 'role' => $role,
-                'date' => $expires->translatedFormat('F j'),
+                'date' => $expires->translatedFormat(__('F j')),
             ]))
             ->subtitle(__('You are invited'))
             ->eyebrow(__('Invitation · :role', ['role' => $role]))
@@ -77,7 +77,7 @@ class BookInvitationMail extends EcrivainMail implements ContainsSecrets, Should
             ->callout('info', __('It works only for :email. If you are new to :brand, you can create your account when you accept.', [
                 'email' => $this->member->email,
                 'brand' => $brand,
-            ]), __('This invitation is open until :date', ['date' => $expires->translatedFormat('F j, Y')]))
+            ]), __('This invitation is open until :date', ['date' => $expires->translatedFormat(__('F j, Y'))]))
             ->reason(__('You received this because :inviter invited this address. If you were not expecting it, you can ignore it.', ['inviter' => $inviter]));
     }
 

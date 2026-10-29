@@ -49,7 +49,7 @@ class WeeklyDigestMail extends EcrivainMail implements ShouldQueue
     {
         $words = (int) $this->summary['words'];
         $days = (int) $this->summary['active_days'];
-        $range = $this->periodStart->translatedFormat('M j').' – '.$this->periodEnd->translatedFormat('M j');
+        $range = $this->periodStart->translatedFormat(__('M j')).' – '.$this->periodEnd->translatedFormat(__('M j'));
 
         $letter = Letter::make($words > 0
                 ? __('Your week in writing: :n words', ['n' => number_format($words)])
