@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 import ProgressRing, { ringLabel } from './ProgressRing';
 import { ariaKeys, matches } from '../../shortcuts';
+import { t as tr, useI18n } from '../../i18n';
 
 /**
  * The left panel: Manuscript tree, Outline table, Notes.
@@ -49,11 +50,11 @@ function siblingsOf(nodes, parentId) {
 }
 
 const TABS = [
-    { key: 'Manuscript', ready: true },
-    { key: 'Outline', ready: true },
+    { key: 'Manuscript', tKey: 'binder.manuscript', ready: true },
+    { key: 'Outline', tKey: 'binder.outline', ready: true },
     // Opens the Notes screen: the notes are the book's, not the outline's,
     // and this tab said "not built" long after that screen existed.
-    { key: 'Notes', ready: true },
+    { key: 'Notes', tKey: 'binder.notes', ready: true },
 ];
 
 export default function ManuscriptOutline({
@@ -321,7 +322,7 @@ export default function ManuscriptOutline({
                             aria-selected={isActive}
                             data-a={`outline:tab:${t.key}`}
                             onClick={() => onTab(t.key)}
-                            title={t.ready ? undefined : 'Not built yet'}
+                            title={t.ready ? undefined : tr('common.not_built')}
                             className={`relative flex-1 py-[11px] text-[12.5px] transition ${
                                 isActive
                                     ? 'bg-bg-surface font-semibold text-brand-primary'
@@ -330,7 +331,7 @@ export default function ManuscriptOutline({
                                       : 'text-text-secondary'
                             }`}
                         >
-                            {t.key}
+                            {tr(t.tKey)}
                             {!t.ready && (
                                 <span className="ml-0.5 align-super text-[8px]">•</span>
                             )}
@@ -359,8 +360,8 @@ export default function ManuscriptOutline({
                                     value={query}
                                     onChange={(event) => setQuery(event.target.value)}
                                     data-a="outline:search"
-                                    placeholder="Search chapters..."
-                                    aria-label="Search chapters"
+                                    placeholder={tr('binder.search')}
+                                    aria-label={tr('binder.search_label')}
                                     className="h-[31px] w-full rounded-control border border-border-input bg-bg-surface pl-[30px] pr-2 text-[12.5px] text-text-body placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
                                 />
                             </div>
@@ -992,10 +993,12 @@ const PART_GROUPS = [
  * section; keyboard users reach it by Tab from the row.
  */
 function PartSelect({ node, depth, options, onChange }) {
+    useI18n();
+
     return (
         <div className="flex items-center gap-1.5 pb-1.5 pr-2" style={{ paddingLeft: 32 + depth * 14 }}>
             <label htmlFor={`part-${node.id}`} className="shrink-0 text-[10.5px] text-text-secondary">
-                Book part
+                {tr('binder.book_part')}
             </label>
             <select
                 id={`part-${node.id}`}

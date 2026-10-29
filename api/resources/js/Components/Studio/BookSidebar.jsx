@@ -1,5 +1,6 @@
 import Icon from './Icon';
 import { NAV_FEATURES, useFeatures } from '../../features';
+import { useI18n } from '../../i18n';
 
 /**
  * The book sidebar: book card, then three nav groups.
@@ -16,47 +17,50 @@ export const SIDEBAR_GROUPS = [
     {
         group: null,
         items: [
-            { key: 'overview', label: 'Overview', icon: 'home', ready: true },
-            { key: 'manuscript', label: 'Manuscript', icon: 'doc', ready: true },
-            { key: 'research', label: 'Research Library', icon: 'lib', ready: true },
-            { key: 'terms', label: 'Characters & Terms', icon: 'users', ready: true },
-            { key: 'references', label: 'References & Citations', icon: 'refs', ready: true },
-            { key: 'notes', label: 'Notes', icon: 'note', ready: true },
-            { key: 'templates', label: 'Templates', icon: 'tmpl', ready: true },
-            { key: 'settings', label: 'Book Settings', icon: 'gear', ready: true },
+            { key: 'overview', label: 'Overview', tKey: 'side.overview', icon: 'home', ready: true },
+            { key: 'manuscript', label: 'Manuscript', tKey: 'side.manuscript', icon: 'doc', ready: true },
+            { key: 'research', label: 'Research Library', tKey: 'side.research', icon: 'lib', ready: true },
+            { key: 'terms', label: 'Characters & Terms', tKey: 'side.terms', icon: 'users', ready: true },
+            { key: 'references', label: 'References & Citations', tKey: 'side.references', icon: 'refs', ready: true },
+            { key: 'notes', label: 'Notes', tKey: 'side.notes', icon: 'note', ready: true },
+            { key: 'templates', label: 'Templates', tKey: 'side.templates', icon: 'tmpl', ready: true },
+            { key: 'settings', label: 'Book Settings', tKey: 'side.settings', icon: 'gear', ready: true },
         ],
     },
     {
         group: 'COLLABORATION',
+        tKey: 'side_group.collaboration',
         items: [
-            { key: 'comments', label: 'Comments', icon: 'chat', ready: true },
-            { key: 'suggestions', label: 'Suggestions', icon: 'sugg', ready: true },
-            { key: 'workflow', label: 'Review Workflow', icon: 'flow', ready: true },
-            { key: 'team', label: 'Team Members', icon: 'users', ready: true },
+            { key: 'comments', label: 'Comments', tKey: 'side.comments', icon: 'chat', ready: true },
+            { key: 'suggestions', label: 'Suggestions', tKey: 'side.suggestions', icon: 'sugg', ready: true },
+            { key: 'workflow', label: 'Review Workflow', tKey: 'side.workflow', icon: 'flow', ready: true },
+            { key: 'team', label: 'Team Members', tKey: 'side.team', icon: 'users', ready: true },
         ],
     },
     {
         group: 'PUBLISHING',
+        tKey: 'side_group.publishing',
         items: [
-            { key: 'layout', label: 'Design & Layout', icon: 'layout', ready: true },
-            { key: 'cover', label: 'Cover Studio', icon: 'cover', ready: true },
-            { key: 'publish', label: 'Publish (3 steps)', icon: 'rocket', ready: true },
-            { key: 'export', label: 'Export & Publish', icon: 'exp', ready: true },
-            { key: 'rights', label: 'ISBN & Rights', icon: 'hash', ready: true },
-            { key: 'editions', label: 'Editions', icon: 'copies', ready: true },
-            { key: 'a11y', label: 'Accessibility', icon: 'access', ready: true },
-            { key: 'distribution', label: 'Sales & Distribution', icon: 'sales', ready: true },
-            { key: 'royalties', label: 'Royalties', icon: 'coin', ready: true },
+            { key: 'layout', label: 'Design & Layout', tKey: 'side.layout', icon: 'layout', ready: true },
+            { key: 'cover', label: 'Cover Studio', tKey: 'side.cover', icon: 'cover', ready: true },
+            { key: 'publish', label: 'Publish (3 steps)', tKey: 'side.publish', icon: 'rocket', ready: true },
+            { key: 'export', label: 'Export & Publish', tKey: 'side.export', icon: 'exp', ready: true },
+            { key: 'rights', label: 'ISBN & Rights', tKey: 'side.rights', icon: 'hash', ready: true },
+            { key: 'editions', label: 'Editions', tKey: 'side.editions', icon: 'copies', ready: true },
+            { key: 'a11y', label: 'Accessibility', tKey: 'side.a11y', icon: 'access', ready: true },
+            { key: 'distribution', label: 'Sales & Distribution', tKey: 'side.distribution', icon: 'sales', ready: true },
+            { key: 'royalties', label: 'Royalties', tKey: 'side.royalties', icon: 'coin', ready: true },
         ],
     },
     {
         group: 'GROW',
+        tKey: 'side_group.grow',
         items: [
-            { key: 'launch', label: 'Launch Planner', icon: 'rocket', ready: true },
-            { key: 'audio', label: 'Audiobook Studio', icon: 'mic', ready: false },
-            { key: 'course', label: 'Course Builder', icon: 'cap', ready: false },
-            { key: 'marketing', label: 'Marketing Kit', icon: 'mega', ready: true },
-            { key: 'site', label: 'Author Website', icon: 'globe', ready: false },
+            { key: 'launch', label: 'Launch Planner', tKey: 'side.launch', icon: 'rocket', ready: true },
+            { key: 'audio', label: 'Audiobook Studio', tKey: 'side.audio', icon: 'mic', ready: false },
+            { key: 'course', label: 'Course Builder', tKey: 'side.course', icon: 'cap', ready: false },
+            { key: 'marketing', label: 'Marketing Kit', tKey: 'side.marketing', icon: 'mega', ready: true },
+            { key: 'site', label: 'Author Website', tKey: 'side.site', icon: 'globe', ready: false },
         ],
     },
 ];
@@ -77,10 +81,12 @@ export default function BookSidebar({
     className = '',
 }) {
     const on = useFeatures();
+    const { t } = useI18n();
     const groups = topNav
         ? [
               {
                   group: 'STUDIO',
+                  tKey: 'side_group.studio',
                   top: true,
                   items: topNav.map((item) => ({
                       ...item,
@@ -107,12 +113,12 @@ export default function BookSidebar({
              * fold with nothing to indicate they existed — the scrollbar only
              * appeared on hover. `sidebar-scroll` keeps it visible.
              */}
-            <nav className="sidebar-scroll mt-1 min-h-0 flex-1 overflow-y-auto pb-4" aria-label="Book">
+            <nav className="sidebar-scroll mt-1 min-h-0 flex-1 overflow-y-auto pb-4" aria-label={t('palette.book')}>
                 {groups.map((section, index) => (
                     <div key={section.group ?? index}>
                         {section.group && (
                             <p className="px-[18px] pb-1.5 pt-4 text-[11px] font-medium tracking-[1.6px] text-text-sidebar-muted">
-                                {section.group}
+                                {section.tKey ? t(section.tKey).toUpperCase() : section.group}
                             </p>
                         )}
 
@@ -129,7 +135,7 @@ export default function BookSidebar({
                                     onClick={() =>
                                         section.top ? onSelectTop?.(item) : onSelect?.(item)
                                     }
-                                    title={item.ready ? undefined : 'Not built yet'}
+                                    title={item.ready ? undefined : t('common.not_built')}
                                     aria-current={isActive ? 'page' : undefined}
                                     className={`flex h-[34px] w-full items-center gap-[15px] px-[18px] text-left text-[13px] transition ${
                                         isActive
@@ -144,7 +150,7 @@ export default function BookSidebar({
                                         size={19}
                                         className="shrink-0 opacity-90"
                                     />
-                                    <span className="flex-1 truncate">{item.label}</span>
+                                    <span className="flex-1 truncate">{item.tKey ? t(item.tKey) : item.label}</span>
 
                                     {badge > 0 ? (
                                         <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-badge bg-status-danger-fill px-1 text-[10.5px] font-semibold text-white">
@@ -165,12 +171,19 @@ export default function BookSidebar({
             </nav>
 
             <p className="mt-auto px-[18px] pt-6 text-[10px] leading-relaxed text-text-sidebar-muted">
-                <span aria-hidden="true">•</span> marks a section that is not
-                built yet. Nothing here shows simulated data.
+                <span aria-hidden="true">•</span> {t('side.legend')}
             </p>
         </aside>
     );
 }
+
+// The book states (Book::STATUSES), shown capitalised.
+const STATUSES = {
+    draft: { tKey: 'book.status_draft' },
+    in_review: { tKey: 'book.status_in_review' },
+    published: { tKey: 'book.status_published' },
+    archived: { tKey: 'book.status_archived' },
+};
 
 /** Icons for the header's areas when they are listed in the drawer. */
 const TOP_ICONS = {
@@ -193,6 +206,8 @@ const TOP_ICONS = {
  * the box was showing because nothing ever sent the field the card asked for.
  */
 function BookCover({ cover, title }) {
+    const { t } = useI18n();
+
     if (cover?.url) {
         return (
             <img
@@ -211,9 +226,9 @@ function BookCover({ cover, title }) {
     if (!cover) {
         return (
             <div className="grid h-[73px] w-[46px] shrink-0 place-items-center rounded-[3px] bg-bg-sidebar-active text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-text-sidebar-muted">
-                No
+                {t('side.no_cover_1')}
                 <br />
-                cover
+                {t('side.no_cover_2')}
             </div>
         );
     }
@@ -240,6 +255,8 @@ function BookCover({ cover, title }) {
 }
 
 function BookCard({ book }) {
+    const { t, formatNumber } = useI18n();
+
     return (
         <div className="flex gap-3 border-b border-border-sidebar px-[18px] py-4">
             <BookCover cover={book.cover} title={book.title} />
@@ -249,8 +266,8 @@ function BookCard({ book }) {
                     {book.title}
                 </p>
                 <p className="mt-1 text-[11px] text-text-sidebar-muted">
-                    {book.genre || 'Unclassified'} •{' '}
-                    {Number(book.word_count ?? 0).toLocaleString()} words
+                    {book.genre || t('book.unclassified')} •{' '}
+                    {t('book.words', { count: Number(book.word_count ?? 0), words: formatNumber(Number(book.word_count ?? 0)) })}
                 </p>
                 <StatusChip status={book.status} />
             </div>
@@ -259,6 +276,7 @@ function BookCard({ book }) {
 }
 
 function StatusChip({ status }) {
+    const { t } = useI18n();
     // Draft has its own tokens in the handoff palette; the other states reuse
     // the status colours rather than inventing new ones.
     const style =
@@ -272,7 +290,7 @@ function StatusChip({ status }) {
         <span
             className={`mt-1.5 inline-block rounded-[4px] px-[7px] py-[2px] text-[10.5px] font-semibold capitalize ${style}`}
         >
-            {String(status ?? 'draft').replace('_', ' ')}
+            {STATUSES[status ?? 'draft'] ? t(STATUSES[status ?? 'draft'].tKey) : String(status).replace('_', ' ')}
         </span>
     );
 }

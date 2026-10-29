@@ -1,5 +1,6 @@
 import Icon from '@/Components/Studio/Icon';
-import { Link } from '@inertiajs/react';
+import LanguageSwitch from '@/Components/LanguageSwitch';
+import { useI18n } from '@/i18n';
 
 /**
  * The signed-out shell: product pitch on the left, auth card on the right.
@@ -14,6 +15,8 @@ import { Link } from '@inertiajs/react';
  * column to reach the field is a worse trade than losing the pitch.
  */
 export default function GuestLayout({ children }) {
+    const { t } = useI18n();
+
     return (
         <div className="relative min-h-screen overflow-hidden bg-bg-app font-ui text-text-body">
             {/* Two soft washes, as on the marketing page. Fixed and behind
@@ -54,9 +57,14 @@ export default function GuestLayout({ children }) {
                         </a>
                         <span className="mx-2 text-border-input">·</span>
                         <a href="https://ecrivain.ai/#faq" className="hover:text-text-primary">
-                            Questions
+                            {t('guest.questions')}
                         </a>
                     </p>
+
+                    {/* The language before signing in: whoever opens a shared
+                        link in French or Kreyòl should not have to sign in
+                        in English to find the switch. */}
+                    <LanguageSwitch className="mt-3 flex justify-center" />
                 </div>
             </div>
         </div>
@@ -79,11 +87,8 @@ function LogoMark() {
  * publishing, which are not built.
  */
 function Pitch() {
-    const points = [
-        'Seven editorial agents review each chapter and quote your own sentences back',
-        'A research library where every source carries its own verification standing',
-        'Consistency checked across the whole manuscript, not one chapter at a time',
-    ];
+    const { t } = useI18n();
+    const points = [t('guest.point_agents'), t('guest.point_library'), t('guest.point_consistency')];
 
     return (
         <div className="hidden lg:block">
@@ -96,15 +101,15 @@ function Pitch() {
 
             <span className="inline-flex items-center gap-2 rounded-full border border-border-default bg-bg-surface px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-outline-active-text">
                 <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
-                Writing studio + editorial review
+                {t('guest.badge')}
             </span>
 
             <h1 className="mt-5 font-display text-[clamp(34px,4vw,48px)] font-extrabold leading-[1.06] tracking-[-0.035em] text-text-primary">
-                Write the book.
+                {t('guest.headline_1')}
                 <br />
-                Keep the{' '}
+                {t('guest.headline_2')}{' '}
                 <span className="relative whitespace-nowrap text-brand-primary">
-                    receipts.
+                    {t('guest.headline_3')}
                     <svg
                         aria-hidden="true"
                         viewBox="0 0 200 12"
@@ -123,8 +128,7 @@ function Pitch() {
             </h1>
 
             <p className="mt-6 max-w-[48ch] text-[17px] leading-relaxed text-text-secondary">
-                A writing studio for serious nonfiction, where every claim can
-                be traced back to what it rests on.
+                {t('guest.lede')}
             </p>
 
             <ul className="mt-8 space-y-3.5">
@@ -145,13 +149,13 @@ function Pitch() {
                     <span className="text-status-success">
                         <Icon name="check" size={14} strokeWidth={2.6} />
                     </span>
-                    Free plan, no card
+                    {t('guest.free_plan')}
                 </span>
                 <span className="flex items-center gap-2">
                     <span className="text-status-success">
                         <Icon name="check" size={14} strokeWidth={2.6} />
                     </span>
-                    Export your manuscript any time
+                    {t('guest.export_any_time')}
                 </span>
             </div>
 
@@ -168,18 +172,19 @@ function Pitch() {
  * example so it cannot be read as live data.
  */
 function ReviewPreview() {
+    const { t } = useI18n();
     const findings = [
         {
             severity: 'bg-status-danger',
-            title: 'Statistic without a citation',
-            detail: '“Roughly 47 percent of new practices close within three years.”',
-            agent: 'Fact Checker',
+            title: t('guest.finding_1_title'),
+            detail: t('guest.finding_1_detail'),
+            agent: t('guest.finding_1_agent'),
         },
         {
             severity: 'bg-status-warning',
-            title: 'Mixed spelling: “organise” and “organized”',
-            detail: 'Both appear in this chapter. Pick one for the book.',
-            agent: 'Consistency Agent',
+            title: t('guest.finding_2_title'),
+            detail: t('guest.finding_2_detail'),
+            agent: t('guest.finding_2_agent'),
         },
     ];
 
@@ -190,7 +195,7 @@ function ReviewPreview() {
                 <span className="h-2 w-2 rounded-full bg-border-default" />
                 <span className="h-2 w-2 rounded-full bg-border-default" />
                 <span className="ml-1.5 text-[11px] font-medium text-text-secondary">
-                    AI Editor — Chapter 1
+                    {t('guest.preview_title')}
                 </span>
             </div>
 
@@ -219,9 +224,9 @@ function ReviewPreview() {
             </div>
 
             <div className="flex items-center justify-between border-t border-border-divider bg-bg-subtle px-4 py-2.5 text-[11px] text-text-secondary">
-                <span>Example review</span>
+                <span>{t('guest.example_review')}</span>
                 <span className="rounded-full bg-brand-primary-subtle px-2.5 py-1 font-semibold text-outline-active-text">
-                    Accept or dismiss — your call
+                    {t('guest.your_call')}
                 </span>
             </div>
         </div>

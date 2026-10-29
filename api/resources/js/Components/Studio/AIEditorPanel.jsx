@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import CitationsTab from './CitationsTab';
 import CommentsPanel from './CommentsPanel';
 import Icon from './Icon';
+import { useI18n } from '../../i18n';
 import ReviewDeck from './ReviewDeck';
 
 /**
@@ -589,28 +590,33 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
 
 /** Preflight list plus version history — both computed, nothing invented. */
 function ChecksTab({ findings, versions, changes = [], onRestore }) {
+    const { t, formatNumber } = useI18n();
     const checks = [
         {
             // Exports leave pending suggestions out (as if rejected), so a
             // chapter with some is not the chapter the author thinks it is.
-            label: 'Suggestions decided',
+            key: 'suggestions',
+            label: t('checks.suggestions'),
             ok: changes.length === 0,
-            detail: `${changes.length} pending`,
+            detail: t('checks.pending', { count: changes.length }),
         },
         {
-            label: 'AI findings resolved',
+            key: 'findings',
+            label: t('checks.findings'),
             ok: findings.length === 0,
-            detail: `${findings.length} open`,
+            detail: t('checks.open', { count: findings.length }),
         },
         {
-            label: 'Critical issues clear',
+            key: 'critical',
+            label: t('checks.critical'),
             ok: !findings.some((f) => f.severity === 'critical'),
-            detail: `${findings.filter((f) => f.severity === 'critical').length} critical`,
+            detail: t('checks.critical_count', { count: findings.filter((f) => f.severity === 'critical').length }),
         },
         {
-            label: 'Version history',
+            key: 'versions',
+            label: t('versions.title'),
             ok: versions.length > 0,
-            detail: `${versions.length} saved`,
+            detail: t('checks.saved', { count: versions.length }),
         },
     ];
 
@@ -619,7 +625,7 @@ function ChecksTab({ findings, versions, changes = [], onRestore }) {
             <ul className="space-y-1.5">
                 {checks.map((check) => (
                     <li
-                        key={check.label}
+                        key={check.key}
                         className="flex items-center gap-2.5 rounded-tile border border-border-default px-3 py-2.5"
                     >
                         <span
@@ -640,13 +646,12 @@ function ChecksTab({ findings, versions, changes = [], onRestore }) {
             </ul>
 
             <h4 className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
-                Version history
+                {t('versions.title')}
             </h4>
 
             {versions.length === 0 ? (
                 <p className="text-[11.5px] leading-relaxed text-text-secondary">
-                    No versions yet. One is saved as you write, and whenever you
-                    press Ctrl/Cmd+S.
+                    {t('versions.none')}
                 </p>
             ) : (
                 <ul className="space-y-1.5">
@@ -668,14 +673,14 @@ function ChecksTab({ findings, versions, changes = [], onRestore }) {
                             )}
                             <p className="mt-0.5 text-[11px] text-text-secondary">
                                 {version.created_human} ·{' '}
-                                {version.word_count.toLocaleString()} words
+                                {t('book.words', { count: version.word_count, words: formatNumber(version.word_count) })}
                             </p>
                             <button
                                 data-a={`checks:restore:${version.id}`}
                                 onClick={() => onRestore(version.id)}
                                 className="mt-1 text-[11.5px] font-semibold text-brand-primary hover:underline"
                             >
-                                Restore
+                                {t('shelf.restore')}
                             </button>
                         </li>
                     ))}

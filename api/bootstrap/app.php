@@ -10,6 +10,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\MaintenanceGate;
 use App\Http\Middleware\RequirePlatformTwoFactor;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ValidateSignatureAtPublicUrl;
 use App\Http\TrustedProxies;
 use App\Platform\Ops\ErrorGroups;
@@ -44,6 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureAccountActive::class,
             DenyAdminPaths::class,
             MaintenanceGate::class,
+            // The interface language (App\I18n\Locales), before anything
+            // renders or validates.
+            SetLocale::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

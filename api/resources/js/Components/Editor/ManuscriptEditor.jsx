@@ -24,6 +24,7 @@ import { ImageBar, TableBar } from './PlacementBar';
 import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
 import { matches } from '../../shortcuts';
+import { useI18n } from '../../i18n';
 
 /**
  * The writing canvas.
@@ -1339,29 +1340,40 @@ export default function ManuscriptEditor({
             })()}
 
             <footer data-a="editor:status-bar" className={`${docked || !showStatusBar ? 'hidden' : 'flex'} h-[30px] shrink-0 items-center justify-between border-t border-border-divider px-4 text-[11px] text-text-secondary sm:px-[21px]`}>
-                <span>Reading time ~{readingMinutes} min</span>
-                <span className="tabular-nums">
-                    {words.toLocaleString()} words
-                </span>
+                <StatusBarText minutes={readingMinutes} words={words} />
             </footer>
         </div>
     );
 }
 
+function StatusBarText({ minutes, words }) {
+    const { t, formatNumber } = useI18n();
+
+    return (
+        <>
+            <span>{t('editor.reading_time', { minutes })}</span>
+            <span className="tabular-nums">
+                {t('book.words', { count: words, words: formatNumber(words) })}
+            </span>
+        </>
+    );
+}
+
 function SaveStatus({ status, online = true }) {
+    const { t } = useI18n();
     const map = {
-        idle: ['text-text-secondary', 'Ready', false],
-        dirty: ['text-status-warning', 'Unsaved changes', false],
-        saving: ['text-text-secondary', 'Saving…', false],
-        saved: ['text-status-success', 'Saved', true],
-        error: ['text-status-danger', 'Not saved — check your connection', false],
+        idle: ['text-text-secondary', t('editor.save_ready'), false],
+        dirty: ['text-status-warning', t('editor.save_dirty'), false],
+        saving: ['text-text-secondary', t('editor.save_saving'), false],
+        saved: ['text-status-success', t('editor.save_saved'), true],
+        error: ['text-status-danger', t('editor.save_error'), false],
     };
     // Offline with work not yet saved: said plainly, with what to do. The
     // edit is held by this page and sent when the connection returns, so
     // the page has to stay open.
     const offline = !online && ['dirty', 'saving', 'error'].includes(status);
     const [cls, label, showCheck] = offline
-        ? ['text-status-warning', 'Offline — keep this page open; it saves when you reconnect', false]
+        ? ['text-status-warning', t('editor.save_offline'), false]
         : (map[status] ?? map.idle);
 
     return (
@@ -1383,6 +1395,8 @@ function SaveStatus({ status, online = true }) {
  * button that does nothing is worse than an absent one.
  */
 function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone = null }) {
+    const { t } = useI18n();
+
     if (!editor) return null;
 
     const block = editor.isActive('heading', { level: 1 })
@@ -1436,21 +1450,21 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
     return (
         <div
             role="toolbar"
-            aria-label="Formatting"
+            aria-label={t('toolbar.formatting')}
             className="no-scrollbar flex min-h-[47px] shrink-0 items-center gap-0.5 border-b border-border-divider px-[21px] md:flex-wrap md:py-1 max-md:h-[52px] max-md:overflow-x-auto max-md:px-2"
         >
             <select
                 value={block}
                 onChange={(event) => setBlock(event.target.value)}
                 data-a="toolbar:block"
-                aria-label="Block type"
+                aria-label={t('toolbar.block_type')}
                 className="mr-1 h-[28px] shrink-0 rounded-control border max-md:h-[40px] border-border-input bg-bg-surface py-0 pl-2 pr-7 text-[12px] text-text-body focus:border-brand-primary focus:ring-0"
             >
-                <option value="p">Paragraph</option>
-                <option value="h1">Heading 1</option>
-                <option value="h2">Heading 2</option>
-                <option value="h3">Heading 3</option>
-                <option value="quote">Quote</option>
+                <option value="p">{t('shortcut.format.paragraph')}</option>
+                <option value="h1">{t('toolbar.heading', { level: 1 })}</option>
+                <option value="h2">{t('toolbar.heading', { level: 2 })}</option>
+                <option value="h3">{t('toolbar.heading', { level: 3 })}</option>
+                <option value="quote">{t('toolbar.quote')}</option>
             </select>
 
             {block === 'quote' && (
@@ -1458,8 +1472,8 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                     value={editor.getAttributes('blockquote').callout ?? ''}
                     onChange={(event) => editor.chain().focus().setCallout(event.target.value).run()}
                     data-a="toolbar:callout"
-                    aria-label="Box kind"
-                    title="What this quotation prints as"
+                    aria-label={t('toolbar.box_kind')}
+                    title={t('toolbar.box_kind_title')}
                     className="mr-1 h-[28px] shrink-0 rounded-control border max-md:h-[40px] border-border-input bg-bg-surface py-0 pl-2 pr-7 text-[12px] text-text-body focus:border-brand-primary focus:ring-0"
                 >
                     {CALLOUT_CHOICES.map((choice) => (
@@ -1471,7 +1485,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
             <Divider />
 
             <Btn
-                title="Bold"
+                title={t('shortcut.format.bold')}
                 label="bold"
                 active={editor.isActive('bold')}
                 onClick={() => editor.chain().focus().toggleBold().run()}
@@ -1479,7 +1493,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <strong>B</strong>
             </Btn>
             <Btn
-                title="Italic"
+                title={t('shortcut.format.italic')}
                 label="italic"
                 active={editor.isActive('italic')}
                 onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -1487,7 +1501,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <em className="font-serif">I</em>
             </Btn>
             <Btn
-                title="Strikethrough"
+                title={t('shortcut.format.strike')}
                 label="strike"
                 active={editor.isActive('strike')}
                 onClick={() => editor.chain().focus().toggleStrike().run()}
@@ -1500,7 +1514,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
             {[1, 2, 3].map((level) => (
                 <Btn
                     key={level}
-                    title={`Heading ${level}`}
+                    title={t('toolbar.heading', { level })}
                     label={`h${level}`}
                     active={editor.isActive('heading', { level })}
                     onClick={() =>
@@ -1514,7 +1528,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
             <Divider />
 
             <Btn
-                title="Bullet list"
+                title={t('toolbar.bullets')}
                 label="ul"
                 active={editor.isActive('bulletList')}
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -1522,7 +1536,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <Icon name="ul" size={16} />
             </Btn>
             <Btn
-                title="Numbered list"
+                title={t('shortcut.format.numbered')}
                 label="ol"
                 active={editor.isActive('orderedList')}
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
@@ -1530,7 +1544,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <Icon name="ol" size={16} />
             </Btn>
             <Btn
-                title="Quote"
+                title={t('toolbar.quote')}
                 label="quote"
                 active={editor.isActive('blockquote')}
                 onClick={() => editor.chain().focus().toggleBlockquote().run()}
@@ -1538,7 +1552,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <Icon name="cite" size={16} />
             </Btn>
             <Btn
-                title="Code block"
+                title={t('toolbar.code_block')}
                 label="code"
                 active={editor.isActive('codeBlock')}
                 onClick={() => editor.chain().focus().toggleCodeBlock().run()}
@@ -1546,7 +1560,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <Icon name="code" size={16} />
             </Btn>
             <Btn
-                title="Insert table"
+                title={t('toolbar.table')}
                 label="table"
                 active={editor.isActive('table')}
                 onClick={() =>
@@ -1560,27 +1574,27 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <TableGlyph />
             </Btn>
             {onImage && (
-                <Btn title="Insert picture" label="image" onClick={onImage}>
+                <Btn title={t('toolbar.picture')} label="image" onClick={onImage}>
                     <ImageGlyph />
                 </Btn>
             )}
-            <Btn title="Insert footnote" label="footnote" onClick={onFootnote}>
+            <Btn title={t('toolbar.footnote')} label="footnote" onClick={onFootnote}>
                 <span className="text-[12px] font-semibold">
                     fn<sup className="text-[8px]">1</sup>
                 </span>
             </Btn>
             {onXref && (
-                <Btn title="Insert cross-reference" label="xref" onClick={onXref}>
+                <Btn title={t('toolbar.xref')} label="xref" onClick={onXref}>
                     <span className="text-[12px] font-semibold">§→</span>
                 </Btn>
             )}
-            <Btn title="Insert chart" label="chart" onClick={onChart}>
+            <Btn title={t('toolbar.chart')} label="chart" onClick={onChart}>
                 <ChartGlyph />
             </Btn>
-            <Btn title="Inline equation" label="math-inline" onClick={() => onMath('inline')}>
+            <Btn title={t('toolbar.math_inline')} label="math-inline" onClick={() => onMath('inline')}>
                 <span className="font-serif text-[14px] italic">x²</span>
             </Btn>
-            <Btn title="Display equation" label="math-block" onClick={() => onMath('block')}>
+            <Btn title={t('toolbar.math_block')} label="math-block" onClick={() => onMath('block')}>
                 <span className="font-serif text-[15px]">∑</span>
             </Btn>
 
@@ -1590,11 +1604,11 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                 <>
                     <Divider />
                     {[
-                        ['Add row below', 'row+', () => editor.chain().focus().addRowAfter().run()],
-                        ['Delete row', 'row−', () => editor.chain().focus().deleteRow().run()],
-                        ['Add column right', 'col+', () => editor.chain().focus().addColumnAfter().run()],
-                        ['Delete column', 'col−', () => editor.chain().focus().deleteColumn().run()],
-                        ['Delete table', 'del', () => editor.chain().focus().deleteTable().run()],
+                        [t('toolbar.row_add'), 'row+', () => editor.chain().focus().addRowAfter().run()],
+                        [t('toolbar.row_delete'), 'row−', () => editor.chain().focus().deleteRow().run()],
+                        [t('toolbar.col_add'), 'col+', () => editor.chain().focus().addColumnAfter().run()],
+                        [t('toolbar.col_delete'), 'col−', () => editor.chain().focus().deleteColumn().run()],
+                        [t('toolbar.table_delete'), 'del', () => editor.chain().focus().deleteTable().run()],
                     ].map(([title, text, run]) => (
                         <Btn key={text} title={title} label={`table:${text}`} onClick={run}>
                             <span className="text-[11.5px] font-medium">{text}</span>
@@ -1611,14 +1625,14 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
             <Divider />
 
             <Btn
-                title="Undo"
+                title={t('shortcut.format.undo')}
                 label="undo"
                 onClick={() => editor.chain().focus().undo().run()}
             >
                 <Icon name="left" size={15} />
             </Btn>
             <Btn
-                title="Redo"
+                title={t('shortcut.format.redo')}
                 label="redo"
                 onClick={() => editor.chain().focus().redo().run()}
             >
@@ -1631,11 +1645,11 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                     data-a="toolbar:done"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={onDone}
-                    aria-label="Hide keyboard"
+                    aria-label={t('toolbar.hide_keyboard')}
                     className="sticky right-0 ml-auto flex h-[40px] shrink-0 items-center gap-1.5 bg-bg-surface pr-1 pl-2 text-[13px] font-semibold text-brand-primary"
                 >
                     <Icon name="kbd" size={17} />
-                    Done
+                    {t('toolbar.done')}
                 </button>
             )}
         </div>

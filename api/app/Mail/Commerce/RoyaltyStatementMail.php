@@ -39,7 +39,7 @@ class RoyaltyStatementMail extends EcrivainMail implements ShouldQueue
 
     public function letter(): Letter
     {
-        $month = $this->month->translatedFormat('F Y');
+        $month = $this->month->translatedFormat(__('F Y'));
         $units = array_sum(array_column($this->lines, 'units'));
         $totalCents = array_sum(array_column($this->lines, 'royalty_cents'));
         $total = Money::format($totalCents, $this->currency);
@@ -83,8 +83,8 @@ class RoyaltyStatementMail extends EcrivainMail implements ShouldQueue
 
         return $letter
             ->facts([
-                __('Period') => $this->month->copy()->startOfMonth()->translatedFormat('M j').' – '.$this->month->copy()->endOfMonth()->translatedFormat('M j, Y'),
-                __('Payout date') => $this->payoutDate?->translatedFormat('F j, Y'),
+                __('Period') => $this->month->copy()->startOfMonth()->translatedFormat(__('M j')).' – '.$this->month->copy()->endOfMonth()->translatedFormat(__('M j, Y')),
+                __('Payout date') => $this->payoutDate?->translatedFormat(__('F j, Y')),
             ])
             ->cta(__('View the full statement'), $this->statementUrl ?? route('books.index'))
             ->reason(__('Statements are always sent: they are your record for tax and accounts.'));

@@ -90,7 +90,18 @@ final class Notify
         }
 
         try {
-            Mail::to($address)->send($mail);
+            // In the reader's language (ADR — Interface languages): the
+            // account's, or for an address with no account, the one the
+            // email names (an invitation: whoever sent it). A Mailable
+            // given ->locale() by its caller keeps it.
+            $pending = Mail::to($address);
+            $locale = $mail->locale ?? $account?->preferredLocale() ?? $mail->fallbackLocale();
+
+            if ($locale !== null) {
+                $pending->locale($locale);
+            }
+
+            $pending->send($mail);
 
             return true;
         } catch (Throwable $e) {

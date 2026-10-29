@@ -7,13 +7,16 @@ import {
     bindingFromEvent,
     bindingsOf,
     conflictFor,
+    describeShortcut,
     formatBinding,
     isTyping,
     matches,
     resetPrefs,
     savePrefs,
+    scopeLabel,
     usePrefs,
 } from '../shortcuts';
+import { useI18n } from '../i18n';
 
 /**
  * The keyboard shortcut sheet (ADR — Configurable shortcuts and mobile
@@ -61,25 +64,26 @@ export default function ShortcutSheet({ onClose }) {
     const [recording, setRecording] = useState(null); // shortcut id
     const [problem, setProblem] = useState(null); // {id, message}
     const [saved, setSaved] = useState(null);
+    const { t, locale } = useI18n();
 
     const groups = useMemo(() => {
         const q = query.trim().toLowerCase();
 
         return Object.entries(SCOPES)
-            .map(([scope, meta]) => ({
+            .map(([scope]) => ({
                 scope,
-                label: meta.label,
+                label: scopeLabel(scope),
                 items: SHORTCUT_LIST.filter(
                     (s) =>
                         s.scope === scope &&
                         (!q ||
-                            s.description.toLowerCase().includes(q) ||
-                            meta.label.toLowerCase().includes(q) ||
+                            describeShortcut(s.id).toLowerCase().includes(q) ||
+                            scopeLabel(scope).toLowerCase().includes(q) ||
                             bindingsOf(s.id, prefs).some((b) => formatBinding(b).toLowerCase().includes(q))),
                 ),
             }))
             .filter((group) => group.items.length > 0);
-    }, [query, prefs]);
+    }, [query, prefs, locale]);
 
     const changed = Object.keys(prefs.shortcuts).length > 0;
 
@@ -119,7 +123,7 @@ export default function ShortcutSheet({ onClose }) {
                 await savePrefs({ shortcuts: { [id]: binding } });
                 setSaved(`${describe(id)}: ${formatBinding(binding)}`);
             } catch (errors) {
-                setProblem({ id, message: Object.values(errors).flat()[0] ?? 'Not saved.' });
+                setProblem({ id, message: Object.values(errors).flat()[0] ?? t('common.not_saved') });
             }
         };
 
@@ -133,28 +137,28 @@ export default function ShortcutSheet({ onClose }) {
 
         try {
             await savePrefs({ shortcuts: { [id]: null } });
-            setSaved(`${describe(id)}: back to ${formatBinding(SHORTCUT_LIST.find((s) => s.id === id).keys[0])}`);
+            setSaved(t('shortcuts.back_to', { what: describe(id), keys: formatBinding(SHORTCUT_LIST.find((s) => s.id === id).keys[0]) }));
         } catch (errors) {
-            setProblem({ id, message: Object.values(errors).flat()[0] ?? 'Not saved.' });
+            setProblem({ id, message: Object.values(errors).flat()[0] ?? t('common.not_saved') });
         }
     };
 
     const resetAll = async () => {
         setProblem(null);
         await resetPrefs('shortcuts');
-        setSaved('Every shortcut is back to its default.');
+        setSaved(t('shortcuts.all_reset'));
     };
 
     return (
         <Dialog
-            label="Keyboard shortcuts"
+            label={t('menu.shortcuts')}
             onClose={onClose}
             data-a="shortcuts:sheet"
             align="top"
             className="flex max-h-[80dvh] w-[620px] max-w-full flex-col rounded-panel bg-bg-surface shadow-popover"
         >
             <div className="flex shrink-0 items-center gap-3 border-b border-border-divider px-4 py-3">
-                <h2 className="flex-1 text-[15px] font-semibold text-text-primary">Keyboard shortcuts</h2>
+                <h2 className="flex-1 text-[15px] font-semibold text-text-primary">{t('menu.shortcuts')}</h2>
                 {changed && (
                     <button
                         type="button"
@@ -162,10 +166,10 @@ export default function ShortcutSheet({ onClose }) {
                         onClick={resetAll}
                         className="rounded-control px-2 py-1 text-[12.5px] font-medium text-brand-primary hover:bg-bg-subtle"
                     >
-                        Reset all
+                        {t('shortcuts.reset_all')}
                     </button>
                 )}
-                <CloseButton onClick={onClose} label="Close shortcuts" />
+                <CloseButton onClick={onClose} label={t('shortcuts.close')} />
             </div>
 
             <div className="shrink-0 px-4 pt-3">
@@ -175,8 +179,8 @@ export default function ShortcutSheet({ onClose }) {
                     data-autofocus
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search shortcuts"
-                    aria-label="Search shortcuts"
+                    placeholder={t('shortcuts.search')}
+                    aria-label={t('shortcuts.search')}
                     className="w-full rounded-control border border-border-default bg-bg-app px-3 py-2 text-[14px] text-text-primary"
                 />
                 <p className="sr-only" role="status" aria-live="polite">
@@ -186,7 +190,7 @@ export default function ShortcutSheet({ onClose }) {
 
             <div className="min-h-0 overflow-y-auto px-4 pb-4 pt-2">
                 {groups.length === 0 && (
-                    <p className="py-6 text-center text-[13px] text-text-secondary">No shortcut matches “{query}”.</p>
+                    <p className="py-6 text-center text-[13px] text-text-secondary">{t('shortcuts.nothing', { query })}</p>
                 )}
 
                 {groups.map((group) => (
@@ -202,11 +206,11 @@ export default function ShortcutSheet({ onClose }) {
                                 return (
                                     <li key={item.id} data-a={`shortcuts:row:${item.id}`} className="px-3 py-2">
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className="min-w-0 flex-1 text-[13.5px] text-text-body">{item.description}</span>
+                                            <span className="min-w-0 flex-1 text-[13.5px] text-text-body">{describeShortcut(item.id)}</span>
                                             <span className="flex flex-wrap gap-1" data-a={`shortcuts:keys:${item.id}`}>
                                                 {now ? (
                                                     <span className="text-[12.5px] font-medium text-brand-primary">
-                                                        Press the new keys… (Esc cancels)
+                                                        {t('shortcuts.press')}
                                                     </span>
                                                 ) : (
                                                     bindingsOf(item.id, prefs).map((binding) => (
@@ -230,26 +234,26 @@ export default function ShortcutSheet({ onClose }) {
                                                             setProblem(null);
                                                             setRecording(now ? null : item.id);
                                                         }}
-                                                        aria-label={`Change the shortcut for ${item.description}`}
+                                                        aria-label={t('shortcuts.change_for', { what: describeShortcut(item.id) })}
                                                         className="rounded-control px-2 py-1 text-[12px] font-medium text-brand-primary hover:bg-bg-subtle"
                                                     >
-                                                        {now ? 'Cancel' : 'Change'}
+                                                        {now ? t('common.cancel') : t('shortcuts.change')}
                                                     </button>
                                                     {own && !now && (
                                                         <button
                                                             type="button"
                                                             data-a={`shortcuts:reset:${item.id}`}
                                                             onClick={() => resetOne(item.id)}
-                                                            aria-label={`Reset the shortcut for ${item.description}`}
+                                                            aria-label={t('shortcuts.reset_for', { what: describeShortcut(item.id) })}
                                                             className="rounded-control px-2 py-1 text-[12px] text-text-secondary hover:bg-bg-subtle"
                                                         >
-                                                            Reset
+                                                            {t('shortcuts.reset')}
                                                         </button>
                                                     )}
                                                 </span>
                                             ) : (
-                                                <span className="w-[62px] text-right text-[11px] text-text-secondary" title="Built in: the editor or the browser owns these keys">
-                                                    Built in
+                                                <span className="w-[62px] text-right text-[11px] text-text-secondary" title={t('shortcuts.built_in_title')}>
+                                                    {t('shortcuts.built_in')}
                                                 </span>
                                             )}
                                         </div>
@@ -270,5 +274,5 @@ export default function ShortcutSheet({ onClose }) {
 }
 
 function describe(id) {
-    return SHORTCUT_LIST.find((s) => s.id === id)?.description ?? id;
+    return describeShortcut(id);
 }

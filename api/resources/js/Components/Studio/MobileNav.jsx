@@ -1,5 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { useI18n } from '../../i18n';
 import Dialog, { CloseButton } from '../Dialog';
 import { useTyping } from '../Editor/useKeyboard';
 import Icon from './Icon';
@@ -35,45 +36,45 @@ import { PREFS_REGISTRY, savePrefs, usePrefs } from '../../shortcuts';
  * editor) passes onSelect; any other page lets the bar navigate.
  */
 const T = {
-    books: { label: 'Books', icon: 'lib' },
-    continue: { label: 'Write', icon: 'doc' },
-    'store-sales': { label: 'Sales', icon: 'sales' },
-    inbox: { label: 'Inbox', icon: 'bell' },
-    overview: { label: 'Overview', icon: 'home' },
-    manuscript: { label: 'Write', icon: 'doc' },
-    ai: { label: 'AI Editor', icon: 'sugg' },
-    research: { label: 'Research', icon: 'lib' },
-    comments: { label: 'Comments', icon: 'chat' },
-    workflow: { label: 'Workflow', icon: 'flow' },
-    layout: { label: 'Design', icon: 'layout' },
-    cover: { label: 'Cover', icon: 'cover' },
-    export: { label: 'Export', icon: 'exp' },
-    publish: { label: 'Publish', icon: 'rocket' },
-    distribution: { label: 'Sales', icon: 'sales' },
-    launch: { label: 'Launch', icon: 'rocket' },
-    analytics: { label: 'Analytics', icon: 'chart' },
+    books: { label: 'Books', tKey: 'tab.books', icon: 'lib' },
+    continue: { label: 'Write', tKey: 'tab.continue', icon: 'doc' },
+    'store-sales': { label: 'Sales', tKey: 'tab.store_sales', icon: 'sales' },
+    inbox: { label: 'Inbox', tKey: 'tab.inbox', icon: 'bell' },
+    overview: { label: 'Overview', tKey: 'tab.overview', icon: 'home' },
+    manuscript: { label: 'Write', tKey: 'tab.manuscript', icon: 'doc' },
+    ai: { label: 'AI Editor', tKey: 'tab.ai', icon: 'sugg' },
+    research: { label: 'Research', tKey: 'tab.research', icon: 'lib' },
+    comments: { label: 'Comments', tKey: 'tab.comments', icon: 'chat' },
+    workflow: { label: 'Workflow', tKey: 'tab.workflow', icon: 'flow' },
+    layout: { label: 'Design', tKey: 'tab.layout', icon: 'layout' },
+    cover: { label: 'Cover', tKey: 'tab.cover', icon: 'cover' },
+    export: { label: 'Export', tKey: 'tab.export', icon: 'exp' },
+    publish: { label: 'Publish', tKey: 'tab.publish', icon: 'rocket' },
+    distribution: { label: 'Sales', tKey: 'tab.distribution', icon: 'sales' },
+    launch: { label: 'Launch', tKey: 'tab.launch', icon: 'rocket' },
+    analytics: { label: 'Analytics', tKey: 'tab.analytics', icon: 'chart' },
     // Écrivain Partners: the dashboard's own tabs, on its pages.
-    'partner-overview': { label: 'Partner', icon: 'home' },
-    'partner-links': { label: 'Links', icon: 'mega' },
-    'partner-page': { label: 'My page', icon: 'layout' },
-    'partner-earnings': { label: 'Earnings', icon: 'coin' },
+    'partner-overview': { label: 'Partner', tKey: 'tab.partner_overview', icon: 'home' },
+    'partner-links': { label: 'Links', tKey: 'tab.partner_links', icon: 'mega' },
+    'partner-page': { label: 'My page', tKey: 'tab.partner_page', icon: 'layout' },
+    'partner-earnings': { label: 'Earnings', tKey: 'tab.partner_earnings', icon: 'coin' },
     // Only as pinned tabs: the rest of More.
-    billing: { label: 'Billing', icon: 'card' },
-    purchases: { label: 'Purchases', icon: 'doc' },
-    account: { label: 'Account', icon: 'user' },
-    support: { label: 'Help', icon: 'help' },
-    terms: { label: 'Terms', icon: 'users' },
-    references: { label: 'Citations', icon: 'refs' },
-    notes: { label: 'Notes', icon: 'note' },
-    templates: { label: 'Templates', icon: 'tmpl' },
-    settings: { label: 'Settings', icon: 'gear' },
-    team: { label: 'Team', icon: 'users' },
-    preview: { label: 'Preview', icon: 'eye' },
-    rights: { label: 'ISBN', icon: 'hash' },
-    editions: { label: 'Editions', icon: 'copies' },
-    a11y: { label: 'Access', icon: 'access' },
-    royalties: { label: 'Royalties', icon: 'coin' },
-    marketing: { label: 'Marketing', icon: 'mega' },
+    billing: { label: 'Billing', tKey: 'tab.billing', icon: 'card' },
+    purchases: { label: 'Purchases', tKey: 'tab.purchases', icon: 'doc' },
+    account: { label: 'Account', tKey: 'tab.account', icon: 'user' },
+    support: { label: 'Help', tKey: 'tab.support', icon: 'help' },
+    terms: { label: 'Terms', tKey: 'tab.terms', icon: 'users' },
+    references: { label: 'Citations', tKey: 'tab.references', icon: 'refs' },
+    notes: { label: 'Notes', tKey: 'tab.notes', icon: 'note' },
+    templates: { label: 'Templates', tKey: 'tab.templates', icon: 'tmpl' },
+    settings: { label: 'Settings', tKey: 'tab.settings', icon: 'gear' },
+    team: { label: 'Team', tKey: 'tab.team', icon: 'users' },
+    preview: { label: 'Preview', tKey: 'tab.preview', icon: 'eye' },
+    rights: { label: 'ISBN', tKey: 'tab.rights', icon: 'hash' },
+    editions: { label: 'Editions', tKey: 'tab.editions', icon: 'copies' },
+    a11y: { label: 'Access', tKey: 'tab.a11y', icon: 'access' },
+    royalties: { label: 'Royalties', tKey: 'tab.royalties', icon: 'coin' },
+    marketing: { label: 'Marketing', tKey: 'tab.marketing', icon: 'mega' },
 };
 
 const SETS = {
@@ -126,6 +127,7 @@ export default function MobileNav({
     // Out of the way while the keyboard is up: the keys, the formatting
     // bar and the text are what a phone has room for then.
     const typing = useTyping();
+    const { t } = useI18n();
 
     // A screen of the book: the editor switches panes in place, any other
     // page opens the editor on it.
@@ -162,13 +164,13 @@ export default function MobileNav({
     return (
         <>
             <nav
-                aria-label="Sections"
+                aria-label={t('tab.sections')}
                 data-a="mobile:tabs"
                 className={`safe-bottom shrink-0 border-t border-border-default bg-bg-surface lg:hidden ${typing ? 'hidden' : ''}`}
             >
                 <ul className="mx-auto grid h-[58px] max-w-[640px] grid-cols-5">
                     {[...tabs, 'more'].map((key) => {
-                        const tab = key === 'more' ? { label: 'More', icon: 'menu' } : T[key];
+                        const tab = key === 'more' ? { label: 'More', tKey: 'tab.more', icon: 'menu' } : T[key];
                         const on = key === current || (key === 'ai' && current === 'suggestions');
 
                         return (
@@ -184,20 +186,20 @@ export default function MobileNav({
                                     }`}
                                 >
                                     <Icon name={tab.icon} size={21} strokeWidth={on ? 2.1 : 1.8} />
-                                    <span>{tab.label}</span>
+                                    <span>{t(tab.tKey)}</span>
                                     {key === 'inbox' && unread > 0 && (
                                         <span
                                             data-a="mobile:inbox-count"
                                             className="absolute left-1/2 top-1.5 ml-2 min-w-[18px] rounded-badge bg-brand-fill px-1 text-center text-[10.5px] font-semibold leading-[18px] text-white"
                                         >
                                             {unread > 99 ? '99+' : unread}
-                                            <span className="sr-only"> unread</span>
+                                            <span className="sr-only"> {t('common.unread')}</span>
                                         </span>
                                     )}
                                     {key === 'ai' && aiCount > 0 && (
                                         <span className="absolute left-1/2 top-1.5 ml-2 min-w-[18px] rounded-badge bg-brand-fill px-1 text-center text-[10.5px] font-semibold leading-[18px] text-white">
                                             {aiCount > 99 ? '99+' : aiCount}
-                                            <span className="sr-only"> open findings</span>
+                                            <span className="sr-only"> {t('tab.open_findings')}</span>
                                         </span>
                                     )}
                                 </button>
@@ -231,46 +233,50 @@ export default function MobileNav({
 const BOOK_GROUPS = [
     {
         title: 'Book',
+        tKey: 'more_group.book',
         items: [
-            { key: 'overview', label: 'Overview', icon: 'home' },
-            { key: 'manuscript', label: 'Manuscript', icon: 'doc' },
-            { key: 'research', label: 'Research', icon: 'lib' },
-            { key: 'terms', label: 'Terms', icon: 'users' },
-            { key: 'references', label: 'Citations', icon: 'refs' },
-            { key: 'notes', label: 'Notes', icon: 'note' },
-            { key: 'templates', label: 'Templates', icon: 'tmpl' },
-            { key: 'settings', label: 'Settings', icon: 'gear' },
+            { key: 'overview', label: 'Overview', tKey: 'more.overview', icon: 'home' },
+            { key: 'manuscript', label: 'Manuscript', tKey: 'more.manuscript', icon: 'doc' },
+            { key: 'research', label: 'Research', tKey: 'more.research', icon: 'lib' },
+            { key: 'terms', label: 'Terms', tKey: 'more.terms', icon: 'users' },
+            { key: 'references', label: 'Citations', tKey: 'more.references', icon: 'refs' },
+            { key: 'notes', label: 'Notes', tKey: 'more.notes', icon: 'note' },
+            { key: 'templates', label: 'Templates', tKey: 'more.templates', icon: 'tmpl' },
+            { key: 'settings', label: 'Settings', tKey: 'more.settings', icon: 'gear' },
         ],
     },
     {
         title: 'Review',
+        tKey: 'more_group.review',
         items: [
-            { key: 'comments', label: 'Comments', icon: 'chat' },
-            { key: 'workflow', label: 'Workflow', icon: 'flow' },
-            { key: 'team', label: 'Team', icon: 'users' },
-            { key: 'analytics', label: 'Analytics', icon: 'chart' },
+            { key: 'comments', label: 'Comments', tKey: 'more.comments', icon: 'chat' },
+            { key: 'workflow', label: 'Workflow', tKey: 'more.workflow', icon: 'flow' },
+            { key: 'team', label: 'Team', tKey: 'more.team', icon: 'users' },
+            { key: 'analytics', label: 'Analytics', tKey: 'more.analytics', icon: 'chart' },
         ],
     },
     {
         title: 'Publish',
+        tKey: 'more_group.publish',
         items: [
-            { key: 'layout', label: 'Design', icon: 'layout' },
-            { key: 'cover', label: 'Cover', icon: 'cover' },
-            { key: 'publish', label: 'Publish', icon: 'rocket' },
-            { key: 'export', label: 'Export', icon: 'exp' },
-            { key: 'preview', label: 'Preview', icon: 'eye' },
-            { key: 'rights', label: 'ISBN & Rights', icon: 'hash' },
-            { key: 'editions', label: 'Editions', icon: 'copies' },
-            { key: 'a11y', label: 'Accessibility', icon: 'access' },
+            { key: 'layout', label: 'Design', tKey: 'more.layout', icon: 'layout' },
+            { key: 'cover', label: 'Cover', tKey: 'more.cover', icon: 'cover' },
+            { key: 'publish', label: 'Publish', tKey: 'more.publish', icon: 'rocket' },
+            { key: 'export', label: 'Export', tKey: 'more.export', icon: 'exp' },
+            { key: 'preview', label: 'Preview', tKey: 'more.preview', icon: 'eye' },
+            { key: 'rights', label: 'ISBN & Rights', tKey: 'more.rights', icon: 'hash' },
+            { key: 'editions', label: 'Editions', tKey: 'more.editions', icon: 'copies' },
+            { key: 'a11y', label: 'Accessibility', tKey: 'more.a11y', icon: 'access' },
         ],
     },
     {
         title: 'Sell & grow',
+        tKey: 'more_group.sell',
         items: [
-            { key: 'distribution', label: 'Sales', icon: 'sales' },
-            { key: 'royalties', label: 'Royalties', icon: 'coin' },
-            { key: 'launch', label: 'Launch', icon: 'rocket' },
-            { key: 'marketing', label: 'Marketing', icon: 'mega' },
+            { key: 'distribution', label: 'Sales', tKey: 'more.distribution', icon: 'sales' },
+            { key: 'royalties', label: 'Royalties', tKey: 'more.royalties', icon: 'coin' },
+            { key: 'launch', label: 'Launch', tKey: 'more.launch', icon: 'rocket' },
+            { key: 'marketing', label: 'Marketing', tKey: 'more.marketing', icon: 'mega' },
         ],
     },
 ];
@@ -279,19 +285,20 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
     const on = useFeatures();
     const [editing, setEditing] = useState(false);
     const customisable = Boolean(PREFS_REGISTRY.mobileTabs[context]);
+    const { t } = useI18n();
     const account = [
-        { key: 'inbox', label: 'Inbox', icon: 'bell', href: route('inbox.index') },
-        { key: 'billing', label: 'Plans & billing', icon: 'card', href: route('billing.show') },
-        { key: 'store-sales', label: 'Storefront sales', icon: 'sales', href: route('sales.overview') },
-        { key: 'purchases', label: 'Your purchases', icon: 'doc', href: route('purchases.index') },
-        { key: 'partner', label: 'Partner program', icon: 'coin', href: route('partners.dashboard') },
-        { key: 'account', label: 'Account settings', icon: 'user', href: route('profile.edit') },
-        { key: 'support', label: 'Help', icon: 'help', href: route('support.index') },
+        { key: 'inbox', label: 'Inbox', tKey: 'menu.inbox', icon: 'bell', href: route('inbox.index') },
+        { key: 'billing', label: 'Plans & billing', tKey: 'menu.billing', icon: 'card', href: route('billing.show') },
+        { key: 'store-sales', label: 'Storefront sales', tKey: 'menu.store_sales', icon: 'sales', href: route('sales.overview') },
+        { key: 'purchases', label: 'Your purchases', tKey: 'menu.purchases', icon: 'doc', href: route('purchases.index') },
+        { key: 'partner', label: 'Partner program', tKey: 'menu.partner', icon: 'coin', href: route('partners.dashboard') },
+        { key: 'account', label: 'Account settings', tKey: 'menu.account', icon: 'user', href: route('profile.edit') },
+        { key: 'support', label: 'Help', tKey: 'menu.support', icon: 'help', href: route('support.index') },
     ].filter((link) => on(NAV_FEATURES[link.key]));
 
     return (
         <Dialog
-            label="Menu"
+            label={t('more.menu')}
             onClose={onClose}
             data-a="sheet:more"
             overlayClassName="!items-end !p-0 !pt-8"
@@ -304,7 +311,7 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
             </div>
             <div className="flex shrink-0 items-center gap-3 px-4 pb-2 pt-1">
                 <div className="min-w-0 flex-1">
-                    <p className="text-[16px] font-semibold text-text-primary">Menu</p>
+                    <p className="text-[16px] font-semibold text-text-primary">{t('more.menu')}</p>
                     {book && title && (
                         <p className="truncate text-[12.5px] text-text-secondary">{title}</p>
                     )}
@@ -316,10 +323,10 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
                         onClick={() => setEditing(true)}
                         className="rounded-control px-2 py-1.5 text-[13px] font-medium text-brand-primary hover:bg-bg-subtle"
                     >
-                        Edit tabs
+                        {t('more.edit_tabs')}
                     </button>
                 )}
-                <CloseButton onClick={onClose} label="Close menu" className="h-10 w-10" />
+                <CloseButton onClick={onClose} label={t('more.close')} className="h-10 w-10" />
             </div>
 
             {editing ? (
@@ -331,7 +338,7 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
                     BOOK_GROUPS.map((group) => (
                         <section key={group.title} className="mb-3 rounded-panel bg-bg-surface p-2">
                             <h3 className="px-2 pt-1 pb-1 text-[11.5px] font-semibold tracking-[0.08em] text-text-secondary uppercase">
-                                {group.title}
+                                {t(group.tKey)}
                             </h3>
                             <ul className="grid grid-cols-4">
                                 {group.items.filter((item) => on(NAV_FEATURES[item.key])).map((item) => (
@@ -346,7 +353,7 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
                                                 <Icon name={item.icon} size={20} />
                                             </span>
                                             <span className="text-[11.5px] leading-tight text-text-body">
-                                                {item.label}
+                                                {t(item.tKey)}
                                             </span>
                                         </button>
                                     </li>
@@ -357,7 +364,7 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
 
                 <section className="rounded-panel bg-bg-surface p-1">
                     <h3 className="px-3 pt-2 pb-1 text-[11.5px] font-semibold tracking-[0.08em] text-text-secondary uppercase">
-                        Account
+                        {t('menu.account_label')}
                     </h3>
                     <ul>
                         {account.map((link) => (
@@ -369,7 +376,7 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
                                     className="flex min-h-[48px] items-center gap-3 rounded-control px-3 text-[15px] text-text-body transition hover:bg-bg-subtle"
                                 >
                                     <Icon name={link.icon} size={18} />
-                                    {link.label}
+                                    {t(link.tKey)}
                                 </Link>
                             </li>
                         ))}
@@ -381,7 +388,7 @@ function MoreSheet({ book, title, context, pinned, onOpen, onClose }) {
                                 className="flex min-h-[48px] w-full items-center gap-3 rounded-control px-3 text-left text-[15px] text-text-body transition hover:bg-bg-subtle"
                             >
                                 <Icon name="go" size={18} />
-                                Log out
+                                {t('more.log_out')}
                             </Link>
                         </li>
                     </ul>
@@ -406,6 +413,7 @@ function TabPicker({ context, pinned, hasBook, onDone }) {
     const [picked, setPicked] = useState(pinned);
     const [error, setError] = useState(null);
     const [busy, setBusy] = useState(false);
+    const { t } = useI18n();
 
     const toggle = (key) => {
         setError(null);
@@ -419,7 +427,7 @@ function TabPicker({ context, pinned, hasBook, onDone }) {
             await savePrefs({ mobileTabs: { [context]: value } });
             onDone();
         } catch (errors) {
-            setError(Object.values(errors).flat()[0] ?? 'Not saved. Try again.');
+            setError(Object.values(errors).flat()[0] ?? t('common.not_saved_retry'));
         } finally {
             setBusy(false);
         }
@@ -428,12 +436,12 @@ function TabPicker({ context, pinned, hasBook, onDone }) {
     return (
         <div className="safe-bottom min-h-0 overflow-y-auto px-3 pb-3" data-a="sheet:tab-picker">
             <section className="rounded-panel bg-bg-surface p-3">
-                <h3 className="text-[14px] font-semibold text-text-primary">Tabs while {meta.label.toLowerCase()}</h3>
+                <h3 className="text-[14px] font-semibold text-text-primary">{t('more.tabs_while', { place: t(`tab_context.${context}`).toLowerCase() })}</h3>
                 <p className="mt-0.5 text-[12.5px] text-text-secondary">
-                    Pick up to {max}, in the order you want them. More is always last.
+                    {t('more.pick_up_to', { max })}
                 </p>
                 <p className="mt-2 text-[12.5px] text-text-body" aria-live="polite" data-a="sheet:tab-count">
-                    {picked.length} of {max} pinned
+                    {t('more.pinned', { count: picked.length, max })}
                 </p>
                 <ul className="mt-2 grid grid-cols-4 gap-1">
                     {choices.map((key) => {
@@ -452,7 +460,7 @@ function TabPicker({ context, pinned, hasBook, onDone }) {
                                     }`}
                                 >
                                     <Icon name={T[key].icon} size={19} />
-                                    {T[key].label}
+                                    {t(T[key].tKey)}
                                     {at >= 0 && (
                                         <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-fill text-[10px] font-semibold text-white" aria-hidden="true">
                                             {at + 1}
@@ -476,7 +484,7 @@ function TabPicker({ context, pinned, hasBook, onDone }) {
                         onClick={() => save(picked)}
                         className="h-10 rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white disabled:opacity-50"
                     >
-                        Save tabs
+                        {t('more.save_tabs')}
                     </button>
                     <button
                         type="button"
@@ -485,10 +493,10 @@ function TabPicker({ context, pinned, hasBook, onDone }) {
                         onClick={() => save(null)}
                         className="h-10 rounded-control border border-border-default px-3 text-[13.5px] text-text-body"
                     >
-                        Back to the usual tabs
+                        {t('more.usual_tabs')}
                     </button>
                     <button type="button" onClick={onDone} className="h-10 px-3 text-[13.5px] text-text-secondary">
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                 </div>
             </section>

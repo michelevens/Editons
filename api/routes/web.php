@@ -30,6 +30,7 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JoinController;
 use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\LaunchController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\ManuscriptSectionController;
 use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\PartnerController;
@@ -93,6 +94,12 @@ Route::get('/dashboard', function () {
             : 'books.quick',
     );
 })->middleware(['auth', 'verified'])->name('dashboard');
+
+// The interface language: signed in or not (the sign-in pages have the
+// switcher too). App\I18n\Locales.
+Route::put('/locale', [LocaleController::class, 'update'])
+    ->middleware('throttle:30,1')
+    ->name('locale.update');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
