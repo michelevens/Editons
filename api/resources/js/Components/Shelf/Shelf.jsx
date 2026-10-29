@@ -56,7 +56,10 @@ export default function Shelf({
     empty = null,
     prefix = 'shelf',
 }) {
-    const state = shelf.state;
+    // What was asked for shows at once; the server's answer replaces it.
+    const [pending, setPending] = useState({});
+    useEffect(() => setPending({}), [shelf.state]);
+    const state = { ...shelf.state, ...pending };
     const [ownSelected, ownSetSelected] = useState([]);
     const selected = controlledSelected ?? ownSelected;
     const setSelected = controlledSetSelected ?? ownSetSelected;
@@ -65,10 +68,11 @@ export default function Shelf({
     const [q, setQ] = useState(state.q);
     const typing = useRef(null);
 
-    useEffect(() => setQ(state.q), [state.q]);
+    useEffect(() => setQ(shelf.state.q), [shelf.state.q]);
 
     const go = (patch) => {
         const next = { ...state, ...patch };
+        setPending((current) => ({ ...current, ...patch }));
         router.get(route(routeName), toQuery(next), { preserveState: true, preserveScroll: true, replace: true });
         // Remembered for next time; a failure only means it is not.
         window.axios.put(route('shelf.current', shelf.view), { state: next }).catch(() => {});
@@ -505,23 +509,32 @@ function ShelfTable({ books, columns, sections, grouped, groupCount, collapsed, 
                 </table>
             </div>
 
-            <ul className="mt-4 divide-y divide-border-default rounded-panel border border-border-default bg-bg-surface sm:hidden" data-a="shelf:compact">
-                {books.map((book) => (
-                    <li key={book.id} className="flex gap-3 px-3 py-2.5">
-                        {canSelect && (
-                            <input type="checkbox" aria-label={`Select ${book.title}`} data-a={`shelf:compact-select:${book.id}`} checked={selected.includes(book.id)} onChange={() => toggle(book.id)} className="mt-1 h-4 w-4 shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                            <Link href={linkFor(book)} className="block truncate text-[13.5px] font-semibold text-text-primary">{book.title}</Link>
-                            <p className="mt-0.5 flex flex-wrap gap-x-2 text-[11.5px] text-text-secondary">
-                                {columns.filter((c) => !['isbns', 'exports'].includes(c)).map((c) => (
-                                    <span key={c}><span className="sr-only">{COLUMN_LABELS[c]}: </span><Cell book={book} column={c} /></span>
+            <div className="mt-4 space-y-4 sm:hidden" data-a="shelf:compact">
+                {sections.map((section) => (
+                    <section key={section.key ?? 'all'} aria-label={grouped ? section.key || 'No series' : undefined}>
+                        {grouped && <GroupHeader name={section.key} count={groupCount[section.key] ?? section.books.length} collapsed={collapsed} setCollapsed={setCollapsed} />}
+                        {!(grouped && collapsed.includes(section.key)) && (
+                            <ul className="divide-y divide-border-default rounded-panel border border-border-default bg-bg-surface">
+                                {section.books.map((book) => (
+                                    <li key={book.id} className="flex gap-3 px-3 py-2.5">
+                                        {canSelect && (
+                                            <input type="checkbox" aria-label={`Select ${book.title}`} data-a={`shelf:compact-select:${book.id}`} checked={selected.includes(book.id)} onChange={() => toggle(book.id)} className="mt-1 h-4 w-4 shrink-0" />
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <Link href={linkFor(book)} className="block truncate text-[13.5px] font-semibold text-text-primary">{book.title}</Link>
+                                            <p className="mt-0.5 flex flex-wrap gap-x-2 text-[11.5px] text-text-secondary">
+                                                {columns.filter((c) => !['isbns', 'exports'].includes(c)).map((c) => (
+                                                    <span key={c}><span className="sr-only">{COLUMN_LABELS[c]}: </span><Cell book={book} column={c} /></span>
+                                                ))}
+                                            </p>
+                                        </div>
+                                    </li>
                                 ))}
-                            </p>
-                        </div>
-                    </li>
+                            </ul>
+                        )}
+                    </section>
                 ))}
-            </ul>
+            </div>
         </>
     );
 }

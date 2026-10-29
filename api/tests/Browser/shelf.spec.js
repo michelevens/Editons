@@ -78,7 +78,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await page.fill('[data-a="shelf:search"]', 'serie e2e shelf');
         await expect(page).toHaveURL(/q=serie/);
         await page.check('[data-a="shelf:group"]');
-        await expect(page.locator(`[data-a="shelf:group:${SERIES}"]`).first()).toBeVisible();
+        await expect(page.locator(`[data-a="shelf:group:${SERIES}"]:visible`).first()).toBeVisible();
 
         if (!phone) {
             await expect(page.locator('[data-a^="shelf:row:"]')).toHaveCount(3);
@@ -92,7 +92,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
                 await expect(page.locator(`[data-a="shelf:row:${id}"]`)).toContainText(`${SERIES} · ${n + 1}`);
             }
         } else {
-            await expect(page.locator('[data-a="shelf:compact"] li')).toHaveCount(3);
+            await expect(page.locator('[data-a^="shelf:compact-select:"]')).toHaveCount(3);
             for (const [n, id] of ids.entries()) {
                 await expect(page.locator(`[data-a="shelf:compact-select:${id}"]`).locator('xpath=..')).toContainText(`${SERIES} · ${n + 1}`);
             }
