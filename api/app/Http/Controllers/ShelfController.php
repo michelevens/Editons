@@ -73,6 +73,8 @@ class ShelfController extends Controller
             'series_name' => ['nullable', 'string', 'max:255'],
             'start' => ['nullable', 'integer', 'min:1', 'max:9999'],
             'house_style_id' => ['required_if:action,house_style', 'nullable', 'integer'],
+            'cover_template_id' => ['required_if:action,cover_template', 'nullable', 'integer'],
+            'artwork' => ['sometimes', 'nullable', 'string', 'in:replace,keep'],
             'follow' => ['sometimes', 'boolean'],
             'formats' => ['required_if:action,regenerate', 'nullable', 'array', 'min:1'],
             'formats.*' => ['string', Rule::in(Regenerate::FORMATS)],

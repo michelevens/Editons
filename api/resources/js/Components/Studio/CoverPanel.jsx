@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import BackgroundEditor from './cover/BackgroundEditor';
+import CoverTemplateCard from './cover/CoverTemplateCard';
 import Framing from './cover/Framing';
 import LayerEditor from './cover/LayerEditor';
 import WrapEditor from './cover/WrapEditor';
@@ -45,6 +47,7 @@ export default function CoverPanel({ bookId, onNotify }) {
     const [data, setData] = useState(null);
     const [busy, setBusy] = useState(false);
     const [view, setView] = useState('front');
+    const [bgScope, setBgScope] = useState('front');
     // Bumped when a save lands, so the wrap views redraw from the server.
     const [savedAt, setSavedAt] = useState(0);
     // Bumped when the layers change from outside the editor (customise,
@@ -263,6 +266,11 @@ export default function CoverPanel({ bookId, onNotify }) {
 
     const { cover, palettes, layouts } = data;
     const layered = Boolean(cover.layers);
+    // A book that follows a cover template takes its design from it; only
+    // its own text is edited until it is detached (CoverTemplates).
+    const following = Boolean(cover.template?.following);
+    const backgrounds = { front: null, back: null, spine: null, wrap: null, ...(cover.backgrounds ?? {}) };
+    const setBackground = (scope, bg) => save({ backgrounds: { ...backgrounds, [scope]: bg } });
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -296,6 +304,12 @@ export default function CoverPanel({ bookId, onNotify }) {
                 </div>
             </header>
 
+            <div className="space-y-3 px-4 pt-3">
+                <CoverTemplateCard bookId={bookId} template={cover.template} onChanged={load} onNotify={onNotify} />
+                <ContrastList bookId={bookId} savedAt={savedAt} epoch={epoch} view={view} />
+            </div>
+
+            <div inert={following || undefined} aria-disabled={following || undefined} className={following ? 'pointer-events-none select-none opacity-60' : undefined} data-a="cover:editing">
             {view !== 'front' ? (
                 <div className="min-h-0 flex-1 p-4">
                     <WrapEditor
@@ -307,6 +321,9 @@ export default function CoverPanel({ bookId, onNotify }) {
                         images={cover.images ?? []}
                         onUpload={uploadPicture}
                         onNotify={onNotify}
+                        backgrounds={backgrounds}
+                        onBackground={setBackground}
+                        palettes={palettes}
                     />
                 </div>
             ) : (
@@ -437,31 +454,27 @@ export default function CoverPanel({ bookId, onNotify }) {
                                 {layered ? 'Background' : 'Artwork'}
                             </h3>
 
-                            <div
-                                role="group"
-                                aria-label="Colour scheme"
-                                className="flex flex-wrap gap-2"
-                            >
-                                {palettes.map((palette, index) => (
-                                    <button
-                                        key={palette.name}
-                                        aria-pressed={!cover.artwork && cover.palette === index}
-                                        data-a={`cover:palette:${index}`}
-                                        title={palette.name}
-                                        onClick={() => save({ palette: index }, { immediate: true })}
-                                        className={`h-[44px] w-[44px] rounded-control border-2 transition ${
-                                            !cover.artwork && cover.palette === index
-                                                ? 'border-brand-primary'
-                                                : 'border-transparent hover:border-border-input'
-                                        }`}
-                                        style={{
-                                            background: `linear-gradient(170deg, ${palette.from}, ${palette.to})`,
-                                        }}
-                                    >
-                                        <span className="sr-only">{palette.name}</span>
-                                    </button>
-                                ))}
-                            </div>
+                            {/* Any colour or gradient, for the front, the back,
+                                the spine or across the whole wrap; the six
+                                palettes are the quick picks. */}
+                            <BackgroundEditor
+                                scope={bgScope}
+                                scopes={['front', 'back', 'spine', 'wrap']}
+                                onScope={setBgScope}
+                                value={backgrounds[bgScope]}
+                                onChange={(bg) => setBackground(bgScope, bg)}
+                                palettes={palettes}
+                                paletteIndex={cover.artwork ? null : cover.palette}
+                                onPalette={(index) => save({ palette: index, backgrounds: { ...backgrounds, front: null } }, { immediate: true })}
+                                images={cover.images ?? []}
+                                onUpload={uploadPicture}
+                            />
+                            {bgScope === 'front' && cover.artwork && (
+                                <p className="mt-2 text-[11px] text-text-secondary">The uploaded artwork covers the front; its background shows once the artwork is removed.</p>
+                            )}
+                            {bgScope === 'wrap' && backgrounds.wrap?.kind === 'image' && (
+                                <p className="mt-2 text-[11px] text-text-secondary">Frame the picture, and check its resolution, in Full wrap.</p>
+                            )}
 
                             {cover.artwork && (
                                 <>
@@ -558,7 +571,79 @@ export default function CoverPanel({ bookId, onNotify }) {
                     </div>
                 </div>
             )}
+            </div>
         </div>
+    );
+}
+
+const SOURCE_NAMES = {
+    title: 'Title', subtitle: 'Subtitle', author: 'Author', series: 'Series', number: 'Series number', edition: 'Edition',
+    tagline: 'Tagline', description: 'Back-cover copy', publisher: 'Publisher', price: 'Price', category: 'Category', isbn: 'ISBN', custom: 'Text',
+};
+
+/**
+ * Each text layer's contrast with what is under it (CoverContrast), asked
+ * for a moment after each save: the WCAG ratio, what it needs (3:1 for
+ * large type, 4.5:1 otherwise), and a warning below it.
+ */
+function ContrastList({ bookId, savedAt, epoch, view }) {
+    const [rows, setRows] = useState(null);
+
+    useEffect(() => {
+        let live = true;
+        const timer = setTimeout(async () => {
+            try {
+                const { data } = await window.axios.get(`/books/${bookId}/cover/contrast`);
+                if (live) setRows(data);
+            } catch {
+                // The list is advice; a failed check leaves the last one.
+            }
+        }, 900);
+
+        return () => {
+            live = false;
+            clearTimeout(timer);
+        };
+    }, [bookId, savedAt, epoch]);
+
+    if (!rows) return null;
+
+    const panels = view === 'wrap' ? ['front', 'back', 'spine'] : [view];
+    const shown = panels.flatMap((panel) => (rows[panel] ?? []).map((row) => ({ ...row, panel })));
+
+    if (shown.length === 0) return null;
+
+    const failing = shown.filter((r) => !r.ok).length;
+
+    return (
+        <details className="rounded-tile border border-border-default bg-bg-surface px-3 py-2" data-a="cover:contrast" open={failing > 0}>
+            <summary className="cursor-pointer text-[12px] font-semibold text-text-primary">
+                Text contrast{' '}
+                <span className={failing ? 'text-status-warning' : 'text-status-success'} data-a="cover:contrast:summary">
+                    {failing ? `${failing} layer${failing === 1 ? '' : 's'} below the minimum` : 'every layer passes'}
+                </span>
+            </summary>
+            <ul className="mt-1.5 space-y-1">
+                {shown.map((row) => (
+                    <li
+                        key={`${row.panel}-${row.id}`}
+                        data-a={`cover:contrast:${row.panel}:${row.id}`}
+                        data-ok={row.ok ? 'yes' : 'no'}
+                        className={`flex flex-wrap items-baseline gap-x-2 rounded-control px-2 py-1 text-[11.5px] ${row.ok ? 'text-text-body' : 'bg-status-warning-bg text-status-warning'}`}
+                    >
+                        <span className="font-semibold">
+                            {panels.length > 1 && <span className="capitalize">{row.panel}: </span>}
+                            {SOURCE_NAMES[row.source] ?? 'Text'}
+                        </span>
+                        <span className="tabular-nums">{row.ratio.toFixed(1)}:1</span>
+                        <span className="text-text-secondary">
+                            {row.ok ? '✓ ' : 'below '}
+                            {row.needed}:1 for {row.large ? 'large' : 'small'} text ({row.points} pt){row.approximate ? ' · over a picture, approximate' : ''}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </details>
     );
 }
 

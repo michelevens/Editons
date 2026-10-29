@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
+use App\Covers\CoverTemplates;
 use App\Editorial\Style\HouseGuideTemplate;
+use App\Http\Controllers\Controller;
 use App\Models\Book;
+use App\Models\CoverTemplate;
 use App\Models\HouseStyle;
 use App\Platform\House\HouseAccounts;
 use App\Platform\House\HouseCatalog;
@@ -77,6 +79,9 @@ class HouseController extends Controller
                 // of its books in Design & Layout.
                 'house_styles' => HouseStyle::whereIn('user_id', $houses->pluck('id'))->orderBy('name')
                     ->get(['id', 'name', 'user_id', 'version'])->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'house_id' => $s->user_id, 'version' => $s->version])->values(),
+                // And their cover templates (CoverTemplates), saved from one
+                // of its books in Cover Studio.
+                'cover_templates' => CoverTemplates::listed(CoverTemplate::whereIn('user_id', $houses->pluck('id'))),
             ],
             'results' => $request->session()->get('house_results'),
             'can' => ['manage' => $request->user()->isPlatformOwner()],
@@ -187,12 +192,16 @@ class HouseController extends Controller
             'formats' => ['sometimes', 'nullable', 'array'],
             'formats.*' => ['string', 'in:'.implode(',', config('commerce.formats'))],
             'house_style_id' => ['required_if:action,house_style', 'nullable', 'integer'],
+            'cover_template_id' => ['required_if:action,cover_template', 'nullable', 'integer'],
+            'artwork' => ['sometimes', 'nullable', 'string', 'in:replace,keep'],
             'follow' => ['sometimes', 'boolean'],
             'reason' => ['required', 'string', 'min:4', 'max:1000'],
         ]);
 
         $results = $catalog->bulk($data['action'], $data['books'], [
             'house_style_id' => $data['house_style_id'] ?? null,
+            'cover_template_id' => $data['cover_template_id'] ?? null,
+            'artwork' => $data['artwork'] ?? null,
             'follow' => $data['follow'] ?? true,
             'format' => $data['format'] ?? null,
             'options' => $data['options'] ?? [],

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LayerEditor from './LayerEditor';
+import BackgroundEditor from './BackgroundEditor';
 import Framing from './Framing';
 import { backSurface, spineSurface } from './surfaces';
 
@@ -13,7 +14,7 @@ import { backSurface, spineSurface } from './surfaces';
  * them; then each is the same layer editor as the front, on its own
  * surface (surfaces.jsx), saving through the panel's save().
  */
-export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload, images, onNotify }) {
+export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload, images, onNotify, backgrounds = {}, onBackground, palettes = [] }) {
     const [wrap, setWrap] = useState(null);
     const [error, setError] = useState(null);
     const [choice, setChoice] = useState({ service: null, paper: null, spine: '' });
@@ -161,6 +162,13 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
                         <li key={i} data-kind={w.kind} className="rounded-control bg-status-warning-bg px-2.5 py-1.5 text-[11.5px] leading-snug text-status-warning">
                             {view === 'wrap' && <span className="font-semibold capitalize">{w.panel}: </span>}
                             {w.message}
+                            {/* The wrap background was placed on another sheet
+                                size: once checked, take this one. */}
+                            {w.kind === 'refit' && (
+                                <button type="button" data-a="cover:wrap-refit" disabled={busy} onClick={() => run(() => window.axios.post(`/books/${bookId}/cover/wrap/refit`, params))} className="ml-2 font-semibold underline">
+                                    Looks right
+                                </button>
+                            )}
                         </li>
                     ))}
                 </ul>
@@ -247,6 +255,30 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
             )}
 
             {view === 'wrap' && <FullWrap wrap={wrap} />}
+
+            {/* This panel's background, or one across the whole wrap
+                (CoverBackground): drawn under the generated or customised
+                type alike. */}
+            {onBackground && (
+                <section className="rounded-tile border border-border-default bg-bg-surface p-3" data-a={`cover:wrap-background:${view}`}>
+                    <h3 className="mb-2 text-[12.5px] font-semibold text-text-primary">
+                        {view === 'wrap' ? 'Background across the whole wrap' : `${view === 'back' ? 'Back' : 'Spine'} background`}
+                    </h3>
+                    {view !== 'wrap' && backgrounds.wrap && (
+                        <p className="mb-2 text-[11px] text-text-secondary">A background across the whole wrap is set; it is drawn instead of this one.</p>
+                    )}
+                    <BackgroundEditor
+                        scope={view}
+                        value={backgrounds[view] ?? null}
+                        onChange={(bg) => onBackground(view, bg)}
+                        palettes={palettes}
+                        images={images}
+                        onUpload={onUpload}
+                        sheet={{ width: wrap.sheet.width, height: wrap.sheet.height, width_in: g.width, height_in: g.height }}
+                        prefix={`cover:bg-${view}`}
+                    />
+                </section>
+            )}
         </div>
     );
 }

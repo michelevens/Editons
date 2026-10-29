@@ -5,9 +5,11 @@ namespace App\Platform\House;
 use App\Billing\Entitlements;
 use App\Commerce\Listing;
 use App\Commerce\PlatformSales;
+use App\Covers\CoverTemplates;
 use App\Jobs\GenerateExport;
 use App\Models\Book;
 use App\Models\BookExport;
+use App\Models\CoverTemplate;
 use App\Models\HouseStyle;
 use App\Models\Product;
 use App\Models\User;
@@ -35,7 +37,7 @@ use Throwable;
 final class HouseCatalog
 {
     /** Bulk actions the console offers. */
-    public const BULK = ['export', 'price', 'publish', 'unpublish', 'house_style'];
+    public const BULK = ['export', 'price', 'publish', 'unpublish', 'house_style', 'cover_template'];
 
     /** Formats staff can queue; the same list as Export & Publish. */
     public const EXPORTS = ['pdf', 'pdf_interior', 'cover_wrap', 'epub'];
@@ -146,6 +148,30 @@ final class HouseCatalog
             AdminAudit::record('house.house_style_applied', $book, $from ?: null, $to + ['house_style' => $style->name, 'follow' => $follow], $reason, $actor);
 
             return $follow ? "Follows “{$style->name}”." : "Design copied from “{$style->name}”.";
+        });
+    }
+
+    /**
+     * Apply one of the house account's cover templates to a house book: its
+     * cover design only (CoverTemplates), audited with before and after. A
+     * book with an uploaded finished front or back needs the artwork choice.
+     */
+    public function coverTemplate(Book $book, int $templateId, bool $follow, ?string $artwork, User $actor, string $reason): string
+    {
+        $this->assertHouseBook($book);
+        $template = CoverTemplate::find($templateId) ?? throw ValidationException::withMessages(['cover_template_id' => 'Choose a cover template.']);
+
+        return DB::transaction(function () use ($book, $template, $follow, $artwork, $actor, $reason) {
+            try {
+                $change = app(CoverTemplates::class)->apply($template, $book, $actor, $follow, $artwork);
+            } catch (AuthorizationException) {
+                throw ValidationException::withMessages(['cover_template_id' => 'That template is not one this book’s account can use.']);
+            }
+
+            [$from, $to] = AdminAudit::diff($change['before'], $change['after']);
+            AdminAudit::record('house.cover_template_applied', $book, $from ?: null, $to + ['cover_template' => $template->name, 'follow' => $follow, 'artwork' => $artwork], $reason, $actor);
+
+            return $follow ? "Follows the cover template “{$template->name}”." : "Cover copied from “{$template->name}”.";
         });
     }
 
@@ -353,6 +379,7 @@ final class HouseCatalog
                         return 'Off sale.';
                     })(),
                     'house_style' => $this->houseStyle($book, (int) ($params['house_style_id'] ?? 0), (bool) ($params['follow'] ?? true), $actor, $reason),
+                    'cover_template' => $this->coverTemplate($book, (int) ($params['cover_template_id'] ?? 0), (bool) ($params['follow'] ?? true), $params['artwork'] ?? null, $actor, $reason),
                 };
 
                 $results[] = ['id' => $id, 'title' => $book->title, 'ok' => true, 'message' => $message];

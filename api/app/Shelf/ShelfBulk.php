@@ -2,8 +2,11 @@
 
 namespace App\Shelf;
 
+use App\Covers\CoverTemplates;
+use App\Http\Controllers\CoverTemplateController;
 use App\Models\Book;
 use App\Models\BookChannel;
+use App\Models\CoverTemplate;
 use App\Models\HouseStyle;
 use App\Models\Isbn;
 use App\Models\User;
@@ -36,7 +39,7 @@ use Throwable;
  */
 final class ShelfBulk
 {
-    public const ACTIONS = ['archive', 'unarchive', 'series', 'house_style', 'regenerate', 'prepare'];
+    public const ACTIONS = ['archive', 'unarchive', 'series', 'house_style', 'cover_template', 'regenerate', 'prepare'];
 
     /** Regenerating holds workers: no more books than "Prepare" takes in one go. */
     public const MAX_REGENERATE = 50;
@@ -45,6 +48,7 @@ final class ShelfBulk
         private readonly HouseStyles $styles,
         private readonly Regenerate $regenerate,
         private readonly BulkPrepare $prepare,
+        private readonly CoverTemplates $templates,
     ) {}
 
     /**
@@ -83,6 +87,7 @@ final class ShelfBulk
             'unarchive' => $this->each($allowed, fn (Book $b) => $this->unarchive($b, $actor, $reason)),
             'series' => $this->series($allowed, $params, $actor, $reason),
             'house_style' => $this->houseStyle($allowed, $params, $actor, $reason),
+            'cover_template' => $this->coverTemplate($allowed, $params, $actor, $reason),
             'regenerate' => $this->each($allowed, fn (Book $b) => $this->regenerateOne($b, $params, $actor, $reason)),
             'prepare' => $this->prepareMany($allowed, $actor, $reason, $extra),
         };
@@ -257,6 +262,22 @@ final class ShelfBulk
         });
 
         return array_map(fn ($r) => $r + ['message' => ''], $results);
+    }
+
+    /**
+     * CoverTemplates::applyMany, with an audit row for each house book. A
+     * book with an uploaded finished front or back is skipped unless the
+     * artwork choice (replace, or keep as the background) was made.
+     */
+    private function coverTemplate(Collection $books, array $params, User $actor, ?string $reason): array
+    {
+        $template = CoverTemplate::find((int) ($params['cover_template_id'] ?? 0))
+            ?? throw ValidationException::withMessages(['cover_template_id' => 'Choose a cover template.']);
+        $follow = (bool) ($params['follow'] ?? true);
+        $artwork = in_array($params['artwork'] ?? null, CoverTemplates::ARTWORK_CHOICES, true) ? $params['artwork'] : null;
+
+        return $this->templates->applyMany($template, $books->pluck('id')->all(), $actor, $follow, $artwork,
+            CoverTemplateController::auditor($template, $follow, $artwork, trim((string) $reason), $actor));
     }
 
     private function regenerateOne(Book $book, array $params, User $actor, ?string $reason): array

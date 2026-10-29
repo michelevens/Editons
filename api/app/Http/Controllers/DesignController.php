@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Covers\CoverArtist;
+use App\Covers\CoverBackground;
 use App\Covers\CoverConcepts;
 use App\Covers\CoverFonts;
 use App\Covers\CoverImages;
 use App\Covers\CoverLayers;
+use App\Covers\CoverTemplates;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Platform\Ai\AiControls;
@@ -181,7 +183,18 @@ class DesignController extends Controller
             'back_framing.x' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'back_framing.y' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'back_framing.zoom' => ['sometimes', 'numeric', 'min:1', 'max:4'],
+            // The author's own backgrounds, per scope (CoverBackground): a
+            // scope given replaces that one, null removes it, and null for
+            // the whole removes them all. The palettes stay as quick picks.
+            'backgrounds' => ['sometimes', 'nullable', 'array:front,back,spine,wrap'],
         ]);
+
+        // A book that follows a cover template takes its design from it:
+        // only its own text (title, subtitle, author, tagline, copy) is
+        // edited here until it is detached.
+        if (array_intersect_key($data, array_flip(CoverTemplates::DESIGN_KEYS)) !== []) {
+            CoverTemplates::refuseWhileFollowing($book);
+        }
 
         $images = CoverImages::ids($book);
 
@@ -190,6 +203,35 @@ class DesignController extends Controller
                 // Null is "Reset"; anything else must be a valid document,
                 // and is stored as CoverLayers normalised it.
                 $data[$key] = CoverLayers::validate($data[$key], $panel, $images);
+            }
+        }
+
+        if (array_key_exists('backgrounds', $data)) {
+            $stored = ($book->cover ?? [])['backgrounds'] ?? [];
+            $next = $data['backgrounds'] === null ? [] : (is_array($stored) ? $stored : []);
+
+            foreach ((array) $data['backgrounds'] as $scope => $background) {
+                if ($background === null) {
+                    unset($next[$scope]);
+                } else {
+                    $next[$scope] = CoverBackground::validate($background, $scope, $images);
+                }
+            }
+
+            $data['backgrounds'] = $next ?: null;
+            $before = $stored['wrap'] ?? null;
+
+            if (! isset($next['wrap'])) {
+                $data['wrap_ref'] = null;
+            } elseif (! isset(($book->cover ?? [])['wrap_ref']) || ($before['kind'] ?? null) !== $next['wrap']['kind'] || ($before['image'] ?? null) !== ($next['wrap']['image'] ?? null)) {
+                // Placing a wrap background records the sheet it is placed
+                // on, so the store's front shows the same share of it.
+                try {
+                    $data['wrap_ref'] = CoverWrap::reference(app(CoverWrap::class)->forBook($book));
+                } catch (\RuntimeException) {
+                    // A service whose spine must be typed in: the front
+                    // uses a nominal sheet until the wrap view refits it.
+                }
             }
         }
 
@@ -209,7 +251,7 @@ class DesignController extends Controller
 
         $cover = array_merge($book->cover ?? [], $data);
 
-        foreach (['layers', 'back_layers', 'spine_layers', 'spine_direction', 'framing', 'back_framing'] as $key) {
+        foreach (['layers', 'back_layers', 'spine_layers', 'spine_direction', 'framing', 'back_framing', 'backgrounds', 'wrap_ref'] as $key) {
             if (array_key_exists($key, $data) && $data[$key] === null) {
                 unset($cover[$key]);
             }
@@ -229,6 +271,7 @@ class DesignController extends Controller
     public function customiseCover(Book $book): JsonResponse
     {
         $this->authorize('update', $book);
+        CoverTemplates::refuseWhileFollowing($book);
 
         if (! isset(($book->cover ?? [])['layers'])) {
             $book->update(['cover' => array_merge($book->cover ?? [], [
@@ -243,6 +286,7 @@ class DesignController extends Controller
     public function resetCover(Book $book): JsonResponse
     {
         $this->authorize('update', $book);
+        CoverTemplates::refuseWhileFollowing($book);
 
         $cover = $book->cover ?? [];
         unset($cover['layers']);
@@ -254,6 +298,7 @@ class DesignController extends Controller
     public function uploadArtwork(Request $request, Book $book): JsonResponse
     {
         $this->authorize('update', $book);
+        CoverTemplates::refuseWhileFollowing($book);
 
         $request->validate([
             // Explicit mimes, not just `image`: the validator's image rule
@@ -337,7 +382,6 @@ class DesignController extends Controller
 
         $path = "covers/book-{$book->id}/{$field}-preview-".substr(md5($artwork), 0, 12).'.jpg';
 
-
         if (! $disk->exists($path)) {
             $this->covers->headroom('512M');
             $image = @imagecreatefromstring((string) $disk->get($artwork));
@@ -368,6 +412,7 @@ class DesignController extends Controller
     public function removeArtwork(Book $book): JsonResponse
     {
         $this->authorize('update', $book);
+        CoverTemplates::refuseWhileFollowing($book);
 
         $cover = $book->cover ?? [];
 
@@ -434,6 +479,10 @@ class DesignController extends Controller
                 'artwork_image' => isset($cover['artwork']) ? route('design.cover.image', [
                     'book' => $book->id, 'part' => 'artwork', 'v' => substr(md5((string) $cover['artwork']), 0, 12),
                 ]) : null,
+                // The author's own backgrounds (CoverBackground), and the
+                // cover template the book follows or could take.
+                'backgrounds' => (object) CoverBackground::all($book),
+                'template' => CoverTemplates::summary($book, auth()->user()),
                 'background' => route('design.cover.image', [
                     'book' => $book->id,
                     'part' => 'background',

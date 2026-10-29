@@ -23,6 +23,7 @@ const SOURCE_NAMES = {
     subtitle: 'Subtitle',
     author: 'Author',
     series: 'Series',
+    number: 'Series number',
     edition: 'Edition',
     tagline: 'Tagline',
     description: 'Back-cover copy',
