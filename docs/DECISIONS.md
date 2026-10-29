@@ -3573,6 +3573,30 @@ bulk action and no way to say "never flag this again". House styles
   tokens; unset is the default model); standard is today's review. The
   chapter endpoint (`/sections/{section}/review`) also takes focus and
   sensitivity, and uses the book's guide.
+- *Queued runs* (`App\Jobs\RunEditorialReview`, `editorial_runs`). A
+  range, the whole book, or any run over three sections never runs in the
+  web request: a real provider over forty chapters would outlive it while
+  spending credits. The request validates, estimates, checks credits, the
+  cap and approval, freezes the options on the run row (the rules as they
+  were, the guide version, focus, sensitivity), dispatches the job and
+  answers 202 with the run. The worker reviews one section at a time
+  through `ReviewRunner`, so each section is charged, stored and recorded
+  on its own and survives a crash. Before each section it checks again —
+  a cancel, the kill switch, the credit balance, the monthly cap against
+  that section's estimate — and stops with the reason on the row
+  (`stopped`, "the credit balance ran out. 2 of 4 sections were
+  reviewed"). A section whose review for this run exists is never
+  reviewed or billed again, even when the worker died between the review
+  and the progress update; the progress (`done_ids`, findings, credits
+  net of refunds, cost) is updated under a row lock. One active
+  whole-book run per book (409 with the running one; a partial unique
+  index holds it under a race). `GET /editorial-runs/{uuid}` (anyone who
+  may open the book) and `/books/{book}/reviews/active` give progress;
+  `POST /editorial-runs/{uuid}/cancel` (anyone who may edit it) lets the
+  section under way finish and starts no other. The studio polls every
+  1.5 s, shows sections done of total, findings, credits and cost so far,
+  reloads findings as each section finishes, and offers Cancel. A
+  selection and one chapter stay in the request.
 - *Cost estimate and budgets.* The driver estimates each section: the
   request's own size plus the chapter (capped like the request) at 3.5
   characters a token, the answer at 300 + 20 % of the chapter capped by
@@ -3617,9 +3641,10 @@ bulk action and no way to say "never flag this again". House styles
 the model, not deterministically (only terms are). The guide does not
 drive the editor or the renderers (smart quotes, French spaces in PDF and
 EPUB: audit N2). A series guide is an account guide the series' books
-follow; there is no series object. Reviews still run synchronously; a
-whole-book run on a real provider belongs on the queue. A selection
-review takes the first occurrence of the selected text.
+follow; there is no series object. A selection review takes the first
+occurrence of the selected text. Credits are checked against the
+estimate when a run is queued and before each section, not reserved:
+a balance spent elsewhere meanwhile stops the run cleanly instead.
 
 **Tests.** `tests/Feature/StyleGuideTest.php` (creation and every field;
 ten refusals; normalisation; versions immutable in the model and the
@@ -3639,4 +3664,12 @@ sorts; bulk accept and dismiss; never flag a word and a rule, with their
 undo). `tests/Browser/style-guide.spec.js` at 1440 and 390 px: a guide
 created and edited to version 2, a Copy review of one chapter with its
 estimate, filters by rule, severity and chapter, never-flag and undo, a
-bulk dismiss after confirming; no horizontal scroll, no console errors.
+bulk dismiss after confirming, then a two-chapter range followed on the
+queue to the end; no horizontal scroll, no console errors.
+`tests/Feature/QueuedReviewRunTest.php` (range and whole book dispatched,
+not run in the request, while one chapter is; per-section persistence
+with a failing section refunded and the run going on; a stop when the
+credits run out and when the cap would be passed; a retried job that
+bills nothing twice; cancel; one active whole-book run per book, in the
+controller and the database; progress and cancel refused to strangers,
+progress open and cancel refused to a reviewer).

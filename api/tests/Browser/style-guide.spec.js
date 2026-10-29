@@ -12,8 +12,10 @@ import { DEMO, signIn, watchForErrors } from './helpers.js';
  * a preferred term, a chapter-scope review run on the sample driver (no
  * AI, no credits), its findings filtered by rule and chapter, a filler-word
  * rule's findings dismissed in bulk after confirming, and "never flag this
- * again" applied and undone. Nothing wider than the screen, no console
- * errors.
+ * again" applied and undone; then a two-chapter range, which runs on the
+ * queue, followed through its progress to the end. It needs a worker
+ * (`php artisan queue:work`) on the same database as the server. Nothing
+ * wider than the screen, no console errors.
  *
  * The book is the suite's own (titled "E2E Style guide", rebuilt on every
  * run in the e2e account), so nothing else on the shelf is touched.
@@ -146,6 +148,22 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await expect(page.locator('[data-a="ai-screen:list"] li')).toHaveCount(fillers);
         await noHorizontalScroll(page);
         await shot(page, `${viewport.width}-5-dismissed`);
+
+        // A range of chapters runs on the worker: follow its progress until
+        // it finishes, and see the second chapter's findings arrive.
+        await page.click('[data-a="ai-screen:status:open"]');
+        await page.selectOption('[data-a="ai-screen:rule"]', '');
+        await page.selectOption('[data-a="ai-screen:section"]', '');
+        await page.click('[data-a="review-options:scope:range"]');
+        await page.selectOption('[data-a="review-options:from"]', { label: 'Un' });
+        await page.selectOption('[data-a="review-options:to"]', { label: 'Deux' });
+        await expect(page.locator('[data-a="review-options:estimate"]')).toContainText('2 of 2 chapters');
+        await page.click('[data-a="review-options:run"]');
+        await expect(page.locator('[data-a="review-options:progress"]')).toBeVisible();
+        await expect(page.locator('[data-a="review-options:progress:text"]')).toContainText('Review completed: 2 of 2 sections', { timeout: 90_000 });
+        await expect(page.locator('[data-a="ai-screen:list"]')).toContainText('Deux');
+        await noHorizontalScroll(page);
+        await shot(page, `${viewport.width}-6-range-run`);
 
         expect(errors).toEqual([]);
     });
