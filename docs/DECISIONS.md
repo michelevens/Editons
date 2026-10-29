@@ -3899,3 +3899,83 @@ flags; tenant isolation; Prépa: reason required, skipped without a
 choice, keep, replace, audit rows, restore; shelf and console bulk;
 support refused; Cover Studio payload), `tests/Browser/cover-templates.spec.js`
 at 1440 and 390 px.
+
+## ADR-00XX — Interface languages (English, French, Haitian Creole)
+
+**Status:** accepted (2026-10-29). Number assigned at merge.
+
+**Context.** The flexibility audit's N3: the app spoke English only, for
+authors who write in French and Kreyòl. The only locale handling was the
+partner page's own `CHROME` table (`PartnerPageView.jsx`), chosen by the
+partner for their readers. The marketing site has its own French page.
+
+**Decisions.**
+
+- *Preference*: `users.locale` (`en`, `fr`, `ht`), null until the first
+  visit, when `SetLocale` (web group, before Inertia) stores the best match
+  of `Accept-Language` (`App\I18n\Locales::negotiate`, weighted, base tag);
+  then only the switcher changes it (`PUT /locale`, account menu and sign-in
+  pages). Signed out, the choice is the session's and the account created
+  from it keeps it. `app()->setLocale()` and Carbon follow, so validation,
+  `<html lang>` and dates do.
+- *Catalogues*: one JSON file per language in `api/lang/`, read by Laravel's
+  JSON loader and by React. Interface keys are dotted and written in an ICU
+  subset (`{name}`, `plural` with `=n`/`one`/`other` and `#`, `select`),
+  formatted identically by `App\I18n\MessageFormat` and
+  `resources/js/i18n.js`. Email copy keeps Laravel's sentence keys and
+  `:name` (the English is the key), so the mail classes did not change
+  shape. Keys under `auth.`, `passwords.`, `pagination.`, `validation.` are
+  refused: a JSON key of that name would replace the framework's message.
+- *Delivery*: `en.json` is bundled with the JavaScript as the fallback;
+  another language's interface keys come as an Inertia once-prop
+  (`i18n_messages`, keyed by language and file version), sent on the first
+  visit and again only when the language or the catalogue changes. English
+  pages receive no strings. `useI18n()` gives `t`, `formatNumber`,
+  `formatMoney`, `formatDate` (`Intl`; English passes no locale, as every
+  `toLocaleString()` did; Kreyòl uses `fr-HT` with the catalogue's month
+  names, CLDR having no Haitian data).
+- *Fallback*: a key missing from French or Kreyòl is the English; missing
+  from English it is the key's last segment humanised, never the raw key,
+  logged (PHP, outside production) or warned (browser, in development). A
+  static scan in the tests fails when JSX names a `t('…')` or `tKey: '…'`
+  that `en.json` lacks.
+- *Email*: `Notify::send` passes the account's `preferredLocale()` (User
+  implements `HasLocalePreference`, which notifications use too); an address
+  without an account takes the mail's `fallbackLocale()` — the inviter's
+  for a book invitation. Date formats in the priority emails are sentence
+  keys (`F j` → `j F`) so the day comes first in French and Kreyòl.
+- *Scope*: tiers (a) and most of (b) of the brief are extracted (see
+  docs/I18N.md "What is translated"). The admin console stays English (staff
+  screens). Manuscript content is never translated. Partner pages keep their
+  own page language.
+- *Kreyòl* is written to the standard orthography but marked `"_meta":
+  {"status": "draft — needs native review"}`; `docs/i18n/ht-review.csv` and
+  `fr-review.csv` (key, English, translation, screen, correction) are the
+  reviewers' channel. No AI provider was used to translate.
+
+**Defaults unchanged.** English strings were moved into `en.json` verbatim
+from the JSX they replaced (whitespace collapsed as JSX renders it); a
+page's visible text for an English account was compared before (main's
+JavaScript) and after, at 1440 px, for the sign-in, shelf, overview and
+editor screens (Playwright, scratchpad i18n-shots/en-diff.json).
+
+**Not done.** Tiers (c) and (d) of the extraction (Export & Publish, Cover
+Studio, Design & Layout, AI Editor, sales, partner dashboard, settings,
+inbox), the shelf's bulk panels, the other emails, and server-sent prose
+(book types, overview checklist, relative times). Numbers inside email
+copy still use `number_format` (1,234). A right-to-left language would need
+`dir` handling.
+
+**Tests.** `tests/Feature/I18n/InterfaceLanguageTest.php` (first-visit
+default stored, stored choice wins, unsupported → English, weighted
+negotiation, switch and persist, refusal, guest choice kept on register,
+English sends no strings and French only interface keys, fallback chain,
+plurals per language, validation and sign-in errors in fr/ht/en, password
+reset in Kreyòl, invitation in the inviter's French, email locale null for
+an account that never chose), `tests/Feature/I18n/CatalogueTest.php` (JSX
+static scan, prefs.json shortcuts/scopes/reserved/tab contexts, parity and
+coverage per language, parameters, reserved prefixes, Kreyòl draft status,
+every string of the priority emails translated, Laravel message files
+complete), `tests/Browser/i18n.spec.js` (French, Kreyòl and back to English
+on the shelf, editor and publish screens at 1440 and 390 px, no horizontal
+overflow, no console errors).

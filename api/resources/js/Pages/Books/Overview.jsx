@@ -5,6 +5,7 @@ import { goTo } from '@/Components/Studio/navigation';
 import StudioSidebar from '@/Components/Studio/StudioSidebar';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * The book's home screen.
@@ -15,6 +16,7 @@ import { useCallback, useState } from 'react';
  */
 export default function Overview({ book, stats, checklist, channels = [], store = null }) {
     const { auth } = usePage().props;
+    const { t } = useI18n();
 
     const open = (key) => goTo(book.id, key);
     const [menu, setMenu] = useState(false);
@@ -22,7 +24,7 @@ export default function Overview({ book, stats, checklist, channels = [], store 
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title={`${book.title} — Overview`} />
+            <Head title={t('overview.head', { title: book.title })} />
 
             <AppHeader
                 active="writing"
@@ -57,8 +59,7 @@ export default function Overview({ book, stats, checklist, channels = [], store 
                                     </p>
                                 )}
                                 <p className="mt-2 text-[12.5px] text-text-secondary">
-                                    {book.genre || 'Unclassified'} · edited{' '}
-                                    {book.updated_at}
+                                    {book.genre || t('book.unclassified')} · {t('overview.edited', { when: book.updated_at })}
                                 </p>
                             </div>
 
@@ -77,7 +78,7 @@ export default function Overview({ book, stats, checklist, channels = [], store 
                                     }
                                     className="flex h-[40px] items-center gap-2 rounded-control border border-border-default bg-bg-surface px-4 text-[14px] font-semibold text-text-secondary transition hover:border-brand-primary/40 hover:text-text-primary"
                                 >
-                                    Guided
+                                    {t('overview.guided')}
                                 </button>
 
                                 <button
@@ -85,7 +86,7 @@ export default function Overview({ book, stats, checklist, channels = [], store 
                                     onClick={() => open('manuscript')}
                                     className="flex h-[40px] items-center gap-2 rounded-control bg-brand-fill px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover"
                                 >
-                                    Open manuscript
+                                    {t('overview.open_manuscript')}
                                     <Icon name="right" size={16} strokeWidth={2.2} />
                                 </button>
                             </div>
@@ -109,42 +110,45 @@ export default function Overview({ book, stats, checklist, channels = [], store 
 }
 
 const CHANNEL_STATUS = {
-    live: ['Live', 'text-status-success'],
-    in_review: ['Submitted', 'text-status-warning'],
-    ready_to_submit: ['Ready to upload', 'text-status-warning'],
-    not_submitted: ['Chosen', 'text-text-secondary'],
-    unpublished: ['Taken off sale', 'text-text-secondary'],
+    live: [{ tKey: 'channel.live' }, 'text-status-success'],
+    in_review: [{ tKey: 'channel.in_review' }, 'text-status-warning'],
+    ready_to_submit: [{ tKey: 'channel.ready_to_submit' }, 'text-status-warning'],
+    not_submitted: [{ tKey: 'channel.not_submitted' }, 'text-text-secondary'],
+    unpublished: [{ tKey: 'channel.unpublished' }, 'text-text-secondary'],
 };
 
 /** Where the book is published: each store's status, the ASIN once known. */
 function Published({ channels, store, onOpen }) {
+    const { t } = useI18n();
+
     return (
         <section data-a="overview:published" className="mt-[18px] rounded-panel border border-border-default bg-bg-surface p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-[15px] font-semibold text-text-primary">Where it&rsquo;s published</h2>
+                <h2 className="text-[15px] font-semibold text-text-primary">{t('overview.published')}</h2>
                 <button
                     type="button"
                     data-a="overview:publish"
                     onClick={() => onOpen('publish')}
                     className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-semibold text-brand-primary transition hover:border-brand-primary/40"
                 >
-                    Publish in 3 steps
+                    {t('overview.publish_3')}
                 </button>
             </div>
             {channels.length === 0 && !store ? (
-                <p className="mt-2 text-[12.5px] text-text-secondary">Not published anywhere yet.</p>
+                <p className="mt-2 text-[12.5px] text-text-secondary">{t('overview.not_published')}</p>
             ) : (
                 <ul className="mt-2 divide-y divide-border-default text-[12.5px]">
                     {store && (
                         <li className="flex flex-wrap justify-between gap-2 py-1.5">
-                            <span className="text-text-primary">Écrivain store{store.paperback ? ' (ebook and paperback)' : ''}</span>
+                            <span className="text-text-primary">{store.paperback ? t('overview.store_both') : t('overview.store')}</span>
                             <span className={store.state === 'live' ? 'text-status-success' : 'text-text-secondary'}>
-                                {store.state === 'live' ? 'On sale' : store.state === 'taken_down' ? 'Taken down' : 'Draft'}
+                                {store.state === 'live' ? t('overview.on_sale') : store.state === 'taken_down' ? t('overview.taken_down') : t('overview.draft')}
                             </span>
                         </li>
                     )}
                     {channels.map((c) => {
-                        const [label, tone] = CHANNEL_STATUS[c.status] ?? [c.status, 'text-text-secondary'];
+                        const [status, tone] = CHANNEL_STATUS[c.status] ?? [null, 'text-text-secondary'];
+                        const label = status ? t(status.tKey) : c.status;
 
                         return (
                             <li key={c.channel} data-a={`overview:channel:${c.channel}`} className="flex flex-wrap justify-between gap-2 py-1.5">
@@ -164,34 +168,35 @@ function Published({ channels, store, onOpen }) {
 }
 
 function Kpis({ stats, onOpen }) {
+    const { t, formatNumber } = useI18n();
     const tiles = [
         {
-            label: 'Words',
-            value: stats.words.toLocaleString(),
-            sub: stats.chapters === 1 ? '1 chapter' : `${stats.chapters} chapters`,
+            label: t('overview.kpi_words'),
+            value: formatNumber(stats.words),
+            sub: t('overview.chapters', { count: stats.chapters }),
             pane: 'manuscript',
         },
         {
-            label: 'Open findings',
+            label: t('overview.kpi_findings'),
             value: stats.open_findings,
             sub:
                 stats.agents_with_findings === 0
-                    ? 'nothing outstanding'
-                    : `across ${stats.agents_with_findings} agent${stats.agents_with_findings === 1 ? '' : 's'}`,
+                    ? t('overview.nothing_outstanding')
+                    : t('overview.across_agents', { count: stats.agents_with_findings }),
             pane: 'manuscript',
             tone: stats.critical > 0 ? 'danger' : undefined,
         },
         {
-            label: 'Claims to source',
+            label: t('overview.kpi_claims'),
             value: stats.claims_needing_source,
-            sub: `${stats.sources} source${stats.sources === 1 ? '' : 's'} in the library`,
+            sub: t('overview.sources', { count: stats.sources }),
             pane: 'research',
             tone: stats.claims_needing_source > 0 ? 'warning' : undefined,
         },
         {
-            label: 'Vocabulary conflicts',
+            label: t('overview.kpi_conflicts'),
             value: stats.consistency_issues,
-            sub: 'across all chapters',
+            sub: t('overview.across_chapters'),
             pane: 'terms',
             tone: stats.consistency_issues > 0 ? 'warning' : undefined,
         },
@@ -201,7 +206,7 @@ function Kpis({ stats, onOpen }) {
         <div className="mt-7 grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
             {tiles.map((tile) => (
                 <button
-                    key={tile.label}
+                    key={tile.pane + tile.label}
                     data-a={`overview:kpi:${tile.pane}`}
                     onClick={() => onOpen(tile.pane)}
                     className="rounded-panel border border-border-default bg-bg-surface p-4 text-left transition hover:border-brand-primary-border"
@@ -228,6 +233,7 @@ function Kpis({ stats, onOpen }) {
 }
 
 function WordTarget({ book, stats }) {
+    const { t, formatNumber } = useI18n();
     const { data, setData, patch, processing } = useForm({
         target_words: book.target_words ?? '',
     });
@@ -242,14 +248,14 @@ function WordTarget({ book, stats }) {
 
     return (
         <section className="rounded-panel border border-border-default bg-bg-surface p-5">
-            <h2 className="text-[15px] font-semibold text-text-primary">Word target</h2>
+            <h2 className="text-[15px] font-semibold text-text-primary">{t('overview.target')}</h2>
 
             {target ? (
                 <>
                     <p className="mt-3.5 font-display text-[32px] font-bold leading-none tracking-[-0.03em] text-text-primary">
-                        {stats.words.toLocaleString()}
+                        {formatNumber(stats.words)}
                         <span className="ml-2 font-ui text-[14px] font-normal text-text-secondary">
-                            of {target.toLocaleString()} words
+                            {t('overview.of_words', { words: formatNumber(target) })}
                         </span>
                     </p>
 
@@ -260,22 +266,21 @@ function WordTarget({ book, stats }) {
                         />
                     </div>
                     <p className="mt-2 text-[12.5px] text-text-secondary">
-                        {pct}% of target
+                        {t('overview.pct_of_target', { pct })}
                         {stats.words < target &&
-                            ` · ${(target - stats.words).toLocaleString()} to go`}
+                            ` · ${t('overview.to_go', { words: formatNumber(target - stats.words) })}`}
                     </p>
                 </>
             ) : (
                 <p className="mt-3 text-[13px] leading-relaxed text-text-secondary">
-                    No target set. Progress is only meaningful against a number
-                    you chose, so there is nothing to show until you pick one.
+                    {t('overview.no_target')}
                 </p>
             )}
 
             <form onSubmit={submit} className="mt-5 flex items-end gap-2.5">
                 <label className="flex-1">
                     <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                        Target word count
+                        {t('overview.target_label')}
                     </span>
                     <input
                         type="number"
@@ -283,7 +288,7 @@ function WordTarget({ book, stats }) {
                         step="1000"
                         value={data.target_words}
                         data-a="overview:target"
-                        placeholder="e.g. 80000"
+                        placeholder={t('overview.target_placeholder')}
                         onChange={(event) => setData('target_words', event.target.value)}
                         className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
                     />
@@ -293,7 +298,7 @@ function WordTarget({ book, stats }) {
                     data-a="overview:target:save"
                     className="h-[38px] shrink-0 rounded-control bg-bg-inverse px-3.5 text-[13px] font-semibold text-text-inverse transition hover:opacity-90 disabled:opacity-60"
                 >
-                    {target ? 'Update' : 'Set target'}
+                    {target ? t('overview.update') : t('overview.set_target')}
                 </button>
             </form>
         </section>
@@ -301,16 +306,17 @@ function WordTarget({ book, stats }) {
 }
 
 function Checklist({ items, onOpen }) {
+    const { t } = useI18n();
     const done = items.filter((item) => item.done).length;
 
     return (
         <section className="rounded-panel border border-border-default bg-bg-surface p-5">
             <div className="flex items-baseline justify-between">
                 <h2 className="text-[15px] font-semibold text-text-primary">
-                    Before this is finished
+                    {t('overview.checklist')}
                 </h2>
                 <span className="text-[12.5px] text-text-secondary">
-                    {done} of {items.length}
+                    {t('overview.done_of', { done, total: items.length })}
                 </span>
             </div>
 
@@ -360,8 +366,7 @@ function Checklist({ items, onOpen }) {
             </ul>
 
             <p className="mt-4 text-[11px] leading-relaxed text-text-secondary">
-                Only steps this app can actually observe. Cover, metadata and
-                store submission arrive with the publishing pipeline.
+                {t('overview.checklist_note')}
             </p>
         </section>
     );

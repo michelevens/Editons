@@ -46,6 +46,7 @@ import {
     useWorkspace,
 } from '@/Components/Studio/workspace';
 import { matches, usePrefs } from '@/shortcuts';
+import { t } from '@/i18n';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -453,7 +454,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         }));
 
         load();
-        notify('Version restored.');
+        notify(t('versions.restored'));
     };
 
     /**
@@ -492,7 +493,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             return;
         }
 
-        notify('That text is no longer in this chapter.');
+        notify(t('editor.text_gone'));
     };
 
     // A chapter's goal changed in the goals sheet: the header ring reads the
@@ -517,7 +518,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 router.reload({ only: ['binder'] });
             }
 
-            notify('Chapter deleted.');
+            notify(t('editor.chapter_deleted'));
         },
     };
 
@@ -560,7 +561,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             revision: (value.revision ?? 0) + 1,
         }));
         setBookWords(res.data.book_word_count);
-        notify('Block inserted at the end of the chapter.');
+        notify(t('editor.block_inserted'));
         load();
     };
 
@@ -745,9 +746,9 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             }
 
             await load();
-            notify(res.data.undone ? 'Fix undone.' : 'Finding reopened.');
+            notify(res.data.undone ? t('editor.fix_undone') : t('editor.finding_reopened'));
         } catch (failure) {
-            notify(failure.response?.data?.message ?? 'Could not undo that.');
+            notify(failure.response?.data?.message ?? t('editor.undo_failed'));
         }
     };
 
