@@ -3673,3 +3673,119 @@ credits run out and when the cap would be passed; a retried job that
 bills nothing twice; cancel; one active whole-book run per book, in the
 controller and the database; progress and cancel refused to strangers,
 progress open and cancel refused to a reviewer).
+
+## ADR-00XX — Configurable shortcuts and mobile tabs
+
+**Status:** accepted (2026-10-29)
+
+**Context.** Keyboard shortcuts were hard-coded where they were handled:
+Ctrl+S in the manuscript editor, Ctrl+K in the header, Ctrl+Shift+F and the
+panel keys in the studio (ADR-0039), Alt+↑/↓ in the binder, A/D/N and the
+arrows in the review deck, and the Cover Studio's nudge keys. There was no
+list of them, no way to change one, and nothing to say whether a new one
+clashed with the editor's formatting keys or with a browser's own. On a
+phone the tab bar was four fixed tabs per place, and the review deck's
+swipes were fixed (right applies, left dismisses), which is backwards for
+some left-handed authors and too easy to trigger for others (findings
+M5, MB1, MB2 of the flexibility audit).
+
+**Decisions.**
+
+- *One registry.* `resources/js/prefs.json` names every shortcut: id,
+  scope (everywhere, writing, chapter outline, review deck, Cover Studio),
+  description, default keys and whether it may be remapped. The same file
+  lists the reserved combinations, the phone tab bar's places and the tabs
+  each may pin. The browser imports it (`resources/js/shortcuts.js`) and the
+  server reads it (`App\Workspace\Preferences`), so the sheet and the
+  validator can never disagree. Handlers call `matches(id, event)` instead
+  of testing keys; a remapped shortcut moves everywhere at once and its old
+  keys stop working.
+- *Remappable or built in.* The app's own commands can be remapped (search,
+  save, the four panel keys, binder moves, the four deck keys). The
+  editor's formatting keys (Tiptap's Mod-b/i/u/e/z/y, Mod-Shift-s/b/7/8,
+  Mod-Alt-0), Escape, Shift+F10, `?` and the Cover Studio's keys are listed
+  as built in: shown in the sheet, counted for conflicts, not changeable.
+  The cover keys stay in `cover/LayerEditor.jsx`, untouched (a parallel
+  Cover Studio branch owns that file); they are in the registry so the
+  sheet shows them.
+- *Bindings.* `Mod+Alt+Shift+<key>`, modifiers in that order and each
+  optional; Mod is Ctrl, or ⌘ on a Mac (shown as ⌘⌥⇧ there, `Ctrl+Alt+Shift+`
+  elsewhere). The key is a `KeyboardEvent.code` name (`KeyS`, `Digit7`,
+  `Backslash`) or a named key (`ArrowUp`, `F2`). `?` is the one literal.
+- *How a key press matches* — chosen per kind of key, for non-US layouts:
+  - letters match the letter typed (`event.key`), so on a French or
+    Haitian AZERTY board Ctrl+A is the key marked A, wherever QWERTY has
+    it; when the key types no Latin letter (⌥ on a Mac turns F into ƒ, a
+    Cyrillic layout) the physical position (`event.code`) is used;
+  - digits and punctuation match the physical key (`event.code`): AZERTY
+    digits need Shift, and AltGr+8 types "\" while reporting Ctrl+Alt
+    (ADR-0039), so matching the character typed would fire shortcuts on
+    text;
+  - named keys match `event.key`;
+  - modifiers match exactly: Ctrl+Shift+S (strikethrough) is never Ctrl+S,
+    and AltGr never passes for Ctrl.
+  Recording a new binding follows the same rule (a letter is stored as the
+  letter typed).
+- *Conflicts.* A binding is refused, in the sheet and again by the server,
+  when the browser keeps it (Ctrl+W/T/N/Shift+N/Shift+T/Tab/Q/L/R, copy,
+  paste, cut, select all, find, print, F5, and plain Tab/Enter/Space/
+  Escape); when another shortcut in the same scope — or any "everywhere"
+  shortcut — already has it, built-in ones included (so Ctrl+B, Ctrl+Z are
+  taken); and, in scopes where focus may be in text (everywhere, writing,
+  outline), when it has neither Mod nor Alt (an F-key alone is allowed).
+  The sheet says why and keeps listening for another combination. The
+  same keys may mean different things in different scopes (KeyN is the
+  deck's next and free in the outline).
+- *The sheet.* `?` (when focus is not in something that takes typing, and
+  no other dialog is open), "Keyboard shortcuts" in the account menu and in
+  search open `ShortcutSheet`: a searchable dialog grouped by scope with the
+  author's current keys (changed ones in the accent colour), Change (records
+  the next combination; Esc cancels), Reset per shortcut and Reset all.
+  Recording listens on the window in the capture phase, so neither the
+  dialog's Escape nor a shortcut underneath sees the keys first. Mounted
+  once in `PlatformFrame`, so it is on every signed-in page.
+- *Phone tabs.* "Edit tabs" in More picks one to four tabs, in the order
+  tapped, for the place the author is in (shelf, writing, reviewing,
+  publishing, selling; the partner dashboard keeps its own four). Any
+  screen of the book may be pinned in a book place; the shelf may pin
+  Books, Write, Sales, Inbox, Billing, Purchases, Account or Help. More is
+  always last and still holds everything. "Back to the usual tabs" removes
+  the choice.
+- *Review deck.* A "Swipes" choice in the deck: right applies (default),
+  left applies (swapped), or off (buttons only). The hint under the card
+  follows; with a keyboard the hint shows the deck's current keys.
+- *Storage.* On the account, in `users.workspace.prefs` beside the
+  writing layout (ADR-0039): `{shortcuts: {id: binding}, mobileTabs:
+  {place: [tab, ...]}, reviewDeck: {swipe}}`. Only changes are stored; an
+  empty section is removed, so an author who changed nothing has no
+  `prefs` key and exactly today's keys and tabs. `Workspace` carries the
+  key through when it saves a layout. Endpoints (JSON, signed in):
+  `GET/PUT /preferences` (a partial change; `null` puts one shortcut or
+  one place's tabs back) and `DELETE /preferences/{shortcuts|mobileTabs|
+  reviewDeck}`. Unknown sections, ids, places and tabs, fixed shortcuts,
+  malformed bindings and the conflicts above are 422s naming the key. The
+  shared Inertia prop `prefs` gives every page the author's choices on
+  first paint; `seedPrefs` puts it in a small store that every handler
+  reads at key-press time, and a save updates that store at once.
+
+**Not done.** Chords (two key presses in sequence); a binding per
+platform (one binding follows the author to Mac and Windows, shown in
+each one's notation); remapping the editor's formatting keys (Tiptap's
+keymap would need rebuilding per author); per-book shortcuts.
+
+**Tests.** `tests/Feature/PreferencesTest.php` (no changes for a new
+author; shared with pages, not in `auth.user`; remap, reset one, reset
+all; fourteen refusals — unknown id, fixed, malformed, out of order, not
+a string, browser keys, plain key while typing, editor bold and undo,
+same scope, a global one, deck among themselves, not a map; the same
+keys in different scopes; clashes against an already moved binding and a
+swap in one request; tabs pinned per place and reset; seven tab
+refusals; swipes; per-author isolation; layout saves keep preferences and
+vice versa; signed-in only). `tests/Browser/shortcuts.spec.js` at 1440
+and 390 px: `?`, the account menu and search open the sheet, every group,
+search; Save remapped (conflict warnings for Ctrl+B and Ctrl+W, then
+Ctrl+Alt+S saves and Ctrl+S does not, also after a reload), reset one,
+reset all, a remapped search shown in the header; Dvorak-like and AZERTY
+key events; phone tabs pinned, ordered, kept after a reload, navigating,
+reset; the review deck swapped (a left swipe applies), then off (swipes
+do nothing); no console errors.
