@@ -45,6 +45,11 @@ return [
     // pricing is decided (an owner decision, like credit costs).
     'platform_rate' => (float) env('COMMERCE_PLATFORM_RATE', 0),
 
+    // The zone sales reports and royalty statements cut days, months and
+    // quarters in, for an account that has not chosen one (users.timezone).
+    // New York: the zone Haiti and the US east coast share, DST included.
+    'report_timezone' => env('COMMERCE_REPORT_TIMEZONE', 'America/New_York'),
+
     // How long an emailed download link works. Buyers who were signed in at
     // checkout can mint fresh ones from /purchases at any time.
     'download_link_hours' => (int) env('COMMERCE_DOWNLOAD_LINK_HOURS', 72),

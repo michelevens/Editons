@@ -6,12 +6,16 @@ use App\Billing\Payments;
 use App\Commerce\Commerce;
 use App\Commerce\Payouts;
 use App\Commerce\PlatformSales;
+use App\Commerce\Reports\RoyaltyStatements;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\SalesController as AuthorSales;
 use App\Models\Order;
 use App\Models\Payout;
 use App\Models\User;
+use App\Platform\AdminAudit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -50,6 +54,23 @@ class SalesController extends Controller
             'payments' => ['available' => Payments::available(), 'refusal' => Payments::refusal()],
             'can_edit' => $request->user()->isPlatformOwner(),
         ]);
+    }
+
+    /**
+     * One account's royalty statement for a month or quarter (ADR-00XX —
+     * Sales reports and royalty statements). Read by all staff, like the
+     * royalties table it is downloaded from; every download is audited.
+     */
+    public function statement(Request $request, User $user, string $period, RoyaltyStatements $statements): HttpResponse
+    {
+        $currency = $request->validate(['currency' => ['required', Rule::in(config('commerce.currencies'))]])['currency'];
+        $statement = $statements->build($user, $period, $currency);
+
+        AdminAudit::transaction(fn () => AdminAudit::record('sales.statement_downloaded', $user, null, [
+            'period' => $period, 'currency' => $currency, 'royalty_due_cents' => $statement['royalty_due_cents'],
+        ], 'Royalty statement from the console', $request->user()));
+
+        return AuthorSales::pdf($statements, $statement);
     }
 
     public function payout(Request $request, User $user, Payouts $payouts): RedirectResponse

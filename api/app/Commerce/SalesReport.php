@@ -3,10 +3,13 @@
 namespace App\Commerce;
 
 use App\Commerce\Partners\Commissions;
+use App\Commerce\Reports\ReportRange;
+use App\Commerce\Reports\Tally;
 use App\Models\Book;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
@@ -37,7 +40,7 @@ final class SalesReport
             ->where('seller_id', $seller->id)
             ->when($book, fn ($q) => $q->where('book_id', $book->id))
             ->whereHas('order', fn ($q) => $q->whereNotNull('paid_at'))
-            ->with(['order:id,number,status,currency,paid_at,refunded_at,buyer_country', 'product:id,slug,published_at'])
+            ->with(['order:id,number,status,currency,paid_at,refunded_at,buyer_country,discount_cents', 'product:id,slug,published_at'])
             ->get();
 
         $byCurrency = $items->groupBy(fn (OrderItem $item) => $item->order->currency);
@@ -88,27 +91,15 @@ final class SalesReport
     }
 
     /**
+     * The money of $rows (App\Commerce\Reports\Tally: the one place a
+     * sales figure is computed).
+     *
      * @param  Collection<int, OrderItem>  $rows
      * @return array<string, int>
      */
     private static function sum(Collection $rows): array
     {
-        $gross = (int) $rows->sum('price_cents');
-        $refunded = (int) $rows->sum('refunded_cents');
-        $fee = (int) $rows->sum('fee_cents');
-
-        return [
-            'units' => $rows->count(),
-            'orders' => $rows->pluck('order_id')->unique()->count(),
-            'gross_cents' => $gross,
-            'refunded_cents' => $refunded,
-            'refunds' => $rows->where('refunded_cents', '>', 0)->count(),
-            'fee_cents' => $fee,
-            'net_cents' => $gross - $refunded - $fee,
-            'royalty_cents' => (int) $rows->sum(fn (OrderItem $item) => Revenue::earned($item)),
-            'partner_cents' => (int) $rows->sum(fn (OrderItem $item) => Commissions::earned($item)),
-            'partner_units' => $rows->where('partner_commission_cents', '>', 0)->count(),
-        ];
+        return Tally::of($rows);
     }
 
     /**
@@ -147,7 +138,8 @@ final class SalesReport
     /**
      * One author's month, per product and currency, for a statement.
      *
-     * Sales are counted in the month they were paid; a refund in the month
+     * Sales are counted in the month they were paid, in the seller's
+     * report timezone (User::reportTimezone); a refund in the month
      * it happened reduces that month's royalty through Revenue::earned on
      * the item as it stands now — simple, and never negative.
      *
@@ -159,12 +151,17 @@ final class SalesReport
      */
     public static function month(User $seller, CarbonInterface $month): array
     {
+        // The month as the seller's sales report cuts it (their timezone),
+        // so the email and the downloadable statement agree.
+        $start = CarbonImmutable::create($month->year, $month->month, 1, 0, 0, 0, $seller->reportTimezone());
+        $range = ReportRange::between($start, $start->endOfMonth(), $seller->reportTimezone());
+
         $items = OrderItem::query()
             ->where('seller_id', $seller->id)
             ->whereHas('order', fn ($q) => $q
                 ->whereIn('status', [...Order::COUNTED, 'refunded'])
-                ->where('paid_at', '>=', $month->copy()->startOfMonth())
-                ->where('paid_at', '<', $month->copy()->startOfMonth()->addMonth()))
+                ->where('paid_at', '>=', $range->startUtc())
+                ->where('paid_at', '<', $range->endUtc()))
             ->with('order:id,currency')
             ->get();
 

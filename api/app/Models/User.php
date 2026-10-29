@@ -90,6 +90,19 @@ class User extends Authenticatable
     }
 
     /**
+     * The zone this account's sales reports cut days in: its own, or the
+     * platform's reporting zone (config commerce.report_timezone).
+     */
+    public function reportTimezone(): string
+    {
+        $zone = $this->timezone;
+
+        return $zone && in_array($zone, \DateTimeZone::listIdentifiers(), true)
+            ? $zone
+            : (string) config('commerce.report_timezone', 'America/New_York');
+    }
+
+    /**
      * Everybody but the house accounts: what growth, broadcasts, lifecycle
      * mail and the "real author" figures count.
      */

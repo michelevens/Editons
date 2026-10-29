@@ -652,6 +652,18 @@ Route::middleware('auth')->group(function () {
         ->name('sales.show');
     Route::get('/sales', [SalesController::class, 'overview'])
         ->name('sales.overview');
+    // The report's CSVs and royalty statements (ADR-00XX — Sales reports
+    // and royalty statements): the same scope as the report, rate-limited.
+    Route::get('/sales/export/{kind}.csv', [SalesController::class, 'export'])
+        ->whereIn('kind', ['lines', 'summary'])
+        ->middleware('throttle:sales-exports')
+        ->name('sales.export');
+    Route::get('/sales/statements/{period}.pdf', [SalesController::class, 'statement'])
+        ->where('period', '\d{4}-(0[1-9]|1[0-2]|Q[1-4])')
+        ->middleware('throttle:sales-exports')
+        ->name('sales.statement');
+    Route::put('/sales/timezone', [SalesController::class, 'timezone'])
+        ->name('sales.timezone');
 
     // The book's product in the storefront. Owner only (BookPolicy::manage).
     Route::get('/books/{book}/product', [ProductController::class, 'show'])
@@ -731,6 +743,10 @@ Route::middleware(['auth', 'feature:partners'])->group(function () {
         ->name('partners.apply.store');
 
     Route::get('/partner', [PartnerController::class, 'dashboard'])->name('partners.dashboard');
+    // The partner's own commissions in a date range, as CSV (ADR-00XX).
+    Route::get('/partner/commissions.csv', [PartnerController::class, 'exportCommissions'])
+        ->middleware('throttle:sales-exports')
+        ->name('partners.commissions.export');
     Route::put('/partner/page', [PartnerController::class, 'updatePage'])->name('partners.page.update');
     Route::get('/partner/handle', [PartnerController::class, 'checkHandle'])
         ->middleware('throttle:60,1')
