@@ -242,7 +242,7 @@ final class ReportRange
                 },
                 'label' => match ($bucket) {
                     'day' => $cursor->format('j M'),
-                    'week' => $first->format('j M'),
+                    'week' => $first->equalTo($last) ? $first->format('j M') : $first->format('j M').' – '.$last->format('j M'),
                     default => $cursor->format('M Y'),
                 },
                 'from' => $first->format('Y-m-d'),

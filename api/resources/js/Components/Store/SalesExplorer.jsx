@@ -426,13 +426,19 @@ function Delta({ delta, format, invert = false }) {
     const up = delta.abs > 0;
     const good = invert ? !up : up;
     const tone = delta.abs === 0 ? 'text-text-secondary' : good ? 'text-status-success' : 'text-status-danger';
-    const sign = delta.abs > 0 ? '+' : delta.abs < 0 ? '−' : '±';
+    const sign = delta.abs > 0 ? '+' : '−';
 
     return (
         <p className={`text-[10.5px] font-semibold tabular-nums ${tone}`} data-a="sales:delta">
-            {sign}
-            {format(Math.abs(delta.abs))}
-            {delta.pct !== null ? ` (${delta.pct > 0 ? '+' : ''}${delta.pct} %)` : ' (new)'}
+            {delta.abs === 0 ? (
+                'no change'
+            ) : (
+                <>
+                    {sign}
+                    {format(Math.abs(delta.abs))}
+                    {delta.pct !== null ? ` (${delta.pct > 0 ? '+' : ''}${delta.pct} %)` : ' (none before)'}
+                </>
+            )}
         </p>
     );
 }
@@ -464,7 +470,7 @@ function Chart({ series, compare, currency, bucket }) {
                             )}
                             <div
                                 title={`${b.label}: ${b.units} sold, ${money(b.gross_cents, currency)}${b.refunded_cents ? `, ${money(b.refunded_cents, currency)} refunded` : ''}`}
-                                className={`relative w-full rounded-t bg-brand-primary/60 ${then ? 'mx-auto w-3/5' : ''}`}
+                                className={`relative mx-auto rounded-t bg-brand-primary/60 ${then ? 'w-3/5' : 'w-full'}`}
                                 style={{ height: height(b.gross_cents) }}
                             />
                         </div>
@@ -523,8 +529,6 @@ function Breakdown({ rows, totals, dimension, house }) {
                                             <a href={row.url} className="hover:underline">
                                                 {row.label}
                                             </a>
-                                        ) : dimension === 'period' && row.from !== row.to ? (
-                                            `${row.label} – ${row.to.slice(5)}`
                                         ) : (
                                             row.label
                                         )}

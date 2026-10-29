@@ -3381,3 +3381,91 @@ by a search without the accent, grouped, columns chosen, the view
 restored on return, select all and regenerate with progress, the sticky
 bar on screen, the CSV downloaded, a named view saved and deleted; no
 horizontal scroll, no console errors).
+
+---
+
+## ADR-00XX — Sales reports and royalty statements
+
+**Status:** accepted (2026-10-29). Number assigned at merge.
+
+**Context.** The flexibility audit's P5 and PP2. The Sales page showed
+all-time totals and a fixed 30-day chart, with no date range, comparison,
+per-book, per-format or per-channel filter, no CSV, and no statement to
+download; the only CSV was the console's partner commissions. Partners'
+earnings had no range or export. Royalties (`Revenue::earned`), partner
+commissions (`Commissions::earned`, ADR-0034), house money (ADR-0035) and
+the shelf's CSV escaping (ADR-0045) were there to reuse.
+
+**Decisions.**
+
+- *One arithmetic.* `App\Commerce\Reports\Tally` is the one place a sales
+  figure is computed: per order item, gross (paid, after any discount),
+  discount (the order's, split across its items by `Revenue::allocate`),
+  refunded, fee, net = gross − refunded − fee, royalty (`Revenue::earned`)
+  and partner (`Commissions::earned`). Totals are plain sums of lines, so
+  every breakdown adds up to the total to the cent (tested on 80 random
+  sales with refunds, discounts, partners and two currencies).
+  `SalesReport::for`'s sums now go through it too.
+- *Ranges in the account's timezone.* `App\Commerce\Reports\ReportRange`:
+  presets last 7/30/90 days, this/last month, quarter to date, last
+  quarter, year to date, last year, all time (from the first sale), and a
+  custom from–to. A range is whole local days; its bounds are local
+  midnights converted to UTC, so DST days are 23 or 25 hours and a 23:30
+  sale in New York stays on its day. The zone is `users.timezone`
+  (picked on the Sales page), else `commerce.report_timezone`
+  (`COMMERCE_REPORT_TIMEZONE`, **America/New_York** — Haiti and the US
+  east coast share it, DST included). The default is still the last 30
+  days by day, but the totals now follow the range (they were all time;
+  "All time" gives them). Range, comparison and filters are query
+  parameters: a view is a URL to bookmark or share.
+- *Comparison.* Previous period (whole months shift by months, so last
+  quarter compares with the quarter before; otherwise the same number of
+  days before) or the same dates last year. Deltas, absolute and percent
+  (null from zero), per currency and figure; the chart overlays the other
+  period bucket by bucket.
+- *Filters and breakdowns.* `SalesExplorer` scopes every query by seller
+  ids fixed by the caller; book, format (epub, pdf, print = paperback, by
+  what the item delivered), channel (own storefront, or partner referral —
+  a commission was due) and currency narrow it and can never widen it.
+  Stores other than the storefront report no sales, so they have no rows
+  (said on the page). Money is never converted: totals and every row are
+  per currency. Breakdowns by book, format, channel and period (day up to
+  62 days, week from Monday up to 26 weeks, month beyond). A sale counts on
+  the day it was paid with its refund on the same line, so periods add up;
+  the book panel's older chart still plots refunds on the day they
+  happened.
+- *CSV.* `/sales/export/lines.csv` (a row per order line: order, paid
+  time and local date, book, format, channel, currency, decimal amounts,
+  status, buyer country — never the buyer) and `summary.csv` (totals,
+  comparison totals, every breakdown). Streamed with `lazyById(500)`
+  (5,000 orders in bounded memory, tested), BOM, every cell through
+  `ShelfBulk::csvCell`.
+- *Statements.* `RoyaltyStatements` builds a payee's month (`2026-09`) or
+  quarter (`2026-Q3`) per currency from the same explorer: per book units,
+  gross, refunds, fees, net, partners, effective rate and royalty; royalty
+  due; earned to the period's end; royalty payouts dated up to then; the
+  balance. A Blade view rendered by dompdf (DejaVu Sans, no remote
+  fetching). The monthly email (`commerce:royalty-statements`) now cuts
+  the month in the seller's timezone too, so email and PDF agree. A house
+  imprint's statement shows its share as platform revenue with nothing
+  owed.
+- *Who sees what.* An author: their own seller id, always. Staff
+  (`House::canViewCatalog`): `scope=house`, the house accounts' sales,
+  with every CSV and statement audited; the console's Book sales page
+  downloads any account's statement, audited. Partners: only their own
+  `partner_commissions`, by the day the row was written, in their zone;
+  the tab defaults to all time as before. Exports and statements are
+  rate-limited (`sales-exports`: 10 a minute, 120 an hour per person).
+
+**Not done.** Sales from other stores (none report yet). Converting
+currencies. Saved report views (the URL is the saved view). A PDF of the
+whole report (the summary CSV covers it). Per-statement history of what
+was sent.
+
+**Tests.** `tests/Feature/Sales/SalesReportsTest.php` (presets, DST,
+comparisons, filters, reconciliation, discounts and refunds, CSV content
+and escaping, 5,000-order streaming, statement = report, house and staff
+scope with audit, tenant isolation, rate limit, default, partner scope).
+`tests/Browser/sales.spec.js` at 1440 and 390 px: last quarter, compared
+with the previous one, one book, the CSV read back, a quarterly statement
+downloaded; no horizontal scroll, no console errors.
