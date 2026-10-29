@@ -1,15 +1,16 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
-import SalesReport from '@/Components/Store/SalesReport';
+import SalesExplorer from '@/Components/Store/SalesExplorer';
 import { money } from '@/Components/Store/money';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 
 /**
- * Storefront sales across every book this author sells. Real orders only,
- * and only this account's own: the server scopes the report to the
- * signed-in seller.
+ * Storefront sales across every book this author sells, over a date range.
+ * Real orders only, and only this account's own: the server scopes the
+ * report to the signed-in seller — or, for staff, to the house imprints
+ * (scope=house).
  */
-export default function Sales({ enabled, report, products, partners = null }) {
+export default function Sales({ enabled, report, products, partners = null, query, options, statements, timezone, scope, can_house: canHouse }) {
     const { auth } = usePage().props;
 
     return (
@@ -22,10 +23,36 @@ export default function Sales({ enabled, report, products, partners = null }) {
                     <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
                         Sales
                     </h1>
-                    <p className="mt-1 text-[13px] text-text-secondary">
-                        Books sold from your storefront
-                        {!enabled && ' · selling turns on once card payments are connected'}
-                    </p>
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[13px] text-text-secondary">
+                            {scope === 'house' ? 'Books sold by the house imprints' : 'Books sold from your storefront'}
+                            {!enabled && scope !== 'house' && ' · selling turns on once card payments are connected'}
+                        </p>
+                        {canHouse && (
+                            <div className="flex gap-1" role="group" aria-label="Whose sales">
+                                {[
+                                    [null, 'My sales'],
+                                    ['house', 'House catalog'],
+                                ].map(([key, label]) => {
+                                    const on = (scope === 'house') === (key === 'house');
+
+                                    return (
+                                        <Link
+                                            key={label}
+                                            href={route('sales.overview', key ? { scope: key } : {})}
+                                            data-a={`sales:scope:${key ?? 'own'}`}
+                                            aria-current={on ? 'page' : undefined}
+                                            className={`tap inline-flex min-h-[32px] items-center rounded-control px-2.5 text-[12.5px] font-semibold ${
+                                                on ? 'bg-brand-primary/10 text-brand-primary' : 'text-text-secondary hover:text-text-primary'
+                                            }`}
+                                        >
+                                            {label}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
 
                     {products.length > 0 && (
                         <ul className="mt-5 flex flex-wrap gap-2">
@@ -51,7 +78,7 @@ export default function Sales({ enabled, report, products, partners = null }) {
                     )}
 
                     <div className="mt-6">
-                        <SalesReport report={report} />
+                        <SalesExplorer report={report} query={query} options={options} statements={statements} timezone={timezone} scope={scope} />
                     </div>
 
                     {partners && <Partners partners={partners} />}
