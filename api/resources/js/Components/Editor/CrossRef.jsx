@@ -32,7 +32,7 @@ const key = new PluginKey('crossRef');
 
 export const newLabel = (kind) => `${PREFIX[kind]}-${Math.random().toString(36).slice(2, 10)}`;
 
-function captionKind(node) {
+export function captionKind(node) {
     if (node.type.name !== 'paragraph') return null;
 
     const first = node.firstChild;
@@ -104,6 +104,17 @@ const NO_OFFSETS = { table: 0, figure: 0, equation: 0 };
  * by-chapter: the numbers changed on the next reload.
  */
 export function numberingFor(doc, place) {
+    // A scheme the book chose in Design (continuous, by chapter, by part)
+    // is not inferred from captions: the server's prefix and offsets are
+    // already the ones for it.
+    if (place.chosen) {
+        return {
+            scheme: place.chosen,
+            prefix: place.chosen === 'continuous' ? '' : place.prefix,
+            offsets: place.offsets ?? NO_OFFSETS,
+        };
+    }
+
     const scheme = place.schemeElsewhere === 'chapter' || numbersByChapter(doc) ? 'chapter' : 'continuous';
 
     return {
@@ -133,10 +144,10 @@ function corrections(doc, place, schema) {
             if (!node.attrs.label) attrs = { ...node.attrs, label: newLabel(caption[2]) };
         } else if (caption) {
             const kind = caption[2];
-            // In a book numbered by chapter, a section that is not a
-            // numbered chapter prints its captions unnumbered, as
-            // Numbering::apply does ("Tableau.").
-            const unnumbered = numbering.scheme === 'chapter' && prefix === '';
+            // In a book numbered by chapter (or part), a section that is
+            // not a numbered chapter (or in no part) prints its captions
+            // unnumbered, as Numbering::apply does ("Tableau.").
+            const unnumbered = numbering.scheme !== 'continuous' && prefix === '';
             const number = unnumbered ? '' : `${prefix}${(numbering.offsets[kind] ?? 0) + ++counts[kind]}`;
             const first = node.firstChild;
             const stop = unnumbered || first.text.trim().endsWith('.') ? '.' : '';

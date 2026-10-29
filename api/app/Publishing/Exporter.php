@@ -246,7 +246,7 @@ class Exporter
                 // EPUB splits the book into files, so its links name the file.
                 $structure = $this->structure($book);
                 $this->renderer = $base->withNumbering(
-                    Numbering::forBook($structure),
+                    Numbering::forBook($structure, $book->layout()['numbering']),
                     $format === 'epub' ? array_map(fn ($name) => $name.'.xhtml', $this->epubNames($structure)) : [],
                 )->withLanguage(self::languageCode($book->language));
 
@@ -377,7 +377,7 @@ class Exporter
 
         try {
             $this->renderer = $base->withNumbering(
-                Numbering::forBook($structure),
+                Numbering::forBook($structure, $book->layout()['numbering']),
                 $structure->mapWithKeys(fn ($s) => [$s->id => 'preview-s'.$s->id])->all(),
             );
 
@@ -953,7 +953,11 @@ class Exporter
                 .($i < count($pages) - 1 ? '<w:p><w:pPr>'.$properties.'</w:pPr></w:p>' : $properties);
         }
 
-        return $this->docxPackage($book, $export, $body, $this->docxStyles(self::wordLanguage(self::languageCode($book->language))));
+        // Styles the body needs beyond the standard set (a table at the
+        // text size), added only when it does.
+        $styles = str_replace('</w:styles>', $this->renderer->docxExtraStyles().'</w:styles>', $this->docxStyles(self::wordLanguage(self::languageCode($book->language))));
+
+        return $this->docxPackage($book, $export, $body, $styles);
     }
 
     /**
@@ -1736,6 +1740,8 @@ class Exporter
             ."table.grid tr.total td { font-weight: bold; }\n"
             // The book's own box styles, when it has changed them.
             .InteriorDesign::calloutCss($layout['callouts'], 'epub')
+            // Placed pictures and styled tables, only in a book that has them.
+            .(Placement::bookUses($book) ? Placement::readerCss() : '')
             // The pages an export profile adds, only when it adds them, so
             // a Full-book EPUB's stylesheet is what it always was.
             .(ExportOptions::active($book)?->isDefault() === false
@@ -1782,6 +1788,11 @@ class Exporter
         .part-title { font-size: 1.6em; letter-spacing: .04em; }
         .copyright { font-size: .85em; margin: 0 0 4em; }
         CSS;
+
+        // Placed pictures and styled tables, only in a book that has them.
+        if ($css === '' && Placement::bookUses($book)) {
+            $default .= "\n".Placement::readerCss();
+        }
 
         return '<!doctype html>'."\n".'<html lang="'.e($language).'">'."\n"
             .'<head><meta charset="utf-8">'

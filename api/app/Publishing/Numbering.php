@@ -19,7 +19,10 @@ use Illuminate\Support\Str;
  * Two schemes, read from what the author already wrote: by chapter
  * ("Table 4.2", the usual thesis form) when any caption has a dot in its
  * number, otherwise continuous through the book ("Table 12", APA's habit).
- * Appendices number by their letter (Table A.1). The editor runs the same
+ * Appendices number by their letter (Table A.1). A book can instead choose
+ * its scheme in Design (InteriorDesign `numbering`): continuous, by chapter,
+ * or by part ("Table 2.3", the third table of Part 2, counted across its
+ * chapters); the inference is then not consulted. The editor runs the same
  * rules (resources/js/Components/Editor/CrossRef.jsx), so what the author
  * sees is what exports.
  */
@@ -46,22 +49,37 @@ class Numbering
      *
      * @return array{scheme: string, sections: array<int, array{prefix: string, offsets: array<string, int>, running: array<string, int>}>, targets: array<string, array{kind: string, text: string, section_id: int}>}
      */
-    public static function forBook(Collection $sections): array
+    public static function forBook(Collection $sections, ?string $chosen = null): array
     {
-        $scheme = self::scheme($sections);
-        $prefixes = self::prefixes($sections);
+        // The book's own choice (Design), else what its captions say.
+        $scheme = in_array($chosen, InteriorDesign::NUMBERING, true) ? $chosen : self::scheme($sections);
+        $prefixes = $scheme === 'part' ? self::partPrefixes($sections) : self::prefixes($sections);
         $running = ['table' => 0, 'figure' => 0, 'equation' => 0];
-        $result = ['scheme' => $scheme, 'sections' => [], 'targets' => [], 'captions' => []];
+        $inPart = $running;
+        $part = null;
+        $result = ['scheme' => $scheme, 'chosen' => $scheme === $chosen ? $chosen : null, 'sections' => [], 'targets' => [], 'captions' => []];
 
         foreach ($sections as $section) {
             $prefix = $prefixes[$section->id] ?? '';
+
+            // By part, the count runs on through a part's chapters and
+            // starts again in the next part.
+            if ($prefix !== $part) {
+                $part = $prefix;
+                $inPart = ['table' => 0, 'figure' => 0, 'equation' => 0];
+            }
+
             // Continuous numbering runs on across chapters; by-chapter
             // numbering restarts in each.
-            $offsets = $scheme === 'continuous' ? $running : ['table' => 0, 'figure' => 0, 'equation' => 0];
+            $offsets = match ($scheme) {
+                'continuous' => $running,
+                'part' => $inPart,
+                default => ['table' => 0, 'figure' => 0, 'equation' => 0],
+            };
             $result['sections'][$section->id] = ['prefix' => $prefix, 'offsets' => $offsets, 'running' => $running];
 
             $counts = ['table' => 0, 'figure' => 0, 'equation' => 0];
-            $nodes = self::apply($section->content['content'] ?? [], $scheme === 'continuous' ? '' : $prefix, $offsets, $counts, $scheme === 'chapter');
+            $nodes = self::apply($section->content['content'] ?? [], $scheme === 'continuous' ? '' : $prefix, $offsets, $counts, $scheme !== 'continuous');
 
             foreach (self::targetsIn($nodes) as $label => $target) {
                 $result['targets'][$label] = $target + ['section_id' => $section->id];
@@ -93,6 +111,7 @@ class Numbering
 
             foreach ($counts as $kind => $count) {
                 $running[$kind] += $count;
+                $inPart[$kind] += $count;
             }
         }
 
@@ -118,9 +137,9 @@ class Numbering
      * @param  Collection<int, ManuscriptSection>  $sections  in reading order
      * @return list<array{section: string, typed: string, prints: string}>
      */
-    public static function typedMismatches(Collection $sections): array
+    public static function typedMismatches(Collection $sections, ?string $chosen = null): array
     {
-        $book = self::forBook($sections);
+        $book = self::forBook($sections, $chosen);
         $issues = [];
 
         foreach ($sections as $section) {
@@ -265,6 +284,37 @@ class Numbering
             }
 
             $prefixes[$section->id] = $number !== null ? $number.'.' : '';
+        }
+
+        return $prefixes;
+    }
+
+    /**
+     * Each section's prefix when numbering by part: "2." for every chapter
+     * of the second part, the appendix letter for an appendix, "" for front
+     * matter and anything outside a part, whose captions print unnumbered.
+     *
+     * @return array<int, string>
+     */
+    public static function partPrefixes(Collection $sections): array
+    {
+        $parts = 0;
+        $current = null;
+        $prefixes = [];
+
+        foreach ($sections as $section) {
+            if ($section->type === 'part') {
+                $current = (string) ++$parts;
+                $prefixes[$section->id] = '';
+
+                continue;
+            }
+
+            $prefixes[$section->id] = match (true) {
+                (bool) preg_match('/^\s*appendix\s+([A-Z])b/iu', $section->title, $m) => strtoupper($m[1]).'.',
+                $current !== null && self::takesNumber($section) => $current.'.',
+                default => '',
+            };
         }
 
         return $prefixes;

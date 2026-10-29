@@ -56,6 +56,18 @@ class DocumentRenderer
         return $copy;
     }
 
+    /** The print text block in inches [width, height], for pictures on a page of their own. */
+    private ?array $textBlock = null;
+
+    /** A copy that scales full-page pictures to this text block (print). */
+    public function withTextBlock(array $block): static
+    {
+        $copy = clone $this;
+        $copy->textBlock = $block;
+
+        return $copy;
+    }
+
     /** 'html' (linked endnotes) or 'epub' (pop-up footnotes in readers). */
     private string $noteMode = 'html';
 
@@ -167,7 +179,7 @@ class DocumentRenderer
             $this->numbering['scheme'] === 'continuous' ? '' : $place['prefix'],
             $place['offsets'],
             $counts,
-            $this->numbering['scheme'] === 'chapter',
+            $this->numbering['scheme'] !== 'continuous',
         );
 
         // Each caption's key, as Numbering lists it, so print can record the
@@ -341,14 +353,51 @@ class DocumentRenderer
         return $out.$this->topHtml($nodes, $at, count($nodes));
     }
 
-    /** Top-level nodes from $from to $to, each knowing its index. @param list<mixed> $nodes */
+    /**
+     * Top-level nodes from $from to $to, each knowing its index.
+     *
+     * A placed picture (Placement) and its caption are set as one figure:
+     * the caption that follows it, or the one before it when its caption
+     * is above. A table's caption set below it is spaced as one.
+     *
+     * @param  list<mixed>  $nodes
+     */
     private function topHtml(array $nodes, int $from, int $to): string
     {
         $out = '';
 
         for ($i = $from; $i < $to; $i++) {
             $this->top = $i;
-            $out .= $this->nodesToHtml([$nodes[$i]]);
+            $node = $nodes[$i];
+            $next = $i + 1 < $to ? $nodes[$i + 1] : null;
+
+            if (is_array($node) && is_array($next) && Numbering::captionKind($node) && ($next['type'] ?? '') === 'image'
+                && Placement::imagePlaced($placed = Placement::image($next['attrs'] ?? [])) && $placed['captionPosition'] === 'above') {
+                $caption = $this->paragraphHtml($node);
+                $this->top = ++$i;
+                $out .= $this->imageHtml($next, $caption, true);
+
+                continue;
+            }
+
+            if (is_array($node) && ($node['type'] ?? '') === 'image' && is_array($next) && Numbering::captionKind($next)
+                && Placement::imagePlaced($placed = Placement::image($node['attrs'] ?? [])) && $placed['captionPosition'] !== 'above') {
+                $this->top = ++$i;
+                $out .= $this->imageHtml($node, $this->paragraphHtml($next));
+
+                continue;
+            }
+
+            if (is_array($node) && ($node['type'] ?? '') === 'table' && is_array($next) && Numbering::captionKind($next)
+                && Placement::table($node['attrs'] ?? [])['captionPosition'] === 'below') {
+                $out .= $this->nodesToHtml([$node]);
+                $this->top = ++$i;
+                $out .= preg_replace('/^<p class="caption"/', '<p class="caption caption-below"', $this->paragraphHtml($next));
+
+                continue;
+            }
+
+            $out .= $this->nodesToHtml([$node]);
         }
 
         $this->top = null;
@@ -1122,6 +1171,7 @@ class DocumentRenderer
         $this->docxMedia = [];
         $this->docxNotes = [];
         $this->docxLists = [];
+        $this->docxStylesUsed = [];
     }
 
     /** The numbering part for the lists placed, or null when there are none. */
@@ -1222,7 +1272,7 @@ class DocumentRenderer
             return $alt !== '' ? $this->docxParagraph($this->docxRun('[Image: '.$alt.']', '<w:i/>')) : '';
         }
 
-        return $this->docxPicture($image, (string) ($node['attrs']['alt'] ?? ''));
+        return $this->docxPicture($image, (string) ($node['attrs']['alt'] ?? ''), null, Placement::image($node['attrs'] ?? []));
     }
 
     /** @param array<string, mixed> $node */
@@ -1246,7 +1296,16 @@ class DocumentRenderer
     /**
      * @param  array{name: string, mime: string, data: string}  $image
      */
-    private function docxPicture(array $image, string $description, ?int $displayWidth = null): string
+    /**
+     * A picture in its own paragraph. Placed (Placement): its width as a
+     * share of the 6 in text width, its alignment, square wrapping for a
+     * picture text runs beside (an anchored drawing at the column's left or
+     * right), a page of its own (page breaks either side, scaled to the
+     * page), and kept with the caption after it.
+     *
+     * @param  array{name: string, mime: string, data: string}  $image
+     */
+    private function docxPicture(array $image, string $description, ?int $displayWidth = null, ?array $placement = null): string
     {
         $n = count($this->docxMedia) + 1;
         $id = 'rIdImg'.$n;
@@ -1255,14 +1314,22 @@ class DocumentRenderer
 
         // Fit the text width (6 in) without enlarging; EMU = 914400 per inch.
         $size = @getimagesizefromstring($image['data']) ?: [1200, 800];
-        $width = min(6 * 914400, (int) (($displayWidth ?? $size[0]) / 96 * 914400));
+        $placed = $placement !== null && Placement::imagePlaced($placement);
+        $share = $placed ? Placement::width($placement) : null;
+        $width = $share !== null
+            ? (int) round(6 * 914400 * $share / 100)
+            : min(6 * 914400, (int) (($displayWidth ?? $size[0]) / 96 * 914400));
         $height = (int) round($width * $size[1] / max(1, $size[0]));
-        $alt = htmlspecialchars($description, ENT_XML1 | ENT_QUOTES, 'UTF-8');
 
-        return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
-            .'<wp:inline distT="0" distB="0" distL="0" distR="0">'
-            .'<wp:extent cx="'.$width.'" cy="'.$height.'"/>'
-            .'<wp:docPr id="'.$n.'" name="Picture '.$n.'" descr="'.$alt.'"/>'
+        // A page of its own: no taller than the 9 in a Word page holds
+        // between its margins, less a caption's room.
+        if ($placed && $placement['page'] !== null && $height > 8.2 * 914400) {
+            $height = (int) (8.2 * 914400);
+            $width = (int) round($height * $size[0] / max(1, $size[1]));
+        }
+
+        $alt = htmlspecialchars($description, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $graphic = '<wp:docPr id="'.$n.'" name="Picture '.$n.'" descr="'.$alt.'"/>'
             .'<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
             .'<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
             .'<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
@@ -1270,21 +1337,85 @@ class DocumentRenderer
             .'<pic:blipFill><a:blip r:embed="'.$id.'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
             .'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'.$width.'" cy="'.$height.'"/></a:xfrm>'
             .'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
-            .'</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+            .'</pic:pic></a:graphicData></a:graphic>';
+
+        if (! $placed) {
+            return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
+                .'<wp:inline distT="0" distB="0" distL="0" distR="0">'
+                .'<wp:extent cx="'.$width.'" cy="'.$height.'"/>'
+                .$graphic.'</wp:inline></w:drawing></w:r></w:p>';
+        }
+
+        $side = $placement['page'] === null && in_array($placement['wrap'], ['left', 'right'], true) ? $placement['wrap'] : null;
+        $align = $placement['page'] === null && in_array($placement['align'], ['left', 'right'], true) ? $placement['align'] : 'center';
+        $keep = $placement['keep'] === true && $placement['captionPosition'] !== 'above' ? '<w:keepNext/>' : '';
+        // The page break goes before a caption set above the picture.
+        $break = $placement['page'] !== null && ! $this->docxCaptionBefore ? '<w:pageBreakBefore/>' : '';
+
+        $drawing = $side !== null
+            // Square wrapping: the picture anchored at the column's edge,
+            // the paragraphs after it flowing round it.
+            ? '<wp:anchor distT="45720" distB="45720" distL="114300" distR="114300" simplePos="0" relativeHeight="'.$n.'" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="0">'
+                .'<wp:simplePos x="0" y="0"/>'
+                .'<wp:positionH relativeFrom="column"><wp:align>'.$side.'</wp:align></wp:positionH>'
+                .'<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
+                .'<wp:extent cx="'.$width.'" cy="'.$height.'"/>'
+                .'<wp:effectExtent l="0" t="0" r="0" b="0"/>'
+                .'<wp:wrapSquare wrapText="'.($side === 'left' ? 'right' : 'left').'"/>'
+                .$graphic.'</wp:anchor>'
+            : '<wp:inline distT="0" distB="0" distL="0" distR="0">'
+                .'<wp:extent cx="'.$width.'" cy="'.$height.'"/>'
+                .$graphic.'</wp:inline>';
+
+        $out = '<w:p><w:pPr>'.$keep.$break.'<w:jc w:val="'.$align.'"/></w:pPr><w:r><w:drawing>'.$drawing.'</w:drawing></w:r></w:p>';
+
+        // What follows a page of its own starts on the next page; a
+        // following caption goes first (nodesToDocx).
+        return $out.($placement['page'] !== null && ! $this->docxCaptionNext ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' : '');
     }
+
+    /** Set while a picture is written whose caption paragraph follows it. */
+    private bool $docxCaptionNext = false;
+
+    /** Set while a picture is written whose caption paragraph is above it. */
+    private bool $docxCaptionBefore = false;
 
     /** @param array<int, mixed> $nodes */
     private function nodesToDocx(array $nodes, ?string $style = null, int $depth = 0): string
     {
         $out = '';
+        $nodes = array_values($nodes);
 
-        foreach ($nodes as $node) {
+        foreach ($nodes as $i => $node) {
             if (! is_array($node)) {
                 continue;
             }
 
             $type = $node['type'] ?? '';
             $children = $node['content'] ?? [];
+            $next = $nodes[$i + 1] ?? null;
+            $previous = $nodes[$i - 1] ?? null;
+            // A placed picture and its caption (Placement): the caption
+            // above a kept picture stays with it; the paragraph after a
+            // picture on a page of its own carries the page break.
+            $nextImage = is_array($next) && ($next['type'] ?? '') === 'image' ? Placement::image($next['attrs'] ?? []) : null;
+            $previousImage = is_array($previous) && ($previous['type'] ?? '') === 'image' ? Placement::image($previous['attrs'] ?? []) : null;
+            $caption = $type === 'paragraph' && Numbering::captionKind($node) !== null;
+            $own = $type === 'image' ? Placement::image($node['attrs'] ?? []) : null;
+            $this->docxCaptionNext = $own !== null && $own['captionPosition'] !== 'above' && is_array($next) && Numbering::captionKind($next) !== null;
+            $this->docxCaptionBefore = $own !== null && $own['captionPosition'] === 'above' && is_array($previous) && Numbering::captionKind($previous) !== null;
+
+            $above = $caption && $nextImage !== null && $nextImage['captionPosition'] === 'above';
+            $keepAbove = $above && ($nextImage['keep'] === true || $nextImage['page'] !== null);
+            $pageAbove = $above && $nextImage['page'] !== null;
+            $afterPage = $caption && $previousImage !== null && $previousImage['page'] !== null && $previousImage['captionPosition'] !== 'above';
+
+            if ($keepAbove || $afterPage) {
+                $out .= $this->docxParagraph($this->docxRuns($children), $style, ($keepAbove ? '<w:keepNext/>' : '').($pageAbove ? '<w:pageBreakBefore/>' : ''))
+                    .($afterPage ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' : '');
+
+                continue;
+            }
 
             $out .= match ($type) {
                 'paragraph' => $this->docxParagraph($this->docxRuns($children), $style),
@@ -1300,7 +1431,7 @@ class DocumentRenderer
                     ->map(fn ($line) => $this->docxParagraph($this->docxRun($line), 'Code'))
                     ->implode(''),
                 'horizontalRule' => $this->docxParagraph($this->docxRun('*'), 'Break'),
-                'table' => $this->docxTable($children),
+                'table' => $this->docxTable($children, $node['attrs'] ?? []),
                 'image' => $this->docxImage($node),
                 'chart' => $this->docxChart($node),
                 // A Word equation holding the LaTeX in linear form: Word's
@@ -1362,27 +1493,89 @@ class DocumentRenderer
     }
 
     /** @param array<int, mixed> $rows */
-    private function docxTable(array $rows): string
+    /**
+     * A Word table. Its settings (Placement): rules for the style (booktabs,
+     * as always; a grid; a shaded header; zebra rows; none), the column
+     * widths as shares of the text width, each cell's alignment, the text
+     * size (Table Text at 10 pt, or the body's 12 pt), and a header row
+     * Word repeats on each page unless that is turned off.
+     *
+     * @param  array<int, mixed>  $rows
+     * @param  array<string, mixed>  $attrs
+     */
+    private function docxTable(array $rows, array $attrs = []): string
     {
-        $out = '<w:tbl><w:tblPr><w:tblStyle w:val="BookTable"/><w:tblW w:w="5000" w:type="pct"/>'
-            .'<w:tblBorders><w:top w:val="single" w:sz="8"/><w:bottom w:val="single" w:sz="8"/>'
-            .'<w:insideH w:val="single" w:sz="2" w:color="BFBFBF"/></w:tblBorders></w:tblPr>';
+        $settings = Placement::table($attrs);
+        $shares = Placement::columnShares($rows);
+        $style = $settings['tableStyle'] ?? 'booktabs';
+        $rule = fn (string $edge, int $size, string $color = '000000') => '<w:'.$edge.' w:val="single" w:sz="'.$size.'" w:space="0" w:color="'.$color.'"/>';
 
-        foreach ($rows as $row) {
+        $borders = match ($style) {
+            'grid' => $rule('top', 4).$rule('left', 4).$rule('bottom', 4).$rule('right', 4).$rule('insideH', 4).$rule('insideV', 4),
+            'zebra' => $rule('top', 8).$rule('bottom', 8),
+            'plain' => '<w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/>',
+            // Booktabs and the shaded header: the old rules, exactly.
+            default => null,
+        };
+
+        $out = '<w:tbl><w:tblPr><w:tblStyle w:val="BookTable"/><w:tblW w:w="5000" w:type="pct"/>'
+            .($borders === null
+                ? '<w:tblBorders><w:top w:val="single" w:sz="8"/><w:bottom w:val="single" w:sz="8"/>'
+                    .'<w:insideH w:val="single" w:sz="2" w:color="BFBFBF"/></w:tblBorders>'
+                : '<w:tblBorders>'.$borders.'</w:tblBorders>')
+            .($shares !== null ? '<w:tblLayout w:type="fixed"/>' : '')
+            .'</w:tblPr>';
+
+        // The grid: 6 in of text width (8,640 twentieths of a point).
+        if ($shares !== null) {
+            $out .= '<w:tblGrid>'.implode('', array_map(fn (float $s) => '<w:gridCol w:w="'.(int) round(8640 * $s / 100).'"/>', $shares)).'</w:tblGrid>';
+        }
+
+        $large = $settings['fontSize'] === 'normal';
+        $bodyRows = 0;
+
+        foreach ($rows as $index => $row) {
             if (! is_array($row)) {
                 continue;
             }
 
             $cells = array_values(array_filter($row['content'] ?? [], 'is_array'));
             $header = $cells && collect($cells)->every(fn ($c) => ($c['type'] ?? '') === 'tableHeader');
-            $out .= '<w:tr>'.($header ? '<w:trPr><w:tblHeader/></w:trPr>' : '');
+            $repeat = $header && $settings['repeatHeader'] !== false;
+            $tint = match (true) {
+                $header && $style === 'shaded' => 'E2E2E2',
+                ! $header && $style === 'zebra' && ++$bodyRows % 2 === 0 => 'EEEEEE',
+                default => null,
+            };
+            $out .= '<w:tr>'.($repeat ? '<w:trPr><w:tblHeader/></w:trPr>' : '');
+            $column = 0;
 
             foreach ($cells as $cell) {
                 $span = (int) ($cell['attrs']['colspan'] ?? 1);
-                $body = $this->nodesToDocx($cell['content'] ?? [], $header ? 'TableHeading' : 'TableText');
+                $align = Placement::cellAlign($cell['attrs'] ?? []);
+                // Left is Word's own default.
+                $this->docxAlign = in_array($align, ['center', 'right'], true) ? $align : null;
+
+                $paragraphs = $large ? ($header ? 'TableHeadingLarge' : 'TableTextLarge') : ($header ? 'TableHeading' : 'TableText');
+
+                try {
+                    $body = $this->nodesToDocx($cell['content'] ?? [], $paragraphs);
+                } finally {
+                    $this->docxAlign = null;
+                }
+
+                if ($large) {
+                    $this->docxStylesUsed['large-tables'] = true;
+                }
+
+                $width = $shares !== null
+                    ? '<w:tcW w:w="'.(int) round(array_sum(array_slice($shares, $column, max(1, $span))) * 50).'" w:type="pct"/>'
+                    : '';
+                $column += max(1, $span);
 
                 // A cell must hold at least one paragraph or Word refuses the file.
-                $out .= '<w:tc><w:tcPr>'.($span > 1 ? '<w:gridSpan w:val="'.$span.'"/>' : '').'</w:tcPr>'
+                $out .= '<w:tc><w:tcPr>'.$width.($span > 1 ? '<w:gridSpan w:val="'.$span.'"/>' : '')
+                    .($tint !== null ? '<w:shd w:val="clear" w:color="auto" w:fill="'.$tint.'"/>' : '').'</w:tcPr>'
                     .($body ?: '<w:p/>').'</w:tc>';
             }
 
@@ -1392,12 +1585,37 @@ class DocumentRenderer
         return $out.'</w:tbl>'.$this->docxParagraph('', 'TableText');
     }
 
-    private function docxParagraph(string $runs, ?string $style = null): string
+    /** Word styles the body used beyond the standard set (docxExtraStyles). */
+    private array $docxStylesUsed = [];
+
+    /**
+     * The paragraph styles a document needs beyond Exporter's standard set,
+     * as XML for the styles part; empty when it needs none, so a document
+     * that uses no new setting has the styles part it always had.
+     */
+    public function docxExtraStyles(): string
     {
-        $properties = $style ? '<w:pPr><w:pStyle w:val="'.$style.'"/></w:pPr>' : '';
+        if (! isset($this->docxStylesUsed['large-tables'])) {
+            return '';
+        }
+
+        return '<w:style w:type="paragraph" w:styleId="TableTextLarge"><w:name w:val="Table Text Large"/><w:basedOn w:val="TableText"/>'
+            .'<w:rPr><w:sz w:val="24"/></w:rPr></w:style>'
+            .'<w:style w:type="paragraph" w:styleId="TableHeadingLarge"><w:name w:val="Table Heading Large"/><w:basedOn w:val="TableHeading"/>'
+            .'<w:rPr><w:b/><w:sz w:val="24"/></w:rPr></w:style>';
+    }
+
+    private function docxParagraph(string $runs, ?string $style = null, string $more = ''): string
+    {
+        // A table cell's alignment (docxTable) applies to every paragraph in it.
+        $more .= $this->docxAlign !== null ? '<w:jc w:val="'.$this->docxAlign.'"/>' : '';
+        $properties = $style || $more !== '' ? '<w:pPr>'.($style ? '<w:pStyle w:val="'.$style.'"/>' : '').$more.'</w:pPr>' : '';
 
         return '<w:p>'.$properties.$runs.'</w:p>';
     }
+
+    /** The alignment of the table cell being written, for its paragraphs. */
+    private ?string $docxAlign = null;
 
     /** @param array<int, mixed> $nodes */
     private function docxRuns(array $nodes): string
@@ -1550,7 +1768,7 @@ class DocumentRenderer
                 'codeBlock' => '<pre><code>'.e($this->plain($children))."</code></pre>\n",
                 'horizontalRule' => "<hr />\n",
                 'image' => $this->imageHtml($node),
-                'table' => $this->tableHtml($children),
+                'table' => $this->tableHtml($children, $node['attrs'] ?? []),
                 'blockMath' => $this->mathHtml($node, true),
                 'chart' => $this->chartHtml($node),
                 default => $this->inlineHtml($children),
@@ -1765,14 +1983,24 @@ class DocumentRenderer
      * left empty) is ruled all round, its blank cells tall enough to write
      * in, its totals set apart; a short table is kept on one page in print.
      *
+     * A table's own settings (Placement) add classes the stylesheets set: a
+     * style, the text size, no repeated header, kept whole or free to
+     * break; cells carry their alignment, and the first row the column
+     * widths as shares of the measure. None of them set, the markup is the
+     * old one.
+     *
      * @param  array<int, mixed>  $rows
+     * @param  array<string, mixed>  $attrs  the table node's attrs
      */
-    private function tableHtml(array $rows): string
+    private function tableHtml(array $rows, array $attrs = []): string
     {
         $head = '';
         $body = '';
         $writeIn = Textbook::writeInColumns($rows);
         $count = 0;
+        $settings = Placement::table($attrs);
+        $shares = Placement::columnShares($rows);
+        $bodyRows = 0;
 
         foreach ($rows as $row) {
             if (! is_array($row)) {
@@ -1783,6 +2011,8 @@ class DocumentRenderer
             $cells = '';
             $header = true;
             $column = 0;
+            // The first row carries the column widths.
+            $widths = $count === 1 ? $shares : null;
 
             foreach ($row['content'] ?? [] as $cell) {
                 if (! is_array($cell)) {
@@ -1800,13 +2030,28 @@ class DocumentRenderer
 
                 $inner = trim($this->listItemHtml($cell['content'] ?? []));
                 $blank = $tag === 'td' && isset($writeIn[$column]) && $inner === '';
+                $colspan = max(1, (int) ($cell['attrs']['colspan'] ?? 1));
+                $class = trim(($blank ? 'write-in ' : '').match (Placement::cellAlign($cell['attrs'] ?? [])) {
+                    'right' => 'ar',
+                    'center' => 'ac',
+                    default => '',
+                });
+                $width = $widths !== null
+                    ? ' style="width:'.rtrim(rtrim(number_format(array_sum(array_slice($widths, $column, $colspan)), 2, '.', ''), '0'), '.').'%"'
+                    : '';
 
                 // An empty cell to write in: a space keeps it from collapsing.
-                $cells .= "<{$tag}{$span}".($blank ? ' class="write-in"' : '').'>'.($blank ? '&#160;' : $inner)."</{$tag}>";
-                $column += max(1, (int) ($cell['attrs']['colspan'] ?? 1));
+                $cells .= "<{$tag}{$span}".($class !== '' ? ' class="'.$class.'"' : '').$width.'>'.($blank ? '&#160;' : $inner)."</{$tag}>";
+                $column += $colspan;
             }
 
-            $line = '<tr'.($writeIn && ! $header && Textbook::isTotalRow($row) ? ' class="total"' : '').">{$cells}</tr>\n";
+            $rowClasses = array_filter([
+                $writeIn && ! $header && Textbook::isTotalRow($row) ? 'total' : null,
+                // Every other body row tinted, marked here: dompdf's
+                // :nth-child is not to be relied on.
+                $settings['tableStyle'] === 'zebra' && ! ($header && $body === '') && ++$bodyRows % 2 === 0 ? 'zebra' : null,
+            ]);
+            $line = '<tr'.($rowClasses ? ' class="'.implode(' ', $rowClasses).'"' : '').">{$cells}</tr>\n";
 
             // Only leading all-header rows belong to the head.
             if ($header && $body === '') {
@@ -1818,9 +2063,17 @@ class DocumentRenderer
 
         $classes = array_filter([
             $writeIn ? 'grid' : null,
-            // Small enough that splitting it helps nobody: a sign table, a
-            // short scale.
-            $this->mathMode === 'svg' && $count <= 14 && mb_strlen(Textbook::plain($rows)) < 1400 ? 'keep' : null,
+            match ($settings['split']) {
+                'avoid' => 'keep',
+                'allow' => null,
+                // Small enough that splitting it helps nobody: a sign table,
+                // a short scale.
+                default => $this->mathMode === 'svg' && $count <= 14 && mb_strlen(Textbook::plain($rows)) < 1400 ? 'keep' : null,
+            },
+            in_array($settings['tableStyle'], [null, 'booktabs'], true) ? null : 'tbl-'.$settings['tableStyle'],
+            $settings['fontSize'] === 'normal' ? 'tbl-normal' : null,
+            $settings['repeatHeader'] === false ? 'tbl-norepeat' : null,
+            $shares !== null ? 'tbl-widths' : null,
         ]);
 
         return '<table'.($classes ? ' class="'.implode(' ', $classes).'"' : '').">\n"
@@ -1839,8 +2092,14 @@ class DocumentRenderer
         return "<h{$level}".$this->anchor($node, $id).'>'.$this->inlineHtml($node['content'] ?? []).$link."</h{$level}>\n";
     }
 
-    /** @param array<string, mixed> $node */
-    private function imageHtml(array $node): string
+    /**
+     * A picture, and with it the caption it is set with when it is placed
+     * (topHtml): `$caption` is that paragraph's HTML, above the picture
+     * when `$above`.
+     *
+     * @param  array<string, mixed>  $node
+     */
+    private function imageHtml(array $node, string $caption = '', bool $above = false): string
     {
         $src = self::safeImageSrc((string) ($node['attrs']['src'] ?? ''));
         $alt = (string) ($node['attrs']['alt'] ?? '');
@@ -1848,13 +2107,72 @@ class DocumentRenderer
         if ($src === null) {
             // A picture from somewhere the book cannot vouch for is not
             // fetched by a reader's browser; its description stands in.
-            return trim($alt) !== '' ? '<p class="image-missing"><em>'.e('[Image: '.trim($alt).']')."</em></p>\n" : '';
+            $missing = trim($alt) !== '' ? '<p class="image-missing"><em>'.e('[Image: '.trim($alt).']')."</em></p>\n" : '';
+
+            return $above ? $caption.$missing : $missing.$caption;
         }
 
         // alt is always emitted, empty if unset. A missing attribute fails
         // accessibility validation; an empty one declares the image
         // decorative, which is at least a claim a checker can accept.
-        return '<img src="'.e($src).'" alt="'.e($alt)."\" />\n";
+        $img = '<img src="'.e($src).'" alt="'.e($alt)."\" />\n";
+        $placement = Placement::image($node['attrs'] ?? []);
+
+        if (! Placement::imagePlaced($placement)) {
+            return $img.$caption;
+        }
+
+        $print = $this->mathMode === 'svg';
+        $side = in_array($placement['wrap'], ['left', 'right'], true) ? $placement['wrap'] : null;
+        $width = Placement::width($placement);
+
+        // A page of its own: in print, scaled to fit the text block whole
+        // (less a caption's room); in a reader, the full width of the screen.
+        if ($placement['page'] !== null) {
+            $width = $print ? $this->pageWidth($node, $caption !== '') : 100;
+        }
+
+        $classes = array_filter([
+            'placed',
+            $placement['page'] !== null ? 'placed-page' : null,
+            $placement['page'] === null && $side !== null ? 'placed-wrap-'.$side : null,
+            $placement['page'] === null && $side === null && in_array($placement['align'], ['left', 'right'], true) ? 'placed-'.$placement['align'] : null,
+            $width === null ? 'placed-original' : null,
+            $placement['keep'] === true ? 'placed-keep' : null,
+        ]);
+
+        if ($caption !== '') {
+            $caption = preg_replace('/^<p class="caption"/', '<p class="caption caption-'.($above ? 'above' : 'below').'"', $caption);
+        }
+
+        $number = fn (float $v) => rtrim(rtrim(number_format($v, 2, '.', ''), '0'), '.');
+
+        return '<div class="'.implode(' ', $classes).'"'.($width !== null ? ' style="width:'.$number($width).'%"' : '').'>'
+            .($above ? $caption : '').$img.($above ? '' : $caption)."</div>\n";
+    }
+
+    /**
+     * The width, percent of the measure, at which a picture fills the print
+     * text block without running past its foot: the full measure for a
+     * wide picture, less for a tall one. Without the picture's size (not
+     * this book's file) or the text block, the full measure.
+     */
+    private function pageWidth(array $node, bool $captioned): float
+    {
+        $image = $this->bookId === null || $this->textBlock === null ? null
+            : app(BookImages::class)->resolve((string) ($node['attrs']['src'] ?? ''), $this->bookId);
+        $size = $image ? @getimagesizefromstring($image['data']) : null;
+
+        if (! $size || $size[0] < 1 || $size[1] < 1) {
+            return 100.0;
+        }
+
+        [$measure, $depth] = $this->textBlock;
+        // Room for a caption of two or three lines, and a little for dompdf,
+        // which pushes a block that only just fits on to the next page.
+        $height = $depth - ($captioned ? 0.6 : 0.0) - 0.15;
+
+        return round(min(100.0, max(10.0, $height * $size[0] / $size[1] / $measure * 100)), 2);
     }
 
     /** @param array<int, mixed> $nodes */
@@ -2036,7 +2354,13 @@ class DocumentRenderer
                     $out .= '| '.implode(' | ', $cells)." |\n";
 
                     if ($index === 0) {
-                        $out .= '|'.str_repeat(' --- |', count($cells))."\n";
+                        // Column alignment (Placement) in the delimiter row,
+                        // from the first row's cells: ---: right, :---: centre.
+                        $out .= '|'.implode('', array_map(fn ($cell) => match (Placement::cellAlign($cell['attrs'] ?? [])) {
+                            'right' => ' ---: |',
+                            'center' => ' :---: |',
+                            default => ' --- |',
+                        }, array_values(array_filter($row['content'] ?? [], 'is_array'))))."\n";
                     }
                 }
 

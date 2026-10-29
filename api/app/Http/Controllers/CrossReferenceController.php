@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Publishing\Numbering;
+use App\Publishing\Placement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -40,6 +41,11 @@ class CrossReferenceController extends Controller
 
         return response()->json([
             'scheme' => $place['scheme'],
+            // The scheme chosen in Design, or null when it is inferred.
+            'numbering' => $book->layout()['numbering'],
+            // The text block in inches [width, height], for the editor's
+            // warning on pictures that will print below 300 dpi.
+            'text_block' => Placement::textBlock($book->layout()),
             // The scheme as the rest of the book sets it. The open chapter's
             // own captions are on screen, newer than anything saved, and
             // the editor adds them itself (CrossRef.jsx numbersByChapter).
@@ -64,7 +70,7 @@ class CrossReferenceController extends Controller
     {
         $fingerprint = md5($book->sections()->orderBy('position')->toBase()
             ->get(['id', 'type', 'title', 'position', DB::raw('md5(content::text) as digest')])
-            ->toJson());
+            ->toJson().'|'.($book->layout()['numbering'] ?? 'auto'));
 
         $base = $this->cached("cross-references:{$book->id}", $fingerprint, fn () => $this->compute($book, null));
 
@@ -103,7 +109,7 @@ class CrossReferenceController extends Controller
             ->filter(fn (ManuscriptSection $s) => $s->type === 'part' || $s->id === $include || in_array($s->id, $withText, true))
             ->values();
 
-        $numbering = Numbering::forBook($sections);
+        $numbering = Numbering::forBook($sections, $book->layout()['numbering']);
         $titles = $sections->pluck('title', 'id');
 
         return [

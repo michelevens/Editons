@@ -3103,3 +3103,148 @@ refused unsigned, gone when turned off), and
 keyboard, the EPUB labelled in the history, Customise with a watermark and
 book-end notes saved as a profile, still there after a reload, no
 overflow, no console errors).
+
+---
+
+## ADR-00XX — Image and table placement
+
+**Status:** accepted (2026-10-28). Number assigned at merge.
+
+**Context.** The flexibility audit's item 6 (M1, M2) and D11. A picture
+could not be sized or placed: the dialog asked for a description and a
+caption, the renderer wrote `<img src alt>`, and print forced it to its own
+size, capped at the measure and centred. Tables had one style (booktabs
+rules at 0.8 em, every cell left-aligned); column widths could not be set
+(resizing was off in the editor) and the renderers had no use for them.
+Figure and table numbering was inferred (by chapter if any caption had a
+dot) and could not be chosen.
+
+**Decisions.**
+
+- *Attributes on the nodes the editor already has.* Tiptap's image gains
+  `size` (percent of the text measure, 10–100; null is the original size
+  capped at the measure), `align` (left, center, right), `wrap` (none,
+  left, right: the picture on that side, text beside it), `page` (full: a
+  page of its own; bleed: print only), `captionPosition` (above, below) and
+  `keep` (never parted from its caption). The table gains `tableStyle`
+  (booktabs, grid, shaded, zebra, plain), `fontSize` (small = the old
+  0.8 em; normal = the text size), `split` (auto = the old "short tables
+  kept whole"; avoid; allow), `repeatHeader` and `captionPosition`; cells
+  use Tiptap's own `align` and `colwidth`. Not new node types, so every
+  existing manuscript, Markdown round trip and suggestion is untouched
+  (ADR-0004). A missing or null attribute is the old rendering.
+- *One reader of the values.* `App\Publishing\Placement` reads every value
+  for every renderer: an unknown value is unset, a width is held to 10–100.
+  `ManuscriptWriter::save` runs `Placement::sanitize` on what is stored
+  (only the keys a node carries; nothing else touched). The editor mirrors
+  the same rules (`Components/Editor/Placement.js`).
+- *Captions.* A caption stays the paragraph it always was (a bold
+  "Figure 2.1" leading it), so numbering, the lists of figures and
+  cross-references are unchanged. A placed picture is set with the caption
+  next to it as one figure (`DocumentRenderer::topHtml`): the following
+  one, or the one before it when its caption is above. "Caption above" in
+  the editor sets the attribute and moves the paragraph, so the canvas reads
+  as the book will. A table's caption below it is spaced as one.
+- *Print* (dompdf). A placed picture is a `div.placed` with its width as a
+  share of the measure; left and right by margins; a wrapped one floats
+  (dompdf 3 floats) with text beside it; `keep` is page-break-inside:
+  avoid; a full page breaks before and after and is scaled to fit the text
+  block whole (its width worked out from the picture's own proportions and
+  the block's depth, less room for a caption). A picture text wraps beside
+  with no width chosen is set at half the measure. Tables: a class per
+  style, size and setting; widths on the first row's cells as shares of the
+  measure; `ar`/`ac` cells; zebra rows marked by class (dompdf's
+  `:nth-child` is not relied on). The header row already repeated on each
+  page (`thead` as a table-header-group), verified from the PDF, and
+  `repeatHeader: false` turns it into a row group.
+- *Full bleed is refused, with the reason.* Interiors are set without bleed
+  (ADR-0041: the page is the trim), so there is nothing past the trim to
+  fill. The editor shows the option disabled with that reason; a stored
+  full-bleed picture prints as a full page inside the margins, and
+  PrintCheck warns (`bleed`) with the same sentence
+  (`Placement::BLEED_REFUSAL`). The EPUB sets it full width.
+- *EPUB and HTML.* The same markup; the reader stylesheet floats a wrapped
+  picture only on a screen 30 em or wider (`@media (max-width: 30em)`
+  unfloats it), widths are percentages, tables get the same classes.
+- *Word.* Width as a share of the 6 in text width, `w:jc` for alignment,
+  square wrapping as an anchored drawing at the column's left or right
+  (`wp:wrapSquare`), a full page with page breaks either side (scaled to at
+  most 8.2 in tall), `w:keepNext` to hold a picture and its caption.
+  Tables: borders per style, `w:shd` for the shaded header and zebra rows,
+  `w:tblGrid`/`w:tcW` for the widths, `w:jc` in each cell's paragraphs,
+  `w:tblHeader` only when the header repeats, and two styles (Table Text
+  Large, Table Heading Large) added to the styles part only when a table at
+  the text size uses them. Markdown writes column alignment in the
+  delimiter row (`---:`, `:---:`).
+- *Print resolution.* `Placement::dpi` works out the resolution at the
+  width the picture is set at; PrintCheck's `images` item uses it (a
+  picture at its own size is held to the full measure's 300 dpi, exactly
+  as before). The editor shows the dpi on the picture and in its toolbar
+  when it is below 300, from the image's own pixels and the book's text
+  block (sent with the cross-references). A warning, never a refusal.
+- *Editor.* A picture is drawn in a box sized and placed as it will print
+  (a node view); selected, it shows a corner handle that sets its width
+  (dragging; saved on release) and the toolbar shows width presets (25,
+  33, 50, 66, 100 %, original), a width field, alignment, wrap, full page,
+  full bleed (disabled, with the reason), caption above and keep: buttons,
+  a select and a number field in the toolbar's tab order, so no pointer is
+  needed. Tables resize at a column's edge (Tiptap's column resizing, now
+  on); once one column has a width, the others are given the widths they
+  have on screen, since widths are shares only when every column has one.
+  The table toolbar adds style, column alignment, "numbers right" (every
+  column of mostly figures right-aligned), text size, page breaks, header
+  repeat and caption below.
+- *Numbering (D11).* InteriorDesign `numbering`: null (automatic, the
+  inference, the default), `continuous`, `chapter` or `part` (the count
+  runs through a part's chapters and restarts in the next: "Table 2.3" is
+  the third table of Part 2; front matter and chapters outside any part
+  print unnumbered, as by-chapter does for front matter). Design & Layout →
+  Contents. `Numbering::forBook($sections, $chosen)`; every export, the
+  print checks and the editor (`/cross-references` sends the chosen scheme
+  with the open chapter's prefix and offsets; CrossRef.jsx uses them
+  instead of inferring) follow it.
+- *Defaults unchanged, and caches.* Placement CSS is added to the print,
+  EPUB and HTML stylesheets only when the book uses a placement
+  (`Placement::bookUses`). The print fingerprint leaves out an unset
+  numbering scheme, so no book's print files went stale with this change;
+  renderer versions are not bumped (a book that uses the attributes has
+  changed content, which already makes its files stale).
+
+**Before and after.** Three local books, "Dose" (107 pages), "Reyisi
+egzamen 9e AF — Kreyòl" (Écrivain Prépa, 302-page interior, 57 tables) and
+a short book with pictures (201), each with a chapter added inside a
+rolled-back transaction holding a real 1200 × 800 picture with its caption
+and a table, stored without placement attributes (as every book is today),
+rendered in six formats with main (70756f5) and with this branch: PDF and
+print interior (page counts, the text and every word's position, every
+picture's box), EPUB (every XHTML, OPF, CSS), Word (every XML part,
+document.xml and styles.xml among them), HTML and Markdown are identical,
+18 of 18. With the attributes set (a picture at 50 %, wrapped right and
+kept; a zebra table at the text size with a right-aligned column and
+stored widths) the same chapter renders the placement in every format.
+
+**Not done.** Bleed interiors (so full bleed is refused rather than
+printed); per-cell (rather than per-column) alignment in the editor's
+toolbar; a placed picture inside an exam paper's items keeps its
+placement but its caption is not grouped with it; "keep with caption" in
+the EPUB is a hint readers may ignore; table style defaults from a book
+theme (audit item 3); the canvas approximates the measure with its own
+column width.
+
+**Tests.** `tests/Feature/PlacementTest.php` (values read and bounded;
+sanitised on save; figure markup with captions above and below; width
+presets and alignment read back from the PDF with PyMuPDF, the picture's
+width within 2 % of its share of the measure and its left edge where its
+alignment puts it; text beside a right-wrapped picture; a full-page
+picture alone and scaled to the text block; full bleed refused with the
+reason and printed inside the margins; keep with caption; dpi at the
+chosen width and the PrintCheck warning; text block and numbering sent to
+the editor; table classes, widths, alignment and zebra rows in the PDF;
+the header row repeated on each page of a long table, and not when turned
+off; table and picture settings in the EPUB and Word, well-formed;
+Markdown alignment; continuous, chapter and part numbering in the exports
+and the editor's offsets; an unknown scheme refused and the fingerprint
+kept; books without placement unchanged) and
+`tests/Browser/placement.spec.js` at 1440 and 390 px (a picture resized by
+its handle and wrapped right, a table made zebra with a column
+right-aligned and resized, both kept after a reload, no console errors).

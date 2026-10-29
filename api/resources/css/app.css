@@ -216,6 +216,158 @@ html.dark .manuscript {
     background: var(--color-brand-primary-subtle);
 }
 
+/* Placement (Placement.js): tables as the exports set them. Small type is
+   the old 0.8 em; "normal" is the text size. Widths dragged at a column's
+   edge are shares of the measure, so the table keeps the column's width. */
+.manuscript .ProseMirror table[data-size="normal"] {
+    font-size: 1em;
+    line-height: inherit;
+}
+
+.manuscript .ProseMirror table[data-widths] {
+    table-layout: fixed;
+    width: 100% !important;
+}
+
+.manuscript .ProseMirror table[data-style="grid"] th,
+.manuscript .ProseMirror table[data-style="grid"] td {
+    border: 1px solid var(--color-text-primary);
+}
+
+.manuscript .ProseMirror table[data-style="shaded"] th {
+    background: var(--color-bg-subtle);
+}
+
+.manuscript .ProseMirror table[data-style="zebra"] tr:nth-child(even) td {
+    background: var(--color-bg-subtle);
+}
+
+.manuscript .ProseMirror table[data-style="plain"] th,
+.manuscript .ProseMirror table[data-style="plain"] td,
+.manuscript .ProseMirror table[data-style="plain"] tr:last-child td {
+    border: 0;
+}
+
+.manuscript .ProseMirror .column-resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: -2px;
+    width: 4px;
+    background: var(--color-brand-primary);
+    pointer-events: none;
+}
+
+.manuscript .ProseMirror.resize-cursor {
+    cursor: col-resize;
+}
+
+.manuscript .ProseMirror th,
+.manuscript .ProseMirror td {
+    position: relative;
+}
+
+/* Pictures: a width as a share of the column, aligned or wrapped as they
+   print; the corner handle sets the width. */
+.manuscript .ProseMirror .placed-image {
+    position: relative;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+}
+
+.manuscript .ProseMirror .placed-image[style*="width"] {
+    width: auto;
+}
+
+.manuscript .ProseMirror .placed-image img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+}
+
+.manuscript .ProseMirror .placed-image:not([style*="width"]) img {
+    width: auto;
+}
+
+.manuscript .ProseMirror .placed-image[data-align="left"] {
+    margin-inline: 0 auto;
+}
+
+.manuscript .ProseMirror .placed-image[data-align="right"] {
+    margin-inline: auto 0;
+}
+
+.manuscript .ProseMirror .placed-image[data-wrap="left"] {
+    float: left;
+    margin: 0.25em 1.2em 0.5em 0;
+}
+
+.manuscript .ProseMirror .placed-image[data-wrap="right"] {
+    float: right;
+    margin: 0.25em 0 0.5em 1.2em;
+}
+
+.manuscript .ProseMirror .placed-image[data-page]:not([data-page=""]) {
+    outline: 1px dashed var(--color-border-default);
+    outline-offset: 6px;
+}
+
+.manuscript .ProseMirror .placed-image.ProseMirror-selectednode {
+    outline: 2px solid var(--color-brand-primary);
+    outline-offset: 2px;
+}
+
+.manuscript .ProseMirror .placed-handle {
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--color-bg-surface);
+    border-radius: 3px;
+    background: var(--color-brand-primary);
+    cursor: nwse-resize;
+    touch-action: none;
+    display: none;
+}
+
+.manuscript .ProseMirror .placed-image[data-align="right"] .placed-handle {
+    right: auto;
+    left: -6px;
+    cursor: nesw-resize;
+}
+
+.manuscript .ProseMirror .placed-image.ProseMirror-selectednode .placed-handle {
+    display: block;
+}
+
+.manuscript .ProseMirror .placed-dpi {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font: 600 11px/16px var(--font-sans, sans-serif);
+    background: var(--color-status-warning-bg);
+    color: var(--color-status-warning);
+}
+
+.manuscript .ProseMirror .placed-dpi[hidden] {
+    display: none;
+}
+
+/* Wrapped pictures sit beside the text that follows; a heading, a table
+   or another picture starts below them, as in print. */
+.manuscript .ProseMirror > h1,
+.manuscript .ProseMirror > h2,
+.manuscript .ProseMirror > h3,
+.manuscript .ProseMirror > .tableWrapper {
+    clear: both;
+}
+
 /* Equations: KaTeX on screen; click to edit. */
 .manuscript .ProseMirror .tiptap-mathematics-render {
     cursor: pointer;

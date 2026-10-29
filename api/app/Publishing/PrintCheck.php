@@ -127,6 +127,15 @@ class PrintCheck
             ? $add('images', 'warn', $lowRes === 1 ? "1 picture will print below {$dpi} dpi and may look soft." : "{$lowRes} pictures will print below {$dpi} dpi and may look soft.", 'Replace them with larger originals.')
             : $add('images', 'pass', "Every picture prints at {$dpi} dpi or more.");
 
+        // Full-bleed pictures: interiors have no bleed, so they print as a
+        // full page inside the margins (Placement::BLEED_REFUSAL).
+        $bleeds = $this->fullBleedImages($book);
+
+        if ($bleeds > 0) {
+            $add('bleed', 'warn', ($bleeds === 1 ? '1 picture is' : "{$bleeds} pictures are").' set full bleed. '.Placement::BLEED_REFUSAL,
+                'Set it to a full page in the editor, or keep it: it already prints as one.');
+        }
+
         // Pending suggestions.
         $pending ??= $this->submission->pendingSuggestions($book);
 
@@ -135,7 +144,7 @@ class PrintCheck
         }
 
         // Caption numbers typed by hand that are not the ones that print.
-        $typed = Numbering::typedMismatches($book->sections()->orderBy('position')->get());
+        $typed = Numbering::typedMismatches($book->sections()->orderBy('position')->get(), $layout['numbering']);
 
         if ($typed !== []) {
             $first = $typed[0];
@@ -211,11 +220,12 @@ class PrintCheck
      */
     public function lowResolutionImages(Book $book): int
     {
-        $layout = $book->layout();
-        [$width] = PageSetup::trimInches($layout['trim']);
-        $margins = PageSetup::margins($layout);
-        $measure = $width - $margins['inside'] - $margins['outside'];
-        $needed = $measure * (int) config('publishing.print_dpi');
+        // At the width each picture is set at (Placement): a picture at half
+        // the measure needs half the pixels. One set at its own size prints
+        // a pixel at 1/96 in up to the measure, so it is held to the full
+        // measure's 300 dpi, as before.
+        $block = Placement::textBlock($book->layout());
+        $dpi = (int) config('publishing.print_dpi');
         $low = 0;
         $seen = [];
 
@@ -224,17 +234,22 @@ class PrintCheck
             ->get(['id', 'content']);
 
         foreach ($sections as $section) {
-            $walk = function ($node) use (&$walk, &$low, &$seen, $book, $needed): void {
+            $walk = function ($node) use (&$walk, &$low, &$seen, $book, $block, $dpi): void {
                 if (! is_array($node)) {
                     return;
                 }
 
-                if (($node['type'] ?? null) === 'image' && ($src = (string) ($node['attrs']['src'] ?? '')) !== '' && ! isset($seen[$src])) {
-                    $seen[$src] = true;
+                $placement = ($node['type'] ?? null) === 'image' ? Placement::image($node['attrs'] ?? []) : null;
+                $src = (string) ($node['attrs']['src'] ?? '');
+                // The same picture at two widths is two prints of it.
+                $key = $src.'|'.json_encode($placement);
+
+                if ($placement !== null && $src !== '' && ! isset($seen[$key])) {
+                    $seen[$key] = true;
                     $image = $this->images->resolve($src, $book->id);
                     $size = $image ? @getimagesizefromstring($image['data']) : null;
 
-                    if ($size && $size[0] < $needed) {
+                    if ($size && Placement::dpi($placement, (int) $size[0], (int) $size[1], $block) < $dpi) {
                         $low++;
                     }
                 }
@@ -248,6 +263,15 @@ class PrintCheck
         }
 
         return $low;
+    }
+
+    /** Pictures set full bleed (Placement `page`), which print as full pages. */
+    public function fullBleedImages(Book $book): int
+    {
+        return $book->sections()
+            ->whereRaw('content::text like ?', ['%"page": "bleed"%'])
+            ->pluck('content')
+            ->sum(fn ($content) => substr_count(json_encode($content), '"page":"bleed"'));
     }
 
     private function paperName(array $print): string

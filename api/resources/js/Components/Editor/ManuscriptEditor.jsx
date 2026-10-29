@@ -4,7 +4,6 @@ import { usePage } from '@inertiajs/react';
 import { TextSelection } from '@tiptap/pm/state';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { BlockMath, InlineMath } from '@tiptap/extension-mathematics';
-import Image from '@tiptap/extension-image';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 import 'katex/contrib/mhchem';
@@ -20,6 +19,8 @@ import { CrossRef, localTargets, refreshNumbering, Xref, XrefDialog } from './Cr
 import { Chart } from './ChartNode';
 import { Footnote, FootnoteDialog } from './FootnoteNode';
 import ImageDialog from './ImageDialog';
+import { PlacedImage, PlacedTable, PlacedTableView, setTextBlock } from './Placement';
+import { ImageBar, TableBar } from './PlacementBar';
 import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
 
@@ -259,11 +260,15 @@ export default function ManuscriptEditor({
                 StarterKit.configure({
                     heading: { levels: [1, 2, 3] },
                 }),
-                // Theses and reports are made of tables. Resizing is off:
-                // column widths are a typesetting decision the export makes,
-                // and widths dragged in the editor would not survive it.
-                TableKit.configure({ table: { resizable: false } }),
-                Image.configure({ inline: false, allowBase64: false }),
+                // Theses and reports are made of tables. Columns resize at
+                // their edges; every export reads the widths as shares of
+                // the measure, with the table's style, type size and cell
+                // alignment (Placement.js, App\Publishing\Placement).
+                TableKit.configure({ table: false }),
+                PlacedTable.configure({ resizable: true, View: PlacedTableView, lastColumnResizable: false }),
+                // Pictures with a width, alignment, wrap, a page of their
+                // own and a caption side, set by the toolbar or the handle.
+                PlacedImage.configure({ inline: false, allowBase64: false }),
                 Chart.configure({ onEdit: (attrs, pos) => setChartEdit({ attrs, pos }) }),
                 Footnote.configure({ onEdit: (attrs, pos) => setNoteEdit({ text: attrs.text, pos }) }),
                 CrossRef,
@@ -368,12 +373,15 @@ export default function ManuscriptEditor({
             storage.place = {
                 scheme: data.scheme,
                 schemeElsewhere: data.scheme_elsewhere ?? data.scheme,
+                // The book's chosen scheme (Design), which no caption changes.
+                chosen: data.numbering ?? null,
                 prefix: data.section.prefix,
                 offsets: data.section.offsets,
                 running: data.section.running,
             };
             storage.remote = data.targets;
             refreshNumbering(editor);
+            if (data.text_block) setTextBlock(editor, data.text_block);
 
             return data;
         } catch {
@@ -1592,6 +1600,11 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
                     ))}
                 </>
             )}
+
+            {/* The picture or table under the cursor: where it sits and how
+                it is set (PlacementBar). */}
+            {editor.isActive('table') && <TableBar editor={editor} />}
+            {editor.isActive('image') && <ImageBar editor={editor} />}
 
             <Divider />
 
