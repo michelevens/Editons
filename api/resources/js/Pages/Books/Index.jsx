@@ -2,8 +2,9 @@ import AppHeader from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
 import Icon from '@/Components/Studio/Icon';
 import ImportDialog from '@/Components/Studio/ImportDialog';
+import Shelf from '@/Components/Shelf/Shelf';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 /**
  * The author's shelf.
@@ -21,16 +22,12 @@ export default function Index({
     book_types: bookTypes = [],
     default_book_type: defaultBookType = null,
     house = null,
+    shelf,
 }) {
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
     const [importing, setImporting] = useState(false);
-    // "Prepare for publishing" across several books (Publish in 3 steps).
-    const [selecting, setSelecting] = useState(false);
-    const [selected, setSelected] = useState([]);
-    const toggle = (id) => setSelected((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-
-    const totalWords = books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
+    const totalWords = counts.words ?? books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
 
     // Order and labels follow the design: All first, then the three states.
     const filters = [
@@ -135,30 +132,6 @@ export default function Index({
                         />
                     )}
 
-                    <nav className="mt-6 flex flex-wrap gap-1.5">
-                        {filters.map((item) => (
-                            <button
-                                key={item.key}
-                                data-a={`books:filter:${item.key}`}
-                                onClick={() =>
-                                    router.get(
-                                        route('books.index'),
-                                        { filter: item.key },
-                                        { preserveScroll: true },
-                                    )
-                                }
-                                className={`rounded-badge px-3 py-1.5 text-[12.5px] font-medium transition ${
-                                    filter === item.key
-                                        ? 'bg-brand-fill text-white'
-                                        : 'bg-bg-surface text-text-secondary hover:text-text-primary'
-                                }`}
-                            >
-                                {item.label}
-                                <span className="ml-1.5">{item.count}</span>
-                            </button>
-                        ))}
-                    </nav>
-
                     {filter === 'house' && house && (
                         <p className="mt-4 rounded-control bg-status-warning-bg px-3.5 py-2.5 text-[12.5px] text-status-warning" data-a="books:house-note">
                             House books belong to the platform&rsquo;s imprints. Anything you change is saved as you.{' '}
@@ -166,222 +139,22 @@ export default function Index({
                         </p>
                     )}
 
-                    {books.length > 1 && (
-                        <PrepareBar
-                            selecting={selecting}
-                            selected={selected}
-                            onStart={() => setSelecting(true)}
-                            onStop={() => {
-                                setSelecting(false);
-                                setSelected([]);
-                            }}
-                        />
-                    )}
-
-                    {books.length === 0 ? (
-                        <EmptyShelf filter={filter} />
-                    ) : (
-                        <ul className="mt-5 grid grid-cols-1 gap-[14px] sm:grid-cols-2">
-                            {books.map((book) => (
-                                <BookCard
-                                    key={book.id}
-                                    book={book}
-                                    selecting={selecting}
-                                    selected={selected.includes(book.id)}
-                                    onToggle={() => toggle(book.id)}
-                                />
-                            ))}
-                        </ul>
-                    )}
+                    <Shelf
+                        shelf={shelf}
+                        books={books}
+                        routeName="books.index"
+                        filters={filters}
+                        linkFor={(book) => route('books.overview', book.id)}
+                        canSelect={books.length > 0}
+                        empty={<EmptyShelf filter={filter} searching={shelf.state.q !== ''} />}
+                        renderCard={(book, { selecting, selected, toggle }) => (
+                            <BookCard book={book} selecting={selecting} selected={selected} onToggle={toggle} />
+                        )}
+                    />
                 </div>
             </main>
 
             <MobileNav current="books" />
-        </div>
-    );
-}
-
-const READY = {
-    green: ['bg-status-success-bg text-status-success', 'Ready'],
-    amber: ['bg-status-warning-bg text-status-warning', 'Ready, check'],
-    red: ['bg-status-danger-bg text-status-danger', 'Not ready'],
-};
-
-/**
- * "Prepare for publishing" for the selected books: step 1 of Publish for
- * each, the stale files regenerated, then one Google Play bulk upload and
- * one KDP checklist for them all (PublishFlowController::prepareMany).
- */
-function PrepareBar({ selecting, selected, onStart, onStop }) {
-    const [busy, setBusy] = useState(false);
-    const [result, setResult] = useState(null);
-    const [error, setError] = useState(null);
-
-    const run = async () => {
-        setBusy(true);
-        setError(null);
-
-        try {
-            setResult((await window.axios.post(route('publish.prepare'), { books: selected })).data);
-        } catch (e) {
-            setError(e.response?.status === 403 ? 'You can only prepare books you may edit.' : (e.response?.data?.message ?? 'That did not work.'));
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    if (!selecting) {
-        return (
-            <div className="mt-4">
-                <button
-                    type="button"
-                    data-a="books:prepare:start"
-                    onClick={onStart}
-                    className="rounded-control border border-border-input bg-bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-text-body transition hover:border-brand-primary/40"
-                >
-                    Select several books (prepare, house style)…
-                </button>
-            </div>
-        );
-    }
-
-    return (
-        <section data-a="books:prepare" className="mt-4 rounded-panel border border-border-default bg-bg-surface p-3" aria-live="polite">
-            <div className="flex flex-wrap items-center gap-2">
-                <p className="min-w-0 flex-1 text-[12.5px] text-text-body">
-                    {selected.length === 0 ? 'Tick the books to prepare.' : `${selected.length} selected.`} Each is checked, its stale files are
-                    regenerated, and you get one Google Play upload and one KDP checklist.
-                </p>
-                <div className="flex gap-2">
-                    <button
-                        type="button"
-                        data-a="books:prepare:run"
-                        disabled={selected.length === 0 || busy}
-                        onClick={run}
-                        className="rounded-control bg-brand-fill px-3 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
-                    >
-                        {busy ? 'Preparing…' : 'Prepare for publishing'}
-                    </button>
-                    <button type="button" onClick={onStop} className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-medium text-text-body">
-                        Done
-                    </button>
-                </div>
-            </div>
-            {error && <p className="mt-2 text-[12px] text-status-danger">{error}</p>}
-            <ApplyHouseStyle selected={selected} />
-            {result && (
-                <div className="mt-3 space-y-2" data-a="books:prepare:result">
-                    <div className="flex flex-wrap gap-2">
-                        <a href={result.google_play} className="rounded-control bg-brand-fill px-3 py-1.5 text-[12.5px] font-semibold text-white">
-                            Google Play bulk upload (.zip)
-                        </a>
-                        <a href={result.kdp_checklist} target="_blank" rel="noopener noreferrer" className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-semibold text-text-body">
-                            KDP checklist
-                        </a>
-                    </div>
-                    <ul className="space-y-1 text-[12.5px]">
-                        {result.rows.map((row) => {
-                            const [tone, label] = READY[row.status] ?? READY.red;
-
-                            return (
-                                <li key={row.id}>
-                                    <span className={`mr-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{label}</span>
-                                    <span className="font-semibold text-text-primary">{row.title}</span>{' '}
-                                    <span className="text-text-secondary">{row.message}</span>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                </div>
-            )}
-        </section>
-    );
-}
-
-/**
- * Apply one of the account's house styles to the selected books: their
- * design (trim, margins, type, openers, heads, boxes) replaced by the
- * style's, the manuscripts untouched. "Follow" keeps them in step with the
- * style when it is updated (HouseStyleController::apply).
- */
-function ApplyHouseStyle({ selected }) {
-    const [styles, setStyles] = useState(null);
-    const [styleId, setStyleId] = useState('');
-    const [follow, setFollow] = useState(true);
-    const [busy, setBusy] = useState(false);
-    const [rows, setRows] = useState(null);
-
-    useEffect(() => {
-        window.axios.get(route('house-styles.index')).then(({ data }) => {
-            setStyles(data.styles);
-            setStyleId(data.styles[0]?.id ?? '');
-        }).catch(() => setStyles([]));
-    }, []);
-
-    if (!styles || styles.length === 0) {
-        return (
-            <p className="mt-2 text-[11.5px] text-text-secondary" data-a="books:house-style:none">
-                To give several books one design, save a house style from a book&rsquo;s Design &amp; Layout.
-            </p>
-        );
-    }
-
-    const apply = async () => {
-        setBusy(true);
-
-        try {
-            setRows((await window.axios.post(route('house-styles.apply', styleId), { books: selected, follow })).data.results);
-        } catch (e) {
-            setRows([{ id: 0, ok: false, title: '', message: e.response?.data?.message ?? 'That did not work.' }]);
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    return (
-        <div className="mt-3 border-t border-border-default pt-3" data-a="books:house-style">
-            <div className="flex flex-wrap items-center gap-2">
-                <label className="text-[12.5px] font-medium text-text-body" htmlFor="house-style-pick">House style</label>
-                <select
-                    id="house-style-pick"
-                    value={styleId}
-                    data-a="books:house-style:pick"
-                    onChange={(event) => setStyleId(Number(event.target.value))}
-                    className="min-w-0 max-w-full rounded-control border border-border-input px-2 py-1 text-[12.5px] focus:border-brand-primary focus:ring-0"
-                >
-                    {styles.map((style) => (
-                        <option key={style.id} value={style.id}>{style.name} — {style.summary}</option>
-                    ))}
-                </select>
-                <label className="flex items-center gap-1.5 text-[12px] text-text-body">
-                    <input type="checkbox" checked={follow} data-a="books:house-style:follow" onChange={(event) => setFollow(event.target.checked)} />
-                    Follow it
-                </label>
-                <button
-                    type="button"
-                    data-a="books:house-style:apply"
-                    disabled={selected.length === 0 || busy || !styleId}
-                    onClick={apply}
-                    className="rounded-control border border-border-input px-3 py-1.5 text-[12.5px] font-semibold text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
-                >
-                    {busy ? 'Applying…' : 'Apply to selected'}
-                </button>
-            </div>
-            <p className="mt-1 text-[11px] text-text-secondary">
-                Only the design changes; the text never does. Print files made before become out of date.
-            </p>
-            {rows && (
-                <ul className="mt-2 space-y-1 text-[12.5px]" data-a="books:house-style:result">
-                    {rows.map((row) => (
-                        <li key={row.id}>
-                            <span className={`mr-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${row.ok ? 'bg-status-success-bg text-status-success' : 'bg-status-danger-bg text-status-danger'}`}>
-                                {row.ok ? 'Done' : 'Not applied'}
-                            </span>
-                            <span className="font-semibold text-text-primary">{row.title}</span> <span className="text-text-secondary">{row.message}</span>
-                        </li>
-                    ))}
-                </ul>
-            )}
         </div>
     );
 }
@@ -578,8 +351,8 @@ function StatusChip({ status }) {
     );
 }
 
-function EmptyShelf({ filter }) {
-    const message = {
+function EmptyShelf({ filter, searching = false }) {
+    const message = searching ? 'No books match that search.' : {
         archived: 'Nothing archived.',
         published: 'Nothing published yet.',
         active: 'No active books. Start one above.',

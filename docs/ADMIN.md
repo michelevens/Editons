@@ -314,6 +314,16 @@ php artisan house:create ecrivain-prepa --name="Écrivain Prépa" --reason="…"
 The page lists every house book: cover, status, words, the latest PDF,
 print interior, print cover wrap and EPUB, print readiness per service,
 price and store status, and sales. Totals per currency are platform revenue.
+It is a shelf (ADR — shelf views and bulk actions): search (accents
+ignored), sort, group by series, cards or a table with chosen columns
+(ISBNs, live channels, last export with a stale flag, house style…), paged
+on the server, with saved views per staff member. The shelf's bulk bar
+(archive, unarchive, set series and renumber, house style, regenerate stale
+files, metadata CSV, prepare for publishing) runs for the owner with a
+reason; each house book changed is audited (`house.archived`,
+`house.unarchived`, `house.series_set`, `house.house_style_applied`,
+`house.exports_regenerated`, `house.metadata_exported`). The catalog's own
+bulk panel (export, price, on/off sale) sits in the same bar.
 
 - **Open in the studio.** The owner edits a house book in the normal studio
   *as themselves* — no "View as". A banner says *House book — edits are

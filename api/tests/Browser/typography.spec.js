@@ -180,15 +180,17 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
                 await expect(page.locator('[data-a="layout:font"]')).toHaveValue('spectral');
 
                 // From the shelf, to the other books.
-                await page.goto('/books');
+                // The cards, whatever view the shelf was last left in.
+                await page.goto('/books?view=cards&filter=all&q=&per_page=100');
                 await page.click('[data-a="books:prepare:start"]');
 
                 for (const book of others) await page.click(`[data-a="books:select:${book}"]`);
 
+                await page.click('[data-a="shelf:bulk:house_style"]');
                 await expect(page.locator('[data-a="books:house-style:pick"]')).toBeVisible();
                 await page.click('[data-a="books:house-style:apply"]');
                 await expect(page.locator('[data-a="books:house-style:result"] li')).toHaveCount(others.length);
-                await expect(page.locator('[data-a="books:house-style:result"]')).not.toContainText('Not applied');
+                await expect(page.locator('[data-a="books:house-style:result"]')).not.toContainText('Skipped');
                 if (SHOTS) await page.screenshot({ path: `${SHOTS}/typo-${viewport.width}-shelf-apply.png`, fullPage: true });
 
                 for (const book of others) {

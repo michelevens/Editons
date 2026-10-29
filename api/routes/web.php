@@ -46,6 +46,7 @@ use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\SellerPartnersController;
+use App\Http\Controllers\ShelfController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
@@ -540,6 +541,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/publish/google-play', [PublishFlowController::class, 'googlePlayMany'])
         ->middleware('throttle:10,1')->name('publish.google-play.many');
     Route::get('/publish/kdp-checklist', [PublishFlowController::class, 'checklist'])->name('publish.checklist');
+
+    // Shelf views and bulk actions (ADR-00XX): the author's shelf and the
+    // console's House catalog, each book permission-checked on its own.
+    Route::put('/shelf/{view}/current', [ShelfController::class, 'remember'])->whereIn('view', ['books', 'house'])->name('shelf.current');
+    Route::post('/shelf/{view}/views', [ShelfController::class, 'store'])->whereIn('view', ['books', 'house'])->name('shelf.views.store');
+    Route::patch('/shelf/views/{id}', [ShelfController::class, 'update'])->whereNumber('id')->name('shelf.views.update');
+    Route::delete('/shelf/views/{id}', [ShelfController::class, 'destroy'])->whereNumber('id')->name('shelf.views.destroy');
+    Route::post('/shelf/bulk', [ShelfController::class, 'bulk'])->middleware('throttle:20,1')->name('shelf.bulk');
+    Route::get('/shelf/metadata.csv', [ShelfController::class, 'csv'])->middleware('throttle:20,1')->name('shelf.csv');
+    Route::get('/shelf/progress', [ShelfController::class, 'progress'])->middleware('throttle:120,1')->name('shelf.progress');
 
     // The print kit: print settings, checks, prices and the cover preview.
     Route::get('/books/{book}/print-kit', [PrintKitController::class, 'show'])

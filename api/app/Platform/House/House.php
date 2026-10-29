@@ -40,7 +40,17 @@ final class House
     /** May $user open this house book? All staff can read it. */
     public static function canView(User $user, Book $book): bool
     {
-        return $user->isPlatformAdmin() && self::staffReady($user) && self::isHouseBook($book);
+        return self::canViewCatalog($user) && self::isHouseBook($book);
+    }
+
+    /**
+     * May $user see the house books at all — the shelf's House catalog
+     * (App\Shelf\Shelf). canView() for every house book at once, so a
+     * list of them needs no check per book.
+     */
+    public static function canViewCatalog(User $user): bool
+    {
+        return $user->isPlatformAdmin() && self::staffReady($user);
     }
 
     /**

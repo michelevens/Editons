@@ -8,19 +8,18 @@ use App\Journey\Scaffolder;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
-use App\Models\User;
 use App\Platform\House\House;
-use App\Platform\Impersonation;
 use App\Platform\Trust\MasterData;
 use App\Publishing\Anatomy;
 use App\Publishing\BookPart;
 use App\Research\Bibliography;
+use App\Shelf\Shelf;
+use App\Shelf\ShelfPage;
 use App\Workspace\Workspace;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -34,60 +33,57 @@ class BookController extends Controller
     /**
      * The author's shelf.
      *
+     * Searched, sorted, grouped and paged on the server (App\Shelf\Shelf,
+     * ADR-00XX — Shelf views and bulk actions), in the way the author last
+     * left it unless the address says otherwise. With no saved view it is
+     * the shelf as it always was: every book, last updated first, as cards.
+     *
      * Counts come from the unfiltered set so the filter chips can show how
      * many are behind each one — a chip reading "Archived" with no number is
      * a guess the author has to click to resolve.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, ShelfPage $shelf): Response
     {
+        $user = $request->user();
+
         // 'all' by default, as the design has it. Opening on a filtered view
         // hides books without saying so, which is the wrong first impression
-        // of somebody's own shelf.
-        $filter = $request->string('filter')->toString() ?: 'all';
-
-        // Owned AND shared. A collaborator who accepted an invitation and
-        // then found an empty shelf would have no way into the book.
-        $all = $request->user()->accessibleBooks()
-            ->withCount('sections')
-            ->orderByDesc('updated_at')
-            ->get();
+        // of somebody's own shelf. Owned AND shared: a collaborator who
+        // accepted an invitation and then found an empty shelf would have no
+        // way into the book.
+        $state = $shelf->state($request, 'books');
 
         // The House catalog shelf (ADR — house catalog): staff see the
         // platform's own imprints' books here, as themselves. Never part of
         // "All": they are not this person's books.
-        $house = $this->houseShelf($request);
+        $staff = House::canViewCatalog($user);
 
-        $visible = match ($filter) {
-            'archived' => $all->where('status', 'archived'),
-            'published' => $all->where('status', 'published'),
-            'house' => $house ?? collect(),
-            'all' => $all,
-            default => $all->where('status', '!=', 'archived'),
-        };
+        if ($state['filter'] === 'house' && ! $staff) {
+            $state['filter'] = 'all';
+        }
 
-        return Inertia::render('Books/Index', [
-            'filter' => $filter,
-            'counts' => [
-                'active' => $all->where('status', '!=', 'archived')->count(),
-                'published' => $all->where('status', 'published')->count(),
-                'archived' => $all->where('status', 'archived')->count(),
-                'all' => $all->count(),
-                'house' => $house?->count(),
+        $page = $shelf->build($request, 'books', $state, fn (Book $b) => [
+            'id' => $b->id,
+            'title' => $b->title,
+            'subtitle' => $b->subtitle,
+            'genre' => $b->genre,
+            'status' => $b->status,
+            'word_count' => $b->word_count,
+            'target_words' => $b->target_words,
+            'sections_count' => $b->sections_count,
+            'updated_at' => $b->updated_at->diffForHumans(),
+            'cover' => $b->coverFor(),
+            'house' => $b->user_id !== $user->id && $b->user?->isHouse(),
+        ], fn ($query) => $query->withCount('sections')->with('user:id,account_kind'));
+
+        return Inertia::render('Books/Index', $page + [
+            'filter' => $state['filter'],
+            'counts' => Shelf::counts($user, 'books') + [
+                'house' => $staff ? Shelf::counts($user, 'house')['all'] : null,
+                // The header's total is the shelf's, not this page's.
+                'words' => (int) $user->accessibleBooks()->where('status', '!=', 'archived')->sum('word_count'),
             ],
-            'house' => $house !== null ? ['console' => route('admin.house.index')] : null,
-            'books' => $visible->values()->map(fn (Book $b) => [
-                'id' => $b->id,
-                'title' => $b->title,
-                'subtitle' => $b->subtitle,
-                'genre' => $b->genre,
-                'status' => $b->status,
-                'word_count' => $b->word_count,
-                'target_words' => $b->target_words,
-                'sections_count' => $b->sections_count,
-                'updated_at' => $b->updated_at->diffForHumans(),
-                'cover' => $b->coverFor(),
-                'house' => $house !== null && $b->user_id !== $request->user()->id && $house->contains('id', $b->id),
-            ]),
+            'house' => $staff ? ['console' => route('admin.house.index')] : null,
             // The guided flow's options. Sent with the shelf so choosing a
             // type needs no extra request.
             'book_types' => array_map(
@@ -96,35 +92,10 @@ class BookController extends Controller
             ),
             // The author's usual kind of book, so the flow opens on it
             // rather than asking a question they have already answered.
-            'default_book_type' => $request->user()->default_book_type,
-            'can_create' => $request->user()->canCreateBook(),
-            'plan' => $request->user()->planLimits(),
+            'default_book_type' => $user->default_book_type,
+            'can_create' => $user->canCreateBook(),
+            'plan' => $user->planLimits(),
         ]);
-    }
-
-    /**
-     * House books this person may open, or null when they are not staff.
-     *
-     * Read through the policy (App\Platform\House\House), so the shelf
-     * shows exactly what the studio would let them open.
-     */
-    private function houseShelf(Request $request): ?Collection
-    {
-        $user = $request->user();
-
-        if (! $user->isPlatformAdmin() || Impersonation::active($request)) {
-            return null;
-        }
-
-        return Book::whereIn('user_id', User::where('account_kind', 'house')->select('id'))
-            ->with('user:id,account_kind')
-            ->withCount('sections')
-            ->orderBy('series_name')
-            ->orderBy('series_number')
-            ->orderBy('title')
-            ->get()
-            ->filter(fn (Book $book) => $user->can('view', $book))
-            ->values();
     }
 
     /**

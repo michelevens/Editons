@@ -12,6 +12,8 @@ use App\Publishing\PrintSpecs;
 use App\Publishing\Publish\BulkPrepare;
 use App\Publishing\Publish\GooglePlayBulk;
 use App\Publishing\Publish\KdpGuide;
+use App\Shelf\Shelf;
+use App\Shelf\ShelfPage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,20 +35,31 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class HouseController extends Controller
 {
-    public function index(Request $request, HouseCatalog $catalog, HouseAccounts $accounts): Response
+    /**
+     * The catalog as a shelf (ADR-00XX — Shelf views and bulk actions):
+     * searched, sorted, grouped and paged on the server, each page's books
+     * with the catalog's full row. Counts and sales totals are the whole
+     * catalog's.
+     */
+    public function index(Request $request, HouseCatalog $catalog, HouseAccounts $accounts, ShelfPage $shelf): Response
     {
-        $books = $catalog->books();
+        $houses = $accounts->all();
+        $state = $shelf->state($request, 'house');
+        $page = $shelf->build($request, 'house', $state, fn (Book $book) => $catalog->row($book),
+            fn ($query) => $query->with(['user:id,name,house_slug,account_kind', 'product', 'houseStyle:id,name']));
+        $perHouse = Book::whereIn('user_id', $houses->pluck('id'))->toBase()
+            ->selectRaw('user_id, count(*) as n')->groupBy('user_id')->pluck('n', 'user_id');
 
-        return Inertia::render('Admin/House/Index', [
-            'houses' => $accounts->all()->map(fn ($h) => [
+        return Inertia::render('Admin/House/Index', $page + [
+            'houses' => $houses->map(fn ($h) => [
                 'id' => $h->id,
                 'name' => $h->name,
                 'slug' => $h->house_slug,
-                'books' => $books->where('user_id', $h->id)->count(),
+                'books' => (int) ($perHouse[$h->id] ?? 0),
                 'account' => route('admin.accounts.show', $h->id),
             ])->values(),
-            'books' => $books->map(fn (Book $book) => $catalog->row($book))->values(),
-            'totals' => $catalog->totals($books),
+            'counts' => Shelf::counts($request->user(), 'house'),
+            'totals' => $catalog->totals(Book::whereIn('user_id', $houses->pluck('id'))->get(['id'])),
             'options' => [
                 'exports' => [
                     ['pdf', 'PDF'],
@@ -61,7 +74,7 @@ class HouseController extends Controller
                 'isbn_sources' => Book::ISBN_SOURCES,
                 // Each house account's styles (HouseStyles), saved from one
                 // of its books in Design & Layout.
-                'house_styles' => HouseStyle::whereIn('user_id', $accounts->all()->pluck('id'))->orderBy('name')
+                'house_styles' => HouseStyle::whereIn('user_id', $houses->pluck('id'))->orderBy('name')
                     ->get(['id', 'name', 'user_id', 'version'])->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'house_id' => $s->user_id, 'version' => $s->version])->values(),
             ],
             'results' => $request->session()->get('house_results'),

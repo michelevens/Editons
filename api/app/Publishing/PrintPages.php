@@ -4,6 +4,7 @@ namespace App\Publishing;
 
 use App\Models\Book;
 use App\Models\BookExport;
+use App\Models\ManuscriptSection;
 use Illuminate\Support\Carbon;
 
 /**
@@ -40,9 +41,14 @@ class PrintPages
         return $layout;
     }
 
-    public static function fingerprint(Book $book): string
+    /**
+     * @param  object|null  $sections  the sections' count, last change and
+     *                                 words (sectionsAggregate), when the
+     *                                 caller has them for many books at once
+     */
+    public static function fingerprint(Book $book, ?object $sections = null): string
     {
-        $sections = $book->sections()
+        $sections ??= $book->sections()
             ->selectRaw('count(*) as n, max(updated_at) as changed, sum(word_count) as words')
             ->first();
 
@@ -55,6 +61,32 @@ class PrintPages
             [$book->title, $book->subtitle, $book->author_name, $book->series_name, $book->series_number, $book->language],
             [$sections?->n, (string) $sections?->changed, $sections?->words],
         ])), 0, 16);
+    }
+
+    /**
+     * fingerprint()'s section figures for many books in one query, keyed by
+     * book id. A book with no sections gets the row a single query returns
+     * for it (n = 0, nothing changed, no words).
+     *
+     * @param  list<int>  $bookIds
+     * @return array<int, object>
+     */
+    public static function sectionsAggregate(array $bookIds): array
+    {
+        $rows = ManuscriptSection::whereIn('book_id', $bookIds)
+            ->groupBy('book_id')
+            ->selectRaw('book_id, count(*) as n, max(updated_at) as changed, sum(word_count) as words')
+            ->get()
+            ->keyBy('book_id');
+
+        $out = [];
+
+        foreach ($bookIds as $id) {
+            $row = $rows[$id] ?? null;
+            $out[$id] = (object) ['n' => $row ? $row->n : 0, 'changed' => $row?->changed, 'words' => $row?->words];
+        }
+
+        return $out;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Publishing\AccessibilityAudit;
 use App\Publishing\CoverRenderer;
 use App\Publishing\InteriorDesign;
+use App\Shelf\Shelf;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -159,6 +160,19 @@ class Book extends Model
      * reassigned to someone else's account. word_count is derived from
      * section content and would be a lie if a client could set it.
      */
+    /**
+     * The shelf's search text (App\Shelf\Shelf::fold), kept with the
+     * fields it is made from so a search never needs the unaccent extension.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Book $book) {
+            if (! $book->exists || $book->isDirty(['title', 'subtitle', 'series_name', 'author_name'])) {
+                $book->search_text = Shelf::searchText($book);
+            }
+        });
+    }
+
     /** Settings with defaults applied, so a missing key is never undefined. */
     public function settings(): array
     {

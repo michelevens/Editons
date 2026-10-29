@@ -26,6 +26,9 @@ use Throwable;
  */
 class Regenerate
 {
+    /** Formats the shelf can regenerate: what goes to readers, stores and printers. */
+    public const FORMATS = ['pdf', 'epub', 'pdf_interior', 'cover_wrap'];
+
     public function __construct(
         private readonly Exporter $exporter,
         private readonly Entitlements $entitlements,
@@ -41,6 +44,72 @@ class Regenerate
             fn ($file) => ! $file['fresh'],
         ));
 
+        return $this->queue($book, $actor, $files);
+    }
+
+    /**
+     * The shelf's "Regenerate stale files" (ADR-00XX — shelf views): of the
+     * formats chosen, every Full-book file of this book that is out of date
+     * (Freshness), and with $missing also those never made. A cover wrap is
+     * made for each print service the book's Publish plan chose, or the one
+     * its last wrap was for. Each file considered is reported, fresh ones
+     * included, so a summary can say why nothing was queued.
+     *
+     * @param  list<string>  $formats  of FORMATS
+     * @return list<array{format: string, service: ?string, label: string, result: string, message: string}>
+     */
+    public function formats(Book $book, User $actor, array $formats, bool $missing = false): array
+    {
+        $changed = Freshness::lastChange($book);
+        $files = [];
+        $report = [];
+
+        foreach (array_values(array_intersect(self::FORMATS, $formats)) as $format) {
+            if ($format !== 'cover_wrap') {
+                $files[] = Freshness::file($book, $format, null, $changed);
+
+                continue;
+            }
+
+            $services = PublishPlan::services($book) ?: array_filter([BookExport::where('book_id', $book->id)->fullBook()
+                ->where('format', 'cover_wrap')->latest('id')->first(['options'])?->options['service'] ?? null]);
+
+            if ($services === []) {
+                $report[] = ['format' => 'cover_wrap', 'service' => null, 'label' => Freshness::FILES['cover_wrap'], 'result' => 'skipped',
+                    'message' => 'No print service chosen in Publish, and no cover wrap made before.'];
+            }
+
+            foreach (array_values(array_unique($services)) as $service) {
+                $files[] = ['service' => $service] + Freshness::file($book, 'cover_wrap', $service, $changed);
+            }
+        }
+
+        $todo = [];
+
+        foreach ($files as $file) {
+            $label = $file['label'].(isset($file['service']) ? ' ('.PrintSpecs::label($file['service']).')' : '');
+
+            if ($file['fresh']) {
+                $report[] = ['format' => $file['format'], 'service' => $file['service'] ?? null, 'label' => $label, 'result' => 'fresh', 'message' => 'Up to date.'];
+            } elseif ($file['export'] === null && ! $missing) {
+                $report[] = ['format' => $file['format'], 'service' => $file['service'] ?? null, 'label' => $label, 'result' => 'skipped', 'message' => 'Never made.'];
+            } else {
+                $todo[] = $file;
+            }
+        }
+
+        return [...$report, ...$this->queue($book, $actor, $todo)];
+    }
+
+    /**
+     * Queue the given stale files: an EPUB or PDF on its own worker, the
+     * interior and then each cover wrap in a chain.
+     *
+     * @param  list<array<string, mixed>>  $files  from Freshness
+     * @return list<array{format: string, service: ?string, label: string, result: string, message: string, export_id?: int}>
+     */
+    private function queue(Book $book, User $actor, array $files): array
+    {
         if ($files === []) {
             return [];
         }
@@ -81,7 +150,8 @@ class Regenerate
             }
 
             $results[] = ['format' => $file['format'], 'service' => null, 'label' => $label,
-                'result' => $export->wasRecentlyCreated ? 'queued' : 'already', 'message' => $export->wasRecentlyCreated ? 'Queued.' : 'Already being made.'];
+                'result' => $export->wasRecentlyCreated ? 'queued' : 'already', 'message' => $export->wasRecentlyCreated ? 'Queued.' : 'Already being made.',
+                'export_id' => $export->id];
         }
 
         $chain = array_map(fn ($file) => new MakeCoverWrap($book->id, $actor->id, [
