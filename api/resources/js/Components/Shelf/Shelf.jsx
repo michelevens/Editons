@@ -1,6 +1,7 @@
 import { Pager } from '@/Components/Admin/Kit';
 import { Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { t, useI18n } from '@/i18n';
 
 /**
  * A shelf of books (ADR-0045 — Shelf views and bulk actions): the author's
@@ -27,6 +28,29 @@ export const COLUMN_LABELS = {
 };
 
 const SORT_LABELS = { updated: 'Last updated', title: 'Title', series: 'Series and number', words: 'Words', status: 'Status' };
+
+// The same labels in the reader's language (COLUMN_LABELS stays the English,
+// for the CSV export's headers).
+const COLUMN_KEYS = {
+    words: { tKey: 'shelf.col_words' },
+    status: { tKey: 'shelf.col_status' },
+    series: { tKey: 'shelf.col_series' },
+    language: { tKey: 'shelf.col_language' },
+    isbns: { tKey: 'shelf.col_isbns' },
+    channels: { tKey: 'shelf.col_channels' },
+    exports: { tKey: 'shelf.col_exports' },
+    house_style: { tKey: 'shelf.col_house_style' },
+    updated: { tKey: 'shelf.col_updated' },
+};
+const SORT_KEYS = {
+    updated: { tKey: 'shelf.sort_updated' },
+    title: { tKey: 'shelf.sort_title' },
+    series: { tKey: 'shelf.sort_series' },
+    words: { tKey: 'shelf.sort_words' },
+    status: { tKey: 'shelf.sort_status' },
+};
+const columnLabel = (c) => (COLUMN_KEYS[c] ? t(COLUMN_KEYS[c].tKey) : c);
+const sortLabel = (s) => (SORT_KEYS[s] ? t(SORT_KEYS[s].tKey) : s);
 
 const FORMAT_LABELS = { pdf: 'PDF', epub: 'EPUB', pdf_interior: 'Print interior', cover_wrap: 'Cover wrap' };
 
@@ -57,6 +81,7 @@ export default function Shelf({
     empty = null,
     prefix = 'shelf',
 }) {
+    const { t } = useI18n();
     // What was asked for shows at once; the server's answer replaces it.
     const [pending, setPending] = useState({});
     useEffect(() => setPending({}), [shelf.state]);
@@ -106,7 +131,7 @@ export default function Shelf({
     return (
         <div data-a={`${prefix}:shelf`}>
             {filters && (
-                <nav className="mt-6 flex flex-wrap gap-1.5" aria-label="Filter books">
+                <nav className="mt-6 flex flex-wrap gap-1.5" aria-label={t('shelf.filter_label')}>
                     {filters.map((item) => (
                         <button
                             key={item.key}
@@ -131,15 +156,15 @@ export default function Shelf({
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px]">
                     {state.view === 'cards' && !selecting && selected.length === 0 ? (
                         <button type="button" data-a="books:prepare:start" onClick={() => setSelecting(true)} className={chip}>
-                            Select books…
+                            {t('shelf.select_books')}
                         </button>
                     ) : (
                         <>
                             <button type="button" data-a="shelf:select-page" onClick={() => setSelected((ids) => [...ids, ...pageIds.filter((id) => !ids.includes(id))])} className={chip}>
-                                Select this page
+                                {t('shelf.select_page')}
                             </button>
                             <button type="button" data-a="shelf:select-all" onClick={() => setSelected(shelf.ids)} className={chip}>
-                                Select all {Math.min(shelf.page.total, shelf.max_select)} in this view
+                                {t('shelf.select_all', { count: Math.min(shelf.page.total, shelf.max_select) })}
                             </button>
                             {(selected.length > 0 || selecting) && (
                                 <button
@@ -151,19 +176,19 @@ export default function Shelf({
                                     }}
                                     className="px-2 text-text-secondary hover:text-text-primary"
                                 >
-                                    Clear
+                                    {t('shelf.clear')}
                                 </button>
                             )}
                         </>
                     )}
                     <span className="ml-auto text-text-secondary" data-a="shelf:range">
-                        {shelf.page.total === 0 ? 'No books' : `${shelf.page.from}–${shelf.page.to} of ${shelf.page.total}`}
+                        {shelf.page.total === 0 ? t('shelf.no_books') : t('shelf.range', { from: shelf.page.from, to: shelf.page.to, total: shelf.page.total })}
                     </span>
                 </div>
             )}
 
             {books.length === 0 ? (
-                empty ?? <p className="mt-5 rounded-panel border border-dashed border-border-default p-10 text-center text-[13.5px] text-text-secondary">No books match.</p>
+                empty ?? <p className="mt-5 rounded-panel border border-dashed border-border-default p-10 text-center text-[13.5px] text-text-secondary">{t('shelf.no_match')}</p>
             ) : state.view === 'table' ? (
                 <ShelfTable
                     books={books}
@@ -181,7 +206,7 @@ export default function Shelf({
             ) : (
                 <div className="mt-5 space-y-5">
                     {sections.map((section) => (
-                        <section key={section.key ?? 'all'} aria-label={grouped ? section.key || 'No series' : undefined}>
+                        <section key={section.key ?? 'all'} aria-label={grouped ? section.key || t('shelf.no_series') : undefined}>
                             {grouped && (
                                 <GroupHeader name={section.key} count={groupCount[section.key] ?? section.books.length} collapsed={collapsed} setCollapsed={setCollapsed} />
                             )}
@@ -216,6 +241,7 @@ export default function Shelf({
 }
 
 function GroupHeader({ name, count, collapsed, setCollapsed }) {
+    const { t } = useI18n();
     const closed = collapsed.includes(name);
 
     return (
@@ -228,8 +254,8 @@ function GroupHeader({ name, count, collapsed, setCollapsed }) {
                 className="flex w-full items-center gap-2 border-b border-border-default pb-1.5 text-left font-display text-[15px] font-bold text-text-primary"
             >
                 <span aria-hidden="true" className={`inline-block transition ${closed ? '-rotate-90' : ''}`}>▾</span>
-                {name || 'No series'}
-                <span className="text-[12px] font-medium text-text-secondary">{count} book{count === 1 ? '' : 's'}</span>
+                {name || t('shelf.no_series')}
+                <span className="text-[12px] font-medium text-text-secondary">{t('shelf.group_count', { count })}</span>
             </button>
         </h2>
     );
@@ -237,32 +263,34 @@ function GroupHeader({ name, count, collapsed, setCollapsed }) {
 
 /** Search, sort, group, view, columns, page size and saved views. */
 function Toolbar({ shelf, state, q, onSearch, go, routeName }) {
+    const { t } = useI18n();
+
     return (
         <div className="mt-4 flex flex-wrap items-center gap-2" data-a="shelf:toolbar">
             <label className="min-w-[180px] flex-1">
-                <span className="sr-only">Search books</span>
+                <span className="sr-only">{t('shelf.search_label')}</span>
                 <input
                     type="search"
                     value={q}
                     data-a="shelf:search"
-                    placeholder="Search title, series, author…"
+                    placeholder={t('shelf.search')}
                     onChange={(e) => onSearch(e.target.value)}
                     className={`${control} w-full`}
                 />
             </label>
 
             <label className="flex items-center gap-1">
-                <span className="sr-only">Sort by</span>
+                <span className="sr-only">{t('shelf.sort_by')}</span>
                 <select data-a="shelf:sort" value={state.sort} onChange={(e) => go({ sort: e.target.value, dir: undefined, page: 1 })} className={control}>
                     {shelf.options.sorts.map((s) => (
-                        <option key={s} value={s}>{SORT_LABELS[s] ?? s}</option>
+                        <option key={s} value={s}>{sortLabel(s)}</option>
                     ))}
                 </select>
             </label>
             <button
                 type="button"
                 data-a="shelf:dir"
-                aria-label={state.dir === 'asc' ? 'Ascending; switch to descending' : 'Descending; switch to ascending'}
+                aria-label={state.dir === 'asc' ? t('shelf.asc') : t('shelf.desc')}
                 onClick={() => go({ dir: state.dir === 'asc' ? 'desc' : 'asc', page: 1 })}
                 className={`${control} px-2`}
             >
@@ -271,10 +299,10 @@ function Toolbar({ shelf, state, q, onSearch, go, routeName }) {
 
             <label className="flex items-center gap-1.5 text-[12.5px] text-text-body">
                 <input type="checkbox" data-a="shelf:group" checked={state.group === 'series'} onChange={(e) => go({ group: e.target.checked ? 'series' : 'none', page: 1 })} />
-                Group by series
+                {t('shelf.group_by_series')}
             </label>
 
-            <div role="group" aria-label="View" className="flex overflow-hidden rounded-control border border-border-input">
+            <div role="group" aria-label={t('shelf.view')} className="flex overflow-hidden rounded-control border border-border-input">
                 {['cards', 'table'].map((v) => (
                     <button
                         key={v}
@@ -284,7 +312,7 @@ function Toolbar({ shelf, state, q, onSearch, go, routeName }) {
                         onClick={() => go({ view: v })}
                         className={`px-3 py-1.5 text-[12.5px] font-semibold ${state.view === v ? 'bg-brand-fill text-white' : 'bg-bg-surface text-text-body'}`}
                     >
-                        {v === 'cards' ? 'Cards' : 'Table'}
+                        {v === 'cards' ? t('shelf.cards') : t('shelf.table')}
                     </button>
                 ))}
             </div>
@@ -292,10 +320,10 @@ function Toolbar({ shelf, state, q, onSearch, go, routeName }) {
             {state.view === 'table' && <ColumnPicker shelf={shelf} state={state} go={go} />}
 
             <label>
-                <span className="sr-only">Books per page</span>
+                <span className="sr-only">{t('shelf.per_page_label')}</span>
                 <select data-a="shelf:per-page" value={state.per_page} onChange={(e) => go({ per_page: Number(e.target.value), page: 1 })} className={control}>
                     {shelf.options.per_page.map((n) => (
-                        <option key={n} value={n}>{n} per page</option>
+                        <option key={n} value={n}>{t('shelf.per_page', { count: n })}</option>
                     ))}
                 </select>
             </label>
@@ -306,6 +334,7 @@ function Toolbar({ shelf, state, q, onSearch, go, routeName }) {
 }
 
 function ColumnPicker({ shelf, state, go }) {
+    const { t } = useI18n();
     const toggleColumn = (column) => {
         const on = state.columns.includes(column);
         go({ columns: on ? state.columns.filter((c) => c !== column) : shelf.options.columns.filter((c) => c === column || state.columns.includes(c)) });
@@ -313,13 +342,13 @@ function ColumnPicker({ shelf, state, go }) {
 
     return (
         <details className="relative" data-a="shelf:columns">
-            <summary className={`${control} flex cursor-pointer list-none items-center`}>Columns ({state.columns.length})</summary>
+            <summary className={`${control} flex cursor-pointer list-none items-center`}>{t('shelf.columns', { count: state.columns.length })}</summary>
             <fieldset className="absolute right-0 z-20 mt-1 w-[200px] rounded-panel border border-border-default bg-bg-surface p-2 shadow-lg">
-                <legend className="sr-only">Columns to show</legend>
+                <legend className="sr-only">{t('shelf.columns_legend')}</legend>
                 {shelf.options.columns.map((column) => (
                     <label key={column} className="flex items-center gap-2 px-1 py-1 text-[12.5px] text-text-body">
                         <input type="checkbox" data-a={`shelf:column:${column}`} checked={state.columns.includes(column)} onChange={() => toggleColumn(column)} />
-                        {COLUMN_LABELS[column] ?? column}
+                        {columnLabel(column)}
                     </label>
                 ))}
             </fieldset>
@@ -414,7 +443,7 @@ function Cell({ book, column }) {
         case 'words':
             return (book.word_count ?? book.words ?? 0).toLocaleString();
         case 'status':
-            return <span className="rounded-badge bg-bg-subtle px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-text-secondary">{String(book.status).replace('_', ' ')}</span>;
+            return <span className="rounded-badge bg-bg-subtle px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-text-secondary">{['draft', 'in_review', 'published', 'archived'].includes(book.status) ? t(`book.status_${book.status}`) : String(book.status).replace('_', ' ')}</span>;
         case 'series':
             return book.series ? `${book.series.name}${book.series.number ? ` · ${book.series.number}` : ''}` : '—';
         case 'language':
@@ -439,11 +468,11 @@ function Cell({ book, column }) {
                         <li key={format} className="whitespace-nowrap" data-a={`shelf:export:${book.id}:${format}`}>
                             <span className="text-text-secondary">{FORMAT_LABELS[format] ?? format}</span> {when(f.at)}{' '}
                             {f.rendering ? (
-                                <span className="text-status-info">rendering</span>
+                                <span className="text-status-info">{t('shelf.rendering')}</span>
                             ) : f.fresh ? (
-                                <span className="text-status-success">current</span>
+                                <span className="text-status-success">{t('shelf.current')}</span>
                             ) : (
-                                <span className="font-semibold text-status-warning" title={f.reason ?? ''}>stale</span>
+                                <span className="font-semibold text-status-warning" title={f.reason ?? ''}>{t('shelf.stale')}</span>
                             )}
                         </li>
                     ))}
@@ -460,6 +489,7 @@ function Cell({ book, column }) {
 }
 
 function ShelfTable({ books, columns, sections, grouped, groupCount, collapsed, setCollapsed, selected, toggle, canSelect, linkFor }) {
+    const { t } = useI18n();
     const span = columns.length + 1 + (canSelect ? 1 : 0);
 
     return (
@@ -469,10 +499,10 @@ function ShelfTable({ books, columns, sections, grouped, groupCount, collapsed, 
                 <table className="w-full text-left text-[12.5px]" data-a="shelf:table">
                     <thead className="border-b border-border-default text-[11px] uppercase tracking-wide text-text-secondary">
                         <tr>
-                            {canSelect && <th scope="col" className="w-8 px-3 py-2"><span className="sr-only">Selected</span></th>}
-                            <th scope="col" className="px-3 py-2">Title</th>
+                            {canSelect && <th scope="col" className="w-8 px-3 py-2"><span className="sr-only">{t('shelf.selected')}</span></th>}
+                            <th scope="col" className="px-3 py-2">{t('shelf.sort_title')}</th>
                             {columns.map((c) => (
-                                <th key={c} scope="col" className="px-3 py-2" data-a={`shelf:th:${c}`}>{COLUMN_LABELS[c] ?? c}</th>
+                                <th key={c} scope="col" className="px-3 py-2" data-a={`shelf:th:${c}`}>{columnLabel(c)}</th>
                             ))}
                         </tr>
                     </thead>
@@ -491,7 +521,7 @@ function ShelfTable({ books, columns, sections, grouped, groupCount, collapsed, 
                                         <tr key={book.id} className="border-b border-border-default align-top last:border-0" data-a={`shelf:row:${book.id}`}>
                                             {canSelect && (
                                                 <td className="px-3 py-2">
-                                                    <input type="checkbox" aria-label={`Select ${book.title}`} data-a={`books:select:${book.id}`} checked={selected.includes(book.id)} onChange={() => toggle(book.id)} />
+                                                    <input type="checkbox" aria-label={t('shelf.select_book', { title: book.title })} data-a={`books:select:${book.id}`} checked={selected.includes(book.id)} onChange={() => toggle(book.id)} />
                                                 </td>
                                             )}
                                             <th scope="row" className="px-3 py-2 font-semibold text-text-primary">
@@ -513,14 +543,14 @@ function ShelfTable({ books, columns, sections, grouped, groupCount, collapsed, 
 
             <div className="mt-4 space-y-4 sm:hidden" data-a="shelf:compact">
                 {sections.map((section) => (
-                    <section key={section.key ?? 'all'} aria-label={grouped ? section.key || 'No series' : undefined}>
+                    <section key={section.key ?? 'all'} aria-label={grouped ? section.key || t('shelf.no_series') : undefined}>
                         {grouped && <GroupHeader name={section.key} count={groupCount[section.key] ?? section.books.length} collapsed={collapsed} setCollapsed={setCollapsed} />}
                         {!(grouped && collapsed.includes(section.key)) && (
                             <ul className="divide-y divide-border-default rounded-panel border border-border-default bg-bg-surface">
                                 {section.books.map((book) => (
                                     <li key={book.id} className="flex gap-3 px-3 py-2.5">
                                         {canSelect && (
-                                            <input type="checkbox" aria-label={`Select ${book.title}`} data-a={`shelf:compact-select:${book.id}`} checked={selected.includes(book.id)} onChange={() => toggle(book.id)} className="mt-1 h-4 w-4 shrink-0" />
+                                            <input type="checkbox" aria-label={t('shelf.select_book', { title: book.title })} data-a={`shelf:compact-select:${book.id}`} checked={selected.includes(book.id)} onChange={() => toggle(book.id)} className="mt-1 h-4 w-4 shrink-0" />
                                         )}
                                         <div className="min-w-0 flex-1">
                                             <Link href={linkFor(book)} className="block truncate text-[13.5px] font-semibold text-text-primary">{book.title}</Link>

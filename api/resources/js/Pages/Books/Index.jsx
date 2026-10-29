@@ -5,6 +5,7 @@ import ImportDialog from '@/Components/Studio/ImportDialog';
 import Shelf from '@/Components/Shelf/Shelf';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * The author's shelf.
@@ -25,23 +26,24 @@ export default function Index({
     shelf,
 }) {
     const { auth } = usePage().props;
+    const { t, formatNumber } = useI18n();
     const [creating, setCreating] = useState(false);
     const [importing, setImporting] = useState(false);
     const totalWords = counts.words ?? books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
 
     // Order and labels follow the design: All first, then the three states.
     const filters = [
-        { key: 'all', label: 'All', count: counts.all },
-        { key: 'active', label: 'Drafts', count: counts.active },
-        { key: 'published', label: 'Published', count: counts.published },
-        { key: 'archived', label: 'Archived', count: counts.archived },
+        { key: 'all', label: t('shelf.filter_all'), count: counts.all },
+        { key: 'active', label: t('shelf.filter_active'), count: counts.active },
+        { key: 'published', label: t('shelf.filter_published'), count: counts.published },
+        { key: 'archived', label: t('shelf.filter_archived'), count: counts.archived },
         // Staff only: the platform's own imprints (ADR — house catalog).
         ...(house ? [{ key: 'house', label: 'House catalog', count: counts.house }] : []),
     ];
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title="My Books" />
+            <Head title={t('nav.books')} />
 
             <AppHeader
                 active="books"
@@ -54,12 +56,12 @@ export default function Index({
                     <header className="flex flex-wrap items-start justify-between gap-5">
                         <div>
                             <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
-                                My Books
+                                {t('nav.books')}
                             </h1>
                             <p className="mt-1.5 text-[14px] text-text-secondary">
                                 {counts.active === 0
-                                    ? 'Nothing on the shelf yet.'
-                                    : `${counts.active} active · ${totalWords.toLocaleString()} words written`}
+                                    ? t('shelf.empty_title')
+                                    : t('shelf.summary', { count: counts.active, words: formatNumber(totalWords) })}
                             </p>
                         </div>
 
@@ -70,11 +72,11 @@ export default function Index({
                             title={
                                 canCreate
                                     ? undefined
-                                    : `The ${plan.name} plan allows ${plan.books} book${plan.books === 1 ? '' : 's'}.`
+                                    : t('shelf.plan_limit', { plan: plan.name, count: plan.books })
                             }
                             className="flex h-[40px] items-center gap-2 rounded-control bg-brand-fill px-4 text-[14px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            {creating ? 'Cancel' : 'New book'}
+                            {creating ? t('common.cancel') : t('shelf.new_book')}
                             {!creating && <Icon name="plus" size={15} strokeWidth={2.4} />}
                         </button>
                     </header>
@@ -92,25 +94,25 @@ export default function Index({
                                 onClick={() => router.get(route('books.quick'))}
                                 className="text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
                             >
-                                Or just start writing
+                                {t('shelf.quick')}
                             </button>
                             <button
                                 data-a="books:import"
                                 onClick={() => setImporting(true)}
                                 className="text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
                             >
-                                Or import a manuscript
+                                {t('shelf.import')}
                             </button>
                         </div>
                     )}
 
                     {importing && (
                         <ImportDialog
-                            title="Import a manuscript"
-                            hint="A Markdown (.md) or Word (.docx) manuscript becomes a new book, one chapter per top-level heading. A .ecrivain file comes back as the book it was exported from."
+                            title={t('shelf.import_title')}
+                            hint={t('shelf.import_hint')}
                             url="/books/import"
                             accept=".md,.markdown,.txt,.docx,.ecrivain"
-                            doneLabel="Open the book"
+                            doneLabel={t('shelf.open_book')}
                             onClose={() => setImporting(false)}
                             onDone={(result) => router.visit(result.book.url)}
                         />
@@ -118,9 +120,7 @@ export default function Index({
 
                     {!canCreate && (
                         <p className="mt-3 rounded-control bg-status-warning-bg px-3.5 py-2.5 text-[12.5px] text-status-warning">
-                            The {plan.name} plan allows {plan.books} book
-                            {plan.books === 1 ? '' : 's'}. Archive one, or move to a
-                            larger plan.
+                            {t('shelf.plan_limit_note', { plan: plan.name, count: plan.books })}
                         </p>
                     )}
 
@@ -160,6 +160,7 @@ export default function Index({
 }
 
 function BookCard({ book, selecting = false, selected = false, onToggle }) {
+    const { t, formatNumber } = useI18n();
     const archived = book.status === 'archived';
     const pct = book.target_words
         ? Math.min(100, Math.round((book.word_count / book.target_words) * 100))
@@ -176,7 +177,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
             {selecting && (
                 <input
                     type="checkbox"
-                    aria-label={`Select ${book.title}`}
+                    aria-label={t('shelf.select_book', { title: book.title })}
                     data-a={`books:select:${book.id}`}
                     checked={selected}
                     onChange={onToggle}
@@ -188,7 +189,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
             <Link
                 href={route('books.overview', book.id)}
                 data-a={`books:open:${book.id}`}
-                aria-label={`Open ${book.title}`}
+                aria-label={t('shelf.open_title', { title: book.title })}
                 className="shrink-0"
             >
                 <ShelfCover cover={book.cover} title={book.title} />
@@ -205,7 +206,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                 </Link>
 
                 <p className="mt-1 text-[12.5px] text-text-secondary">
-                    {book.genre || 'Unclassified'} · {book.word_count.toLocaleString()} words
+                    {book.genre || t('book.unclassified')} · {t('book.words', { count: book.word_count, words: formatNumber(book.word_count) })}
                 </p>
 
                 <div className="mt-2 flex items-center gap-2">
@@ -222,7 +223,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                             />
                         </div>
                         <p className="mt-1 text-[10.5px] text-text-secondary">
-                            {pct}% of {book.target_words.toLocaleString()} words
+                            {t('shelf.progress', { pct, words: formatNumber(book.target_words) })}
                         </p>
                     </div>
                 )}
@@ -240,7 +241,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                             }
                             className="rounded-control bg-brand-fill px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
                         >
-                            Restore
+                            {t('shelf.restore')}
                         </button>
                     ) : (
                         <>
@@ -249,7 +250,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                                 data-a={`books:write:${book.id}`}
                                 className="rounded-control bg-brand-fill px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
                             >
-                                Open
+                                {t('shelf.open')}
                             </Link>
 
                             <button
@@ -263,7 +264,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                                 }
                                 className="rounded-control border border-border-input px-3.5 py-1.5 text-[12.5px] font-medium text-text-body transition hover:border-border-input/80"
                             >
-                                Archive
+                                {t('shelf.archive')}
                             </button>
                         </>
                     )}
@@ -273,7 +274,7 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                         data-a={`books:settings:${book.id}`}
                         className="ml-auto text-[12px] text-text-secondary hover:text-text-primary"
                     >
-                        Settings
+                        {t('shelf.settings')}
                     </Link>
                 </div>
             </div>
@@ -335,6 +336,7 @@ function ShelfCover({ cover, title }) {
 }
 
 function StatusChip({ status }) {
+    const { t } = useI18n();
     const style = {
         draft: 'bg-bg-subtle text-text-secondary',
         in_review: 'bg-status-info-bg text-status-info',
@@ -346,17 +348,26 @@ function StatusChip({ status }) {
         <span
             className={`shrink-0 rounded-badge px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide ${style}`}
         >
-            {String(status).replace('_', ' ')}
+            {STATUS_KEYS[status] ? t(STATUS_KEYS[status].tKey) : String(status).replace('_', ' ')}
         </span>
     );
 }
 
+// Book::STATUSES, as the shelf's chips say them (upper-cased by CSS).
+const STATUS_KEYS = {
+    draft: { tKey: 'book.status_draft' },
+    in_review: { tKey: 'book.status_in_review' },
+    published: { tKey: 'book.status_published' },
+    archived: { tKey: 'book.status_archived' },
+};
+
 function EmptyShelf({ filter, searching = false }) {
-    const message = searching ? 'No books match that search.' : {
-        archived: 'Nothing archived.',
-        published: 'Nothing published yet.',
-        active: 'No active books. Start one above.',
-        all: 'No books yet. Start one above.',
+    const { t } = useI18n();
+    const message = searching ? t('shelf.empty_search') : {
+        archived: t('shelf.empty_archived'),
+        published: t('shelf.empty_published'),
+        active: t('shelf.empty_active'),
+        all: t('shelf.empty_all'),
         house: 'No house books yet.',
     }[filter];
 
@@ -379,6 +390,7 @@ function EmptyShelf({ filter, searching = false }) {
  * editable. They are a starting point to argue with, not a prediction.
  */
 function NewBookForm({ onDone, bookTypes, defaultBookType }) {
+    const { t, formatNumber } = useI18n();
     // An author who writes one kind of book has said so in their profile.
     // Opening on the scale step skips a question they have already answered,
     // and "Change" is right there if this book is different.
@@ -434,14 +446,14 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
         >
             <label className="block">
                 <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                    What is the book called?
+                    {t('newbook.title')}
                 </span>
                 <input
                     value={data.title}
                     data-a="books:new:title"
                     required
                     autoFocus
-                    placeholder="A working title is fine — you can change it later"
+                    placeholder={t('newbook.title_placeholder')}
                     onChange={(event) => setData('title', event.target.value)}
                     className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
                 />
@@ -455,11 +467,10 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
             {step === 'what' ? (
                 <>
                     <p className="mt-5 mb-2 text-[12.5px] font-semibold text-text-primary">
-                        What kind of book is it?
+                        {t('newbook.kind')}
                     </p>
                     <p className="mb-3 text-[11.5px] text-text-secondary">
-                        This sets up the structure and decides which editors matter most.
-                        You can change it at any point.
+                        {t('newbook.kind_hint')}
                     </p>
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -478,9 +489,12 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                                     {type.blurb}
                                 </span>
                                 <span className="mt-1.5 block text-[10.5px] text-text-secondary">
-                                    Typically {type.words[0].toLocaleString()}–
-                                    {type.words[1].toLocaleString()} words,{' '}
-                                    {type.chapters[0]}–{type.chapters[1]} chapters
+                                    {t('newbook.typical', {
+                                        from: formatNumber(type.words[0]),
+                                        to: formatNumber(type.words[1]),
+                                        min: type.chapters[0],
+                                        max: type.chapters[1],
+                                    })}
                                 </span>
                             </button>
                         ))}
@@ -493,10 +507,10 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             disabled={processing || !data.title.trim()}
                             className="text-[12.5px] font-semibold text-brand-primary hover:underline disabled:opacity-50"
                         >
-                            Skip — just make the book
+                            {t('newbook.skip')}
                         </button>
                         <span className="text-[11.5px] text-text-secondary">
-                            One empty chapter, nothing else.
+                            {t('newbook.skip_hint')}
                         </span>
 
                         <button
@@ -505,7 +519,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             onClick={onDone}
                             className="ml-auto text-[12.5px] text-text-secondary hover:text-text-primary"
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </button>
                     </div>
                 </>
@@ -521,14 +535,14 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             onClick={() => setStep('what')}
                             className="text-[11.5px] text-brand-primary hover:underline"
                         >
-                            Change
+                            {t('shortcuts.change')}
                         </button>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <label>
                             <span className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                                How many chapters?
+                                {t('newbook.chapters')}
                             </span>
                             <input
                                 type="number"
@@ -540,14 +554,13 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                                 className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
                             />
                             <span className="mt-1 block text-[10.5px] text-text-secondary">
-                                {chosen?.chapters[0]}–{chosen?.chapters[1]} is typical. Add
-                                or remove them whenever you like.
+                                {t('newbook.chapters_hint', { min: chosen?.chapters[0], max: chosen?.chapters[1] })}
                             </span>
                         </label>
 
                         <label>
                             <span className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                                Roughly how many words?
+                                {t('newbook.words')}
                             </span>
                             <input
                                 type="number"
@@ -575,9 +588,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                                 className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
                             />
                             <span className="mt-1 block text-[10.5px] text-text-secondary">
-                                {chosen?.words[0].toLocaleString()}–
-                                {chosen?.words[1].toLocaleString()} is typical for this kind
-                                of book. It is a target, not a limit.
+                                {t('newbook.words_hint', { from: formatNumber(chosen?.words[0]), to: formatNumber(chosen?.words[1]) })}
                             </span>
                         </label>
                     </div>
@@ -593,24 +604,23 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                      */}
                     <label className="mt-5 block">
                         <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                            {chosen?.questions?.premise ?? 'What is it about?'}
+                            {chosen?.questions?.premise ?? t('newbook.premise')}
                         </span>
                         <textarea
                             rows={2}
                             value={data.premise}
                             data-a="books:new:premise"
-                            placeholder="A sentence is enough — or skip it and come back."
+                            placeholder={t('newbook.premise_placeholder')}
                             onChange={(event) => setData('premise', event.target.value)}
                             className="w-full resize-y rounded-control border border-border-input px-3 py-2 text-[13.5px] leading-relaxed focus:border-brand-primary focus:ring-0"
                         />
                         <span className="mt-1 block text-[10.5px] text-text-secondary">
-                            This is what names your chapters later, and what the editors
-                            read the book against.
+                            {t('newbook.premise_hint')}
                         </span>
                     </label>
 
                     <p className="mt-5 mb-2 text-[12.5px] font-semibold text-text-primary">
-                        How much help do you want?
+                        {t('newbook.help')}
                     </p>
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -628,19 +638,17 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                                 }`}
                             >
                                 <span className="block text-[12.5px] font-semibold text-text-primary">
-                                    {level.name}
+                                    {t(level.tKey)}
                                 </span>
                                 <span className="mt-0.5 block text-[11px] leading-snug text-text-secondary">
-                                    {level.blurb}
+                                    {t(level.blurbKey)}
                                 </span>
                             </button>
                         ))}
                     </div>
 
                     <p className="mt-2 text-[11px] leading-relaxed text-text-secondary">
-                        Whatever you pick, nothing is written into your manuscript without
-                        you accepting it, and every AI edit is marked as one in your
-                        version history. You can change this at any time.
+                        {t('newbook.help_note')}
                     </p>
 
                     <div className="mt-4 flex items-center gap-3 border-t border-border-divider pt-3">
@@ -650,12 +658,11 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             disabled={processing || !data.title.trim()}
                             className="h-[38px] rounded-control bg-brand-fill px-4 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                         >
-                            {processing ? 'Setting it up…' : 'Create the book'}
+                            {processing ? t('newbook.creating') : t('newbook.create')}
                         </button>
 
                         <span className="text-[11.5px] text-text-secondary">
-                            {data.chapters || chosen?.suggested_chapters} empty chapters,
-                            ready to write into.
+                            {t('newbook.empty_chapters', { count: Number(data.chapters || chosen?.suggested_chapters) || 0 })}
                         </span>
 
                         <button
@@ -664,7 +671,7 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             onClick={onDone}
                             className="ml-auto text-[12.5px] text-text-secondary hover:text-text-primary"
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </button>
                     </div>
                 </>
@@ -683,16 +690,22 @@ const ASSISTANCE = [
     {
         key: 'author_led',
         name: 'I write',
+        tKey: 'assist.author_led',
         blurb: 'You write. The editors run when you ask them to.',
+        blurbKey: 'assist.author_led_blurb',
     },
     {
         key: 'coach',
         name: 'Coach me',
+        tKey: 'assist.coach',
         blurb: 'Questions, structure and suggestions as you go — but the words are yours.',
+        blurbKey: 'assist.coach_blurb',
     },
     {
         key: 'collaborative',
         name: 'Draft with me',
+        tKey: 'assist.collaborative',
         blurb: 'Drafts passages from your notes and outline, for you to accept or reject.',
+        blurbKey: 'assist.collaborative_blurb',
     },
 ];

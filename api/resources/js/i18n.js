@@ -7,7 +7,7 @@ import en from '../../lang/en.json';
  * English, French, Haitian Creole).
  *
  *     const { t, formatNumber } = useI18n();
- *     t('shelf.count', { count: 3 })        // "3 books" / "3 livres" / "3 liv"
+ *     t('menu.active_books', { count: 3 })  // "3 active books" / "3 livres actifs" / "3 liv aktif"
  *
  * The catalogues are lang/{en,fr,ht}.json, shared with Laravel
  * (App\I18n\Locales). English is bundled here, so it is always at hand as
