@@ -27,7 +27,7 @@ function money(usd) {
     return usd < 0.01 ? '< $0.01' : `$${usd.toFixed(2)}`;
 }
 
-export default function ReviewOptions({ bookId, agents, sections, currentSectionId = null, selection = null, onDone, onNotify }) {
+export default function ReviewOptions({ bookId, agents, sections, currentSectionId = null, selection = null, refresh = 0, onDone, onNotify }) {
     const runnable = agents ?? [];
     const firstId = sections[0]?.id ?? null;
     const [agent, setAgent] = useState(runnable.find((a) => a.value === 'copy')?.value ?? runnable[0]?.value ?? '');
@@ -78,7 +78,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
         }, 350);
 
         return () => clearTimeout(timer);
-    }, [bookId, body]);
+    }, [bookId, body, refresh]);
 
     const run = async () => {
         setRunning(true);

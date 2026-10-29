@@ -54,6 +54,8 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
     const [undo, setUndo] = useState(null);
     const [menu, setMenu] = useState(null);
     const [styleKey, setStyleKey] = useState(0);
+    // Bumped when the style guide changes, so the estimate is fetched again.
+    const [styleTick, setStyleTick] = useState(0);
 
     const load = useCallback(async () => {
         const params = new URLSearchParams();
@@ -191,7 +193,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                 )}
             </header>
 
-            <StyleGuideCard key={styleKey} bookId={bookId} onNotify={onNotify} />
+            <StyleGuideCard key={styleKey} bookId={bookId} onNotify={onNotify} onChanged={() => setStyleTick((t) => t + 1)} />
 
             <ReviewOptions
                 bookId={bookId}
@@ -199,6 +201,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                 sections={data.sections ?? []}
                 currentSectionId={currentSectionId}
                 selection={selection}
+                refresh={styleTick + styleKey}
                 onNotify={onNotify}
                 onDone={() => load()}
             />
