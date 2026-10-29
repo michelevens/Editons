@@ -129,7 +129,7 @@ class CoverTemplateController extends Controller
             if (House::isHouseBook($book)) {
                 [$from, $to] = AdminAudit::diff($change['before'], $change['after']);
                 AdminAudit::record('house.cover_template_applied', $book, $from ?: null,
-                    $to + ['cover_template' => $template->name, 'follow' => $follow, 'artwork' => $artwork], $reason, $actor);
+                    $to + ['cover_template' => $template->name, 'follow' => $follow, 'artwork_choice' => $artwork], $reason, $actor);
             }
         };
     }

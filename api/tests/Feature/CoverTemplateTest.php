@@ -276,7 +276,7 @@ it('never replaces an uploaded finished front or back without a choice; keep or 
     $audits = AdminAuditLog::where('action', 'house.cover_template_applied')->get();
     expect($audits)->toHaveCount(2)
         ->and($audits->every(fn ($row) => $row->actor_id === $owner->id && $row->reason === 'Series look'))->toBeTrue()
-        ->and($audits->last()->after['artwork'])->toBe('replace')
+        ->and($audits->last()->after['artwork_choice'])->toBe('replace')
         ->and($audits->last()->before['artwork'])->toBe("covers/book-{$c->id}/front.png");
 
     $this->actingAs($owner)->postJson("/books/{$c->id}/cover-template/restore")->assertOk();

@@ -169,7 +169,7 @@ final class HouseCatalog
             }
 
             [$from, $to] = AdminAudit::diff($change['before'], $change['after']);
-            AdminAudit::record('house.cover_template_applied', $book, $from ?: null, $to + ['cover_template' => $template->name, 'follow' => $follow, 'artwork' => $artwork], $reason, $actor);
+            AdminAudit::record('house.cover_template_applied', $book, $from ?: null, $to + ['cover_template' => $template->name, 'follow' => $follow, 'artwork_choice' => $artwork], $reason, $actor);
 
             return $follow ? "Follows the cover template “{$template->name}”." : "Cover copied from “{$template->name}”.";
         });
