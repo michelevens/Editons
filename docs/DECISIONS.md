@@ -3900,7 +3900,7 @@ choice, keep, replace, audit rows, restore; shelf and console bulk;
 support refused; Cover Studio payload), `tests/Browser/cover-templates.spec.js`
 at 1440 and 390 px.
 
-## ADR-00XX — Interface languages (English, French, Haitian Creole)
+## ADR-0050 — Interface languages (English, French, Haitian Creole)
 
 **Status:** accepted (2026-10-29). Number assigned at merge.
 
