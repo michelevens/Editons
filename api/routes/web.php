@@ -218,6 +218,10 @@ Route::middleware('auth')->group(function () {
         ->name('editorial.estimate');
     Route::post('/books/{book}/reviews', [EditorialController::class, 'reviewBook'])
         ->name('editorial.review-book');
+    // A range or the whole book runs on the worker; these follow it.
+    Route::get('/books/{book}/reviews/active', [EditorialController::class, 'activeRun'])->name('editorial.active-run');
+    Route::get('/editorial-runs/{run}', [EditorialController::class, 'run'])->name('editorial.run');
+    Route::post('/editorial-runs/{run}/cancel', [EditorialController::class, 'cancelRun'])->name('editorial.run.cancel');
 
     // Style guides: the account's editorial rules, followed by its books.
     Route::get('/books/{book}/style-guide', [StyleGuideController::class, 'show'])->name('style-guides.show');

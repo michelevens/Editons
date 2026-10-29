@@ -11,6 +11,10 @@ use App\Editorial\ReviewContext;
 use App\Editorial\ReviewPlanner;
 use App\Editorial\ReviewRunner;
 use App\Editorial\SuggestionApplier;
+use App\Jobs\RunEditorialReview;
+use App\Models\EditorialReview;
+use App\Models\EditorialRun;
+use Illuminate\Database\UniqueConstraintViolationException;
 use App\Journey\Coach;
 use App\Models\Book;
 use App\Models\EditorialFinding;
@@ -141,8 +145,11 @@ class EditorialController extends Controller
      *
      * Every refusal before any work: the kill switch, the plan, the credit
      * balance and the monthly AI cap against the estimate, and approval for
-     * a large whole-book run. Then one review per section, each charged and
-     * recorded as a single review always was, under one run id.
+     * a large whole-book run. A selection or one chapter (up to
+     * QUEUE_ABOVE sections) runs here; a range or the whole book is queued
+     * (RunEditorialReview) and the response is the run to poll: a real
+     * provider over forty chapters would outlive the web request while
+     * spending credits.
      */
     public function reviewBook(Request $request, Book $book, ReviewPlanner $planner): JsonResponse
     {
@@ -160,6 +167,10 @@ class EditorialController extends Controller
         }
 
         $planner->enforce($estimate, (bool) ($data['approved'] ?? false));
+
+        if (in_array($plan['scope'], ['range', 'book'], true) || count($plan['items']) > self::QUEUE_ABOVE) {
+            return $this->queue($book, $plan, $estimate, $user);
+        }
 
         $runId = (string) Str::uuid();
         $results = [];
@@ -187,6 +198,91 @@ class EditorialController extends Controller
             'estimate' => $estimate,
             'billing' => $this->entitlements->summaryFor($user->fresh()),
         ]);
+    }
+
+    /** Runs over more sections than this go to the queue. */
+    public const QUEUE_ABOVE = 3;
+
+    /** Queue a run; one active whole-book run per book. */
+    private function queue(Book $book, array $plan, array $estimate, $user): JsonResponse
+    {
+        if ($plan['scope'] === 'book' && ($active = EditorialRun::where('book_id', $book->id)->where('scope', 'book')->whereIn('status', EditorialRun::ACTIVE)->first())) {
+            return response()->json(['message' => 'A whole-book review of this book is already running.', 'run' => $active->progress()], 409);
+        }
+
+        try {
+            $run = EditorialRun::create([
+                'uuid' => (string) Str::uuid(),
+                'book_id' => $book->id,
+                'user_id' => $user->id,
+                'agent' => $plan['agent']->value,
+                'scope' => $plan['scope'],
+                'status' => 'queued',
+                'section_ids' => array_map(fn ($i) => $i['section']->id, $plan['items']),
+                'done_ids' => [],
+                'total' => count($plan['items']),
+                'context' => EditorialRun::freeze($plan['context']),
+                'estimate' => $estimate,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // Two requests at once: the index holds the line.
+            return response()->json(['message' => 'A whole-book review of this book is already running.'], 409);
+        }
+
+        RunEditorialReview::dispatch($run->id);
+
+        return response()->json([
+            'queued' => true,
+            'run' => $run->fresh()->progress(),
+            'simulated' => $this->runner->simulated(),
+            'estimate' => $estimate,
+        ], 202);
+    }
+
+    /**
+     * A queued run's progress: sections done of total, findings and cost so
+     * far, and each finished section. Only for someone who may open the
+     * book.
+     */
+    public function run(EditorialRun $run): JsonResponse
+    {
+        $this->authorize('view', $run->book);
+
+        $titles = ManuscriptSection::whereIn('id', $run->section_ids)->pluck('title', 'id');
+
+        return response()->json([
+            'run' => $run->progress(),
+            'reviews' => EditorialReview::where('options->run_id', $run->uuid)->orderBy('id')->withCount('findings')->get()
+                ->map(fn (EditorialReview $r) => ['section_id' => $r->manuscript_section_id, 'title' => $titles[$r->manuscript_section_id] ?? null, 'status' => $r->status, 'findings' => $r->findings_count])
+                ->all(),
+        ]);
+    }
+
+    /** The book's active run, if any, for a screen opened mid-run. */
+    public function activeRun(Book $book): JsonResponse
+    {
+        $this->authorize('view', $book);
+        $run = EditorialRun::where('book_id', $book->id)->whereIn('status', EditorialRun::ACTIVE)->latest('id')->first();
+
+        return response()->json(['run' => $run?->progress()]);
+    }
+
+    /**
+     * Cancel: the section under review finishes (it is already paid for and
+     * its findings are kept); no other starts.
+     */
+    public function cancelRun(Request $request, EditorialRun $run): JsonResponse
+    {
+        $this->authorize('update', $run->book);
+
+        $updated = EditorialRun::whereKey($run->id)->whereIn('status', EditorialRun::ACTIVE)->update([
+            'status' => 'cancelled',
+            'stop_reason' => 'Cancelled by '.$request->user()->name.'.',
+            'finished_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['cancelled' => $updated > 0, 'run' => $run->fresh()->progress()]);
     }
 
     /** Everything currently open or resolved for a section. */

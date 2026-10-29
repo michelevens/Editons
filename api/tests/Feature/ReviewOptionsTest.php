@@ -283,8 +283,11 @@ it('reviews a chapter, a range in reading order, the whole book, or a selection'
 
     $run(['scope' => 'chapter', 'section_id' => $a->id])->assertOk()->assertJsonCount(1, 'reviews')->assertJsonPath('reviews.0.section_id', $a->id);
     // Reading order is the binder's: Part (B, C), then A.
-    $run(['scope' => 'range', 'from_id' => $b->id, 'to_id' => $c->id])->assertOk()->assertJsonPath('reviews.*.section_id', [$b->id, $c->id]);
-    $run(['scope' => 'book'])->assertOk()->assertJsonPath('reviews.*.section_id', [$b->id, $c->id, $a->id]);
+    // A range and the whole book are queued runs (the suite's queue is sync).
+    $range = $run(['scope' => 'range', 'from_id' => $b->id, 'to_id' => $c->id])->assertStatus(202)->json('run.id');
+    expect(App\Models\EditorialRun::where('uuid', $range)->first()->section_ids)->toBe([$b->id, $c->id]);
+    $whole = $run(['scope' => 'book'])->assertStatus(202)->json('run.id');
+    expect(App\Models\EditorialRun::where('uuid', $whole)->first()->section_ids)->toBe([$b->id, $c->id, $a->id]);
     expect(EditorialReview::whereNotNull('options->run_id')->distinct()->count('options->run_id'))->toBe(3);
 
     // A selection reviews only that passage, and keeps what was found elsewhere.
@@ -362,10 +365,10 @@ it('asks for approval of a large whole-book run, and runs it once approved', fun
 
     // A range of the same size is the author's own narrowing: no approval.
     $ids = $book->sections()->orderBy('position')->pluck('id');
-    $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'range', 'from_id' => $ids[0], 'to_id' => $ids[1]])->assertOk();
+    $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'range', 'from_id' => $ids[0], 'to_id' => $ids[1]])->assertStatus(202);
 
     $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'book', 'approved' => true])
-        ->assertOk()->assertJsonCount(2, 'reviews');
+        ->assertStatus(202)->assertJsonPath('run.total', 2);
     expect(app(CreditLedger::class)->balanceFor($user))->toBe(100 - 4 * config('billing.costs.agent_run'));
 });
 
@@ -386,9 +389,9 @@ it('maps sensitivity to the model, the answer budget, the prompt and the thresho
     // Light keeps warnings and above, on any driver.
     $user = User::factory()->create();
     $book = roBook($user, ['One' => 'It was very good. The the end came.']);
-    $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'book', 'sensitivity' => 'light'])->assertOk();
+    $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'book', 'sensitivity' => 'light'])->assertStatus(202);
     expect(EditorialFinding::pluck('severity')->unique()->values()->all())->toBe(['warning']);
-    $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'book', 'sensitivity' => 'standard'])->assertOk();
+    $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'book', 'sensitivity' => 'standard'])->assertStatus(202);
     expect(EditorialFinding::where('severity', 'suggestion')->count())->toBeGreaterThan(0)
         ->and(EditorialReview::latest('id')->first()->options['sensitivity'])->toBe('standard');
 });
