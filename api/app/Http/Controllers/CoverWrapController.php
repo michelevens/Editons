@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Covers\CoverBackground;
+use App\Covers\CoverContrast;
 use App\Covers\CoverImages;
 use App\Covers\CoverLayers;
+use App\Covers\CoverTemplates;
 use App\Models\Book;
 use App\Publishing\CoverWrap;
 use App\Publishing\PrintPages;
 use App\Publishing\PrintSpecs;
-use App\Publishing\Publish\PublishPlan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -77,6 +79,7 @@ class CoverWrapController extends Controller
     public function customise(Request $request, Book $book, string $panel): JsonResponse
     {
         $this->authorize('update', $book);
+        CoverTemplates::refuseWhileFollowing($book);
 
         try {
             $g = $this->geometry($request, $book);
@@ -105,6 +108,7 @@ class CoverWrapController extends Controller
     public function reset(Request $request, Book $book, string $panel): JsonResponse
     {
         $this->authorize('update', $book);
+        CoverTemplates::refuseWhileFollowing($book);
 
         $cover = $book->cover ?? [];
         unset($cover[CoverLayers::STORED[$panel]]);
@@ -115,6 +119,53 @@ class CoverWrapController extends Controller
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * "Looks right": the wrap background is taken as placed for this
+     * geometry (service, paper, page count), so the front the stores get
+     * shows the same share of it as this wrap, and the re-fit warning goes.
+     */
+    public function refit(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+        CoverTemplates::refuseWhileFollowing($book);
+
+        if (! CoverBackground::for($book, 'wrap')) {
+            return response()->json(['message' => 'There is no background across the wrap to fit.'], 422);
+        }
+
+        try {
+            $g = $this->geometry($request, $book);
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $book->update(['cover' => array_merge($book->cover ?? [], ['wrap_ref' => CoverWrap::reference($g)])]);
+
+        return response()->json($this->payload($request, $book->fresh()));
+    }
+
+    /**
+     * Each text layer's contrast with what is under it (CoverContrast): the
+     * front always, the back and spine at this geometry when it can be
+     * drawn. Cached by the design, since the editor asks after each save.
+     */
+    public function contrast(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('view', $book);
+
+        try {
+            $g = $this->geometry($request, $book);
+        } catch (RuntimeException) {
+            $g = null;
+        }
+
+        $key = 'cover-contrast:'.$book->id.':'.$this->wraps->fingerprint($book).':'.md5(json_encode($g));
+
+        return response()->json(cache()->remember($key, now()->addHour(), fn () => [
+            'front' => CoverContrast::front($book),
+        ] + ($g ? CoverContrast::wrap($book, $g) : ['back' => [], 'spine' => []])));
     }
 
     /** A picture for image layers: PNG or JPEG, checked (CoverImages). */
@@ -154,6 +205,11 @@ class CoverWrapController extends Controller
         $entry = CoverImages::find($book, $image) ?? abort(404);
         $cover = $book->cover ?? [];
         $cover['images'] = array_values(array_filter(CoverImages::all($book), fn ($i) => $i['id'] !== $image));
+
+        // A wrap background on it goes too; the wrap is then drawn as before.
+        if (($cover['backgrounds']['wrap']['image'] ?? null) === $image) {
+            unset($cover['backgrounds']['wrap'], $cover['wrap_ref']);
+        }
 
         foreach (CoverLayers::STORED as $key) {
             if (isset($cover[$key]['items']) && is_array($cover[$key]['items'])) {
@@ -205,25 +261,7 @@ class CoverWrapController extends Controller
             'spine' => ['sometimes', 'nullable', 'numeric'],
         ]);
 
-        $data['service'] ??= $this->defaultService($book);
-        $options = $this->wraps->options($book, $data);
-
-        return $this->wraps->geometry($book, $options, PrintPages::for($book)['pages']);
-    }
-
-    /** The first print service the book is headed for, else KDP. */
-    private function defaultService(Book $book): string
-    {
-        $planned = array_values(array_intersect(PublishPlan::services($book), PrintSpecs::services()));
-
-        foreach ($planned as $service) {
-            // One whose spine the kit can work out without asking.
-            if (PrintSpecs::spineWidth($service, 100, 'white') !== null) {
-                return $service;
-            }
-        }
-
-        return 'kdp';
+        return $this->wraps->forBook($book, $data);
     }
 
     /** @return list<array<string, mixed>> */

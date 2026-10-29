@@ -3789,3 +3789,113 @@ reset all, a remapped search shown in the header; Dvorak-like and AZERTY
 key events; phone tabs pinned, ordered, kept after a reload, navigating,
 reset; the review deck swapped (a left swipe applies), then off (swipes
 do nothing); no console errors.
+
+---
+
+## ADR-0049 — Cover backgrounds and series templates
+
+**Status:** accepted (2026-10-29). Number assigned at merge.
+
+**Context.** The flexibility audit's C5 and C6, and item 9's "save a cover
+as a series template". A cover without artwork could only use one of six
+preset gradients (`palette` 0–5), and the Accessibility screen checked the
+palette's ink, not the text layers (ADR-0038 "Not done"). There was no
+background across the whole print wrap, and no way to give the 19 Écrivain
+Prépa books (or any series) one cover design filled per book: the shelf's
+bulk bar left "apply cover template" out (ADR-0045).
+
+**Decisions.**
+
+- *Backgrounds* (`App\Covers\CoverBackground`, `cover.backgrounds`): one per
+  scope — front, back, spine, or wrap (continuous across back, spine and
+  front, bleed included; when set it is the ground of all three). Kinds:
+  solid; linear (angle as CSS, gradient line as CSS's, so a corner gets the
+  end colour); radial (circle to the farthest corner around x, y); 2–4
+  stops in order, mixed in sRGB as browsers mix them, so the CSS swatch is
+  the file. Linear is drawn as bands (≤ 1024 polygons), radial per pixel on
+  a ≤ 320 px grid resampled up. Unknown keys, bad colours, stops out of
+  order, a picture outside the wrap scope are refused. The six palettes stay
+  as quick picks; a layout cover on a custom background takes white or
+  near-black ink, whichever reads better over it, and the band takes its
+  first colour.
+- *Wrap picture* (`{kind: image, image, x, y, zoom}`, wrap only): a
+  CoverImages picture framed over the whole sheet with `CoverRenderer::frame`
+  (ADR-0042's framing), so a page-count or paper change re-fits it.
+  `cover.wrap_ref` records the sheet it was placed on (set when chosen;
+  "Looks right" (`POST /cover/wrap/refit`) takes the current one); the store
+  front shows its share of the sheet by that reference, the wrap by its own
+  geometry (`CoverRenderer::front(…, $slice)`), one render path for the
+  editor's preview and the PDF. Warnings: under 300 dpi over the whole
+  sheet with bleed; the spine or sheet changed by 1/16 in or more since it
+  was placed (`refit`). Deleting the picture removes the background.
+- *Contrast* (`App\Covers\CoverContrast`, `GET /cover/contrast`, cached by
+  the design): each visible text layer against what is under it — the
+  panel's ground with every picture and panel below it, and its own panel —
+  sampled on a grid over the box; the 10th percentile of WCAG ratios, the
+  ink mixed at the layer's opacity. Large text (18 pt, 14 pt semibold/bold,
+  at its printed size on the trim) needs 3:1, others 4.5:1. Cover Studio
+  lists every layer with its ratio; over a picture the figure is marked
+  approximate. The Accessibility screen uses it for layered covers and
+  covers with a background of their own (worst layer reported); a preset
+  palette with the layout keeps the old ink check, word for word.
+- *Series number* (`number` source, all panels): the book's series number
+  alone, for a badge. Hashes only see it when a layer shows it.
+- *Cover templates* (`cover_templates`, `books.cover_template_id/_version`,
+  `App\Covers\CoverTemplates`): every panel's layers, backgrounds, wrap
+  reference, spine direction and colour, layout, faces, palette and shade;
+  pictures and artwork only "with images" (then copied under
+  `cover-templates/{id}`, and copied again into each book under new ids);
+  without them image layers and a wrap picture are left out. Bound layers
+  stay bound, so each book fills its own title, author, number, copy,
+  price and ISBN. Ownership, follow/detach/update and the refusal of design
+  edits while following mirror house styles (ADR-0041); the book's own text
+  stays editable. Applying writes only the cover and the spine colour,
+  never sections or metadata, and keeps the replaced cover in
+  `cover.pre_template` ("Restore the previous cover"). Renders go stale by
+  their hashes (front file names, `CoverWrap::fingerprint`) and the existing
+  Regenerate flow remakes them.
+- *Preview* (`POST /cover-templates/{t}/preview`, ≤ 50 books): a 200 px
+  thumbnail of each book's front with the template (drawn in memory, no
+  file written) and overflow flags: a box that wraps to more lines than in
+  the template's source book, runs past the safe foot, or now runs into a
+  layer it cleared there (front, and back/spine at the book's own geometry).
+- *Prépa safety.* A book with an uploaded finished front or back is skipped
+  unless the person chooses `keep` (the upload stays the background, the
+  template's type over it) or `replace` (the template's design; the files
+  stay on the disk and in the snapshot). The shelf's default is "leave them
+  as they are", so nothing changes for those books unless staff choose.
+- *Where.* Cover Studio's template card (save, apply to this book, update
+  from this book, detach, restore); the shelf bulk bar's "Apply cover
+  template…" with the preview; the console's House catalog through the same
+  bar and `/admin/house/bulk` (`cover_template`). House books need a reason
+  and write `house.cover_template_applied` (before/after) in the book's
+  transaction.
+
+**Defaults unchanged.** Nothing new is in a cover's settings, hashes or
+fingerprint until used. Seven local books (three Écrivain Prépa finished
+fronts, two palettes, a bold layout, an artwork book), read-only: version
+hash, front render bytes, background path, wrap fingerprint, wrap and bare
+previews at KDP 120 / KDP 300 / Lulu 300, and the Accessibility contrast
+check — 84 values, identical before (main 7614f3d) and after.
+
+**Not done.** Layer rotation; per-layer contrast for the spine's own
+underlays (the spine is measured on its ground); a pattern or texture
+background; template versions kept for rollback (one snapshot per book).
+
+**Tests.** `tests/Feature/CoverBackgroundTest.php` (schema and refusals;
+endpoint save/replace/remove; linear at 180°, 90°, 45° and radial, 4 stops
+and solid sampled at known pixels; ink on a custom ground; back and spine
+grounds in the wrap; a wrap gradient continuous and the store front's
+share; the reference recorded and removed; a wrap picture across two page
+counts with the dpi and re-fit warnings, refit, a large picture clear, the
+background removed with its picture; WCAG values and layer contrast with
+panels; the Accessibility check; back layers measured; series number;
+untouched books hash and render identically after set-and-clear),
+`tests/Feature/CoverTemplateTest.php` (save with and without images;
+apply to three books with their own title and number, manuscript and
+versions untouched, renders stale; follow refuses design edits, update
+propagates, detach, restore, delete; preview thumbnails and overflow
+flags; tenant isolation; Prépa: reason required, skipped without a
+choice, keep, replace, audit rows, restore; shelf and console bulk;
+support refused; Cover Studio payload), `tests/Browser/cover-templates.spec.js`
+at 1440 and 390 px.

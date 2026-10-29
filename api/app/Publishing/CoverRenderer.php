@@ -2,6 +2,8 @@
 
 namespace App\Publishing;
 
+use App\Covers\CoverBackground;
+use App\Covers\CoverContrast;
 use App\Covers\CoverFonts;
 use App\Covers\CoverImages;
 use App\Covers\CoverLayers;
@@ -77,7 +79,7 @@ class CoverRenderer
             // (a face withdrawn) falls back to the layout, not to an error.
             'layers' => $this->layers($cover),
             // What bound layers show; only layered covers depend on them.
-            'texts' => isset($cover['layers']) ? CoverLayers::texts($book) : null,
+            'texts' => isset($cover['layers']) ? CoverLayers::hashed($book, CoverLayers::texts($book)) : null,
         ] + $this->extras($book, $cover);
     }
 
@@ -98,6 +100,22 @@ class CoverRenderer
 
         $layers = $this->layers($cover);
         $wanted = $layers ? array_column(array_filter($layers['items'], fn ($l) => $l['source'] === 'image'), 'image') : [];
+
+        // A background of the author's own (CoverBackground): the front's,
+        // or the wrap's, of which the front shows its share (the slice).
+        $backgrounds = CoverBackground::all($book);
+
+        if ($background = $backgrounds['wrap'] ?? $backgrounds['front'] ?? null) {
+            $extras['background'] = $background;
+
+            if (isset($backgrounds['wrap'])) {
+                $extras['slice'] = self::slice(self::wrapRef($book));
+            }
+
+            if ($background['kind'] === 'image') {
+                $wanted[] = $background['image'];
+            }
+        }
 
         if ($wanted !== []) {
             $extras['images'] = [];
@@ -134,6 +152,49 @@ class CoverRenderer
         ];
 
         return $f['x'] === 0.5 && $f['y'] === 0.5 && $f['zoom'] === 1.0 ? null : $f;
+    }
+
+    /**
+     * The geometry a wrap background was placed at (`cover.wrap_ref`, set
+     * when it is chosen and when the author confirms a re-fit), in inches:
+     * the sheet, and the box the front cover fills on it. Without one, a
+     * nominal sheet for the book's trim with a half-inch spine.
+     *
+     * @return array{sheet: array{width: float, height: float}, front: array{x: float, y: float, width: float, height: float}}
+     */
+    public static function wrapRef(Book $book): array
+    {
+        $ref = ($book->cover ?? [])['wrap_ref'] ?? null;
+
+        if (is_array($ref) && isset($ref['sheet']['width'], $ref['sheet']['height'], $ref['front']['x'], $ref['front']['y'], $ref['front']['width'], $ref['front']['height'])
+            && $ref['front']['width'] > 0 && $ref['front']['height'] > 0) {
+            return [
+                'sheet' => ['width' => (float) $ref['sheet']['width'], 'height' => (float) $ref['sheet']['height']],
+                'front' => array_map('floatval', array_intersect_key($ref['front'], array_flip(['x', 'y', 'width', 'height']))),
+            ];
+        }
+
+        [$tw, $th] = PrintBook::trimInches($book->layout()['trim']);
+        $g = ['bleed' => 0.125, 'height' => $th + 0.25, 'front' => ['x' => 0.125 + $tw + 0.5, 'width' => $tw]];
+
+        return ['sheet' => ['width' => 2 * $tw + 0.75, 'height' => $th + 0.25], 'front' => CoverWrap::frontBox($g)];
+    }
+
+    /**
+     * Where the whole sheet lies relative to the front cover, as fractions
+     * of the front: the frame a wrap background is painted in when the
+     * front is drawn alone, so its share is exactly what the wrap shows.
+     *
+     * @return array{x: float, y: float, width: float, height: float}
+     */
+    public static function slice(array $ref): array
+    {
+        $f = $ref['front'];
+
+        return [
+            'x' => -$f['x'] / $f['width'], 'y' => -$f['y'] / $f['height'],
+            'width' => $ref['sheet']['width'] / $f['width'], 'height' => $ref['sheet']['height'] / $f['height'],
+        ];
     }
 
     /** @return array{version: int, items: array<int, array<string, mixed>>}|null */
@@ -199,10 +260,19 @@ class CoverRenderer
      * resolution; a layout cover is the stored 1600 × 2560 file, which the
      * wrap scales as before.
      */
-    public function front(Book $book, int $width): string
+    public function front(Book $book, int $width, ?array $slice = null): string
     {
         $disk = Storage::disk('files');
         $settings = $this->settings($book);
+
+        // On a wrap background the wrap hands the front its share of the
+        // sheet as it is now, which may differ from the stored front's.
+        if ($slice !== null && isset($settings['slice'])) {
+            $settings['slice'] = $slice;
+            $artwork = $settings['artwork'] && $disk->exists($settings['artwork']) ? $disk->get($settings['artwork']) : null;
+
+            return $this->render($settings, $artwork, $width);
+        }
 
         if ($settings['layers'] === null || $width <= self::WIDTH) {
             return (string) $disk->get($this->ensure($book));
@@ -300,19 +370,26 @@ class CoverRenderer
         $width = $layers !== null ? ($width ?? self::WIDTH) : self::WIDTH;
         $height = (int) round($width * self::HEIGHT / self::WIDTH);
 
-        $palette = AccessibilityAudit::PALETTES[$settings['palette']] ?? AccessibilityAudit::PALETTES[0];
+        $palette = self::palette($settings);
         $image = imagecreatetruecolor($width, $height);
         imagealphablending($image, true);
 
         $art = $artwork !== null ? @imagecreatefromstring($artwork) : false;
+        $background = $settings['background'] ?? null;
 
         if ($art) {
             $this->cover($image, $art, $settings['framing'] ?? null);
+        } elseif ($background) {
+            $slice = $settings['slice'] ?? ['x' => 0, 'y' => 0, 'width' => 1, 'height' => 1];
+            CoverBackground::paint($image, $background, 0, 0, $width, $height,
+                [$slice['x'] * $width, $slice['y'] * $height, $slice['width'] * $width, $slice['height'] * $height], $settings['images'] ?? []);
         } else {
             $this->gradient($image, $palette['from'], $palette['to']);
         }
 
-        $onArt = (bool) $art;
+        // A picture across the wrap is treated as artwork: white type, the
+        // shade under it.
+        $onArt = (bool) $art || ($background['kind'] ?? null) === 'image';
         $ink = $onArt ? '#ffffff' : $palette['ink'];
 
         if ($layers !== null || ! $withText) {
@@ -400,8 +477,10 @@ class CoverRenderer
      * @param  array<string, array<string, mixed>>  $images  by id
      * @param  array{width: float, height: float, spine?: bool}  $surface
      */
-    public function drawItems($image, array $items, array $texts, array $images, array $surface, float $scale = 1.0, float $ox = 0.0, float $oy = 0.0): void
+    public function drawItems($image, array $items, array $texts, array $images, array $surface, float $scale = 1.0, float $ox = 0.0, float $oy = 0.0, bool $type = true): void
     {
+        // $type false draws what lies under the type alone — pictures and
+        // panels — which is what CoverContrast measures a layer against.
         $width = $surface['width'];
         // Shadows and panels are fractions of the cover; on the spine, of
         // its length.
@@ -436,6 +515,10 @@ class CoverRenderer
                     (int) round($oy + ($box['y'] + $box['height'] + $pad) * $scale) - 1,
                     $this->color($image, $panel['color'], $this->alpha($panel['opacity'])),
                 );
+            }
+
+            if (! $type) {
+                continue;
             }
 
             $size = $set['size'] * $scale * $points;
@@ -562,8 +645,9 @@ class CoverRenderer
         $book->cover = array_diff_key($book->cover ?? [], ['layers' => true]);
         $s = $this->settings($book);
         $disk = Storage::disk('files');
-        $onArt = $s['artwork'] && $disk->exists($s['artwork']) && @imagecreatefromstring((string) $disk->get($s['artwork']));
-        $palette = AccessibilityAudit::PALETTES[$s['palette']] ?? AccessibilityAudit::PALETTES[0];
+        $onArt = ($s['artwork'] && $disk->exists($s['artwork']) && @imagecreatefromstring((string) $disk->get($s['artwork'])))
+            || ($s['background']['kind'] ?? null) === 'image';
+        $palette = self::palette($s);
         $layout = $onArt ? $s['layout'] : ($s['layout'] === 'finished' ? 'classic' : $s['layout']);
 
         if ($layout === 'finished') {
@@ -693,12 +777,34 @@ class CoverRenderer
         return CoverLayers::validate(['version' => CoverLayers::VERSION, 'items' => $items]);
     }
 
+    /**
+     * The palette a cover's ground and layout ink come from: the preset, or
+     * for a background of the author's own its first colour (the band's
+     * fill) and the ink that reads best on the whole of it.
+     *
+     * @return array{name: string, from: string, to: string, ink: string}
+     */
+    public static function palette(array $settings): array
+    {
+        $palette = AccessibilityAudit::PALETTES[$settings['palette']] ?? AccessibilityAudit::PALETTES[0];
+        $background = $settings['background'] ?? null;
+
+        if (! $background || $background['kind'] === 'image') {
+            return $palette;
+        }
+
+        $from = CoverBackground::firstColor($background);
+
+        return ['name' => 'Custom', 'from' => $from, 'to' => $from, 'ink' => CoverContrast::inkFor($background)];
+    }
+
     /** The background alone, for Cover Studio's live canvas. */
     public function backgroundPath(Book $book): string
     {
         $s = $this->settings($book);
         $hash = substr(md5(self::VERSION.'|bg|'.json_encode([$s['palette'], $s['layout'], $s['shade'], $s['artwork']])
-            .(isset($s['framing']) ? json_encode($s['framing']) : '')), 0, 12);
+            .(isset($s['framing']) ? json_encode($s['framing']) : '')
+            .(isset($s['background']) ? json_encode([$s['background'], $s['slice'] ?? null, $s['images'] ?? null]) : '')), 0, 12);
 
         return "covers/book-{$book->id}/background-{$hash}.jpg";
     }

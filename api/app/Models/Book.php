@@ -289,6 +289,12 @@ class Book extends Model
         return $this->belongsTo(HouseStyle::class);
     }
 
+    /** The cover template it follows (App\Covers\CoverTemplates), if any. */
+    public function coverTemplate(): BelongsTo
+    {
+        return $this->belongsTo(CoverTemplate::class);
+    }
+
     /** The style guide this book follows, if any (App\Editorial\Style\StyleGuides). */
     public function styleGuide(): BelongsTo
     {

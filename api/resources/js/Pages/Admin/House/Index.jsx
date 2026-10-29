@@ -69,6 +69,7 @@ export default function HouseIndex({ houses, books, totals, options, results, ca
                 selected={selected}
                 setSelected={setSelected}
                 houseStyles={options.house_styles ?? []}
+                coverTemplates={options.cover_templates ?? []}
                 linkFor={(book) => book.studio.edit}
                 cardsClassName="space-y-3"
                 empty={

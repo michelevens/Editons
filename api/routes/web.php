@@ -15,6 +15,7 @@ use App\Http\Controllers\ConsistencyController;
 use App\Http\Controllers\ContentReportController;
 use App\Http\Controllers\CoverAiController;
 use App\Http\Controllers\CoverFontController;
+use App\Http\Controllers\CoverTemplateController;
 use App\Http\Controllers\CoverWrapController;
 use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\DesignController;
@@ -23,7 +24,6 @@ use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\GoalsController;
 use App\Http\Controllers\GrowthController;
 use App\Http\Controllers\HouseStyleController;
-use App\Http\Controllers\StyleGuideController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InvitationController;
@@ -49,6 +49,7 @@ use App\Http\Controllers\SalesController;
 use App\Http\Controllers\SellerPartnersController;
 use App\Http\Controllers\ShelfController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\StyleGuideController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TwoFactorController;
@@ -497,6 +498,27 @@ Route::middleware('auth')->group(function () {
     Route::delete('/books/{book}/cover/images/{image}', [CoverWrapController::class, 'destroyImage'])
         ->where('image', '[A-Za-z0-9_-]{1,40}')
         ->name('design.cover.images.destroy');
+    // Backgrounds and series templates (ADR "Cover backgrounds and series
+    // templates"): the wrap background's re-fit, contrast per text layer,
+    // and cover templates saved from one book and applied to others.
+    Route::post('/books/{book}/cover/wrap/refit', [CoverWrapController::class, 'refit'])
+        ->name('design.cover.wrap.refit');
+    Route::get('/books/{book}/cover/contrast', [CoverWrapController::class, 'contrast'])
+        ->middleware('throttle:60,1')
+        ->name('design.cover.contrast');
+    Route::get('/cover-templates', [CoverTemplateController::class, 'index'])->name('cover-templates.index');
+    Route::post('/books/{book}/cover-template', [CoverTemplateController::class, 'store'])->name('cover-templates.store');
+    Route::post('/books/{book}/cover-template/detach', [CoverTemplateController::class, 'detach'])->name('cover-templates.detach');
+    Route::post('/books/{book}/cover-template/restore', [CoverTemplateController::class, 'restore'])->name('cover-templates.restore');
+    Route::put('/cover-templates/{template}', [CoverTemplateController::class, 'update'])->name('cover-templates.update');
+    Route::patch('/cover-templates/{template}', [CoverTemplateController::class, 'rename'])->name('cover-templates.rename');
+    Route::delete('/cover-templates/{template}', [CoverTemplateController::class, 'destroy'])->name('cover-templates.destroy');
+    Route::post('/cover-templates/{template}/preview', [CoverTemplateController::class, 'preview'])
+        ->middleware('throttle:30,1')
+        ->name('cover-templates.preview');
+    Route::post('/cover-templates/{template}/apply', [CoverTemplateController::class, 'apply'])
+        ->middleware('throttle:30,1')
+        ->name('cover-templates.apply');
     // The faces cover layers are set in, and their metrics, for the live
     // canvas (CoverFonts).
     Route::get('/cover-fonts/{face}/metrics', [CoverFontController::class, 'metrics'])

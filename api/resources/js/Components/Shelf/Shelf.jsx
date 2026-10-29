@@ -49,6 +49,7 @@ export default function Shelf({
     cardsClassName = 'grid grid-cols-1 gap-[14px] sm:grid-cols-2',
     linkFor,
     houseStyles = null,
+    coverTemplates = null,
     canSelect = true,
     selected: controlledSelected,
     setSelected: controlledSetSelected,
@@ -206,6 +207,7 @@ export default function Shelf({
                     selected={selected}
                     setSelected={setSelected}
                     houseStyles={houseStyles}
+                    coverTemplates={coverTemplates}
                     extra={extraBulk}
                 />
             )}
@@ -547,7 +549,7 @@ const RESULT_TONE = { true: 'bg-status-success-bg text-status-success', false: '
  * first; every run ends in a summary of what was done and what was
  * skipped, and why.
  */
-function BulkBar({ shelf, selected, setSelected, houseStyles, extra }) {
+function BulkBar({ shelf, selected, setSelected, houseStyles, coverTemplates, extra }) {
     const [action, setAction] = useState(null);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
@@ -562,7 +564,7 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, extra }) {
             const { data } = await window.axios.post(route('shelf.bulk'), { action: name, books: selected, reason: reason || null, ...params });
             setResult(data);
             setAction(null);
-            if (['archive', 'unarchive', 'series', 'house_style'].includes(name)) {
+            if (['archive', 'unarchive', 'series', 'house_style', 'cover_template'].includes(name)) {
                 router.reload({ preserveScroll: true });
             }
         } catch (e) {
@@ -578,6 +580,7 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, extra }) {
         ['unarchive', 'Unarchive'],
         ['series', 'Set series…'],
         ['house_style', 'House style…'],
+        ['cover_template', 'Apply cover template…'],
         ['regenerate', 'Regenerate stale…'],
         ['prepare', 'Prepare for publishing'],
     ];
@@ -632,6 +635,7 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, extra }) {
             )}
             {action === 'series' && <SeriesForm busy={busy} count={selected.length} onRun={(p) => run('series', p)} />}
             {action === 'house_style' && <HouseStyleForm busy={busy} houseStyles={houseStyles} onRun={(p) => run('house_style', p)} />}
+            {action === 'cover_template' && <CoverTemplateForm busy={busy} selected={selected} coverTemplates={coverTemplates} onRun={(p) => run('cover_template', p)} />}
             {action === 'regenerate' && <RegenerateForm busy={busy} formats={shelf.options.regenerate} onRun={(p) => run('regenerate', p)} />}
             {action === 'prepare' && (
                 <Confirm busy={busy} label="Prepare for publishing" dataA="books:prepare:run" onConfirm={() => run('prepare')} onCancel={() => setAction(null)}>
@@ -727,6 +731,125 @@ function HouseStyleForm({ houseStyles, onRun, busy }) {
                 {busy ? 'Applying…' : 'Apply to selected'}
             </button>
             <p className="w-full text-[11px] text-text-secondary">Only the design changes; the text never does. Print files made before become out of date.</p>
+        </div>
+    );
+}
+
+/**
+ * Apply a cover template (CoverTemplates) to the selected books: preview
+ * first — each book's own front with the template, and where its text
+ * overflows the template's boxes — then apply. Books with an uploaded
+ * finished cover are left as they are unless the artwork choice is made.
+ */
+function CoverTemplateForm({ coverTemplates, selected, onRun, busy }) {
+    const [templates, setTemplates] = useState(coverTemplates);
+    const [templateId, setTemplateId] = useState(coverTemplates?.[0]?.id ?? '');
+    const [follow, setFollow] = useState(true);
+    const [artwork, setArtwork] = useState('');
+    const [preview, setPreview] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (coverTemplates) return;
+        window.axios.get(route('cover-templates.index')).then(({ data }) => {
+            setTemplates(data.templates);
+            setTemplateId(data.templates[0]?.id ?? '');
+        }).catch(() => setTemplates([]));
+    }, [coverTemplates]);
+
+    // A new choice of template or artwork needs a new preview.
+    useEffect(() => setPreview(null), [templateId, artwork, selected]);
+
+    if (!templates) return <p className="mt-3 text-[12px] text-text-secondary">Loading templates…</p>;
+
+    if (templates.length === 0) {
+        return (
+            <p className="mt-3 text-[11.5px] text-text-secondary" data-a="shelf:cover-template:none">
+                To give several books one cover design, save a cover template from a book&rsquo;s Cover Studio.
+            </p>
+        );
+    }
+
+    const look = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const { data } = await window.axios.post(route('cover-templates.preview', { template: templateId }), { books: selected.slice(0, 50), artwork: artwork || null });
+            setPreview(data.books);
+        } catch (e) {
+            setError(e.response?.data?.message ?? 'The preview could not be drawn.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const waiting = preview?.filter((b) => b.needs_choice).length ?? 0;
+
+    return (
+        <div className="mt-3 space-y-2 border-t border-border-default pt-3" data-a="shelf:cover-template">
+            <div className="flex flex-wrap items-center gap-2">
+                <label className="text-[12.5px] font-medium text-text-body" htmlFor="shelf-cover-template">Cover template</label>
+                <select id="shelf-cover-template" value={templateId} data-a="shelf:cover-template:pick" onChange={(e) => setTemplateId(Number(e.target.value))} className={`${control} min-w-0 max-w-full`}>
+                    {templates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}{t.summary ? ` — ${t.summary}` : ''}</option>
+                    ))}
+                </select>
+                <label className="flex items-center gap-1.5 text-[12px] text-text-body">
+                    <input type="checkbox" checked={follow} data-a="shelf:cover-template:follow" onChange={(e) => setFollow(e.target.checked)} />
+                    Follow it
+                </label>
+                <button type="button" data-a="shelf:cover-template:preview" disabled={loading || !templateId} onClick={look} className={chip}>
+                    {loading ? 'Drawing…' : 'Preview'}
+                </button>
+                <button
+                    type="button"
+                    data-a="shelf:cover-template:apply"
+                    disabled={busy || !templateId || !preview}
+                    onClick={() => onRun({ cover_template_id: templateId, follow, artwork: artwork || null })}
+                    className={primary}
+                >
+                    {busy ? 'Applying…' : `Apply to ${selected.length}`}
+                </button>
+            </div>
+            <fieldset className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-text-body" data-a="shelf:cover-template:artwork">
+                <legend className="mb-0.5 text-[11.5px] font-semibold text-text-secondary">Books with an uploaded finished front or back</legend>
+                {[['', 'Leave them as they are'], ['keep', 'Keep it as the background'], ['replace', 'Replace it with the template']].map(([key, label]) => (
+                    <label key={key || 'none'} className="flex items-center gap-1.5">
+                        <input type="radio" name="shelf-cover-artwork" value={key} checked={artwork === key} data-a={`shelf:cover-template:artwork:${key || 'none'}`} onChange={() => setArtwork(key)} />
+                        {label}
+                    </label>
+                ))}
+            </fieldset>
+            <p className="text-[11px] text-text-secondary">
+                Only the cover design changes, never the manuscript: each book keeps its own title, author, series number, copy and ISBN. Preview first; cover files made before become out of date.
+            </p>
+            {error && <p role="alert" className="text-[12px] text-status-danger">{error}</p>}
+            {preview && (
+                <>
+                    {waiting > 0 && (
+                        <p className="rounded-control bg-status-warning-bg px-2.5 py-1.5 text-[11.5px] text-status-warning" data-a="shelf:cover-template:waiting">
+                            {waiting} book{waiting === 1 ? ' has' : 's have'} an uploaded finished cover and will be left as {waiting === 1 ? 'it is' : 'they are'} unless you choose to keep it as the background or replace it.
+                        </p>
+                    )}
+                    <ul className="grid max-h-[340px] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-6" data-a="shelf:cover-template:previews">
+                        {preview.map((b) => (
+                            <li key={b.id} data-a={`shelf:cover-template:preview:${b.id}`} className="rounded-control border border-border-default p-1.5">
+                                {b.thumb ? (
+                                    <img src={b.thumb} alt={`${b.title} with the template`} className="aspect-[5/8] w-full rounded-[2px] object-cover" />
+                                ) : (
+                                    <div className="flex aspect-[5/8] w-full items-center justify-center rounded-[2px] bg-bg-subtle text-[11px] text-text-secondary">{b.message || 'No preview'}</div>
+                                )}
+                                <p className="mt-1 line-clamp-2 text-[11.5px] font-semibold text-text-primary">{b.title ?? `#${b.id}`}</p>
+                                {b.needs_choice && <p className="text-[10.5px] text-status-warning">Uploaded cover: left as it is</p>}
+                                {b.flags?.map((f, i) => (
+                                    <p key={i} className="text-[10.5px] leading-snug text-status-warning" data-a="shelf:cover-template:flag">{f}</p>
+                                ))}
+                            </li>
+                        ))}
+                    </ul>
+                </>
+            )}
         </div>
     );
 }

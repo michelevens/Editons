@@ -2,6 +2,9 @@
 
 namespace App\Publishing;
 
+use App\Covers\CoverBackground;
+use App\Covers\CoverContrast;
+use App\Covers\CoverLayers;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 
@@ -95,12 +98,12 @@ class AccessibilityAudit
                 [
                     'key' => 'cover_contrast',
                     'label' => 'Cover title contrast',
-                    'passed' => $contrast === null || $contrast >= 4.5,
+                    'passed' => $contrast === null || $contrast['passed'],
                     'detail' => $contrast === null
                         ? 'Uploaded artwork — contrast cannot be measured automatically.'
-                        : number_format($contrast, 1).':1 (4.5:1 is the minimum)',
+                        : $contrast['detail'],
                     'why' => 'A title that disappears into its background is unreadable at thumbnail size.',
-                ],
+                ] + ($contrast['layers'] ?? null ? ['layers' => $contrast['layers']] : []),
             ],
             'images' => $images,
             'tables' => $headerlessTables,
@@ -224,7 +227,7 @@ class AccessibilityAudit
      * photograph whose luminance varies across the area behind the text, and
      * a single number would be a guess presented as a measurement.
      */
-    private function coverContrast(Book $book): ?float
+    private function coverContrast(Book $book): ?array
     {
         $cover = $book->cover ?? [];
 
@@ -232,37 +235,44 @@ class AccessibilityAudit
             return null;
         }
 
-        $palettes = self::PALETTES;
-        $palette = $palettes[$cover['palette'] ?? 0] ?? $palettes[0];
+        $backgrounds = CoverBackground::all($book);
 
-        return $this->contrast($palette['ink'], $palette['from']);
+        // A preset palette with the layout's type: its ink against its deep
+        // end, as always (the palettes are chosen to pass).
+        if (CoverLayers::stored($book, 'front') === null && ! isset($backgrounds['front']) && ! isset($backgrounds['wrap'])) {
+            $palettes = self::PALETTES;
+            $palette = $palettes[$cover['palette'] ?? 0] ?? $palettes[0];
+            $ratio = $this->contrast($palette['ink'], $palette['from']);
+
+            return ['passed' => $ratio >= 4.5, 'detail' => number_format($ratio, 1).':1 (4.5:1 is the minimum)'];
+        }
+
+        // Text layers, or a background of the author's own: each layer
+        // measured against what is under it (CoverContrast), the worst one
+        // reported.
+        $rows = CoverContrast::front($book);
+        $worst = CoverContrast::worst($rows);
+
+        if ($worst === null) {
+            return ['passed' => true, 'detail' => 'No text on the front to measure.'];
+        }
+
+        $failing = count(array_filter($rows, fn ($r) => ! $r['ok']));
+        $name = $worst['source'] === 'custom' ? 'a text layer' : 'the '.$worst['source'];
+
+        return [
+            'passed' => $failing === 0,
+            'detail' => sprintf('Lowest %s:1 for %s (%s:1 needed for %s text)%s', number_format($worst['ratio'], 1), $name,
+                rtrim(rtrim(number_format($worst['needed'], 1), '0'), '.'), $worst['large'] ? 'large' : 'small',
+                $failing > 1 ? "; {$failing} layers below the minimum." : '.'),
+            'layers' => $rows,
+        ];
     }
 
-    /** WCAG relative contrast between two hex colours. */
+    /** WCAG relative contrast between two hex colours (CoverContrast). */
     private function contrast(string $first, string $second): float
     {
-        $a = $this->luminance($first);
-        $b = $this->luminance($second);
-
-        return (max($a, $b) + 0.05) / (min($a, $b) + 0.05);
-    }
-
-    private function luminance(string $hex): float
-    {
-        $hex = ltrim($hex, '#');
-
-        $channels = array_map(
-            function (string $pair): float {
-                $value = hexdec($pair) / 255;
-
-                return $value <= 0.03928
-                    ? $value / 12.92
-                    : (($value + 0.055) / 1.055) ** 2.4;
-            },
-            str_split($hex, 2),
-        );
-
-        return 0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2];
+        return CoverContrast::ratio($first, $second);
     }
 
     /**

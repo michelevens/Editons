@@ -26,7 +26,7 @@ use Illuminate\Validation\ValidationException;
  *    centre line, as a fraction of the same length, so a layer stays
  *    centred as the page count, and with it the spine, changes.
  *
- * Bound layers (title, subtitle, author, series, edition, tagline; on the
+ * Bound layers (title, subtitle, author, series, series number, edition, tagline; on the
  * back also the back-cover copy, publisher, price, category and ISBN) carry
  * no text of their own: they read the book's, so renaming the book renames
  * the cover. Only custom layers have `text`. An empty custom layer with a
@@ -44,7 +44,7 @@ class CoverLayers
     public const VERSION = 1;
 
     /** The front's text sources, as Cover Studio's "Add field" lists them. */
-    public const SOURCES = ['title', 'subtitle', 'author', 'series', 'edition', 'tagline', 'custom'];
+    public const SOURCES = ['title', 'subtitle', 'author', 'series', 'number', 'edition', 'tagline', 'custom'];
 
     public const PANELS = ['front', 'back', 'spine'];
 
@@ -53,9 +53,9 @@ class CoverLayers
      * nothing is typed in twice.
      */
     public const PANEL_SOURCES = [
-        'front' => ['title', 'subtitle', 'author', 'series', 'edition', 'tagline', 'custom', 'image'],
-        'back' => ['title', 'subtitle', 'author', 'series', 'description', 'publisher', 'price', 'category', 'isbn', 'custom', 'image'],
-        'spine' => ['title', 'subtitle', 'author', 'series', 'publisher', 'custom', 'image'],
+        'front' => ['title', 'subtitle', 'author', 'series', 'number', 'edition', 'tagline', 'custom', 'image'],
+        'back' => ['title', 'subtitle', 'author', 'series', 'number', 'description', 'publisher', 'price', 'category', 'isbn', 'custom', 'image'],
+        'spine' => ['title', 'subtitle', 'author', 'series', 'number', 'publisher', 'custom', 'image'],
     ];
 
     /** Where each panel's document is stored in `$book->cover`. */
@@ -448,6 +448,9 @@ class CoverLayers
             'subtitle' => trim((string) ($cover['subtitle'] ?? $book->subtitle)),
             'author' => trim((string) ($cover['author'] ?? $book->author_name)),
             'series' => $series !== '' && $book->series_number ? "{$series} · {$book->series_number}" : $series,
+            // The number alone, for a series badge: a big "3" a template
+            // carries from book to book.
+            'number' => $book->series_number ? (string) $book->series_number : '',
             'edition' => trim((string) ($book->publication()['edition_statement'] ?? '')),
             'tagline' => trim((string) ($cover['tagline'] ?? '')),
         ];
@@ -477,6 +480,28 @@ class CoverLayers
             'category' => trim((string) ($meta['category'] ?? '')),
             'isbn' => $isbn === '' ? '' : 'ISBN '.$isbn,
         ];
+    }
+
+    /**
+     * Texts as a hash sees them: the series number only when some layer
+     * shows it, so adding the source changed no existing cover's hash.
+     *
+     * @param  array<string, string>  $texts
+     * @return array<string, string>
+     */
+    public static function hashed(Book $book, array $texts): array
+    {
+        foreach (self::STORED as $key) {
+            foreach (($book->cover ?? [])[$key]['items'] ?? [] as $layer) {
+                if (is_array($layer) && ($layer['source'] ?? null) === 'number') {
+                    return $texts;
+                }
+            }
+        }
+
+        unset($texts['number']);
+
+        return $texts;
     }
 
     /** The text a layer shows. @param  array<string, string>  $texts */
