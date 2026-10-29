@@ -312,11 +312,9 @@ export const PlacedImage = Image.extend({
 
                     if (pos === null || pos === undefined || size === current.attrs.size) return;
 
-                    editor.view.dispatch(
-                        editor.view.state.tr
-                            .setNodeMarkup(pos, undefined, { ...current.attrs, size, page: null })
-                            .setSelection(NodeSelection.create(editor.view.state.doc, pos)),
-                    );
+                    const tr = editor.view.state.tr.setNodeMarkup(pos, undefined, { ...current.attrs, size, page: null });
+                    // Still selected, in the document the change made.
+                    editor.view.dispatch(tr.setSelection(NodeSelection.create(tr.doc, pos)));
                 };
 
                 handle.addEventListener('pointermove', move);
