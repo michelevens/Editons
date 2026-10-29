@@ -134,6 +134,6 @@ class ShelfController extends Controller
 
     private function stateInput(Request $request): array
     {
-        return (array) $request->validate(['state' => ['required', 'array']])['state'];
+        return (array) $request->validate(['state' => ['present', 'array']])['state'];
     }
 }

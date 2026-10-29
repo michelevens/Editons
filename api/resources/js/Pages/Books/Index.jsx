@@ -27,7 +27,7 @@ export default function Index({
     const { auth } = usePage().props;
     const [creating, setCreating] = useState(false);
     const [importing, setImporting] = useState(false);
-    const totalWords = books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
+    const totalWords = counts.words ?? books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
 
     // Order and labels follow the design: All first, then the three states.
     const filters = [

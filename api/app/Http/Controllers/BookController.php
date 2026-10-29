@@ -80,6 +80,8 @@ class BookController extends Controller
             'filter' => $state['filter'],
             'counts' => Shelf::counts($user, 'books') + [
                 'house' => $staff ? Shelf::counts($user, 'house')['all'] : null,
+                // The header's total is the shelf's, not this page's.
+                'words' => (int) $user->accessibleBooks()->where('status', '!=', 'archived')->sum('word_count'),
             ],
             'house' => $staff ? ['console' => route('admin.house.index')] : null,
             // The guided flow's options. Sent with the shelf so choosing a

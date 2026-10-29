@@ -3248,3 +3248,136 @@ kept; books without placement unchanged) and
 `tests/Browser/placement.spec.js` at 1440 and 390 px (a picture resized by
 its handle and wrapped right, a table made zebra with a column
 right-aligned and resized, both kept after a reload, no console errors).
+
+## ADR-00XX — Shelf views and bulk actions
+
+**Status:** accepted (2026-10-29). Number assigned at merge.
+
+**Context.** The flexibility audit's item 10 (S1, S2). The shelf was
+always every book, last updated first, as a two-column card grid,
+filtered by status chips only, loaded whole and filtered in PHP; there was
+no search, no series grouping, no table, and the only bulk actions were
+"Prepare for publishing" and applying a house style. A publisher running
+the 19 Écrivain Prépa books (and the console's House catalog, which loaded
+every house book with its full catalog row) had no way to find, order or
+act on a series at once.
+
+**Decisions.**
+
+- *One shelf, two pages.* `App\Shelf\Shelf` holds the query: the base
+  (the person's accessible books, or every house account's book for staff
+  — `House::canViewCatalog`, an empty query for anyone else), the status
+  filter, the search, the order and the series groups. `App\Shelf\ShelfPage`
+  builds what `resources/js/Components/Shelf/Shelf.jsx` renders; the
+  author's shelf (`BookController::index`) and the console's House catalog
+  (`Admin\HouseController::index`) both use it, each with its own card
+  (the shelf's book card; the catalog's full row). Everything is done on
+  the server and paged (25/50/100); "select all in this view" sends at
+  most 500 ids.
+- *State.* `filter, q, sort, dir, group, view, columns, per_page`, one
+  array normalised by `Shelf::normalise` (unknown values fall back to the
+  default; columns are known ones in the table's order). It lives in the
+  address bar; page links carry the whole state. With nothing in the
+  address bar the person's remembered view is used; with none saved, the
+  default is today's shelf (all books, updated desc, cards), so nothing
+  changes for somebody who never touches the controls.
+- *Search* matches every word, in any order, against
+  `books.search_text`: title, subtitle, series and author, lower-case with
+  accents folded (`Str::ascii`), kept by the Book model on save and
+  backfilled by the migration. Chosen over Postgres `unaccent` (an
+  extension a managed database may not offer) and over filtering in PHP.
+  LIKE wildcards in the query are escaped.
+- *Sort*: last updated, title (case-insensitive), series and number
+  (books in no series last), words, status (in the book's life order:
+  draft, in review, published, archived); each with a natural direction
+  and a toggle; the id breaks ties so pages never shift. *Group by series*
+  orders series by name and books by number, "No series" last, before the
+  chosen sort; group headers carry the whole view's count and collapse.
+- *Table columns*: words, status, series/number, language, ISBNs per
+  edition format (the ISBN pool), live channels, last export per format
+  (PDF, EPUB, print interior, cover wrap) with a stale flag, house style
+  followed, updated. Loaded for the page only, in a fixed number of
+  queries (`Shelf::columns`). Staleness is the Publish screen's own check:
+  `Freshness::verdict` is shared by `Freshness::file` and the new
+  `Freshness::many`, which batches the latest ready Full-book exports, the
+  manuscript's last change and `PrintPages::fingerprint`'s section figures
+  (`PrintPages::sectionsAggregate`) for the whole page. Below 640 px the
+  table is a compact list.
+- *Saved views*: `shelf_views` rows per user and shelf (`books`,
+  `house`): one current view (name null, unique per shelf) and up to 8
+  named ones (unique per shelf whatever their case; the same name again
+  replaces it). Only ever looked up by the person's own id; another
+  person's view id is not found. The House shelf's views are for staff.
+- *Bulk actions* (`App\Shelf\ShelfBulk`, `POST /shelf/bulk`): archive,
+  unarchive, set series name and renumber in the order ticked (from a
+  chosen first number; an empty name takes the books out of any series),
+  apply a house style (`HouseStyles::applyMany`), regenerate stale files
+  (`Regenerate::formats`: chosen formats, Full book only, optionally files
+  never made; cover wraps per the Publish plan's print services or the
+  last wrap's; the plan's formats and the Exporter's one-render-per-format
+  rule apply; at most 50 books), prepare for publishing (`BulkPrepare`),
+  and the metadata CSV (`GET /shelf/metadata.csv`). Each book is checked
+  through the BookPolicy on its own: a book the person cannot see (or that
+  does not exist) is "Not found." and never named; one they can see but
+  not change is skipped with the reason; the rest are done. Archiving uses
+  `manage` (the owner's, as the BookPolicy describes it), the rest
+  `update`. Unarchive keeps the plan's limit, as Restore does. Every run
+  returns done/skipped counts and a row per book in the order selected;
+  regenerating also returns each file's result, and the bar polls
+  `GET /shelf/progress` (the same freshness check) until nothing is
+  rendering.
+- *House books* changed by staff need a reason (at least 4 characters)
+  and each one writes an admin audit row in the same transaction:
+  `house.archived`, `house.unarchived`, `house.series_set`,
+  `house.house_style_applied`, `house.exports_regenerated`,
+  `house.publish_prepared` (BulkPrepare's), and one
+  `house.metadata_exported` row per CSV. Authors' own books write none.
+- *CSV*: id, title, subtitle, series, number, language, words, pages
+  (typeset count when the fingerprint still matches, else the estimate,
+  with `pages_source`), an ISBN column per edition format, price,
+  currency, status, live channels; UTF-8 with a BOM. Any text cell
+  starting with `=`, `+`, `-`, `@`, a tab or a carriage return gets a
+  leading apostrophe (CSV injection); numbers stay numbers.
+- *Interface.* The bulk bar is sticky at the bottom while books are
+  selected, with a confirmation step for archive, unarchive and prepare,
+  a reason field on house shelves, and the House catalog's own bulk panel
+  (export, price, on/off sale) inside it. Checkboxes are native inputs
+  with labels; the view toggle, group headers and column picker are
+  buttons and checkboxes with `aria-pressed` / `aria-expanded`; colour
+  tokens carry dark mode.
+- *Indexes*: `books (user_id, status)`, `books (series_name,
+  series_number)`, `book_exports (book_id, format, status)`, `isbns
+  (book_id)`.
+
+**Not done.** Applying a cover template in bulk (audit item 9's series
+template is not built); a trigram index for search (not needed at the
+hundreds of books a shelf holds); shift-click range selection; the sales
+reports' equivalent (P5).
+
+**Tests.** `tests/Feature/Shelf/ShelfTest.php` (default shelf; search
+with and without accents across title, subtitle, series and author, LIKE
+wildcards; search text kept on save; every sort and direction; series
+grouping order and counts; pages with the state in every link and
+"select all" across pages; ISBN, live-channel, house-style and last-export
+columns, the stale flag agreeing with `Freshness::file`;
+`Freshness::many` and the batched fingerprint agreeing book by book; the
+same query count for 10 and 60 books with every column, under 40;
+current view remembered per person and restored, address bar first;
+named views saved, replaced, renamed, deleted, capped and isolated
+between people; never another account's books; the House shelf only for
+staff, searched and grouped on the console),
+`tests/Feature/Shelf/ShelfBulkTest.php` (archive with skips for another
+account's book, a missing id, an editor and one already archived;
+unarchive held to the plan; series numbered in selection order, from a
+start, cleared, a reviewer skipped; house style applied and a foreign
+style refused; regenerate only stale files of the chosen formats, never
+made only on request, cover wrap without a service, the plan's formats,
+the 50-book bound, progress; prepare with skips and links; the CSV's
+columns, BOM and formula escaping; house books: reason required, audit
+rows per change, support skipped, an author gets nothing) and
+`tests/Browser/shelf.spec.js` at 1440 and 390 px (table by keyboard, three
+books ticked and put in one series numbered 1 to 3 in that order, found
+by a search without the accent, grouped, columns chosen, the view
+restored on return, select all and regenerate with progress, the sticky
+bar on screen, the CSV downloaded, a named view saved and deleted; no
+horizontal scroll, no console errors).
