@@ -784,7 +784,7 @@ styleguide.own_saved,This book’s style rules are saved.,Règ stil liv sa a anr
 styleguide.title,Style guide,Gid stil,Style guide: heading,
 styleguide.follows,"Follows “{name}”, version {version}.","Swiv “{name}”, vèsyon {version}.",Style guide: status,
 styleguide.own_rules,This book has its own style rules.,Liv sa a gen pwòp règ stil pa l.,Style guide: status,
-styleguide.none,"No style guide. Copy, Line and Consistency review without one.","Pa gen gid stil. Ajan Copy, Line ak Consistency yo revize san gid.",Style guide: status (agent names as shown in the agent list),
+styleguide.none,"No style guide. Copy, Line and Consistency review without one.","Pa gen gid stil. Korektè a, editè liy lan ak ajan konsistans lan revize san gid.",Style guide: status (agent names as shown in the agent list),
 styleguide.show_rules,Show rules,Montre règ yo,Style guide: toggle button,
 styleguide.set_up,Set up,Konfigire,Style guide: toggle button,
 styleguide.follow_label,Follow a guide of this account,Swiv yon gid nan kont sa a,Style guide: field label,

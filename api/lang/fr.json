@@ -788,7 +788,7 @@
     "styleguide.title": "Guide de style",
     "styleguide.follows": "Suit « {name} », version {version}.",
     "styleguide.own_rules": "Ce livre a ses propres règles de style.",
-    "styleguide.none": "Aucun guide de style. Les agents Copy, Line et Consistency relisent sans.",
+    "styleguide.none": "Aucun guide de style. Le correcteur, l’éditeur de style et l’agent de cohérence relisent sans.",
     "styleguide.show_rules": "Afficher les règles",
     "styleguide.set_up": "Configurer",
     "styleguide.follow_label": "Suivre un guide de ce compte",

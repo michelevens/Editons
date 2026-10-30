@@ -784,7 +784,7 @@ styleguide.own_saved,This book’s style rules are saved.,Les règles de style d
 styleguide.title,Style guide,Guide de style,Style guide: heading,
 styleguide.follows,"Follows “{name}”, version {version}.","Suit « {name} », version {version}.",Style guide: status,
 styleguide.own_rules,This book has its own style rules.,Ce livre a ses propres règles de style.,Style guide: status,
-styleguide.none,"No style guide. Copy, Line and Consistency review without one.","Aucun guide de style. Les agents Copy, Line et Consistency relisent sans.",Style guide: status (agent names as shown in the agent list),
+styleguide.none,"No style guide. Copy, Line and Consistency review without one.","Aucun guide de style. Le correcteur, l’éditeur de style et l’agent de cohérence relisent sans.",Style guide: status (agent names as shown in the agent list),
 styleguide.show_rules,Show rules,Afficher les règles,Style guide: toggle button,
 styleguide.set_up,Set up,Configurer,Style guide: toggle button,
 styleguide.follow_label,Follow a guide of this account,Suivre un guide de ce compte,Style guide: field label,
