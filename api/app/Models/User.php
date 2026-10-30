@@ -154,6 +154,18 @@ class User extends Authenticatable implements HasLocalePreference
     }
 
     /**
+     * Seats per manuscript (owner included), or null for no limit.
+     *
+     * The platform owner is not held to a plan's seats: the people who run
+     * Écrivain invite whoever a book needs. Support staff are, since they
+     * author like anyone else.
+     */
+    public function seatLimit(): ?int
+    {
+        return $this->isPlatformOwner() ? null : $this->planLimits()['seats'];
+    }
+
+    /**
      * May this account create another book?
      *
      * Enforced on the server. The prototype gates limits client-side, which

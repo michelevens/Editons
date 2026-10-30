@@ -72,7 +72,7 @@ class BillingController extends Controller
                 'used_this_month' => $this->usedThisMonth($user->id),
                 'books' => $user->activeBookCount(),
                 'book_limit' => $limits['books'],
-                'seat_limit' => $limits['seats'],
+                'seat_limit' => $user->seatLimit(),
                 'renews_at' => $user->credits_granted_at
                     ? $user->credits_granted_at->addMonth()->toFormattedDateString()
                     : null,

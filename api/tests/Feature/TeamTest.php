@@ -100,6 +100,33 @@ it('lets an unlimited plan invite freely', function () {
     expect($book->members()->count())->toBe(6);
 });
 
+it('holds the platform owner to no seat limit, whatever the plan', function () {
+    $owner = User::factory()->create(['plan' => 'free', 'platform_role' => 'owner']); // free: 2 seats
+    $book = Book::factory()->for($owner)->create();
+
+    foreach (range(1, 4) as $n) {
+        $this->actingAs($owner)->postJson("/books/{$book->id}/members", [
+            'email' => "person{$n}@example.com", 'role' => 'editor',
+        ])->assertCreated()->assertJsonPath('seats.limit', null);
+    }
+
+    // Support staff author like anyone else and keep their plan's seats.
+    $support = User::factory()->create(['plan' => 'free', 'platform_role' => 'support']);
+    $theirs = Book::factory()->for($support)->create();
+    $this->actingAs($support)->postJson("/books/{$theirs->id}/members", ['email' => 'a@example.com', 'role' => 'viewer'])->assertCreated();
+    $this->actingAs($support)->postJson("/books/{$theirs->id}/members", ['email' => 'b@example.com', 'role' => 'viewer'])->assertStatus(422);
+});
+
+it('counts seats per manuscript, not across the owner\'s books', function () {
+    $owner = User::factory()->create(['plan' => 'free']); // 2 seats: owner + one
+    [$first, $second] = Book::factory()->for($owner)->count(2)->create();
+
+    $this->actingAs($owner)->postJson("/books/{$first->id}/members", ['email' => 'a@example.com', 'role' => 'editor'])->assertCreated();
+    $this->actingAs($owner)->postJson("/books/{$second->id}/members", ['email' => 'b@example.com', 'role' => 'editor'])->assertCreated();
+
+    expect($second->members()->pluck('email')->all())->toBe(['b@example.com']);
+});
+
 // --- Access ---------------------------------------------------------------
 
 it('does not grant access until the invitation is accepted', function () {

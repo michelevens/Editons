@@ -127,7 +127,7 @@ class TeamController extends Controller
      */
     private function assertSeatAvailable(Book $book, ?int $ignoring = null): void
     {
-        $limit = $book->user->planLimits()['seats'];
+        $limit = $book->user->seatLimit();
 
         if ($limit === null) {
             return;
@@ -149,7 +149,7 @@ class TeamController extends Controller
     /** @return array<string, mixed> */
     private function payload(Book $book): array
     {
-        $limit = $book->user->planLimits()['seats'];
+        $limit = $book->user->seatLimit();
 
         $members = $book->members()
             ->with('user:id,name')
