@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { t, useI18n } from '../../../i18n';
 import Icon from '../Icon';
 import CoverCanvas, { textOf } from './CoverCanvas';
 import { cssFamily, facesOf, ready, useFaceMetrics, useFontFiles } from './coverFonts';
@@ -19,23 +20,30 @@ import { frontSurface, imageBox, overlaps, placeLayer } from './surfaces';
  */
 
 const SOURCE_NAMES = {
-    title: 'Title',
-    subtitle: 'Subtitle',
-    author: 'Author',
-    series: 'Series',
-    number: 'Series number',
-    edition: 'Edition',
-    tagline: 'Tagline',
-    description: 'Back-cover copy',
-    publisher: 'Publisher',
-    price: 'Price',
-    category: 'Category',
-    isbn: 'ISBN',
-    custom: 'Text',
-    image: 'Picture',
+    title: { tKey: 'cover.layer_source_title' },
+    subtitle: { tKey: 'cover.layer_source_subtitle' },
+    author: { tKey: 'cover.layer_source_author' },
+    series: { tKey: 'cover.layer_source_series' },
+    number: { tKey: 'cover.layer_source_number' },
+    edition: { tKey: 'cover.layer_source_edition' },
+    tagline: { tKey: 'cover.layer_source_tagline' },
+    description: { tKey: 'cover.layer_source_description' },
+    publisher: { tKey: 'cover.layer_source_publisher' },
+    price: { tKey: 'cover.layer_source_price' },
+    category: { tKey: 'cover.layer_source_category' },
+    isbn: { tKey: 'cover.layer_source_isbn' },
+    custom: { tKey: 'cover.layer_source_custom' },
+    image: { tKey: 'cover.layer_source_image' },
 };
 
-const WEIGHT_NAMES = { regular: 'Regular', semibold: 'Semibold', bold: 'Bold' };
+/** A layer source's name in the interface language. */
+const sourceName = (source) => (SOURCE_NAMES[source] ? t(SOURCE_NAMES[source].tKey) : source);
+
+const WEIGHT_NAMES = {
+    regular: { tKey: 'cover.layer_weight_regular' },
+    semibold: { tKey: 'cover.layer_weight_semibold' },
+    bold: { tKey: 'cover.layer_weight_bold' },
+};
 
 /** Book fields a bound layer's text field edits (the rest live elsewhere). */
 const EDITABLE = ['title', 'subtitle', 'author', 'tagline', 'description'];
@@ -51,10 +59,11 @@ export default function LayerEditor({
     onLayers,
     onText,
     onReset,
-    resetLabel = 'Reset to layout',
+    resetLabel = t('cover.layer_reset_layout'),
     onUpload,
     onNotify,
 }) {
+    useI18n();
     const { cover, editor, palettes } = data;
     const surface = useMemo(() => given ?? { ...frontSurface(data), shadows: editor.shadows }, [given, data, editor.shadows]);
     const texts = givenTexts ?? cover.texts;
@@ -196,7 +205,7 @@ export default function LayerEditor({
             const left = box.x + box.width - zone.x + 6;
             const moved = up <= left ? clampMove(l, l.x, l.y - up / surface.unitY) : clampMove(l, l.x - left / W, l.y);
 
-            setNotice(`Moved clear of the ${zone.label.toLowerCase()} area: nothing may print there.`);
+            setNotice(t('cover.layer_moved_clear', { zone: zone.label.toLowerCase() }));
 
             return moved;
         }
@@ -376,7 +385,7 @@ export default function LayerEditor({
         const fresh = {
             id: `${source}-${Math.random().toString(36).slice(2, 8)}`,
             source,
-            text: source === 'custom' ? 'New text' : null,
+            text: source === 'custom' ? t('cover.layer_new_text') : null,
             visible: true,
             x: surface.fresh.x,
             y: surface.fresh.y,
@@ -517,11 +526,11 @@ export default function LayerEditor({
                         ref={canvasBox}
                         tabIndex={0}
                         role="application"
-                        aria-roledescription="cover canvas"
+                        aria-roledescription={t('cover.layer_canvas_role')}
                         aria-label={
                             layer
-                                ? `${surface.label} canvas. ${nameOf(layer, texts, images)} selected. Arrow keys move it, Shift with an arrow moves it further, Delete hides it.`
-                                : `${surface.label} canvas. Choose a layer to move it.`
+                                ? t('cover.layer_canvas_selected', { surface: surface.label, name: nameOf(layer, texts, images) })
+                                : t('cover.layer_canvas_none', { surface: surface.label })
                         }
                         data-a="cover:canvas"
                         onKeyDown={onCanvasKey}
@@ -535,7 +544,7 @@ export default function LayerEditor({
                             texts={texts}
                             metrics={metrics}
                             images={images}
-                            label={`${surface.label} preview`}
+                            label={t('cover.layer_preview', { surface: surface.label })}
                             className="block h-auto w-full rounded-[3px] bg-bg-subtle"
                             onPointerMove={onPointerMove}
                             onPointerUp={endDrag}
@@ -665,23 +674,23 @@ export default function LayerEditor({
                                 texts={texts}
                                 metrics={metrics}
                                 images={images}
-                                label="Cover at thumbnail size"
+                                label={t('cover.layer_thumbnail_label')}
                                 data-a="cover:thumbnail"
                                 className="block h-[160px] w-[100px] rounded-[2px] shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
                             />
-                            <figcaption className="text-[10.5px] text-text-secondary">Thumbnail</figcaption>
+                            <figcaption className="text-[10.5px] text-text-secondary">{t('cover.layer_thumbnail')}</figcaption>
                         </figure>
 
                         <figure className="flex flex-col items-center gap-1">
                             <img
                                 src={cover.image}
-                                alt="The saved cover, as it downloads"
+                                alt={t('cover.layer_saved_alt')}
                                 data-a="cover:preview"
                                 width={100}
                                 height={160}
                                 className="h-[160px] w-[100px] rounded-[2px] bg-bg-surface object-cover shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
                             />
-                            <figcaption className="text-[10.5px] text-text-secondary">Saved file</figcaption>
+                            <figcaption className="text-[10.5px] text-text-secondary">{t('cover.layer_saved_file')}</figcaption>
                         </figure>
 
                         <a
@@ -690,7 +699,7 @@ export default function LayerEditor({
                             className="inline-flex items-center gap-1.5 rounded-control border border-border-input bg-bg-surface px-2.5 py-1.5 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40"
                         >
                             <Icon name="exp" size={13} strokeWidth={2} />
-                            Download
+                            {t('cover.layer_download')}
                         </a>
                     </div>
                 </div>
@@ -748,8 +757,7 @@ export default function LayerEditor({
                     )
                 ) : (
                     <p className="rounded-tile border border-dashed border-border-input p-3 text-[12px] text-text-secondary">
-                        Choose a layer on the {surface.label.toLowerCase()} or in the list to change it. Drag it to move it; drag the
-                        side handles to make its box wider or narrower.
+                        {t('cover.layer_choose', { surface: surface.label.toLowerCase() })}
                     </p>
                 )}
             </div>
@@ -769,12 +777,12 @@ function round(changes) {
 }
 
 function nameOf(layer, texts, images = []) {
-    if (layer.source === 'image') return images.find((i) => i.id === layer.image)?.name ?? 'Picture';
-    if (layer.source !== 'custom') return SOURCE_NAMES[layer.source];
+    if (layer.source === 'image') return images.find((i) => i.id === layer.image)?.name ?? t('cover.layer_source_image');
+    if (layer.source !== 'custom') return sourceName(layer.source);
 
     const text = (layer.text ?? '').trim();
 
-    if (text === '') return layer.background ? 'Shape' : 'Empty text';
+    if (text === '') return layer.background ? t('cover.layer_shape') : t('cover.layer_empty_text');
 
     return text.length > 24 ? `${text.slice(0, 24)}…` : text;
 }
@@ -786,30 +794,30 @@ function Toolbar({ canUndo, canRedo, onUndo, onRedo, safe, onSafe, onAdd, missin
     const [busy, setBusy] = useState(false);
 
     return (
-        <div role="toolbar" aria-label="Cover layers" className="flex w-full max-w-[380px] flex-wrap items-center gap-1.5">
-            <button type="button" onClick={onUndo} disabled={!canUndo} data-a="cover:undo" aria-label="Undo" title="Undo (Ctrl+Z)" className={button}>
-                <Icon name="reset" size={13} strokeWidth={2} /> Undo
+        <div role="toolbar" aria-label={t('cover.layer_toolbar')} className="flex w-full max-w-[380px] flex-wrap items-center gap-1.5">
+            <button type="button" onClick={onUndo} disabled={!canUndo} data-a="cover:undo" aria-label={t('cover.layer_undo')} title={t('cover.layer_undo_title')} className={button}>
+                <Icon name="reset" size={13} strokeWidth={2} /> {t('cover.layer_undo')}
             </button>
-            <button type="button" onClick={onRedo} disabled={!canRedo} data-a="cover:redo" aria-label="Redo" title="Redo (Shift+Ctrl+Z)" className={button}>
-                Redo
+            <button type="button" onClick={onRedo} disabled={!canRedo} data-a="cover:redo" aria-label={t('cover.layer_redo')} title={t('cover.layer_redo_title')} className={button}>
+                {t('cover.layer_redo')}
             </button>
             <button type="button" onClick={() => onAdd('custom')} data-a="cover:add-text" className={button}>
-                <Icon name="plus" size={13} strokeWidth={2} /> Add text
+                <Icon name="plus" size={13} strokeWidth={2} /> {t('cover.layer_add_text')}
             </button>
 
             {missing.length > 0 && (
                 <label className="inline-flex items-center">
-                    <span className="sr-only">Add a book field</span>
+                    <span className="sr-only">{t('cover.layer_add_field_label')}</span>
                     <select
                         value=""
                         data-a="cover:add-field"
                         onChange={(event) => event.target.value && onAdd(event.target.value)}
                         className="min-h-[36px] rounded-control border border-border-input bg-bg-surface px-2 text-[12px]"
                     >
-                        <option value="">Add field…</option>
+                        <option value="">{t('cover.layer_add_field')}</option>
                         {missing.map((s) => (
                             <option key={s} value={s}>
-                                {SOURCE_NAMES[s]}
+                                {sourceName(s)}
                             </option>
                         ))}
                     </select>
@@ -819,7 +827,7 @@ function Toolbar({ canUndo, canRedo, onUndo, onRedo, safe, onSafe, onAdd, missin
             {onUpload && (
                 <>
                     <label className="inline-flex items-center">
-                        <span className="sr-only">Add a picture</span>
+                        <span className="sr-only">{t('cover.layer_add_picture_label')}</span>
                         <select
                             value=""
                             data-a="cover:add-picture"
@@ -832,13 +840,13 @@ function Toolbar({ canUndo, canRedo, onUndo, onRedo, safe, onSafe, onAdd, missin
                             }}
                             className="min-h-[36px] rounded-control border border-border-input bg-bg-surface px-2 text-[12px]"
                         >
-                            <option value="">{busy ? 'Uploading…' : 'Add picture…'}</option>
+                            <option value="">{busy ? t('cover.layer_uploading') : t('cover.layer_add_picture')}</option>
                             {images.map((image) => (
                                 <option key={image.id} value={image.id}>
                                     {image.name}
                                 </option>
                             ))}
-                            <option value="__upload">Upload a PNG or JPEG…</option>
+                            <option value="__upload">{t('cover.layer_upload')}</option>
                         </select>
                     </label>
                     <input
@@ -866,7 +874,7 @@ function Toolbar({ canUndo, canRedo, onUndo, onRedo, safe, onSafe, onAdd, missin
             )}
 
             <button type="button" onClick={onSafe} aria-pressed={safe} data-a="cover:safe" className={button}>
-                Safe area
+                {t('cover.layer_safe_area')}
             </button>
             <button type="button" onClick={onReset} data-a="cover:reset-layout" className={`${button} ml-auto`}>
                 {resetLabel}
@@ -881,11 +889,11 @@ function Nudge({ onNudge }) {
 
     return (
         // A cross of four on a phone, beside the canvas; a row under it on a desktop.
-        <div role="group" aria-label="Move the selected layer" className="grid grid-cols-3 gap-1 self-center lg:flex lg:gap-1.5">
-            <button type="button" aria-label="Move up" data-a="cover:nudge:up" onClick={() => onNudge(0, -10)} className={`${button} col-start-2`}>↑</button>
-            <button type="button" aria-label="Move left" data-a="cover:nudge:left" onClick={() => onNudge(-10, 0)} className={`${button} col-start-1 row-start-2`}>←</button>
-            <button type="button" aria-label="Move right" data-a="cover:nudge:right" onClick={() => onNudge(10, 0)} className={`${button} col-start-3 row-start-2`}>→</button>
-            <button type="button" aria-label="Move down" data-a="cover:nudge:down" onClick={() => onNudge(0, 10)} className={`${button} col-start-2 row-start-3`}>↓</button>
+        <div role="group" aria-label={t('cover.layer_move_group')} className="grid grid-cols-3 gap-1 self-center lg:flex lg:gap-1.5">
+            <button type="button" aria-label={t('cover.layer_move_up')} data-a="cover:nudge:up" onClick={() => onNudge(0, -10)} className={`${button} col-start-2`}>↑</button>
+            <button type="button" aria-label={t('cover.layer_move_left')} data-a="cover:nudge:left" onClick={() => onNudge(-10, 0)} className={`${button} col-start-1 row-start-2`}>←</button>
+            <button type="button" aria-label={t('cover.layer_move_right')} data-a="cover:nudge:right" onClick={() => onNudge(10, 0)} className={`${button} col-start-3 row-start-2`}>→</button>
+            <button type="button" aria-label={t('cover.layer_move_down')} data-a="cover:nudge:down" onClick={() => onNudge(0, 10)} className={`${button} col-start-2 row-start-3`}>↓</button>
         </div>
     );
 }
@@ -898,7 +906,7 @@ function LayerList({ items, texts, images, selected, onSelect, onToggle, onMove,
 
     return (
         <section className="rounded-tile border border-border-default bg-bg-surface p-2.5">
-            <h3 className="mb-1.5 px-1 text-[12.5px] font-semibold text-text-primary">Layers</h3>
+            <h3 className="mb-1.5 px-1 text-[12.5px] font-semibold text-text-primary">{t('cover.layer_layers')}</h3>
             <ul className="space-y-1" data-a="cover:layers">
                 {listed.map((l, i) => (
                     <li
@@ -921,7 +929,7 @@ function LayerList({ items, texts, images, selected, onSelect, onToggle, onMove,
                         <button
                             type="button"
                             aria-pressed={l.visible}
-                            aria-label={`${l.visible ? 'Hide' : 'Show'} ${nameOf(l, texts, images)}`}
+                            aria-label={l.visible ? t('cover.layer_hide_named', { name: nameOf(l, texts, images) }) : t('cover.layer_show_named', { name: nameOf(l, texts, images) })}
                             data-a={`cover:layer:eye:${l.id}`}
                             onClick={() => onToggle(l)}
                             className={`flex h-[34px] w-[34px] items-center justify-center rounded-control ${l.visible ? 'text-text-body' : 'text-text-secondary opacity-50'}`}
@@ -939,7 +947,7 @@ function LayerList({ items, texts, images, selected, onSelect, onToggle, onMove,
                         </button>
                         <button
                             type="button"
-                            aria-label={`Bring ${nameOf(l, texts, images)} forward`}
+                            aria-label={t('cover.layer_forward_named', { name: nameOf(l, texts, images) })}
                             disabled={i === 0}
                             onClick={() => onMove(l, 1)}
                             className="h-[30px] w-[28px] rounded-control text-[13px] text-text-secondary disabled:opacity-30"
@@ -948,7 +956,7 @@ function LayerList({ items, texts, images, selected, onSelect, onToggle, onMove,
                         </button>
                         <button
                             type="button"
-                            aria-label={`Send ${nameOf(l, texts, images)} back`}
+                            aria-label={t('cover.layer_back_named', { name: nameOf(l, texts, images) })}
                             disabled={i === listed.length - 1}
                             onClick={() => onMove(l, -1)}
                             className="h-[30px] w-[28px] rounded-control text-[13px] text-text-secondary disabled:opacity-30"
@@ -994,27 +1002,27 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
         return [...new Set(['#ffffff', '#000000', '#1a1a1a', surface.ink, palette.ink, palette.from, palette.to, '#f5efe0', '#c9a227', '#b91c1c'].map((c) => c.toLowerCase()))];
     }, [palettes, cover.palette, surface.ink]);
 
-    const name = SOURCE_NAMES[layer.source];
+    const name = sourceName(layer.source);
     const size = surface.size;
 
     return (
         <section
-            aria-label="Selected text"
+            aria-label={t('cover.layer_selected_text')}
             data-a="cover:inspector"
             className="space-y-3 rounded-tile border border-border-default bg-bg-surface p-3 max-lg:rounded-t-[16px] max-lg:shadow-[0_-6px_20px_rgba(0,0,0,0.12)]"
         >
             <div className="flex items-center justify-between gap-2">
-                <h3 className="text-[13px] font-semibold text-text-primary">{name === 'Text' ? 'Text' : `${name} text`}</h3>
+                <h3 className="text-[13px] font-semibold text-text-primary">{layer.source === 'custom' ? t('cover.layer_source_custom') : t('cover.layer_named_text', { name })}</h3>
                 <div className="flex items-center gap-1">
-                    <Toggle label="Visible" checked={layer.visible} onChange={(v) => onChange({ visible: v })} data-a="cover:visible" />
-                    <button type="button" onClick={onClose} aria-label="Close the inspector" className="flex h-[32px] w-[32px] items-center justify-center rounded-control text-text-secondary lg:hidden">
+                    <Toggle label={t('cover.layer_visible')} checked={layer.visible} onChange={(v) => onChange({ visible: v })} data-a="cover:visible" />
+                    <button type="button" onClick={onClose} aria-label={t('cover.layer_close_inspector')} className="flex h-[32px] w-[32px] items-center justify-center rounded-control text-text-secondary lg:hidden">
                         <Icon name="x" size={14} strokeWidth={2} />
                     </button>
                 </div>
             </div>
 
             {layer.source === 'custom' ? (
-                <Field label="Text">
+                <Field label={t('cover.layer_source_custom')}>
                     <textarea
                         rows={2}
                         value={layer.text ?? ''}
@@ -1024,7 +1032,7 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
                     />
                 </Field>
             ) : layer.source === 'description' ? (
-                <Field label="Back-cover copy (the book's description)">
+                <Field label={t('cover.layer_description_field')}>
                     <textarea
                         rows={6}
                         value={texts.description ?? ''}
@@ -1033,11 +1041,11 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
                         className="w-full resize-y rounded-control border border-border-input px-2 py-1.5 text-[12.5px] leading-relaxed focus:border-brand-primary focus:ring-0"
                     />
                     <span className="mt-1 block text-[11px] text-text-secondary">
-                        Wraps inside its box; the size stays where you set it. Also used for store listings.
+                        {t('cover.layer_description_help')}
                     </span>
                 </Field>
             ) : EDITABLE.includes(layer.source) ? (
-                <Field label={`${name} (on the cover)`}>
+                <Field label={t('cover.layer_on_cover', { name })}>
                     <input
                         value={texts[layer.source] ?? ''}
                         data-a={`cover:${layer.source}`}
@@ -1048,14 +1056,14 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
             ) : (
                 <p className="text-[11.5px] text-text-secondary">
                     {texts[layer.source]
-                        ? `Shows “${texts[layer.source]}”, from the book's details.`
-                        : `The book has no ${name.toLowerCase()} yet; set it in the book's details.`}
+                        ? t('cover.layer_shows', { value: texts[layer.source] })
+                        : t('cover.layer_missing', { name: name.toLowerCase() })}
                 </p>
             )}
 
             <fieldset>
-                <legend className="mb-1 text-[11.5px] font-medium text-text-secondary">Typeface</legend>
-                <div role="radiogroup" aria-label="Typeface" className="grid grid-cols-2 gap-1 sm:grid-cols-3">
+                <legend className="mb-1 text-[11.5px] font-medium text-text-secondary">{t('cover.layer_typeface')}</legend>
+                <div role="radiogroup" aria-label={t('cover.layer_typeface')} className="grid grid-cols-2 gap-1 sm:grid-cols-3">
                     {editor.fonts.map((f) => {
                         const first = Object.keys(f.styles)[0];
                         const face = `${f.key}.${first}`;
@@ -1081,7 +1089,7 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
             </fieldset>
 
             <div className="grid grid-cols-2 gap-2">
-                <Field label="Weight">
+                <Field label={t('cover.layer_weight')}>
                     <select
                         value={layer.weight}
                         data-a="cover:weight"
@@ -1094,19 +1102,19 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
                     >
                         {weights.map((w) => (
                             <option key={w} value={w}>
-                                {WEIGHT_NAMES[w]}
+                                {WEIGHT_NAMES[w] ? t(WEIGHT_NAMES[w].tKey) : w}
                             </option>
                         ))}
                     </select>
                 </Field>
                 <div className="flex items-end gap-1.5 pb-0.5">
-                    <Toggle label="Italic" checked={layer.italic} disabled={layer.italic ? !hasUpright : !hasItalic} onChange={(v) => onChange({ italic: v })} data-a="cover:italic" />
-                    <Toggle label="Capitals" checked={layer.uppercase} onChange={(v) => onChange({ uppercase: v })} data-a="cover:uppercase" />
+                    <Toggle label={t('cover.layer_italic')} checked={layer.italic} disabled={layer.italic ? !hasUpright : !hasItalic} onChange={(v) => onChange({ italic: v })} data-a="cover:italic" />
+                    <Toggle label={t('cover.layer_capitals')} checked={layer.uppercase} onChange={(v) => onChange({ uppercase: v })} data-a="cover:uppercase" />
                 </div>
             </div>
 
             <Slider
-                label="Size"
+                label={t('cover.layer_size')}
                 unit={size.unit}
                 min={size.min}
                 max={size.max}
@@ -1117,13 +1125,13 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
             />
 
             <fieldset>
-                <legend className="mb-1 text-[11.5px] font-medium text-text-secondary">Colour</legend>
+                <legend className="mb-1 text-[11.5px] font-medium text-text-secondary">{t('cover.layer_colour')}</legend>
                 <div className="flex flex-wrap items-center gap-1.5">
                     {swatches.map((c) => (
                         <button
                             key={c}
                             type="button"
-                            aria-label={`Colour ${c}`}
+                            aria-label={t('cover.layer_colour_named', { color: c })}
                             aria-pressed={layer.color === c}
                             onClick={() => onChange({ color: c })}
                             className={`h-[30px] w-[30px] rounded-full border-2 ${layer.color === c ? 'border-brand-primary' : 'border-border-input'}`}
@@ -1131,16 +1139,16 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
                         />
                     ))}
                     <label className="inline-flex items-center gap-1">
-                        <span className="sr-only">Pick a colour</span>
+                        <span className="sr-only">{t('cover.layer_pick_colour')}</span>
                         <input type="color" value={layer.color} data-a="cover:color" onChange={(event) => onChange({ color: event.target.value.toLowerCase() }, 'color')} className="h-[30px] w-[36px] cursor-pointer rounded border border-border-input bg-transparent" />
                     </label>
-                    <HexInput value={layer.color} onChange={(c) => onChange({ color: c })} label="Colour hex" data-a="cover:color-hex" />
+                    <HexInput value={layer.color} onChange={(c) => onChange({ color: c })} label={t('cover.layer_colour_hex')} data-a="cover:color-hex" />
                 </div>
             </fieldset>
 
-            <Slider label="Opacity" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)} onChange={(v) => onChange({ opacity: v / 100 }, 'opacity')} data-a="cover:opacity" />
+            <Slider label={t('cover.layer_opacity')} unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)} onChange={(v) => onChange({ opacity: v / 100 }, 'opacity')} data-a="cover:opacity" />
 
-            <div role="group" aria-label="Alignment" className="flex gap-1">
+            <div role="group" aria-label={t('cover.layer_alignment')} className="flex gap-1">
                 {['left', 'center', 'right'].map((a) => (
                     <button
                         key={a}
@@ -1150,16 +1158,16 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
                         onClick={() => onChange({ align: a })}
                         className={`min-h-[34px] flex-1 rounded-control border text-[12px] capitalize ${layer.align === a ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary' : 'border-border-input text-text-body'}`}
                     >
-                        {a === 'center' ? 'Centre' : a}
+                        {a === 'center' ? t('cover.layer_align_center') : a === 'left' ? t('cover.layer_align_left') : t('cover.layer_align_right')}
                     </button>
                 ))}
             </div>
 
-            <Slider label="Letter spacing" unit="em" min={-0.05} max={0.5} step={0.01} value={layer.tracking} onChange={(v) => onChange({ tracking: v }, 'tracking')} data-a="cover:tracking" />
-            <Slider label="Line height" unit="×" min={0.7} max={2.5} step={0.01} value={layer.leading} onChange={(v) => onChange({ leading: v }, 'leading')} data-a="cover:leading" />
+            <Slider label={t('cover.layer_letter_spacing')} unit="em" min={-0.05} max={0.5} step={0.01} value={layer.tracking} onChange={(v) => onChange({ tracking: v }, 'tracking')} data-a="cover:tracking" />
+            <Slider label={t('cover.layer_line_height')} unit="×" min={0.7} max={2.5} step={0.01} value={layer.leading} onChange={(v) => onChange({ leading: v }, 'leading')} data-a="cover:leading" />
 
-            <div role="group" aria-label="Shadow" className="flex items-center gap-1">
-                <span className="mr-1 text-[11.5px] font-medium text-text-secondary">Shadow</span>
+            <div role="group" aria-label={t('cover.layer_shadow')} className="flex items-center gap-1">
+                <span className="mr-1 text-[11.5px] font-medium text-text-secondary">{t('cover.layer_shadow')}</span>
                 {['none', 'soft', 'strong'].map((s) => (
                     <button
                         key={s}
@@ -1169,14 +1177,14 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
                         onClick={() => onChange({ shadow: s })}
                         className={`min-h-[32px] flex-1 rounded-control border text-[12px] capitalize ${layer.shadow === s ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary' : 'border-border-input text-text-body'}`}
                     >
-                        {s}
+                        {s === 'none' ? t('cover.layer_shadow_none') : s === 'soft' ? t('cover.layer_shadow_soft') : t('cover.layer_shadow_strong')}
                     </button>
                 ))}
             </div>
 
             <div className="rounded-control border border-border-default p-2">
                 <Toggle
-                    label="Background panel"
+                    label={t('cover.layer_background_panel')}
                     checked={Boolean(layer.background)}
                     data-a="cover:panel"
                     onChange={(v) => onChange({ background: v ? { color: '#000000', opacity: 0.5, padding: 0.02 } : null })}
@@ -1185,12 +1193,12 @@ function Inspector({ layer, data, surface, texts, palettes, onChange, onText, on
                     <div className="mt-2 space-y-2">
                         <div className="flex items-center gap-2">
                             <label className="inline-flex items-center gap-1 text-[11.5px] text-text-secondary">
-                                Panel colour
+                                {t('cover.layer_panel_colour')}
                                 <input type="color" value={layer.background.color} onChange={(event) => onChange({ background: { ...layer.background, color: event.target.value.toLowerCase() } }, 'panel-color')} className="h-[28px] w-[34px] rounded border border-border-input" />
                             </label>
                         </div>
-                        <Slider label="Panel opacity" unit="%" min={0} max={100} step={1} value={Math.round(layer.background.opacity * 100)} onChange={(v) => onChange({ background: { ...layer.background, opacity: v / 100 } }, 'panel-opacity')} />
-                        <Slider label="Panel padding" unit="%" min={0} max={20} step={0.5} value={Math.round(layer.background.padding * 1000) / 10} onChange={(v) => onChange({ background: { ...layer.background, padding: v / 100 } }, 'panel-padding')} />
+                        <Slider label={t('cover.layer_panel_opacity')} unit="%" min={0} max={100} step={1} value={Math.round(layer.background.opacity * 100)} onChange={(v) => onChange({ background: { ...layer.background, opacity: v / 100 } }, 'panel-opacity')} />
+                        <Slider label={t('cover.layer_panel_padding')} unit="%" min={0} max={20} step={0.5} value={Math.round(layer.background.padding * 1000) / 10} onChange={(v) => onChange({ background: { ...layer.background, padding: v / 100 } }, 'panel-padding')} />
                     </div>
                 )}
             </div>
@@ -1221,15 +1229,15 @@ function PictureInspector({ layer, surface, images, onChange, aspectHeight, onDu
 
     return (
         <section
-            aria-label="Selected picture"
+            aria-label={t('cover.layer_selected_picture')}
             data-a="cover:picture-inspector"
             className="space-y-3 rounded-tile border border-border-default bg-bg-surface p-3 max-lg:rounded-t-[16px] max-lg:shadow-[0_-6px_20px_rgba(0,0,0,0.12)]"
         >
             <div className="flex items-center justify-between gap-2">
-                <h3 className="truncate text-[13px] font-semibold text-text-primary">{image?.name ?? 'Picture'}</h3>
+                <h3 className="truncate text-[13px] font-semibold text-text-primary">{image?.name ?? t('cover.layer_source_image')}</h3>
                 <div className="flex items-center gap-1">
-                    <Toggle label="Visible" checked={layer.visible} onChange={(v) => onChange({ visible: v })} data-a="cover:visible" />
-                    <button type="button" onClick={onClose} aria-label="Close the inspector" className="flex h-[32px] w-[32px] items-center justify-center rounded-control text-text-secondary lg:hidden">
+                    <Toggle label={t('cover.layer_visible')} checked={layer.visible} onChange={(v) => onChange({ visible: v })} data-a="cover:visible" />
+                    <button type="button" onClick={onClose} aria-label={t('cover.layer_close_inspector')} className="flex h-[32px] w-[32px] items-center justify-center rounded-control text-text-secondary lg:hidden">
                         <Icon name="x" size={14} strokeWidth={2} />
                     </button>
                 </div>
@@ -1240,18 +1248,18 @@ function PictureInspector({ layer, surface, images, onChange, aspectHeight, onDu
                     {image.width} × {image.height} px
                     {dpi !== null && (
                         <>
-                            {' '}· prints at{' '}
+                            {' '}· {t('cover.layer_prints_at')}{' '}
                             <span data-a="cover:picture-dpi" className={dpi < 300 ? 'font-semibold text-status-warning' : 'text-text-body'}>
                                 {dpi} dpi
                             </span>
-                            {dpi < 300 && ' — print wants 300. Make it smaller or use a larger picture.'}
+                            {dpi < 300 && ` ${t('cover.layer_low_dpi')}`}
                         </>
                     )}
                 </p>
             )}
 
             <Slider
-                label="Width"
+                label={t('cover.layer_width')}
                 unit="%"
                 min={1}
                 max={100}
@@ -1264,7 +1272,7 @@ function PictureInspector({ layer, surface, images, onChange, aspectHeight, onDu
                 }}
             />
             <Slider
-                label="Height"
+                label={t('cover.layer_height')}
                 unit="%"
                 min={0.5}
                 max={surface.spine ? 25 : 100}
@@ -1274,20 +1282,20 @@ function PictureInspector({ layer, surface, images, onChange, aspectHeight, onDu
                 onChange={(v) => onChange({ height: v / 100, lock: false }, 'height')}
             />
             <Toggle
-                label="Keep proportions"
+                label={t('cover.layer_keep_proportions')}
                 checked={layer.lock}
                 data-a="cover:picture-lock"
                 onChange={(v) => onChange(v ? { lock: true, height: aspectHeight(layer, layer.width) } : { lock: false })}
             />
-            <Slider label="Opacity" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)} onChange={(v) => onChange({ opacity: v / 100 }, 'opacity')} data-a="cover:opacity" />
+            <Slider label={t('cover.layer_opacity')} unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)} onChange={(v) => onChange({ opacity: v / 100 }, 'opacity')} data-a="cover:opacity" />
 
             <fieldset className="rounded-control border border-border-default p-2">
-                <legend className="px-1 text-[11.5px] font-medium text-text-secondary">Crop</legend>
+                <legend className="px-1 text-[11.5px] font-medium text-text-secondary">{t('cover.layer_crop')}</legend>
                 <div className="grid grid-cols-2 gap-x-3">
-                    <Slider label="Left" unit="%" min={0} max={95} step={1} value={Math.round(crop.x * 100)} onChange={(v) => setCrop({ x: v / 100 })} data-a="cover:crop-x" />
-                    <Slider label="Top" unit="%" min={0} max={95} step={1} value={Math.round(crop.y * 100)} onChange={(v) => setCrop({ y: v / 100 })} data-a="cover:crop-y" />
-                    <Slider label="Width" unit="%" min={5} max={100} step={1} value={Math.round(crop.width * 100)} onChange={(v) => setCrop({ width: v / 100 })} data-a="cover:crop-width" />
-                    <Slider label="Height" unit="%" min={5} max={100} step={1} value={Math.round(crop.height * 100)} onChange={(v) => setCrop({ height: v / 100 })} data-a="cover:crop-height" />
+                    <Slider label={t('cover.layer_crop_left')} unit="%" min={0} max={95} step={1} value={Math.round(crop.x * 100)} onChange={(v) => setCrop({ x: v / 100 })} data-a="cover:crop-x" />
+                    <Slider label={t('cover.layer_crop_top')} unit="%" min={0} max={95} step={1} value={Math.round(crop.y * 100)} onChange={(v) => setCrop({ y: v / 100 })} data-a="cover:crop-y" />
+                    <Slider label={t('cover.layer_width')} unit="%" min={5} max={100} step={1} value={Math.round(crop.width * 100)} onChange={(v) => setCrop({ width: v / 100 })} data-a="cover:crop-width" />
+                    <Slider label={t('cover.layer_height')} unit="%" min={5} max={100} step={1} value={Math.round(crop.height * 100)} onChange={(v) => setCrop({ height: v / 100 })} data-a="cover:crop-height" />
                 </div>
             </fieldset>
 
@@ -1299,11 +1307,11 @@ function PictureInspector({ layer, surface, images, onChange, aspectHeight, onDu
 function Actions({ layer, onDuplicate, onDelete, onForward, onBack }) {
     return (
         <div className="flex flex-wrap gap-1.5 border-t border-border-default pt-2.5">
-            <SmallButton onClick={onDuplicate} data-a="cover:duplicate">Duplicate</SmallButton>
-            <SmallButton onClick={onForward} data-a="cover:forward">Bring forward</SmallButton>
-            <SmallButton onClick={onBack} data-a="cover:back">Send back</SmallButton>
+            <SmallButton onClick={onDuplicate} data-a="cover:duplicate">{t('cover.layer_duplicate')}</SmallButton>
+            <SmallButton onClick={onForward} data-a="cover:forward">{t('cover.layer_bring_forward')}</SmallButton>
+            <SmallButton onClick={onBack} data-a="cover:back">{t('cover.layer_send_back')}</SmallButton>
             <SmallButton onClick={onDelete} data-a="cover:delete" danger>
-                {layer.source === 'custom' || layer.source === 'image' ? 'Delete' : 'Hide'}
+                {layer.source === 'custom' || layer.source === 'image' ? t('cover.layer_delete') : t('cover.layer_hide')}
             </SmallButton>
         </div>
     );
