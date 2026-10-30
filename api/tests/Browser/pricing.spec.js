@@ -144,7 +144,7 @@ test('an author prices formats, runs a sale, makes a code and a bundle; a reader
     await shop.fill('[data-a="store:code"]', code);
     await shop.click('[data-a="store:buy"]');
     await shop.waitForURL(/\/store\/checkout\/test\/cs_fake_/);
-    await expect(shop.locator('[data-a="store:test-checkout"]')).toContainText('$3.99');
+    await expect(shop.locator('[data-a="store:order"]')).toContainText('$3.99');
 
     expect(ignoring(readerErrors, '409 (Conflict)')).toEqual([]);
     await reader.close();
