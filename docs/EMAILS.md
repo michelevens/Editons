@@ -18,7 +18,9 @@ Every email Écrivain sends: what each one says, what triggers it, how preferenc
 | Sample data for every email | `App\Mail\Support\EmailCatalog` |
 | Preview gallery (local only) | `/dev/emails`, `/dev/emails/{name}`, `/dev/emails/{name}?format=text` |
 | Event listeners and the credits observer | `App\Providers\MailServiceProvider`, `App\Observers\CreditTransactionObserver` |
-| Weekly digest | `php artisan emails:weekly-digest` (scheduled: Mondays 8:00 New York time) |
+| Weekly digest | opt-in; sent by `php artisan notifications:deliver` (hourly) on each person's day and hour; `emails:weekly-digest` by hand |
+| Frequency, inbox, mutes, quiet hours | `App\Mail\NotificationSettings`, `users.notification_settings` |
+| Held emails and digests | `App\Mail\HeldEmails`, `held_emails`, `email_digests`, `php artisan notifications:deliver` |
 
 ## The standard
 
@@ -43,7 +45,7 @@ Every email has the same anatomy, in a fixed order: **preheader**, header **subt
 
 ## Preferences
 
-`users.email_preferences` holds overrides only; a missing key means on.
+`users.email_preferences` holds overrides only; a missing key means on (off for `news` and `digest`, which are opt-in).
 
 | Category | Toggle | Emails |
 | --- | --- | --- |
@@ -55,11 +57,25 @@ Every email has the same anatomy, in a fixed order: **preheader**, header **subt
 | `publishing` | toggle | export ready, export failed, submitted to stores, live, unpublished |
 | `sales` | toggle | new sale |
 | `partners` | toggle | first partner sale, monthly partner statement (docs/PARTNERS.md) |
-| `digest` | toggle, marketing | weekly digest — with an unsubscribe link and `List-Unsubscribe` / one-click headers, like every marketing category |
+| `digest` | toggle, marketing, **opt-in** | weekly progress — with an unsubscribe link and `List-Unsubscribe` / one-click headers, like every marketing category |
 | `news` | toggle, marketing | the console's broadcasts (docs/ADMIN.md, Growth) |
 | `tips` | toggle, marketing | the console's lifecycle emails (no book yet, two weeks quiet) |
 
 Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe link is a signed URL (`/email/unsubscribe/{user}/{category}`) that works signed out, and answers RFC 8058 one-click POSTs.
+
+### Frequency, inbox, mute and quiet hours
+
+The five activity categories (`collaboration`, `writing`, `publishing`, `sales`, `partners`, marked `digestible`) choose more than on/off (`App\Mail\NotificationSettings`, stored as overrides in `users.notification_settings`):
+
+| Setting | Values | Default | Effect |
+| --- | --- | --- | --- |
+| Email, per category | instant, daily digest, weekly digest, off | instant | `off` is the `email_preferences` switch itself, so the unsubscribe link, the toggle and the frequency are one fact. Daily/weekly: `Notify::send` holds the email (`held_emails`) and the digest lists its subject and link. |
+| Inbox, per category | on/off | on | for categories with inbox kinds (`collaboration`, `writing`, `publishing`, `partners`). Off: `Inbox::record` skips it. Support, moderation and announcements always arrive. |
+| Digest day and hour | ISO weekday 1–7, hour 0–23 | Monday, 8:00 | in `users.timezone` (else `commerce.report_timezone`). Daily digests use the hour; weekly digests and weekly progress the day and hour. |
+| Quiet hours | start and end hour, may cross midnight | none | an instant activity email during them is held and sent when they end. Security, billing and receipts never wait. |
+| Muted books | book ids | none | from the shelf card (`PUT /books/{book}/mute`) or the profile. No activity email about the book; its inbox items arrive already read. |
+
+`php artisan notifications:deliver` runs hourly: it releases quiet-hours holds that are due (preferences re-checked: muted or switched off since means dropped), sends each daily/weekly digest whose moment has passed (everything held before the moment; a missed run catches up on the next), and sends weekly progress to opted-in people within 24 hours of their moment. Each digest is a row in `email_digests` unique on (person, kind, period): claimed with `INSERT … ON CONFLICT DO NOTHING`, stamped sent inside a locked transaction, so a retry or a second runner never sends twice, and a claimed-but-unsent digest is sent by the next run. The digest (`Account\ActivityDigestMail`, category `account`) is written in the recipient's language; the lines are the held emails' subjects, rendered in that language when they were held.
 
 ## Every email
 
@@ -82,7 +98,8 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | Reviewer assigned | `Collaboration\ReviewerAssignedMail` | collaboration | queued | **Wired**: `WorkflowController::assign` (only on a change, only to someone who can open the book) |
 | Editorial review complete | `Writing\EditorialReviewCompleteMail` | writing | queued | Helper `Notify::editorialReviewComplete($review)` |
 | Book Director report | `Writing\BookDirectorReportMail` | writing | queued | Helper `Notify::bookDirectorReport($book, $findings)` |
-| Weekly digest | `Writing\WeeklyDigestMail` | digest | queued | **Command**: `emails:weekly-digest`, scheduled Mondays 8:00 New York time |
+| Weekly digest | `Writing\WeeklyDigestMail` | digest | queued | **Scheduled**: `notifications:deliver` hourly, opted-in people on their day and hour; `emails:weekly-digest` by hand |
+| Daily or weekly digest | `Account\ActivityDigestMail` | account | queued | **Scheduled**: `notifications:deliver` hourly, for people who chose a digest |
 | Broadcast | `Growth\BroadcastMail` | news | sent by the broadcast's throttled jobs | **Command**: `growth:send-broadcasts` (every minute), from the console |
 | Invitation to join | `Growth\AuthorInvitationMail` | collaboration | queued | **Wired**: console → Business → Invitations (`Growth\Invitations\Invitations::invite`, `::bulk`, `::resend`). Carries the only copy of the `/join/{token}` link, so `ContainsSecrets`: metadata only in the email log, never resent from there (Send again in the console mints a new link) |
 | Lifecycle | `Growth\LifecycleMail` | tips | immediate, from the command | **Command**: `growth:lifecycle` (hourly), campaigns switched on in the console |
@@ -193,12 +210,14 @@ Download links must be minted as signed, expiring URLs before they reach `orderR
 
 ### Scheduling the digest
 
-Scheduled since 2026-10-28 (owner decision):
+Scheduled for everybody on Mondays 8:00 New York time from 2026-10-28; since notification frequency it is opt-in and sent per person by the hourly delivery run:
 
 ```php
 // routes/console.php
-Schedule::command('emails:weekly-digest')->weeklyOn(1, '8:00')->timezone('America/New_York')->withoutOverlapping();
+Schedule::command('notifications:deliver')->hourly()->withoutOverlapping();
 ```
+
+`emails:weekly-digest` remains for sending by hand (it honours the opt-in through `Notify`).
 Options: `--user=ID`, `--include-quiet` (also send to people who wrote nothing), `--dry-run`.
 
 ## Reviewing
