@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { t, useI18n } from '../../i18n';
 import Icon from './Icon';
 
 /**
@@ -36,16 +37,16 @@ const list = (items, ordered = false) => ({
 export const TEMPLATES = [
     {
         id: 'takeaway',
-        name: 'Key Takeaway',
-        description: 'A highlighted summary box readers can skim.',
+        tKey: 'templates.takeaway',
+        blurbKey: 'templates.takeaway_blurb',
         icon: 'info',
         build: () => [
             {
                 type: 'blockquote',
                 content: [
-                    paragraph('Key takeaway', [{ type: 'bold' }]),
+                    paragraph(t('templates.takeaway_heading'), [{ type: 'bold' }]),
                     paragraph(
-                        'Write the one idea readers should remember from this section.',
+                        t('templates.takeaway_text'),
                     ),
                 ],
             },
@@ -53,48 +54,48 @@ export const TEMPLATES = [
     },
     {
         id: 'case_study',
-        name: 'Case study',
-        description: 'A short story from practice, with a lesson.',
+        tKey: 'templates.case_study',
+        blurbKey: 'templates.case_study_blurb',
         icon: 'doc',
         build: () => [
-            heading('Case study: [name]'),
-            paragraph('Situation. Describe the person and the problem they faced.'),
-            paragraph('What they did. Walk through the decision and the steps taken.'),
-            paragraph('Result. Share the outcome and what a reader can apply.'),
+            heading(t('templates.case_study_heading')),
+            paragraph(t('templates.case_study_situation')),
+            paragraph(t('templates.case_study_action')),
+            paragraph(t('templates.case_study_result')),
         ],
     },
     {
         id: 'checklist',
-        name: 'Checklist',
-        description: 'A numbered list of concrete actions.',
+        tKey: 'templates.checklist',
+        blurbKey: 'templates.checklist_blurb',
         icon: 'check',
         build: () => [
-            heading('Checklist'),
-            list(['First action', 'Second action', 'Third action'], true),
+            heading(t('templates.checklist')),
+            list([t('templates.checklist_first'), t('templates.checklist_second'), t('templates.checklist_third')], true),
         ],
     },
     {
         id: 'summary',
-        name: 'Chapter summary',
-        description: 'A closing recap with three key points.',
+        tKey: 'templates.summary',
+        blurbKey: 'templates.summary_blurb',
         icon: 'lib',
         build: () => [
-            heading('Chapter summary'),
-            list(['Key point one', 'Key point two', 'Key point three']),
+            heading(t('templates.summary')),
+            list([t('templates.summary_one'), t('templates.summary_two'), t('templates.summary_three')]),
         ],
     },
     {
         id: 'reflection',
-        name: 'Reflection questions',
-        description: 'Prompts that help a reader apply the chapter.',
+        tKey: 'templates.reflection',
+        blurbKey: 'templates.reflection_blurb',
         icon: 'chat',
         build: () => [
-            heading('Questions for reflection'),
+            heading(t('templates.reflection_heading')),
             list(
                 [
-                    'What would this change about your daily work?',
-                    'Which part could you try first?',
-                    'What is your biggest open question after this chapter?',
+                    t('templates.reflection_one'),
+                    t('templates.reflection_two'),
+                    t('templates.reflection_three'),
                 ],
                 true,
             ),
@@ -103,6 +104,7 @@ export const TEMPLATES = [
 ];
 
 export default function TemplatesPanel({ section, onInsert }) {
+    useI18n();
     const [inserted, setInserted] = useState(null);
 
     const insert = (template) => {
@@ -115,12 +117,12 @@ export default function TemplatesPanel({ section, onInsert }) {
         <div className="mx-auto max-w-[760px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
-                    Templates
+                    {t('templates.title')}
                 </h2>
                 <p className="mt-1.5 text-[14px] text-text-secondary">
                     {section
-                        ? `Blocks to drop into ${section.title}.`
-                        : 'Open a chapter to insert a block.'}
+                        ? t('templates.drop_into', { title: section.title })
+                        : t('templates.open_chapter')}
                 </p>
             </header>
 
@@ -136,10 +138,10 @@ export default function TemplatesPanel({ section, onInsert }) {
 
                         <div className="min-w-0 flex-1">
                             <p className="text-[13.5px] font-semibold text-text-primary">
-                                {template.name}
+                                {t(template.tKey)}
                             </p>
                             <p className="mt-0.5 text-[12.5px] leading-relaxed text-text-secondary">
-                                {template.description}
+                                {t(template.blurbKey)}
                             </p>
                         </div>
 
@@ -147,19 +149,17 @@ export default function TemplatesPanel({ section, onInsert }) {
                             data-a={`templates:insert:${template.id}`}
                             disabled={!section}
                             onClick={() => insert(template)}
-                            title={section ? undefined : 'Open a chapter first.'}
+                            title={section ? undefined : t('templates.open_chapter_first')}
                             className="h-[32px] shrink-0 rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                            {inserted === template.id ? 'Inserted' : 'Insert'}
+                            {inserted === template.id ? t('templates.inserted') : t('templates.insert')}
                         </button>
                     </li>
                 ))}
             </ul>
 
             <p className="mt-5 text-[11.5px] leading-relaxed text-text-secondary">
-                A block is inserted at the end of the open chapter, as ordinary
-                text you can edit. Nothing is locked, and the insertion saves
-                like anything you type — so it is undoable.
+                {t('templates.footnote')}
             </p>
         </div>
     );

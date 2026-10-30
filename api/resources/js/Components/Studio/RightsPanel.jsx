@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { t, useI18n } from '../../i18n';
 import Icon from './Icon';
 import PublishingDeclarations from './PublishingDeclarations';
 
@@ -15,6 +16,7 @@ import PublishingDeclarations from './PublishingDeclarations';
  * Copyright Office rather than explaining the law.
  */
 export default function RightsPanel({ bookId, onNotify }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [entering, setEntering] = useState(null);
     const [entry, setEntry] = useState('');
@@ -47,7 +49,7 @@ export default function RightsPanel({ bookId, onNotify }) {
             onNotify?.(
                 error.response?.data?.errors?.isbn?.[0]
                     ?? error.response?.data?.errors?.edition_format?.[0]
-                    ?? 'That ISBN could not be assigned.',
+                    ?? t('rights.not_assigned'),
             );
         } finally {
             setBusy(null);
@@ -87,10 +89,10 @@ export default function RightsPanel({ bookId, onNotify }) {
                 // Partial success is reported rather than hidden: the author
                 // needs to know which numbers did not go in.
                 onNotify?.(
-                    `Added ${response.data.added}. Not added: ${response.data.rejected.join('; ')}`,
+                    t('rights.added_some', { added: response.data.added, rejected: response.data.rejected.join('; ') }),
                 );
             } else {
-                onNotify?.(`Added ${response.data.added} ISBN${response.data.added === 1 ? '' : 's'}.`);
+                onNotify?.(t('rights.added', { count: response.data.added }));
             }
         } finally {
             setBusy(null);
@@ -104,7 +106,7 @@ export default function RightsPanel({ bookId, onNotify }) {
             try {
                 const response = await window.axios.post(`/books/${bookId}/copyright-page`);
                 setData(response.data);
-                onNotify?.('A copyright page was added to the front matter. Edit it as you like.');
+                onNotify?.(t('rights.copyright_added'));
             } finally {
                 setBusy(null);
             }
@@ -127,7 +129,7 @@ export default function RightsPanel({ bookId, onNotify }) {
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { editions, pool, checklist, registration_url: registrationUrl } = data;
@@ -139,11 +141,10 @@ export default function RightsPanel({ bookId, onNotify }) {
             <header className="flex flex-wrap items-center gap-3 border-b border-border-default px-4 py-3">
                 <div className="min-w-0">
                     <h2 className="text-[15px] font-semibold text-text-primary">
-                        ISBN &amp; Rights
+                        {t('rights.title')}
                     </h2>
                     <p className="text-[11.5px] text-text-secondary">
-                        {assigned} of {editions.length} editions have an ISBN ·{' '}
-                        {pool.length} unassigned in your account
+                        {t('rights.summary', { assigned, total: editions.length, pool: pool.length })}
                     </p>
                 </div>
 
@@ -152,7 +153,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                     onClick={() => setShowPoolForm((open) => !open)}
                     className="ml-auto rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover"
                 >
-                    Add ISBNs
+                    {t('rights.add_isbns')}
                 </button>
             </header>
 
@@ -164,22 +165,21 @@ export default function RightsPanel({ bookId, onNotify }) {
                     >
                         <label className="block">
                             <span className="mb-1 block text-[12px] font-medium text-text-primary">
-                                Add ISBNs to your pool
+                                {t('rights.pool_label')}
                             </span>
                             <textarea
                                 value={poolDraft}
                                 rows={3}
                                 autoFocus
                                 data-a="rights:pool:input"
-                                placeholder="978-0-306-40615-7, 978-1-861972-71-2 — one per line or comma separated"
+                                placeholder={t('rights.pool_placeholder')}
                                 onChange={(event) => setPoolDraft(event.target.value)}
                                 className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
                             />
                         </label>
 
                         <p className="mt-1 text-[11px] text-text-secondary">
-                            Each number is checked before it is added. Buy ISBNs from your
-                            country's agency — in the US that is Bowker.
+                            {t('rights.pool_help')}
                         </p>
 
                         <div className="mt-2 flex gap-2">
@@ -189,7 +189,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                 disabled={busy === 'pool' || !poolDraft.trim()}
                                 className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
                             >
-                                {busy === 'pool' ? 'Adding…' : 'Add to pool'}
+                                {busy === 'pool' ? t('rights.adding') : t('rights.add_to_pool')}
                             </button>
                             <button
                                 type="button"
@@ -197,7 +197,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                 onClick={() => setShowPoolForm(false)}
                                 className="text-[12px] text-text-secondary"
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </button>
                         </div>
                     </form>
@@ -205,14 +205,14 @@ export default function RightsPanel({ bookId, onNotify }) {
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                        ISBNs by edition
+                        {t('rights.by_edition')}
                     </h3>
 
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-[12px]">
                             <thead>
                                 <tr className="border-b border-border-default text-[11px] uppercase tracking-wide text-text-secondary">
-                                    <th className="py-1.5 pr-3 font-medium">Edition</th>
+                                    <th className="py-1.5 pr-3 font-medium">{t('rights.edition')}</th>
                                     <th className="py-1.5 pr-3 font-medium">ISBN</th>
                                     <th />
                                 </tr>
@@ -232,7 +232,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                                     {edition.isbn}
                                                 </code>
                                             ) : (
-                                                <span className="text-text-secondary">None</span>
+                                                <span className="text-text-secondary">{t('rights.none')}</span>
                                             )}
                                         </td>
                                         <td className="py-2 text-right">
@@ -245,7 +245,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                                     }
                                                     className="rounded-control border border-border-input px-2 py-1 text-[11.5px] font-medium text-text-body transition hover:border-border-input/80 disabled:opacity-50"
                                                 >
-                                                    Unassign
+                                                    {t('rights.unassign')}
                                                 </button>
                                             ) : (
                                                 <span className="inline-flex flex-wrap justify-end gap-1.5">
@@ -260,7 +260,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                                             }
                                                             className="rounded-control bg-brand-fill px-2 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
                                                         >
-                                                            Assign from pool
+                                                            {t('rights.assign_from_pool')}
                                                         </button>
                                                     )}
                                                     <button
@@ -271,7 +271,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                                         }}
                                                         className="rounded-control border border-border-input px-2 py-1 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40"
                                                     >
-                                                        Enter my own
+                                                        {t('rights.enter_own')}
                                                     </button>
                                                 </span>
                                             )}
@@ -292,8 +292,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                         >
                             <label className="min-w-[200px] flex-1">
                                 <span className="mb-1 block text-[11.5px] font-medium text-text-secondary">
-                                    ISBN-13 for the{' '}
-                                    {editions.find((edition) => edition.format === entering)?.label}
+                                    {t('rights.isbn_for', { edition: editions.find((edition) => edition.format === entering)?.label ?? '' })}
                                 </span>
                                 <input
                                     value={entry}
@@ -312,7 +311,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                 disabled={busy !== null}
                                 className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
                             >
-                                Save ISBN
+                                {t('rights.save_isbn')}
                             </button>
                             <button
                                 type="button"
@@ -320,14 +319,13 @@ export default function RightsPanel({ bookId, onNotify }) {
                                 onClick={() => setEntering(null)}
                                 className="px-1 py-1.5 text-[12px] text-text-secondary"
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </button>
                         </form>
                     )}
 
                     <p className="mt-2.5 text-[11px] leading-relaxed text-text-secondary">
-                        Each format needs its own ISBN. A store will give you one free, but it
-                        is then listed as the publisher rather than you.
+                        {t('rights.own_isbn_help')}
                     </p>
                 </section>
 
@@ -335,9 +333,9 @@ export default function RightsPanel({ bookId, onNotify }) {
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                        Rights checklist{' '}
+                        {t('rights.checklist')}{' '}
                         <span className="font-normal text-text-secondary">
-                            {met} of {checklist.length}
+                            {t('rights.met_of', { met, total: checklist.length })}
                         </span>
                     </h3>
 
@@ -368,7 +366,7 @@ export default function RightsPanel({ bookId, onNotify }) {
                                         onClick={() => act(item)}
                                         className="shrink-0 rounded-control border border-border-input px-2 py-1 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
                                     >
-                                        {item.done ? 'Undo' : item.action_label}
+                                        {item.done ? t('rights.undo') : item.action_label}
                                     </button>
                                 )}
                             </li>
@@ -382,11 +380,10 @@ export default function RightsPanel({ bookId, onNotify }) {
                             rel="noopener noreferrer"
                             className="font-medium text-brand-primary hover:underline"
                         >
-                            Register at copyright.gov
+                            {t('rights.register')}
                         </a>
                         <span className="text-text-secondary">
-                            {' '}— registration is not required to hold copyright, but it is
-                            needed to sue for statutory damages in the US.
+                            {' '}{t('rights.register_help')}
                         </span>
                     </p>
                 </section>

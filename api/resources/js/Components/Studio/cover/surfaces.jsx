@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import { layoutLayer, spineLayout } from './coverText';
 
 /**
@@ -43,7 +44,7 @@ export function frontSurface(data) {
         fresh: { x: 0.15, y: 0.45, width: 0.7, size: 0.035, customSize: 0.03 },
         ground: <image href={cover.background} x={0} y={0} width={W} height={H} preserveAspectRatio="none" />,
         className: 'w-[min(70%,calc(40dvh*0.625))] lg:w-full lg:max-w-[360px]',
-        label: 'Cover',
+        label: t('cover.surface_front'),
     };
 }
 
@@ -61,7 +62,7 @@ export function backSurface(wrap) {
         yRange: [0, 1],
         safe: back.safe,
         trim: back.trim,
-        noGo: back.barcode ? [{ ...back.barcode, label: 'Barcode' }] : [],
+        noGo: back.barcode ? [{ ...back.barcode, label: t('cover.barcode') }] : [],
         sources: ['title', 'subtitle', 'author', 'series', 'number', 'description', 'publisher', 'price', 'category', 'isbn', 'custom', 'image'],
         ink: wrap.ink,
         shadowDefault: 'none',
@@ -71,7 +72,7 @@ export function backSurface(wrap) {
         // The bare wrap, its back panel showing through the view box.
         ground: <image href={wrap.ground} x={0} y={0} width={sheet.width} height={sheet.height} preserveAspectRatio="none" />,
         className: 'w-[min(78%,calc(42dvh*0.66))] lg:w-full lg:max-w-[380px]',
-        label: 'Back cover',
+        label: t('cover.surface_back'),
     };
 }
 
@@ -118,7 +119,7 @@ export function spineSurface(wrap) {
         className: 'shrink-0',
         style: { width: `${Math.min(3200, Math.max(320, (88 * L) / Math.max(T, 1)))}px`, minWidth: '100%' },
         scroll: true,
-        label: 'Spine',
+        label: t('cover.view_spine'),
     };
 }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Platform\Trust\MasterData;
@@ -57,7 +58,7 @@ class EditionsController extends Controller
 
         if ($chapters->isEmpty()) {
             return response()->json([
-                'message' => 'Write a chapter before making an edition of this book.',
+                'message' => Locales::t('editions.write_first'),
             ], 422);
         }
 

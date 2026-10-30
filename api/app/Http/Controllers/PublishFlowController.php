@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Commerce\Print\LuluPrinting;
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Publishing\Publish\BulkPrepare;
 use App\Publishing\Publish\ChannelSubmission;
@@ -56,7 +57,7 @@ class PublishFlowController extends Controller
 
         return response()->json([
             'results' => $results,
-            'message' => $results === [] ? 'Every file is up to date.' : 'Making '.count($results).' file'.(count($results) === 1 ? '' : 's').'. They appear here when they are ready.',
+            'message' => $results === [] ? Locales::t('publish.flow_up_to_date') : Locales::t('publish.flow_making', ['count' => count($results)]),
         ] + $this->payload($book->fresh(), $request));
     }
 
@@ -117,7 +118,7 @@ class PublishFlowController extends Controller
         $product = $listing->publish($book, $request->user());
 
         return response()->json([
-            'message' => 'On sale in your store.',
+            'message' => Locales::t('publish.flow_on_sale'),
             'store_url' => route('store.product', $product->slug),
         ] + $this->payload($book->fresh(), $request));
     }
@@ -129,7 +130,7 @@ class PublishFlowController extends Controller
 
         $this->lulu->prepare($book, $request->user());
 
-        return response()->json(['message' => 'Sent to Lulu. Its checks take a few minutes.'] + $this->payload($book->fresh(), $request));
+        return response()->json(['message' => Locales::t('publish.flow_sent_lulu')] + $this->payload($book->fresh(), $request));
     }
 
     public function luluRefresh(Request $request, Book $book): JsonResponse
@@ -150,7 +151,7 @@ class PublishFlowController extends Controller
         $data['on'] ? $this->lulu->offer($book) : $this->lulu->withdraw($book);
 
         return response()->json([
-            'message' => $data['on'] ? 'The paperback is on sale in your store.' : 'The paperback is no longer offered. Paid orders are still printed.',
+            'message' => $data['on'] ? Locales::t('publish.flow_paperback_on') : Locales::t('publish.flow_paperback_off'),
         ] + $this->payload($book->fresh(), $request));
     }
 
@@ -168,7 +169,7 @@ class PublishFlowController extends Controller
 
         $submission->record($book, $data['card'], $data['external_id'] ?? null, $data['date'], $data['state'], $request->user());
 
-        return response()->json(['message' => 'Recorded.'] + $this->payload($book->fresh(), $request));
+        return response()->json(['message' => Locales::t('publish.flow_recorded')] + $this->payload($book->fresh(), $request));
     }
 
     /** Google Play bulk upload for this book: the book list and files. */

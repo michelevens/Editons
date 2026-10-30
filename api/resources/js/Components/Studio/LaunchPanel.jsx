@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { t, useI18n } from '../../i18n';
 import Icon from './Icon';
 
 /**
@@ -10,6 +11,7 @@ import Icon from './Icon';
  * implying the application delivered it.
  */
 export default function LaunchPanel({ bookId, onNotify }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -29,7 +31,7 @@ export default function LaunchPanel({ bookId, onNotify }) {
             const response = await window.axios.patch(`/books/${bookId}/launch`, body);
             setData(response.data);
         } catch {
-            onNotify?.('That change was not saved.');
+            onNotify?.(t('launch.not_saved'));
         }
     };
 
@@ -47,7 +49,7 @@ export default function LaunchPanel({ bookId, onNotify }) {
             setName('');
             setEmail('');
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That reader could not be added.');
+            onNotify?.(error.response?.data?.message ?? t('launch.reader_not_added'));
         } finally {
             setBusy(null);
         }
@@ -80,7 +82,7 @@ export default function LaunchPanel({ bookId, onNotify }) {
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { tasks, readers, launch_date: launchDate, days_away: daysAway, reviews, statuses } = data;
@@ -89,20 +91,20 @@ export default function LaunchPanel({ bookId, onNotify }) {
         <div className="flex h-full min-h-0 flex-col">
             <header className="flex flex-wrap items-center gap-3 border-b border-border-default px-4 py-3">
                 <div className="min-w-0">
-                    <h2 className="text-[15px] font-semibold text-text-primary">Launch Planner</h2>
+                    <h2 className="text-[15px] font-semibold text-text-primary">{t('launch.title')}</h2>
                     <p className="text-[11.5px] text-text-secondary">
                         {launchDate === null
-                            ? 'Pick a launch date to put the timeline on a calendar'
+                            ? t('launch.pick_date')
                             : daysAway > 0
-                              ? `${daysAway} day${daysAway === 1 ? '' : 's'} to launch`
+                              ? t('launch.days_to', { count: daysAway })
                               : daysAway === 0
-                                ? 'Launch day'
-                                : `Launched ${-daysAway} day${daysAway === -1 ? '' : 's'} ago`}
+                                ? t('launch.launch_day')
+                                : t('launch.launched_ago', { count: -daysAway })}
                     </p>
                 </div>
 
                 <label className="ml-auto flex items-center gap-2 text-[11.5px] text-text-secondary">
-                    Launch date
+                    {t('launch.date')}
                     <input
                         type="date"
                         value={launchDate ?? ''}
@@ -116,9 +118,9 @@ export default function LaunchPanel({ bookId, onNotify }) {
             <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                        Timeline{' '}
+                        {t('launch.timeline')}{' '}
                         <span className="font-normal text-text-secondary">
-                            {data.done_count} of {data.task_count} done
+                            {t('launch.done_of', { done: data.done_count, total: data.task_count })}
                         </span>
                     </h3>
 
@@ -167,7 +169,7 @@ export default function LaunchPanel({ bookId, onNotify }) {
                                             : 'text-text-secondary'
                                     }`}
                                 >
-                                    {task.due ?? `${task.offset > 0 ? '+' : ''}${task.offset}d`}
+                                    {task.due ?? t('launch.offset_days', { offset: `${task.offset > 0 ? '+' : ''}${task.offset}` })}
                                 </span>
                             </li>
                         ))}
@@ -176,15 +178,14 @@ export default function LaunchPanel({ bookId, onNotify }) {
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-1 text-[13px] font-semibold text-text-primary">
-                        Advance readers{' '}
+                        {t('launch.readers')}{' '}
                         <span className="font-normal text-text-secondary">
-                            {reviews} review{reviews === 1 ? '' : 's'}
+                            {t('launch.reviews', { count: reviews })}
                         </span>
                     </h3>
 
                     <p className="mb-2.5 text-[11px] leading-relaxed text-text-secondary">
-                        Reviews on launch day come from people who read the book before it. This
-                        is your own list — nothing here sends email, it records what you sent.
+                        {t('launch.readers_help')}
                     </p>
 
                     {readers.length > 0 && (
@@ -201,7 +202,7 @@ export default function LaunchPanel({ bookId, onNotify }) {
                                         <p className="truncate text-[11px] text-text-secondary">
                                             {reader.email}
                                             {reader.copy_sent_at
-                                                ? ` · copy sent ${reader.copy_sent_at}`
+                                                ? ` · ${t('launch.copy_sent', { date: reader.copy_sent_at })}`
                                                 : ''}
                                         </p>
                                     </div>
@@ -217,14 +218,14 @@ export default function LaunchPanel({ bookId, onNotify }) {
                                     >
                                         {statuses.map((status) => (
                                             <option key={status} value={status}>
-                                                {status.charAt(0).toUpperCase() + status.slice(1)}
+                                                {statusLabel(status)}
                                             </option>
                                         ))}
                                     </select>
 
                                     <button
                                         data-a={`launch:reader-remove:${reader.id}`}
-                                        title={`Remove ${reader.name}`}
+                                        title={t('launch.remove_reader', { name: reader.name })}
                                         disabled={busy === `reader:${reader.id}`}
                                         onClick={() => removeReader(reader)}
                                         className="text-text-secondary transition hover:text-status-danger disabled:opacity-40"
@@ -238,25 +239,25 @@ export default function LaunchPanel({ bookId, onNotify }) {
 
                     <form onSubmit={addReader} className="flex flex-wrap items-end gap-2">
                         <label className="min-w-[120px] flex-1">
-                            <span className="sr-only">Reader name</span>
+                            <span className="sr-only">{t('launch.reader_name')}</span>
                             <input
                                 value={name}
                                 required
                                 data-a="launch:reader-name"
-                                placeholder="Name"
+                                placeholder={t('launch.name')}
                                 onChange={(event) => setName(event.target.value)}
                                 className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12px] focus:border-brand-primary focus:ring-0"
                             />
                         </label>
 
                         <label className="min-w-[160px] flex-1">
-                            <span className="sr-only">Reader email</span>
+                            <span className="sr-only">{t('launch.reader_email')}</span>
                             <input
                                 value={email}
                                 type="email"
                                 required
                                 data-a="launch:reader-email"
-                                placeholder="Email"
+                                placeholder={t('launch.email')}
                                 onChange={(event) => setEmail(event.target.value)}
                                 className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12px] focus:border-brand-primary focus:ring-0"
                             />
@@ -268,11 +269,29 @@ export default function LaunchPanel({ bookId, onNotify }) {
                             disabled={busy === 'add' || !name.trim() || !email.trim()}
                             className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                         >
-                            {busy === 'add' ? 'Adding…' : 'Add reader'}
+                            {busy === 'add' ? t('launch.adding') : t('launch.add_reader')}
                         </button>
                     </form>
                 </section>
             </div>
         </div>
     );
+}
+
+/** A reader's status (AdvanceReader::STATUSES) in the interface language. */
+function statusLabel(status) {
+    switch (status) {
+        case 'invited':
+            return t('launch.status_invited');
+        case 'sent':
+            return t('launch.status_sent');
+        case 'reading':
+            return t('launch.status_reading');
+        case 'reviewed':
+            return t('launch.status_reviewed');
+        case 'declined':
+            return t('launch.status_declined');
+        default:
+            return status.charAt(0).toUpperCase() + status.slice(1);
+    }
 }

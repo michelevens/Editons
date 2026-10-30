@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { t, useI18n } from '../../i18n';
 import Icon from './Icon';
 import PrintSpread from './PrintSpread';
 
@@ -16,53 +17,79 @@ import PrintSpread from './PrintSpread';
  * accepts, and the defaults print the book exactly as it was.
  */
 const LABELS = {
-    auto: 'The book’s convention',
-    words: 'Spelled out (Chapter Four)',
-    numerals: 'Numerals (Chapter 4)',
-    roman: 'Roman (Chapter IV)',
-    none: 'No label',
-    custom: 'My own word (Lesson 4)',
+    auto: { tKey: 'layout.label_auto' },
+    words: { tKey: 'layout.label_words' },
+    numerals: { tKey: 'layout.label_numerals' },
+    roman: { tKey: 'layout.label_roman' },
+    none: { tKey: 'layout.label_none' },
+    custom: { tKey: 'layout.label_custom' },
 };
 
 const HEAD_SOURCES = {
-    book: 'Book title',
-    author: 'Author',
-    part: 'Part title',
-    chapter: 'Chapter title',
-    section: 'Section heading',
-    none: 'Nothing',
+    book: { tKey: 'layout.head_book' },
+    author: { tKey: 'layout.head_author' },
+    part: { tKey: 'layout.head_part' },
+    chapter: { tKey: 'layout.head_chapter' },
+    section: { tKey: 'layout.head_section' },
+    none: { tKey: 'layout.head_none' },
 };
 
 const HEAD_STYLES = {
-    classic: 'Classic (capitals left, italic right)',
-    italic: 'Italic',
-    smallcaps: 'Small capitals',
-    plain: 'Roman',
+    classic: { tKey: 'layout.head_style_classic' },
+    italic: { tKey: 'layout.italic' },
+    smallcaps: { tKey: 'layout.small_capitals' },
+    plain: { tKey: 'layout.head_style_plain' },
+};
+
+const HEAD_SIZES = {
+    small: { tKey: 'layout.head_size_small' },
+    normal: { tKey: 'layout.head_size_normal' },
+    large: { tKey: 'layout.head_size_large' },
 };
 
 const FOLIOS = {
-    'bottom-center': 'Bottom centre',
-    'bottom-outside': 'Bottom, outside edge',
-    'top-outside': 'Top, outside edge',
-    'with-head': 'Beside the running head',
+    'bottom-center': { tKey: 'layout.folio_bottom_center' },
+    'bottom-outside': { tKey: 'layout.folio_bottom_outside' },
+    'top-outside': { tKey: 'layout.folio_top_outside' },
+    'with-head': { tKey: 'layout.folio_with_head' },
 };
 
-const DEPTHS = { 1: 'Parts and chapters', 2: '+ sections (H2)', 3: '+ subsections (H3)' };
-
-const LINES = { 1: '1 line', 2: '2 lines', 3: '3 lines', 4: '4 lines', 5: '5 lines' };
+const DEPTHS = {
+    1: { tKey: 'layout.depth_chapters' },
+    2: { tKey: 'layout.depth_sections' },
+    3: { tKey: 'layout.depth_subsections' },
+};
 
 const MM = 25.4;
 
 const BORDERS = {
-    box: 'Ruled box',
-    'heavy-left': 'Box, heavy left rule',
-    left: 'Rule at left',
-    rules: 'Rules above and below',
-    dashed: 'Dashed box',
-    none: 'No rule',
+    box: { tKey: 'layout.border_box' },
+    'heavy-left': { tKey: 'layout.border_heavy_left' },
+    left: { tKey: 'layout.border_left' },
+    rules: { tKey: 'layout.border_rules' },
+    dashed: { tKey: 'layout.border_dashed' },
+    none: { tKey: 'layout.border_none' },
 };
 
+const CALLOUT_PRESETS = {
+    classic: { tKey: 'layout.preset_classic' },
+    minimal: { tKey: 'layout.preset_minimal' },
+    boxed: { tKey: 'layout.preset_boxed' },
+    shaded: { tKey: 'layout.preset_shaded' },
+};
+
+/** One choice's name in the current language; the value itself when it has none. */
+const nameOf = (map, key, fallback = key) => (map[key] ? t(map[key].tKey) : fallback);
+
+/** A whole { value: { tKey } } map as a select's options. */
+const named = (map) => Object.fromEntries(Object.keys(map).map((key) => [key, nameOf(map, key)]));
+
+const lines = () => Object.fromEntries([1, 2, 3, 4, 5].map((n) => [n, t('layout.lines', { count: n })]));
+
+const capitalised = (key) => key[0].toUpperCase() + key.slice(1);
+
 export default function LayoutPanel({ bookId, onNotify, onPreview }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [sectionId, setSectionId] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -124,7 +151,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                     setData({ ...response.data, layout: { ...response.data.layout, ...queued.current } });
                 }
             } catch (error) {
-                onNotify?.(error.response?.data?.message ?? 'That layout change was not saved.');
+                onNotify?.(error.response?.data?.message ?? t('layout.not_saved'));
                 load(sectionId);
             } finally {
                 if (ticket === sent.current) setBusy(false);
@@ -148,7 +175,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { layout, trims, sections, design, margins } = data;
@@ -176,10 +203,10 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
             <header className="flex flex-wrap items-center gap-3 border-b border-border-default px-4 py-3">
                 <div className="min-w-0">
                     <h2 className="text-[15px] font-semibold text-text-primary">
-                        Design &amp; Layout
+                        {t('layout.title')}
                     </h2>
                     <p className="text-[11.5px] text-text-secondary">
-                        Interior layout for print and eBook
+                        {t('layout.subtitle')}
                     </p>
                 </div>
 
@@ -191,7 +218,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         className="ml-auto inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover"
                     >
                         <Icon name="eye" size={13} strokeWidth={2} />
-                        Preview book
+                        {t('layout.preview_book')}
                     </button>
                 )}
 
@@ -201,7 +228,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                     disabled={busy || Boolean(data?.house_style?.following)}
                     className={`${onPreview ? '' : 'ml-auto '}rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50`}
                 >
-                    Reset to defaults
+                    {t('layout.reset')}
                 </button>
             </header>
 
@@ -215,8 +242,8 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                     />
 
                     <fieldset disabled={locked} className="m-0 min-w-0 space-y-4 border-0 p-0 disabled:opacity-60" data-a="layout:controls">
-                    <Card title="Page">
-                        <Field label="Trim size">
+                    <Card title={t('layout.card_page')}>
+                        <Field label={t('layout.trim')}>
                             <select
                                 value={customTrim ? 'custom' : layout.trim}
                                 data-a="layout:trim"
@@ -235,40 +262,45 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                                         {trim.value}{trim.name ? ` — ${trim.name}` : ''} ({trim.mm})
                                     </option>
                                 ))}
-                                <option value="custom">Custom size…</option>
+                                <option value="custom">{t('layout.custom_size')}</option>
                             </select>
                         </Field>
 
                         {customTrim && (
                             <div className="mb-2.5" data-a="layout:custom-trim">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <Measure label="Width" unit={unit} value={trimSize[0]} name="trim-width"
+                                    <Measure label={t('layout.width')} unit={unit} value={trimSize[0]} name="trim-width"
                                         min={design.custom_trim.width[0]} max={design.custom_trim.width[1]}
                                         onCommit={(inches) => save({ trim: `${inches} x ${trimSize[1]} in` }, { immediate: true })} />
-                                    <Measure label="Height" unit={unit} value={trimSize[1]} name="trim-height"
+                                    <Measure label={t('layout.height')} unit={unit} value={trimSize[1]} name="trim-height"
                                         min={design.custom_trim.height[0]} max={design.custom_trim.height[1]}
                                         onCommit={(inches) => save({ trim: `${trimSize[0]} x ${inches} in` }, { immediate: true })} />
                                 </div>
                                 <p className="text-[11px] leading-snug text-text-secondary">
-                                    From {show(design.custom_trim.width[0])} × {show(design.custom_trim.height[0])} to {show(design.custom_trim.width[1])} × {show(design.custom_trim.height[1])} {unit}.
-                                    The print check says whether each service prints it.
+                                    {t('layout.custom_range', {
+                                        min_width: show(design.custom_trim.width[0]),
+                                        min_height: show(design.custom_trim.height[0]),
+                                        max_width: show(design.custom_trim.width[1]),
+                                        max_height: show(design.custom_trim.height[1]),
+                                        unit,
+                                    })}
                                 </p>
                             </div>
                         )}
 
                         {!customTrim && currentTrim && (
                             <p className="-mt-1.5 mb-2.5 text-[11px] leading-snug text-text-secondary" data-a="layout:trim-services">
-                                {currentTrim.services.length ? `Listed by ${currentTrim.services.join(', ')}.` : 'Not a listed size: a custom trim.'}
+                                {currentTrim.services.length ? t('layout.listed_by', { services: currentTrim.services.join(', ') }) : t('layout.not_listed')}
                             </p>
                         )}
 
                         <div className="mb-2.5 grid grid-cols-[1fr_auto] items-end gap-2">
-                            <Field label="Margins">
+                            <Field label={t('layout.margins')}>
                                 <Select value={layout.margins} name="margins"
                                     onChange={(value) => save({ margins: value, page: { ...layout.page, top: null, bottom: null, inside: null, outside: null } }, { immediate: true })}
                                     options={Object.fromEntries(design.margin_presets.map((preset) => [preset.key, preset.name]))} />
                             </Field>
-                            <div className="mb-2.5 flex overflow-hidden rounded-control border border-border-input" role="group" aria-label="Units">
+                            <div className="mb-2.5 flex overflow-hidden rounded-control border border-border-input" role="group" aria-label={t('layout.units')}>
                                 {['in', 'mm'].map((key) => (
                                     <button key={key} type="button" data-a={`layout:unit-${key}`} aria-pressed={unit === key}
                                         onClick={() => group('page', { unit: key }, { immediate: true })}
@@ -280,7 +312,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2" data-a="layout:margins-grid">
-                            {[['top', 'Top'], ['bottom', 'Bottom'], ['inside', 'Inside (gutter)'], ['outside', 'Outside']].map(([key, label]) => (
+                            {[['top', t('layout.margin_top')], ['bottom', t('layout.margin_bottom')], ['inside', t('layout.margin_inside')], ['outside', t('layout.margin_outside')]].map(([key, label]) => (
                                 <Measure key={key} label={label} unit={unit} value={margins.set[key]} name={`margin-${key}`}
                                     min={design.margin_range[0]} max={design.margin_range[1]}
                                     onCommit={(inches) => group('page', mirrored || !['inside', 'outside'].includes(key) ? { [key]: inches } : { inside: inches, outside: inches }, { immediate: true })} />
@@ -288,35 +320,37 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         </div>
 
                         <Toggle
-                            label="Mirrored margins"
+                            label={t('layout.mirrored')}
                             hint={mirrored
-                                ? 'Inside and outside differ: on every left-hand page of the print file the wide margin is at the spine, on the right.'
-                                : `Recommended for print: inside ${show(margins.recommended.inside)}, outside ${show(margins.recommended.outside)} ${unit}, the text block the same width, so the page count does not change.`}
+                                ? t('layout.mirrored_on')
+                                : t('layout.mirrored_off', { inside: show(margins.recommended.inside), outside: show(margins.recommended.outside), unit })}
                             checked={mirrored}
                             name="mirrored"
                             onChange={(value) => group('page', value ? margins.recommended : { inside: null, outside: null }, { immediate: true })}
                         />
 
                         <p className="mt-1 text-[11px] leading-snug text-text-secondary" data-a="layout:margin-effective">
-                            In print the inside margin is <strong className="font-semibold text-text-body">{show(margins.effective.inside)} {unit}</strong>
+                            {t('layout.inside_is')} <strong className="font-semibold text-text-body">{show(margins.effective.inside)} {unit}</strong>
                             {margins.widened
-                                ? ` — widened from ${show(margins.set.inside)}: ${margins.service} asks for ${show(margins.required)} ${unit} at ${margins.exact ? '' : 'about '}${margins.pages} pages.`
-                                : `; ${margins.service ?? 'The print services'} ${margins.service ? 'asks for' : 'ask for'} at least ${show(margins.required)} ${unit} at ${margins.exact ? '' : 'about '}${margins.pages} pages.`}
+                                ? t('layout.margin_widened', { set: show(margins.set.inside), service: margins.service, required: show(margins.required), unit, exact: margins.exact ? 'yes' : 'no', pages: margins.pages })
+                                : margins.service
+                                  ? t('layout.margin_needs_service', { service: margins.service, required: show(margins.required), unit, exact: margins.exact ? 'yes' : 'no', pages: margins.pages })
+                                  : t('layout.margin_needs_any', { required: show(margins.required), unit, exact: margins.exact ? 'yes' : 'no', pages: margins.pages })}
                         </p>
                     </Card>
 
-                    <Card title="Type">
-                        <Field label="Body face">
+                    <Card title={t('layout.card_type')}>
+                        <Field label={t('layout.body_face')}>
                             <Select value={layout.font} name="font" onChange={(value) => save({ font: value }, { immediate: true })}
                                 options={Object.fromEntries(design.fonts.map((face) => [face.key, face.name]))} />
                         </Field>
 
-                        <Field label="Heading face">
+                        <Field label={t('layout.heading_face')}>
                             <Select value={layout.heading_font ?? ''} name="heading-font" onChange={(value) => save({ heading_font: value === '' ? null : value }, { immediate: true })}
-                                options={{ '': 'Same as the text', ...Object.fromEntries(design.fonts.map((face) => [face.key, face.name])) }} />
+                                options={{ '': t('layout.same_as_text'), ...Object.fromEntries(design.fonts.map((face) => [face.key, face.name])) }} />
                         </Field>
 
-                        <Field label={`Font size — ${Number(layout.size).toFixed(1)} pt`}>
+                        <Field label={t('layout.font_size', { size: Number(layout.size).toFixed(1) })}>
                             <input
                                 type="range"
                                 min={design.size_range[0]}
@@ -329,7 +363,7 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                             />
                         </Field>
 
-                        <Field label={`Line spacing — ${Number(layout.leading).toFixed(2)}`}>
+                        <Field label={t('layout.line_spacing', { value: Number(layout.leading).toFixed(2) })}>
                             <input
                                 type="range"
                                 min="1.2"
@@ -343,26 +377,26 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         </Field>
                     </Card>
 
-                    <Card title="Paragraphs">
+                    <Card title={t('layout.paragraphs')}>
                         <div className="grid grid-cols-2 gap-2">
-                            <Field label="Paragraphs">
+                            <Field label={t('layout.paragraphs')}>
                                 <Select value={text.paragraph} name="text-paragraph" onChange={(value) => group('text', { paragraph: value }, { immediate: true })}
-                                    options={{ indent: 'First-line indent', block: 'Space between' }} />
+                                    options={{ indent: t('layout.first_line_indent'), block: t('layout.space_between') }} />
                             </Field>
-                            <Field label="Alignment">
+                            <Field label={t('layout.alignment')}>
                                 <Select value={text.align} name="text-align" onChange={(value) => group('text', { align: value }, { immediate: true })}
-                                    options={{ justify: 'Justified', left: 'Ragged right' }} />
+                                    options={{ justify: t('layout.justified'), left: t('layout.ragged_right') }} />
                             </Field>
                         </div>
 
                         {text.paragraph === 'indent' ? (
-                            <Field label={`Indent — ${Number(text.indent).toFixed(2)} em`}>
+                            <Field label={t('layout.indent', { value: Number(text.indent).toFixed(2) })}>
                                 <input type="range" min={design.ranges.indent[0]} max={design.ranges.indent[1]} step="0.05" value={text.indent}
                                     data-a="layout:text-indent" onChange={(event) => group('text', { indent: Number(event.target.value) })}
                                     className="w-full accent-brand-primary" />
                             </Field>
                         ) : (
-                            <Field label={`Space between — ${Number(text.spacing).toFixed(1)} em`}>
+                            <Field label={t('layout.spacing', { value: Number(text.spacing).toFixed(1) })}>
                                 <input type="range" min={design.ranges.spacing[0]} max={design.ranges.spacing[1]} step="0.1" value={text.spacing}
                                     data-a="layout:text-spacing" onChange={(event) => group('text', { spacing: Number(event.target.value) })}
                                     className="w-full accent-brand-primary" />
@@ -370,30 +404,30 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         )}
 
                         <Toggle
-                            label="Hyphenation"
-                            hint="Words broken at the line end, in each paragraph's own language. French spacing stays either way."
+                            label={t('layout.hyphenation')}
+                            hint={t('layout.hyphenation_hint')}
                             checked={text.hyphenate}
                             name="text-hyphenate"
                             onChange={(value) => group('text', { hyphenate: value }, { immediate: true })}
                         />
 
                         <div className="mt-2 grid grid-cols-2 gap-2">
-                            <Field label="Orphans (lines kept at a page foot)">
+                            <Field label={t('layout.orphans')}>
                                 <Select value={String(text.orphans)} name="text-orphans" onChange={(value) => group('text', { orphans: Number(value) }, { immediate: true })}
-                                    options={LINES} />
+                                    options={lines()} />
                             </Field>
-                            <Field label="Widows (lines carried to a page)">
+                            <Field label={t('layout.widows')}>
                                 <Select value={String(text.widows)} name="text-widows" onChange={(value) => group('text', { widows: Number(value) }, { immediate: true })}
-                                    options={LINES} />
+                                    options={lines()} />
                             </Field>
                         </div>
                         <p className="text-[11px] leading-snug text-text-secondary">
-                            The PDF keeps orphans together; for widows it reports short last pages in the print check.
+                            {t('layout.orphans_note')}
                         </p>
                     </Card>
 
-                    <Card title="Headings">
-                        <div className="mb-2 flex flex-wrap gap-1" role="tablist" aria-label="Heading level">
+                    <Card title={t('layout.card_headings')}>
+                        <div className="mb-2 flex flex-wrap gap-1" role="tablist" aria-label={t('layout.heading_level')}>
                             {design.heading_levels.map((key) => (
                                 <button key={key} type="button" role="tab" aria-selected={level === key} data-a={`layout:heading-${key}`}
                                     onClick={() => setLevel(key)}
@@ -404,63 +438,63 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2" data-a="layout:heading-style">
-                            <Field label={`Size — ${Number(heading.size).toFixed(2)} em`}>
+                            <Field label={t('layout.heading_size', { value: Number(heading.size).toFixed(2) })}>
                                 <input type="range" min={design.ranges.size[0]} max={design.ranges.size[1]} step="0.02" value={heading.size}
                                     data-a="layout:heading-size" onChange={(event) => setHeading({ size: Number(event.target.value) })}
                                     className="w-full accent-brand-primary" />
                             </Field>
-                            <Field label="Weight">
+                            <Field label={t('layout.weight')}>
                                 <Select value={heading.weight} name="heading-weight" onChange={(value) => setHeading({ weight: value }, true)}
-                                    options={{ normal: 'Regular', bold: 'Bold' }} />
+                                    options={{ normal: t('layout.regular'), bold: t('layout.bold') }} />
                             </Field>
-                            <Field label="Case">
+                            <Field label={t('layout.case')}>
                                 <Select value={heading.case} name="heading-case" onChange={(value) => setHeading({ case: value }, true)}
-                                    options={{ none: 'As written', upper: 'Capitals', smallcaps: 'Small capitals' }} />
+                                    options={{ none: t('layout.as_written'), upper: t('layout.capitals'), smallcaps: t('layout.small_capitals') }} />
                             </Field>
-                            <Field label="Alignment">
+                            <Field label={t('layout.alignment')}>
                                 <Select value={heading.align} name="heading-align" onChange={(value) => setHeading({ align: value }, true)}
-                                    options={{ left: 'Left', center: 'Centred', right: 'Right' }} />
+                                    options={{ left: t('layout.align_left'), center: t('layout.centred'), right: t('layout.align_right') }} />
                             </Field>
-                            <Field label={`Space above — ${Number(heading.above).toFixed(2)} em`}>
+                            <Field label={t('layout.space_above', { value: Number(heading.above).toFixed(2) })}>
                                 <input type="range" min={design.ranges.above[0]} max={design.ranges.above[1]} step="0.05" value={heading.above}
                                     data-a="layout:heading-above" onChange={(event) => setHeading({ above: Number(event.target.value) })}
                                     className="w-full accent-brand-primary" />
                             </Field>
-                            <Field label={`Space below — ${Number(heading.below).toFixed(2)} em`}>
+                            <Field label={t('layout.space_below', { value: Number(heading.below).toFixed(2) })}>
                                 <input type="range" min={design.ranges.below[0]} max={design.ranges.below[1]} step="0.05" value={heading.below}
                                     data-a="layout:heading-below" onChange={(event) => setHeading({ below: Number(event.target.value) })}
                                     className="w-full accent-brand-primary" />
                             </Field>
-                            <Field label="Face">
+                            <Field label={t('layout.face')}>
                                 <Select value={heading.face} name="heading-face" onChange={(value) => setHeading({ face: value }, true)}
-                                    options={{ heading: 'Heading face', body: 'Text face' }} />
+                                    options={{ heading: t('layout.heading_face'), body: t('layout.text_face') }} />
                             </Field>
                         </div>
                         <label className="mt-1 flex items-center gap-1.5 text-[12px] text-text-body">
                             <input type="checkbox" checked={heading.italic} data-a="layout:heading-italic"
                                 onChange={(event) => setHeading({ italic: event.target.checked }, true)} />
-                            Italic
+                            {t('layout.italic')}
                         </label>
                     </Card>
 
-                    <Card title="Chapter and part openers">
-                        <Field label="Opener style">
+                    <Card title={t('layout.card_openers')}>
+                        <Field label={t('layout.opener_style')}>
                             <Select value={opener.style} name="opener-style" onChange={(value) => group('opener', { style: value }, { immediate: true })}
                                 options={Object.fromEntries(design.opener_styles.map((style) => [style.key, style.name]))} />
                         </Field>
 
-                        <Field label="Chapter label">
+                        <Field label={t('layout.chapter_label')}>
                             <Select value={opener.label} name="opener-label" onChange={(value) => group('opener', { label: value }, { immediate: true })}
-                                options={Object.fromEntries(design.labels.map((key) => [key, LABELS[key] ?? key]))} />
+                                options={Object.fromEntries(design.labels.map((key) => [key, nameOf(LABELS, key)]))} />
                         </Field>
 
                         {opener.label === 'custom' && (
-                            <Field label="Word before the number">
+                            <Field label={t('layout.word_before')}>
                                 <input
                                     type="text"
                                     maxLength={30}
                                     value={opener.custom}
-                                    placeholder="Lesson, Leçon, Chapit…"
+                                    placeholder={t('layout.word_before_placeholder')}
                                     data-a="layout:opener-custom"
                                     onChange={(event) => group('opener', { custom: event.target.value })}
                                     className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
@@ -469,119 +503,117 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         )}
 
                         <Toggle
-                            label="Chapters start on a right-hand page"
-                            hint="A blank left-hand page is added where needed in print. eBooks are not affected."
+                            label={t('layout.chapters_recto')}
+                            hint={t('layout.chapters_recto_hint')}
                             checked={opener.chapters_recto}
                             name="opener-chapters-recto"
                             onChange={(value) => group('opener', { chapters_recto: value }, { immediate: true })}
                         />
                         <Toggle
-                            label="Parts start on a right-hand page"
-                            hint="With a blank page behind each part title."
+                            label={t('layout.parts_recto')}
+                            hint={t('layout.parts_recto_hint')}
                             checked={opener.parts_recto}
                             name="opener-parts-recto"
                             onChange={(value) => group('opener', { parts_recto: value }, { immediate: true })}
                         />
 
-                        <p className="mb-1 mt-3 text-[11.5px] font-medium text-text-secondary">First paragraph</p>
+                        <p className="mb-1 mt-3 text-[11.5px] font-medium text-text-secondary">{t('layout.first_paragraph')}</p>
                         <Toggle
-                            label="Small capitals for the opening words"
-                            hint="The first words of each chapter in spaced capitals."
+                            label={t('layout.lead')}
+                            hint={t('layout.lead_hint')}
                             checked={opener.lead}
                             name="opener-lead"
                             onChange={(value) => group('opener', { lead: value }, { immediate: true })}
                         />
                         <Toggle
-                            label="Drop cap"
-                            hint="A large first letter at the start of each chapter."
+                            label={t('layout.dropcap')}
+                            hint={t('layout.dropcap_hint')}
                             checked={layout.dropcap}
                             name="dropcap"
                             onChange={(value) => save({ dropcap: value }, { immediate: true })}
                         />
                         <Toggle
-                            label="Indent the first paragraph"
-                            hint="Off, the first paragraph starts flush left, as books usually set it."
+                            label={t('layout.indent_first')}
+                            hint={t('layout.indent_first_hint')}
                             checked={opener.indent_first}
                             name="opener-indent-first"
                             onChange={(value) => group('opener', { indent_first: value }, { immediate: true })}
                         />
                     </Card>
 
-                    <Card title="Running heads and page numbers">
+                    <Card title={t('layout.card_heads')}>
                         <Toggle
-                            label="Running heads"
-                            hint="A line at the top of each text page, chosen for each side below."
+                            label={t('layout.running_heads')}
+                            hint={t('layout.running_heads_hint')}
                             checked={layout.headers}
                             name="headers"
                             onChange={(value) => save({ headers: value }, { immediate: true })}
                         />
 
                         <div className="mt-2 grid grid-cols-2 gap-2">
-                            <Field label="Left-hand page">
+                            <Field label={t('layout.left_page')}>
                                 <Select value={heads.verso} name="heads-verso" disabled={!layout.headers} onChange={(value) => group('heads', { verso: value }, { immediate: true })}
-                                    options={Object.fromEntries(design.head_sources.map((key) => [key, HEAD_SOURCES[key] ?? key]))} />
+                                    options={Object.fromEntries(design.head_sources.map((key) => [key, nameOf(HEAD_SOURCES, key)]))} />
                             </Field>
-                            <Field label="Right-hand page">
+                            <Field label={t('layout.right_page')}>
                                 <Select value={heads.recto} name="heads-recto" disabled={!layout.headers} onChange={(value) => group('heads', { recto: value }, { immediate: true })}
-                                    options={Object.fromEntries(design.head_sources.map((key) => [key, HEAD_SOURCES[key] ?? key]))} />
+                                    options={Object.fromEntries(design.head_sources.map((key) => [key, nameOf(HEAD_SOURCES, key)]))} />
                             </Field>
-                            <Field label="Style">
+                            <Field label={t('layout.style')}>
                                 <Select value={heads.style} name="heads-style" disabled={!layout.headers} onChange={(value) => group('heads', { style: value }, { immediate: true })}
-                                    options={Object.fromEntries(design.head_styles.map((key) => [key, HEAD_STYLES[key] ?? key]))} />
+                                    options={Object.fromEntries(design.head_styles.map((key) => [key, nameOf(HEAD_STYLES, key)]))} />
                             </Field>
-                            <Field label="Size">
+                            <Field label={t('layout.size')}>
                                 <Select value={heads.size} name="heads-size" onChange={(value) => group('heads', { size: value }, { immediate: true })}
-                                    options={Object.fromEntries(design.head_sizes.map((key) => [key, key[0].toUpperCase() + key.slice(1)]))} />
+                                    options={Object.fromEntries(design.head_sizes.map((key) => [key, nameOf(HEAD_SIZES, key, capitalised(key))]))} />
                             </Field>
-                            <Field label="Position">
+                            <Field label={t('layout.position')}>
                                 <Select value={heads.align} name="heads-align" disabled={!layout.headers} onChange={(value) => group('heads', { align: value }, { immediate: true })}
-                                    options={{ center: 'Centred', outside: 'Outside edge' }} />
+                                    options={{ center: t('layout.centred'), outside: t('layout.outside_edge') }} />
                             </Field>
-                            <Field label="Page numbers">
+                            <Field label={t('layout.page_numbers')}>
                                 <Select value={layout.folio} name="folio" onChange={(value) => save({ folio: value }, { immediate: true })}
-                                    options={Object.fromEntries(design.folios.map((key) => [key, FOLIOS[key] ?? key]))} />
+                                    options={Object.fromEntries(design.folios.map((key) => [key, nameOf(FOLIOS, key)]))} />
                             </Field>
                         </div>
 
                         <Toggle
-                            label="Show running heads on chapter openers"
-                            hint="Usually off: an opening page carries only its page number."
+                            label={t('layout.heads_openers')}
+                            hint={t('layout.heads_openers_hint')}
                             checked={heads.openers}
                             name="heads-openers"
                             onChange={(value) => group('heads', { openers: value }, { immediate: true })}
                         />
                         <p className="mt-2 text-[11px] leading-snug text-text-secondary">
-                            Front matter is numbered i, ii, iii; the text starts again at 1.
+                            {t('layout.folio_note')}
                         </p>
                     </Card>
 
-                    <Card title="Contents">
-                        <Field label="Printed contents lists">
+                    <Card title={t('layout.card_contents')}>
+                        <Field label={t('layout.printed_toc')}>
                             <Select value={String(layout.toc.depth)} name="toc-depth" onChange={(value) => group('toc', { depth: Number(value) }, { immediate: true })}
-                                options={DEPTHS} />
+                                options={named(DEPTHS)} />
                         </Field>
-                        <Field label="eBook contents list">
+                        <Field label={t('layout.ebook_toc')}>
                             <Select value={String(layout.toc.epub)} name="toc-epub" onChange={(value) => group('toc', { epub: Number(value) }, { immediate: true })}
-                                options={DEPTHS} />
+                                options={named(DEPTHS)} />
                         </Field>
-                        <Field label="Figure and table numbers">
+                        <Field label={t('layout.numbering')}>
                             <Select value={layout.numbering ?? ''} name="numbering" onChange={(value) => save({ numbering: value === '' ? null : value }, { immediate: true })}
-                                options={NUMBERING} />
+                                options={named(NUMBERING)} />
                         </Field>
                         <p className="-mt-1 mb-1 text-[11px] leading-snug text-text-secondary">
-                            How tables and figures are numbered in every export and in the editor. Automatic numbers by chapter when a
-                            caption is typed with a dot (Table 2.1), otherwise straight through the book.
+                            {t('layout.numbering_note')}
                         </p>
                     </Card>
 
-                    <Card title="Boxes">
+                    <Card title={t('layout.card_boxes')}>
                         <p className="mb-2 text-[11px] leading-snug text-text-secondary">
-                            How each kind of box prints, in black and white, in the PDF, the eBook and the editor. Choose a box&rsquo;s kind in the
-                            editor from the quotation menu; boxes you have not chosen are recognised from their bold label.
+                            {t('layout.boxes_note')}
                         </p>
-                        <Field label="Style">
+                        <Field label={t('layout.style')}>
                             <Select value={callouts.preset} name="callouts-preset" onChange={(value) => save({ callouts: { preset: value, types: {} } }, { immediate: true })}
-                                options={Object.fromEntries(design.callout_presets.map((key) => [key, key[0].toUpperCase() + key.slice(1)]))} />
+                                options={Object.fromEntries(design.callout_presets.map((key) => [key, nameOf(CALLOUT_PRESETS, key, capitalised(key))]))} />
                         </Field>
 
                         <div className="mt-1 space-y-2" data-a="layout:callout-table">
@@ -604,38 +636,38 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                                                     data-a={`layout:callout:${key}:icon`}
                                                     onChange={(event) => setBox(key, { icon: event.target.checked })}
                                                 />
-                                                Icon
+                                                {t('layout.icon')}
                                             </label>
                                         </div>
                                         <div className="grid grid-cols-[1fr_72px] gap-1.5">
                                             <select
                                                 value={style.border}
-                                                aria-label={`${name} border`}
+                                                aria-label={t('layout.box_border', { name })}
                                                 data-a={`layout:callout:${key}:border`}
                                                 onChange={(event) => setBox(key, { border: event.target.value })}
                                                 className="min-w-0 rounded-control border border-border-input px-1.5 py-1 text-[11.5px] focus:border-brand-primary focus:ring-0"
                                             >
                                                 {design.borders.map((border) => (
-                                                    <option key={border} value={border}>{BORDERS[border] ?? border}</option>
+                                                    <option key={border} value={border}>{nameOf(BORDERS, border)}</option>
                                                 ))}
                                             </select>
                                             <select
                                                 value={style.tint}
-                                                aria-label={`${name} tint`}
+                                                aria-label={t('layout.box_tint', { name })}
                                                 data-a={`layout:callout:${key}:tint`}
                                                 onChange={(event) => setBox(key, { tint: Number(event.target.value) })}
                                                 className="rounded-control border border-border-input px-1.5 py-1 text-[11.5px] focus:border-brand-primary focus:ring-0"
                                             >
                                                 {design.tints.map((tint) => (
-                                                    <option key={tint} value={tint}>{tint === 0 ? 'No tint' : `${tint}%`}</option>
+                                                    <option key={tint} value={tint}>{tint === 0 ? t('layout.no_tint') : `${tint}%`}</option>
                                                 ))}
                                             </select>
                                             <input
                                                 type="text"
                                                 maxLength={40}
                                                 value={style.label ?? ''}
-                                                placeholder="Label for boxes without one"
-                                                aria-label={`${name} label`}
+                                                placeholder={t('layout.box_label_placeholder')}
+                                                aria-label={t('layout.box_label', { name })}
                                                 data-a={`layout:callout:${key}:label`}
                                                 onChange={(event) => setBox(key, { label: event.target.value === '' ? null : event.target.value })}
                                                 className="col-span-2 rounded-control border border-border-input px-1.5 py-1 text-[11.5px] focus:border-brand-primary focus:ring-0"
@@ -651,16 +683,16 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
 
                 <section className="min-w-0 rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <h3 className="text-[13px] font-semibold text-text-primary">Preview</h3>
+                        <h3 className="text-[13px] font-semibold text-text-primary">{t('layout.preview')}</h3>
                         <span className="text-[11px] text-text-secondary" aria-live="polite" data-a="layout:preview-state">
-                            {busy ? 'Updating…' : 'As the PDF sets it'}
+                            {busy ? t('layout.updating') : t('layout.as_pdf')}
                         </span>
 
                         {sections.length > 1 && (
                             <select
                                 value={sectionId ?? ''}
                                 data-a="layout:preview-section"
-                                aria-label="Chapter to preview"
+                                aria-label={t('layout.chapter_to_preview')}
                                 onChange={(event) => load(Number(event.target.value))}
                                 className="ml-auto min-w-0 max-w-full rounded-control border border-border-input px-2 py-1 text-[11.5px] focus:border-brand-primary focus:ring-0"
                             >
@@ -677,14 +709,17 @@ export default function LayoutPanel({ bookId, onNotify, onPreview }) {
                         <>
                             <PrintSpread preview={data.print} />
                             <p className="mt-2.5 text-[11.5px] text-text-secondary">
-                                {layout.trim} · {design.fonts.find((face) => face.key === layout.font)?.name}{' '}
-                                {Number(layout.size).toFixed(1)} pt · {mirrored ? 'mirrored' : (design.margin_presets.find((p) => p.key === layout.margins)?.name ?? '').toLowerCase()} margins.
-                                Line breaks can differ slightly from the PDF, which stays the proof.
+                                {t('layout.preview_caption', {
+                                    trim: layout.trim,
+                                    font: design.fonts.find((face) => face.key === layout.font)?.name ?? '',
+                                    size: Number(layout.size).toFixed(1),
+                                    margins: mirrored ? t('layout.mirrored_word') : (design.margin_presets.find((p) => p.key === layout.margins)?.name ?? '').toLowerCase(),
+                                })}
                             </p>
                         </>
                     ) : (
                         <p className="py-8 text-center text-[12px] text-text-secondary">
-                            Write a chapter to see how the book will set.
+                            {t('layout.no_chapter')}
                         </p>
                     )}
                 </section>
@@ -770,7 +805,7 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
             onChanged();
         } catch (error) {
             const errors = error.response?.data?.errors;
-            onNotify?.(errors ? Object.values(errors).flat().join(' ') : (error.response?.data?.message ?? 'That did not work.'));
+            onNotify?.(errors ? Object.values(errors).flat().join(' ') : (error.response?.data?.message ?? t('layout.failed')));
         } finally {
             setBusy(false);
         }
@@ -778,23 +813,23 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
 
     return (
         <section className="rounded-tile border border-border-default bg-bg-surface p-3.5" data-a="layout:house-style">
-            <h3 className="mb-2 text-[13px] font-semibold text-text-primary">House style</h3>
+            <h3 className="mb-2 text-[13px] font-semibold text-text-primary">{t('layout.house_style')}</h3>
 
             {following ? (
                 <div className="rounded-control border border-brand-primary/30 bg-brand-primary/5 p-2.5" data-a="layout:house-style:following">
                     <p className="text-[12.5px] text-text-body">
-                        This book follows <strong className="font-semibold">{following.name}</strong>. Its design changes when the style does, and
-                        the settings below are locked.
+                        {t('layout.follows_before')} <strong className="font-semibold">{following.name}</strong>
+                        {t('layout.follows_after')}
                     </p>
                     {info.can_manage && (
                         <button
                             type="button"
                             data-a="layout:house-style:detach"
                             disabled={busy}
-                            onClick={() => run(() => window.axios.post(`/books/${bookId}/house-style/detach`), () => 'This book now has its own design.')}
+                            onClick={() => run(() => window.axios.post(`/books/${bookId}/house-style/detach`), () => t('layout.detached'))}
                             className="mt-2 rounded-control border border-border-input bg-bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-text-body disabled:opacity-50"
                         >
-                            Customise this book
+                            {t('layout.customise')}
                         </button>
                     )}
                 </div>
@@ -802,7 +837,7 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
                 <>
                     {styles.length > 0 && (
                         <div className="mb-3">
-                            <Field label="Apply a style to this book">
+                            <Field label={t('layout.apply_style')}>
                                 <select
                                     value={chosen}
                                     data-a="layout:house-style:pick"
@@ -811,7 +846,7 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
                                 >
                                     {styles.map((style) => (
                                         <option key={style.id} value={style.id}>
-                                            {style.name} ({style.books} book{style.books === 1 ? '' : 's'})
+                                            {t('layout.style_option', { name: style.name, count: style.books })}
                                         </option>
                                     ))}
                                 </select>
@@ -819,7 +854,7 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
                             <p className="-mt-1.5 mb-2 text-[11px] text-text-secondary">{styles.find((style) => style.id === chosen)?.summary}</p>
                             <label className="mb-2 flex items-center gap-1.5 text-[12px] text-text-body">
                                 <input type="checkbox" checked={follow} data-a="layout:house-style:follow" onChange={(event) => setFollow(event.target.checked)} />
-                                Follow it (later changes to the style apply here too)
+                                {t('layout.follow_it')}
                             </label>
                             <div className="flex flex-wrap gap-2">
                                 <button
@@ -829,18 +864,18 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
                                     onClick={() => run(() => window.axios.post(`/house-styles/${chosen}/apply`, { books: [bookId], follow }), (data) => data.results[0]?.message)}
                                     className="rounded-control bg-brand-fill px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
                                 >
-                                    Apply
+                                    {t('layout.apply')}
                                 </button>
                                 <button
                                     type="button"
                                     data-a="layout:house-style:update"
                                     disabled={busy || !chosen}
                                     onClick={() =>
-                                        run(() => window.axios.put(`/house-styles/${chosen}`, { book: bookId }), (data) => `Style updated; ${data.updated} book${data.updated === 1 ? '' : 's'} now set from it.`)
+                                        run(() => window.axios.put(`/house-styles/${chosen}`, { book: bookId }), (data) => t('layout.style_updated', { count: data.updated }))
                                     }
                                     className="rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-semibold text-text-body disabled:opacity-50"
                                 >
-                                    Update the style from this book
+                                    {t('layout.update_style')}
                                 </button>
                             </div>
                         </div>
@@ -854,7 +889,7 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
                             run(() => window.axios.post(`/books/${bookId}/house-style`, { name: saved }), () => {
                                 setName('');
 
-                                return `Saved “${saved}”. This book follows it.`;
+                                return t('layout.style_saved', { name: saved });
                             });
                         }}
                     >
@@ -862,8 +897,8 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
                             type="text"
                             value={name}
                             maxLength={80}
-                            placeholder="Name, e.g. Écrivain Prépa"
-                            aria-label="House style name"
+                            placeholder={t('layout.style_name_placeholder')}
+                            aria-label={t('layout.style_name')}
                             data-a="layout:house-style:name"
                             onChange={(event) => setName(event.target.value)}
                             className="min-w-0 flex-1 rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
@@ -874,12 +909,11 @@ function HouseStyleCard({ bookId, info, onChanged, onNotify }) {
                             disabled={busy || name.trim().length < 2}
                             className="shrink-0 rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-semibold text-text-body disabled:opacity-50"
                         >
-                            Save as house style
+                            {t('layout.save_as_style')}
                         </button>
                     </form>
                     <p className="mt-1.5 text-[11px] leading-snug text-text-secondary">
-                        Saves trim, margins, type, paragraphs, headings, openers, running heads and boxes, never the text. Apply it to other books
-                        here or from your shelf.
+                        {t('layout.house_note')}
                     </p>
                 </>
             )}
@@ -917,10 +951,10 @@ function Card({ title, children }) {
 
 /** Figure and table numbering (InteriorDesign `numbering`; null infers it from the captions). */
 const NUMBERING = {
-    '': 'Automatic (from the captions)',
-    continuous: 'Continuous (Table 1, 2, 3…)',
-    chapter: 'By chapter (Table 2.1)',
-    part: 'By part (Table 2.1 in Part 2)',
+    '': { tKey: 'layout.numbering_auto' },
+    continuous: { tKey: 'layout.numbering_continuous' },
+    chapter: { tKey: 'layout.numbering_chapter' },
+    part: { tKey: 'layout.numbering_part' },
 };
 
 function Select({ value, name, options, onChange, disabled = false }) {

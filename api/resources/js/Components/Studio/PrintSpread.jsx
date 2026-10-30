@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useI18n } from '../../i18n';
 import { PX_PER_INCH, countPages, ensurePrintFonts, pageFurniture, roman, scopeCss, sectionHeadings, textBlock } from './preview';
 
 /**
@@ -85,6 +86,7 @@ export default function PrintSpread({ preview }) {
 
 /** The opener, then the spread after it, scaled to fit the panel. */
 function Pages({ data, width, onReady }) {
+    const { t } = useI18n();
     const page = data.page;
     const pageWidth = page.width * PX_PER_INCH;
     const pageHeight = page.height * PX_PER_INCH;
@@ -181,9 +183,9 @@ function Pages({ data, width, onReady }) {
     // The opener opens a recto; the spread after it is verso, recto.
     const folios = data.roman ? [roman(1), roman(2), roman(3)] : ['1', '2', '3'];
     const sheets = [
-        { index: 0, verso: false, label: 'Opening page' },
-        { index: 1, verso: true, label: 'Verso' },
-        { index: 2, verso: false, label: 'Recto' },
+        { index: 0, verso: false, label: t('preview.opening_page') },
+        { index: 1, verso: true, label: t('preview.verso') },
+        { index: 2, verso: false, label: t('preview.recto') },
     ];
 
     const sheet = ({ index, verso, label }, sheetScale) => {

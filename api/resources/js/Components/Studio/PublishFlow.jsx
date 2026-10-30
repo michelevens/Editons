@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import KdpGuideView from '@/Components/Publish/KdpGuideView';
+import { formatMoney, t, useI18n } from '../../i18n';
 import Icon from './Icon';
 
 /**
@@ -19,13 +20,14 @@ import Icon from './Icon';
  *
  * App\Http\Controllers\PublishFlowController; docs/PUBLISHING-FLOW.md.
  */
-const STEPS = [
-    ['check', 'Check', 'Check'],
-    ['channels', 'Choose channels', 'Channels'],
-    ['publish', 'Publish', 'Publish'],
+const steps = () => [
+    ['check', t('publish.step_check'), t('publish.step_check_short')],
+    ['channels', t('publish.step_channels'), t('publish.step_channels_short')],
+    ['publish', t('publish.step_publish'), t('publish.step_publish_short')],
 ];
 
 export default function PublishFlow({ bookId, onNotify, onNavigate }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [step, setStep] = useState('check');
     const [busy, setBusy] = useState(null);
@@ -42,7 +44,7 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
             apply((await window.axios.get(`/books/${bookId}/publish-flow`)).data);
             setError(null);
         } catch (e) {
-            setError(e.response?.status === 403 ? 'You can read this book but not publish it.' : 'The publishing checks could not be loaded.');
+            setError(e.response?.status === 403 ? t('publish.flow_forbidden') : t('publish.flow_load_failed'));
         }
     }, [bookId, apply]);
 
@@ -87,7 +89,7 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
             return response.data;
         } catch (e) {
             const errors = e.response?.data?.errors;
-            onNotify?.(errors ? Object.values(errors).flat().join(' ') : (e.response?.data?.message ?? 'That did not work. Try again.'));
+            onNotify?.(errors ? Object.values(errors).flat().join(' ') : (e.response?.data?.message ?? t('publish.flow_failed')));
 
             return null;
         } finally {
@@ -112,7 +114,7 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
     }
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { check } = data;
@@ -121,12 +123,12 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
         <div className="flex h-full min-h-0 flex-col" data-a="publish-flow">
             <header className="border-b border-border-default px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[15px] font-semibold text-text-primary">Publish</h2>
+                    <h2 className="text-[15px] font-semibold text-text-primary">{t('publish.flow_title')}</h2>
                     <Summary check={check} compact />
                 </div>
-                <nav aria-label="Publishing steps" className="mt-2.5">
+                <nav aria-label={t('publish.flow_steps')} className="mt-2.5">
                     <ol className="grid grid-cols-3 gap-1.5">
-                        {STEPS.map(([key, label, short], index) => (
+                        {steps().map(([key, label, short], index) => (
                             <li key={key}>
                                 <button
                                     type="button"
@@ -175,13 +177,14 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
 // ── Step 1 ──────────────────────────────────────────────────────────────
 
 const SUMMARY = {
-    green: ['bg-status-success-bg text-status-success', 'Ready'],
-    amber: ['bg-status-warning-bg text-status-warning', 'Ready, with warnings'],
-    red: ['bg-status-danger-bg text-status-danger', 'Not ready'],
+    green: ['bg-status-success-bg text-status-success', 'publish.summary_green'],
+    amber: ['bg-status-warning-bg text-status-warning', 'publish.summary_amber'],
+    red: ['bg-status-danger-bg text-status-danger', 'publish.summary_red'],
 };
 
 function Summary({ check, compact = false }) {
-    const [tone, label] = SUMMARY[check.status];
+    const [tone, labelKey] = SUMMARY[check.status];
+    const label = t(labelKey);
 
     if (compact) {
         return (
@@ -195,16 +198,16 @@ function Summary({ check, compact = false }) {
         <div role="status" data-a="publish-flow:summary" data-status={check.status} className={`rounded-tile p-3 ${tone}`}>
             <p className="text-[14px] font-semibold">{check.summary}</p>
             <p className="mt-0.5 text-[12px] opacity-90">
-                {check.counts.fail} to fix · {check.counts.warn} to check · {check.counts.pass} ready
+                {t('publish.summary_counts', { fail: check.counts.fail, warn: check.counts.warn, pass: check.counts.pass })}
             </p>
         </div>
     );
 }
 
 const ITEM = {
-    fail: ['✕', 'text-status-danger', 'To fix'],
-    warn: ['!', 'text-status-warning', 'To check'],
-    pass: ['✓', 'text-status-success', 'Ready'],
+    fail: ['✕', 'text-status-danger', 'publish.item_fail'],
+    warn: ['!', 'text-status-warning', 'publish.item_warn'],
+    pass: ['✓', 'text-status-success', 'publish.item_pass'],
 };
 
 function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
@@ -221,7 +224,7 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
             {check.stale && (
                 <div className="flex flex-wrap items-center gap-3 rounded-tile border border-border-default bg-bg-surface p-3">
                     <p className="min-w-0 flex-1 text-[12.5px] text-text-body">
-                        {waiting ? 'Making the files. This screen updates when they are ready (a long book takes several minutes).' : 'Some files are missing or older than the manuscript.'}
+                        {waiting ? t('publish.files_making') : t('publish.files_stale')}
                     </p>
                     <button
                         type="button"
@@ -231,13 +234,13 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
                         className="inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
                         <Icon name="reset" size={13} strokeWidth={2} />
-                        {busy === 'regenerate' ? 'Starting…' : waiting ? 'Regenerating…' : 'Regenerate files'}
+                        {busy === 'regenerate' ? t('publish.regenerate_starting') : waiting ? t('publish.regenerating') : t('publish.regenerate')}
                     </button>
                 </div>
             )}
 
             {groups.length === 0 && (
-                <p className="text-[12.5px] text-text-secondary">Nothing to fix.</p>
+                <p className="text-[12.5px] text-text-secondary">{t('publish.nothing_to_fix')}</p>
             )}
 
             {groups.map(([key, label, items]) => (
@@ -253,7 +256,7 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
                                 <li key={`${item.key}`} data-a={`publish-flow:item:${item.key}`} data-status={item.status} className="flex items-start gap-2 px-3 py-2">
                                     <span className={`w-3 shrink-0 text-[12.5px] font-bold ${tone}`} aria-hidden="true">{mark}</span>
                                     <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-text-body">
-                                        <span className="sr-only">{words}: </span>
+                                        <span className="sr-only">{t(words)}: </span>
                                         {item.message}
                                     </p>
                                     {item.fix && item.status !== 'pass' && (
@@ -263,7 +266,7 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
                                             onClick={() => onFix(item.fix.pane)}
                                             className="shrink-0 rounded-control border border-border-input px-2 py-1 text-[11.5px] font-semibold text-brand-primary transition hover:border-brand-primary/40"
                                         >
-                                            Fix<span className="sr-only">: {item.fix.label}</span>
+                                            {t('publish.fix')}<span className="sr-only">: {item.fix.label}</span>
                                             <span className="max-sm:hidden"> · {item.fix.label}</span>
                                         </button>
                                     )}
@@ -276,7 +279,7 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
 
             <div className="flex flex-wrap items-center gap-3">
                 <button type="button" onClick={() => setShowPassed((s) => !s)} className="text-[12px] font-medium text-text-secondary underline hover:text-text-primary">
-                    {showPassed ? 'Hide what is ready' : `Show what is ready (${check.counts.pass})`}
+                    {showPassed ? t('publish.hide_ready') : t('publish.show_ready', { count: check.counts.pass })}
                 </button>
                 <button
                     type="button"
@@ -284,13 +287,13 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
                     onClick={onNext}
                     className="ml-auto inline-flex items-center gap-1 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white hover:bg-brand-primary-hover"
                 >
-                    Choose channels <Icon name="right" size={13} strokeWidth={2} />
+                    {t('publish.step_channels')} <Icon name="right" size={13} strokeWidth={2} />
                 </button>
             </div>
 
             {check.files.length > 0 && (
-                <section className="rounded-tile border border-border-default bg-bg-surface p-3" aria-label="Files">
-                    <h3 className="mb-1.5 text-[12.5px] font-semibold text-text-primary">Files</h3>
+                <section className="rounded-tile border border-border-default bg-bg-surface p-3" aria-label={t('publish.files')}>
+                    <h3 className="mb-1.5 text-[12.5px] font-semibold text-text-primary">{t('publish.files')}</h3>
                     <ul className="space-y-1">
                         {check.files.map((file) => (
                             <li key={`${file.format}-${file.service ?? ''}`} className="flex flex-wrap items-center gap-x-2 text-[12px]">
@@ -299,17 +302,17 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
                                     {file.label}
                                     {file.service ? ` (${file.service === 'kdp' ? 'KDP' : file.service === 'lulu' ? 'Lulu' : file.service})` : ''}
                                 </span>
-                                <span className="text-text-secondary">{file.fresh ? 'up to date' : file.reason}</span>
+                                <span className="text-text-secondary">{file.fresh ? t('publish.file_up_to_date') : file.reason}</span>
                                 {file.download && (
                                     <a href={file.download} className="font-semibold text-brand-primary hover:underline">
-                                        Download
+                                        {t('publish.download')}
                                     </a>
                                 )}
                             </li>
                         ))}
                     </ul>
                     <p className="mt-1.5 text-[11px] text-text-secondary">
-                        A cover redesigned after the files were made is not detected: regenerate them after changing the cover.
+                        {t('publish.cover_not_detected')}
                     </p>
                 </section>
             )}
@@ -320,35 +323,39 @@ function CheckStep({ data, busy, waiting, onFix, onRegenerate, onNext }) {
 // ── Step 2 ──────────────────────────────────────────────────────────────
 
 const MODE = {
-    automatic: ['Automatic', 'bg-status-success-bg text-status-success'],
-    guided: ['Guided', 'bg-status-info-bg text-status-info'],
-    spreadsheet: ['Spreadsheet', 'bg-status-info-bg text-status-info'],
-    not_connected: ['Not connected', 'bg-status-warning-bg text-status-warning'],
-    coming_soon: ['Coming soon', 'bg-bg-subtle text-text-secondary'],
-    off: ['Off', 'bg-bg-subtle text-text-secondary'],
+    automatic: ['publish.mode_automatic', 'bg-status-success-bg text-status-success'],
+    guided: ['publish.mode_guided', 'bg-status-info-bg text-status-info'],
+    spreadsheet: ['publish.mode_spreadsheet', 'bg-status-info-bg text-status-info'],
+    not_connected: ['publish.mode_not_connected', 'bg-status-warning-bg text-status-warning'],
+    coming_soon: ['publish.mode_coming_soon', 'bg-bg-subtle text-text-secondary'],
+    off: ['publish.mode_off', 'bg-bg-subtle text-text-secondary'],
 };
 
-const STATUS = {
-    live: 'Live',
-    in_review: 'Submitted',
-    ready_to_submit: 'Ready to upload',
-    not_submitted: 'Chosen',
-    unpublished: 'Taken off sale',
-    draft: 'Draft in the store',
-    taken_down: 'Taken down by Écrivain',
-    validating: 'Lulu is checking the files',
-    validated: 'Files passed at Lulu',
-    failed: 'Lulu found problems',
-    stale: 'Files changed since Lulu checked',
+const STATUS_KEYS = {
+    live: 'publish.status_live',
+    in_review: 'publish.status_in_review',
+    ready_to_submit: 'publish.status_ready_to_submit',
+    not_submitted: 'publish.status_not_submitted',
+    unpublished: 'publish.status_unpublished',
+    draft: 'publish.status_draft',
+    taken_down: 'publish.status_taken_down',
+    validating: 'publish.status_validating',
+    validated: 'publish.status_validated',
+    failed: 'publish.status_failed',
+    stale: 'publish.status_stale',
 };
+
+/** A channel or Lulu state in words; undefined for one without words. */
+const statusLabel = (status) => (STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : undefined);
 
 function ChannelsStep({ data, busy, onChoose, onNext }) {
     return (
         <div className="space-y-3">
-            <p className="text-[12.5px] text-text-secondary">Choose where this book goes. Écrivain remembers it for this book.</p>
+            <p className="text-[12.5px] text-text-secondary">{t('publish.channels_intro')}</p>
             <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {data.cards.map((card) => {
-                    const [mode, tone] = MODE[card.mode];
+                    const [modeKey, tone] = MODE[card.mode];
+                    const mode = t(modeKey);
 
                     return (
                         <li
@@ -361,10 +368,10 @@ function ChannelsStep({ data, busy, onChoose, onNext }) {
                                     <p className="text-[13px] font-semibold text-text-primary">{card.label}</p>
                                     <p className="mt-1 flex flex-wrap gap-1.5">
                                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{mode}</span>
-                                        <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-[11px] text-text-secondary">{card.format === 'print' ? 'Print' : 'eBook'}</span>
-                                        {card.status !== 'not_started' && card.status !== 'not_connected' && STATUS[card.status] && (
+                                        <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-[11px] text-text-secondary">{card.format === 'print' ? t('publish.format_print') : t('publish.format_ebook')}</span>
+                                        {card.status !== 'not_started' && card.status !== 'not_connected' && STATUS_KEYS[card.status] && (
                                             <span data-a={`publish-flow:card-status:${card.key}`} className="rounded-full bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-text-body">
-                                                {STATUS[card.status]}
+                                                {statusLabel(card.status)}
                                                 {card.external_id ? ` · ${card.external_id}` : ''}
                                             </span>
                                         )}
@@ -397,7 +404,7 @@ function ChannelsStep({ data, busy, onChoose, onNext }) {
                     onClick={onNext}
                     className="inline-flex items-center gap-1 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white hover:bg-brand-primary-hover"
                 >
-                    Publish <Icon name="right" size={13} strokeWidth={2} />
+                    {t('publish.step_publish')} <Icon name="right" size={13} strokeWidth={2} />
                 </button>
             </div>
         </div>
@@ -413,9 +420,9 @@ function PublishStep({ bookId, data, busy, act, onFix, onBack }) {
     if (chosen.length === 0) {
         return (
             <div className="space-y-3">
-                <p className="text-[12.5px] text-text-secondary">No channel chosen yet.</p>
+                <p className="text-[12.5px] text-text-secondary">{t('publish.no_channel')}</p>
                 <button type="button" onClick={onBack} className="rounded-control border border-border-input px-3 py-2 text-[12.5px] font-semibold text-text-body">
-                    Choose channels
+                    {t('publish.step_channels')}
                 </button>
             </div>
         );
@@ -425,7 +432,7 @@ function PublishStep({ bookId, data, busy, act, onFix, onBack }) {
         <div className="space-y-4">
             {red && (
                 <p role="status" className="rounded-tile bg-status-danger-bg p-3 text-[12.5px] text-status-danger">
-                    Step 1 still has things to fix. You can prepare here, but stores will refuse what is marked ✕.
+                    {t('publish.step1_red')}
                 </p>
             )}
             {chosen.map((card) => (
@@ -452,11 +459,11 @@ function StorePanel({ bookId, data, busy, act }) {
     if (store?.state === 'live') {
         return (
             <p className="text-[12.5px] text-text-body">
-                <span className="font-semibold text-status-success">On sale.</span>{' '}
+                <span className="font-semibold text-status-success">{t('publish.store_on_sale')}</span>{' '}
                 <a href={store.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-primary hover:underline">
-                    See the store page
+                    {t('publish.store_see_page')}
                 </a>
-                . Change the price, formats or licence in Sales &amp; Distribution.
+                {t('publish.store_change')}
             </p>
         );
     }
@@ -464,7 +471,7 @@ function StorePanel({ bookId, data, busy, act }) {
     return (
         <div className="space-y-2">
             <p className="text-[12.5px] text-text-body">
-                {store ? 'The store page is a draft.' : 'The ebook goes on sale at its list price, with every format that has a file.'}
+                {store ? t('publish.store_draft') : t('publish.store_new')}
             </p>
             {data.can.manage ? (
                 <button
@@ -474,10 +481,10 @@ function StorePanel({ bookId, data, busy, act }) {
                     onClick={() => act('store', () => window.axios.post(`/books/${bookId}/publish-flow/store`))}
                     className={primary}
                 >
-                    {busy === 'store' ? 'Putting on sale…' : 'Put on sale'}
+                    {busy === 'store' ? t('publish.putting_on_sale') : t('publish.put_on_sale')}
                 </button>
             ) : (
-                <p className="text-[12px] text-text-secondary">Only the book&rsquo;s owner can put it on sale.</p>
+                <p className="text-[12px] text-text-secondary">{t('publish.owner_only')}</p>
             )}
         </div>
     );
@@ -489,9 +496,9 @@ function LuluPanel({ bookId, data, busy, act }) {
     if (!lulu.connected) {
         return (
             <div data-a="publish-flow:lulu:connect" className="space-y-1.5">
-                <p className="text-[12.5px] font-semibold text-text-primary">Connect Lulu</p>
+                <p className="text-[12.5px] font-semibold text-text-primary">{t('publish.lulu_connect')}</p>
                 <p className="text-[12.5px] text-text-body">
-                    Lulu prints and posts each paperback sold in your store. The platform owner connects it once, with:
+                    {t('publish.lulu_connect_help')}
                 </p>
                 <ul className="list-disc space-y-0.5 pl-5 text-[12px] text-text-body">
                     {lulu.needs.map((need) => (
@@ -507,12 +514,12 @@ function LuluPanel({ bookId, data, busy, act }) {
     return (
         <div className="space-y-2 text-[12.5px]">
             <p className="text-text-body">
-                {lulu.package ? <>Lulu product: <span className="font-semibold">{lulu.package}</span> ({lulu.pod_package_id}).</> : lulu.package_problem}
-                {lulu.environment === 'sandbox' && <span className="ml-1 text-text-secondary">Sandbox: nothing is printed.</span>}
+                {lulu.package ? <>{t('publish.lulu_product')} <span className="font-semibold">{lulu.package}</span> ({lulu.pod_package_id}).</> : lulu.package_problem}
+                {lulu.environment === 'sandbox' && <span className="ml-1 text-text-secondary">{t('publish.lulu_sandbox')}</span>}
             </p>
-            <p data-a="publish-flow:lulu:state" className="font-semibold text-text-primary">{STATUS[lulu.state] ?? 'Not sent to Lulu yet'}</p>
+            <p data-a="publish-flow:lulu:state" className="font-semibold text-text-primary">{statusLabel(lulu.state) ?? t('publish.lulu_not_sent')}</p>
             {lulu.unit_cost_cents != null && (
-                <p className="text-text-secondary">Lulu quoted ${(lulu.unit_cost_cents / 100).toFixed(2)} to print one copy (before shipping and tax).</p>
+                <p className="text-text-secondary">{t('publish.lulu_quote', { price: formatMoney(lulu.unit_cost_cents, 'USD') })}</p>
             )}
             {errors.length > 0 && (
                 <ul className="list-disc pl-5 text-status-danger">
@@ -521,16 +528,16 @@ function LuluPanel({ bookId, data, busy, act }) {
                     ))}
                 </ul>
             )}
-            {!lulu.shipping_set && <p className="text-status-warning">No shipping charge is set for paperbacks yet (the platform owner sets it).</p>}
+            {!lulu.shipping_set && <p className="text-status-warning">{t('publish.lulu_no_shipping')}</p>}
             <div className="flex flex-wrap gap-2">
                 {data.can.manage && ['not_started', 'failed', 'stale', 'validated'].includes(lulu.state) && (
                     <button type="button" data-a="publish-flow:lulu:send" disabled={busy === 'lulu'} onClick={() => act('lulu', () => window.axios.post(`/books/${bookId}/publish-flow/lulu`))} className={lulu.state === 'validated' ? secondary : primary}>
-                        {busy === 'lulu' ? 'Sending…' : lulu.state === 'not_started' ? 'Send the print files to Lulu' : 'Send them again'}
+                        {busy === 'lulu' ? t('publish.sending') : lulu.state === 'not_started' ? t('publish.lulu_send') : t('publish.lulu_send_again')}
                     </button>
                 )}
                 {lulu.state === 'validating' && (
                     <button type="button" data-a="publish-flow:lulu:refresh" disabled={busy === 'lulu-refresh'} onClick={() => act('lulu-refresh', () => window.axios.post(`/books/${bookId}/publish-flow/lulu/refresh`))} className={secondary}>
-                        Check again
+                        {t('publish.check_again')}
                     </button>
                 )}
                 {data.can.manage && (lulu.state === 'validated' || lulu.state === 'live') && (
@@ -541,7 +548,7 @@ function LuluPanel({ bookId, data, busy, act }) {
                         onClick={() => act('lulu-offer', () => window.axios.post(`/books/${bookId}/publish-flow/lulu/offer`, { on: lulu.state !== 'live' }))}
                         className={lulu.state === 'live' ? secondary : primary}
                     >
-                        {lulu.state === 'live' ? 'Stop selling the paperback' : 'Sell the paperback in my store'}
+                        {lulu.state === 'live' ? t('publish.lulu_stop') : t('publish.lulu_sell')}
                     </button>
                 )}
             </div>
@@ -554,7 +561,7 @@ function KdpPanel({ bookId, card, guide, data, busy, act, onFix }) {
 
     if (!guide) return null;
 
-    const save = (changes) => act(`kdp:${card.key}`, () => window.axios.patch(`/books/${bookId}/publish-flow/kdp`, changes), 'Saved.').then((ok) => ok && setEditing(null));
+    const save = (changes) => act(`kdp:${card.key}`, () => window.axios.patch(`/books/${bookId}/publish-flow/kdp`, changes), t('publish.saved')).then((ok) => ok && setEditing(null));
 
     const editor = (field, id) =>
         editing === field.key ? (
@@ -562,7 +569,7 @@ function KdpPanel({ bookId, card, guide, data, busy, act, onFix }) {
         ) : (
             data.can.update && (
                 <button type="button" data-a={`kdp:edit:${field.key}`} onClick={() => setEditing(field.key)} className="mt-1 text-[11.5px] font-semibold text-brand-primary hover:underline">
-                    Edit
+                    {t('publish.edit')}
                 </button>
             )
         );
@@ -570,14 +577,14 @@ function KdpPanel({ bookId, card, guide, data, busy, act, onFix }) {
     return (
         <div className="space-y-3">
             <p className="text-[12.5px] text-text-body">
-                Amazon has no publishing API, so you finish on KDP: open it, create a {guide.label}, and paste each value below. About 10 minutes.
+                {t('publish.kdp_intro', { kind: guide.label })}
             </p>
             <div className="flex flex-wrap gap-2">
                 <a href={guide.url} target="_blank" rel="noopener noreferrer" data-a={`publish-flow:open-kdp:${card.key}`} className={primary}>
-                    Open KDP
+                    {t('publish.open_kdp')}
                 </a>
                 <a href={`/publish/kdp-checklist?books[]=${bookId}`} target="_blank" rel="noopener noreferrer" className={secondary}>
-                    Printable checklist
+                    {t('publish.printable_checklist')}
                 </a>
             </div>
             <KdpGuideView guide={guide} onFix={onFix} editor={editor} />
@@ -593,12 +600,12 @@ function KdpEditor({ field, id, busy, onSave, onCancel, limits }) {
     if (field.key === 'audience') {
         return (
             <fieldset className="mt-2 space-y-2 rounded-tile bg-bg-subtle p-2.5" data-a="kdp:audience-editor">
-                <legend className="sr-only">Primary audience</legend>
-                <p className="text-[12px] text-text-body">Sexually explicit images or title?</p>
+                <legend className="sr-only">{t('publish.kdp_audience')}</legend>
+                <p className="text-[12px] text-text-body">{t('publish.kdp_explicit')}</p>
                 <div className="flex gap-3 text-[12.5px]">
                     {[
-                        [false, 'No'],
-                        [true, 'Yes'],
+                        [false, t('publish.no')],
+                        [true, t('publish.yes')],
                     ].map(([on, label]) => (
                         <label key={label} className="flex items-center gap-1.5">
                             <input type="radio" name={`${id}-explicit`} checked={value.explicit === on} onChange={() => setValue({ ...value, explicit: on })} />
@@ -607,11 +614,11 @@ function KdpEditor({ field, id, busy, onSave, onCancel, limits }) {
                     ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-[12px]">
-                    <label htmlFor={`${id}-min`}>Reading age from</label>
+                    <label htmlFor={`${id}-min`}>{t('publish.kdp_age_from')}</label>
                     <input id={`${id}-min`} type="number" min="0" max="18" value={value.min_age ?? ''} onChange={(e) => setValue({ ...value, min_age: e.target.value === '' ? null : Number(e.target.value) })} className="w-16 rounded-control border border-border-input px-1.5 py-1" />
-                    <label htmlFor={`${id}-max`}>to</label>
+                    <label htmlFor={`${id}-max`}>{t('publish.kdp_age_to')}</label>
                     <input id={`${id}-max`} type="number" min="0" max="18" value={value.max_age ?? ''} onChange={(e) => setValue({ ...value, max_age: e.target.value === '' ? null : Number(e.target.value) })} className="w-16 rounded-control border border-border-input px-1.5 py-1" />
-                    <span className="text-text-secondary">(optional)</span>
+                    <span className="text-text-secondary">{t('publish.optional')}</span>
                 </div>
                 <EditorButtons busy={busy} onCancel={onCancel} onSave={() => onSave(value)} />
             </fieldset>
@@ -628,7 +635,7 @@ function KdpEditor({ field, id, busy, onSave, onCancel, limits }) {
             {rows.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
                     <label htmlFor={`${id}-${i}`} className="w-5 text-right text-[11px] tabular-nums text-text-secondary">
-                        <span className="sr-only">{keywords ? 'Keyword' : 'Category'} </span>
+                        <span className="sr-only">{keywords ? t('publish.keyword') : t('publish.category')} </span>
                         {i + 1}
                     </label>
                     <input
@@ -655,10 +662,10 @@ function EditorButtons({ busy, onSave, onCancel }) {
     return (
         <div className="flex gap-2 pt-1">
             <button type="button" data-a="kdp:save" disabled={busy} onClick={onSave} className="rounded-control bg-brand-fill px-2.5 py-1 text-[12px] font-semibold text-white disabled:opacity-50">
-                {busy ? 'Saving…' : 'Save'}
+                {busy ? t('publish.saving') : t('publish.save')}
             </button>
             <button type="button" onClick={onCancel} className="rounded-control border border-border-input px-2.5 py-1 text-[12px] font-medium text-text-body">
-                Cancel
+                {t('common.cancel')}
             </button>
         </div>
     );
@@ -668,7 +675,7 @@ function GooglePanel({ bookId, card, data, busy, act }) {
     return (
         <div className="space-y-2 text-[12.5px]">
             <p className="text-text-body">
-                Google Play has no upload API. Download the book list and files, then in Partner Center: Book Catalog → Advanced options → Upload book list, then Upload content files.
+                {t('publish.google_intro')}
             </p>
             {data.google.length > 0 && (
                 <ul className="list-disc pl-5 text-status-warning">
@@ -679,14 +686,14 @@ function GooglePanel({ bookId, card, data, busy, act }) {
             )}
             <div className="flex flex-wrap gap-2">
                 <a href={`/books/${bookId}/publish-flow/google-play`} data-a="publish-flow:google-play" className={primary}>
-                    Download Google Play bulk upload
+                    {t('publish.google_download')}
                 </a>
                 <a href="https://play.google.com/books/publish/" target="_blank" rel="noopener noreferrer" className={secondary}>
-                    Open Partner Center
+                    {t('publish.google_open')}
                 </a>
             </div>
             <p className="text-[11.5px] text-text-secondary">
-                The columns follow Google&rsquo;s help page. Google&rsquo;s own template (from your Book Catalog) may add columns, such as prices: if it differs, copy the rows into it.
+                {t('publish.google_columns')}
             </p>
             <Submitted bookId={bookId} card={card} busy={busy} act={act} canUpdate={data.can.update} />
         </div>
@@ -708,11 +715,11 @@ function Submitted({ bookId, card, busy, act, asin = false, canUpdate }) {
     return (
         <form onSubmit={submit} className="space-y-2 rounded-tile border border-border-default p-2.5" data-a={`publish-flow:submitted:${card.key}`}>
             <p className="text-[12.5px] font-semibold text-text-primary">
-                {done ? `Recorded: ${STATUS[card.status]}${card.external_id ? ` · ${card.external_id}` : ''}` : 'I’ve submitted it'}
+                {done ? `${t('publish.recorded', { status: statusLabel(card.status) })}${card.external_id ? ` · ${card.external_id}` : ''}` : t('publish.submitted_it')}
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <label className="block text-[11.5px] text-text-secondary">
-                    {asin ? 'ASIN (on your KDP Bookshelf)' : 'Google ID or ISBN (optional)'}
+                    {asin ? t('publish.asin_label') : t('publish.google_id_label')}
                     <input
                         data-a={`publish-flow:asin:${card.key}`}
                         required={asin}
@@ -724,7 +731,7 @@ function Submitted({ bookId, card, busy, act, asin = false, canUpdate }) {
                     />
                 </label>
                 <label className="block text-[11.5px] text-text-secondary">
-                    Date
+                    {t('publish.date')}
                     <input
                         type="date"
                         data-a={`publish-flow:date:${card.key}`}
@@ -736,20 +743,20 @@ function Submitted({ bookId, card, busy, act, asin = false, canUpdate }) {
                     />
                 </label>
                 <label className="block text-[11.5px] text-text-secondary">
-                    Where it stands
+                    {t('publish.where_stands')}
                     <select
                         data-a={`publish-flow:state:${card.key}`}
                         value={form.state}
                         onChange={(e) => setForm({ ...form, state: e.target.value })}
                         className="mt-0.5 w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] text-text-primary"
                     >
-                        <option value="in_review">Submitted, in review</option>
-                        <option value="live">Live</option>
+                        <option value="in_review">{t('publish.submitted_in_review')}</option>
+                        <option value="live">{t('publish.status_live')}</option>
                     </select>
                 </label>
             </div>
             <button type="submit" data-a={`publish-flow:mark:${card.key}`} disabled={busy === `submitted:${card.key}`} className={done ? secondary : primary}>
-                {busy === `submitted:${card.key}` ? 'Saving…' : done ? 'Update' : 'Mark submitted'}
+                {busy === `submitted:${card.key}` ? t('publish.saving') : done ? t('publish.update') : t('publish.mark_submitted')}
             </button>
         </form>
     );

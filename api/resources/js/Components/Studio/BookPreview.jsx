@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../../i18n';
 import Dialog, { CloseButton, useModalFocus } from '../Dialog';
 import Icon from './Icon';
 import {
@@ -44,7 +45,11 @@ import {
  */
 const NONE = [];
 
+// The devices' names (preview.js lists the devices themselves).
+const DEVICE_LABEL = { phone: 'preview.device_phone', ereader: 'preview.device_ereader', print: 'preview.device_print' };
+
 export default function BookPreview({ bookId, onClose }) {
+    const { t } = useI18n();
     const root = useModalFocus(onClose);
     const [meta, setMeta] = useState(null);
     const [failure, setFailure] = useState(null);
@@ -94,7 +99,7 @@ export default function BookPreview({ bookId, onClose }) {
         window.axios
             .get(`/books/${bookId}/preview`)
             .then((response) => live && setMeta(response.data))
-            .catch((error) => live && setFailure(error.response?.data?.message ?? 'The preview could not be loaded.'));
+            .catch((error) => live && setFailure(error.response?.data?.message ?? t('preview.load_failed')));
 
         return () => {
             live = false;
@@ -224,7 +229,7 @@ export default function BookPreview({ bookId, onClose }) {
 
         fetchPage(mode, key)
             .then((data) => live && setDoc(data))
-            .catch(() => live && setDoc({ key, html: '<p>This page could not be loaded.</p>', warnings: [] }));
+            .catch(() => live && setDoc({ key, html: `<p>${t('preview.page_failed')}</p>`, warnings: [] }));
 
         return () => {
             live = false;
@@ -533,7 +538,7 @@ export default function BookPreview({ bookId, onClose }) {
             ref={root}
             role="dialog"
             aria-modal="true"
-            aria-label="Book preview"
+            aria-label={t('preview.dialog')}
             tabIndex={-1}
             data-a="preview:root"
             data-device={device}
@@ -545,9 +550,9 @@ export default function BookPreview({ bookId, onClose }) {
         >
             <header className="safe-top shrink-0 border-b border-border-default bg-bg-surface">
                 <div className="flex items-center gap-2 px-2 pt-2 sm:px-4">
-                    <CloseButton onClick={onClose} label="Close preview" className="h-10 w-10" />
+                    <CloseButton onClick={onClose} label={t('preview.close')} className="h-10 w-10" />
                     <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-semibold text-text-primary">{meta?.book.title ?? 'Preview'}</p>
+                        <p className="truncate text-[14px] font-semibold text-text-primary">{meta?.book.title ?? t('preview.title')}</p>
                         <p className="truncate text-[11.5px] text-text-secondary">{item?.title ?? ' '}</p>
                     </div>
                     <button
@@ -559,7 +564,7 @@ export default function BookPreview({ bookId, onClose }) {
                         className="tap inline-flex h-10 items-center gap-1.5 rounded-control px-2.5 text-[12.5px] font-medium text-text-body hover:bg-bg-subtle disabled:opacity-40"
                     >
                         <Icon name="list" size={17} />
-                        <span className="max-sm:sr-only">Contents</span>
+                        <span className="max-sm:sr-only">{t('preview.contents')}</span>
                     </button>
                     <button
                         type="button"
@@ -572,12 +577,12 @@ export default function BookPreview({ bookId, onClose }) {
                         }`}
                     >
                         <Icon name={check?.state === 'running' ? 'stop' : 'play'} size={16} />
-                        <span>{check?.state === 'running' ? 'Stop' : 'Check'}</span>
+                        <span>{check?.state === 'running' ? t('preview.stop') : t('preview.check')}</span>
                     </button>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 px-2 pb-2 pt-1.5 sm:px-4">
-                    <div role="radiogroup" aria-label="Device" className="grid grid-cols-3 gap-0.5 rounded-control bg-bg-subtle p-0.5">
+                    <div role="radiogroup" aria-label={t('preview.device')} className="grid grid-cols-3 gap-0.5 rounded-control bg-bg-subtle p-0.5">
                         {DEVICES.map((option) => (
                             <button
                                 key={option.key}
@@ -594,17 +599,17 @@ export default function BookPreview({ bookId, onClose }) {
                                 }`}
                             >
                                 <Icon name={option.icon} size={14} className="max-sm:hidden" />
-                                {option.label}
+                                {DEVICE_LABEL[option.key] ? t(DEVICE_LABEL[option.key]) : option.label}
                             </button>
                         ))}
                     </div>
 
                     {reflows(device) && (
-                        <div role="group" aria-label="Type size" className="ml-auto flex items-center gap-0.5">
+                        <div role="group" aria-label={t('preview.type_size')} className="ml-auto flex items-center gap-0.5">
                             <button
                                 type="button"
                                 data-a="preview:font-down"
-                                aria-label="Smaller type"
+                                aria-label={t('preview.smaller_type')}
                                 onClick={() => setFont(-1)}
                                 disabled={font === FONT_STEPS[0]}
                                 className="tap grid h-9 w-9 place-items-center rounded-control text-[13px] font-semibold text-text-body hover:bg-bg-subtle disabled:opacity-40"
@@ -612,12 +617,12 @@ export default function BookPreview({ bookId, onClose }) {
                                 A−
                             </button>
                             <span data-a="preview:font-size" aria-live="polite" className="w-11 text-center text-[12px] tabular-nums text-text-secondary">
-                                {font}%
+                                {t('preview.font_percent', { n: font })}
                             </span>
                             <button
                                 type="button"
                                 data-a="preview:font-up"
-                                aria-label="Larger type"
+                                aria-label={t('preview.larger_type')}
                                 onClick={() => setFont(1)}
                                 disabled={font === FONT_STEPS[FONT_STEPS.length - 1]}
                                 className="tap grid h-9 w-9 place-items-center rounded-control text-[16px] font-semibold text-text-body hover:bg-bg-subtle disabled:opacity-40"
@@ -628,7 +633,7 @@ export default function BookPreview({ bookId, onClose }) {
                     )}
                     {device === 'print' && meta && (
                         <span className="ml-auto text-[11.5px] text-text-secondary">
-                            {meta.layout.trim} · {meta.layout.margins.toLowerCase()} margins
+                            {t('preview.trim_margins', { trim: meta.layout.trim, margins: meta.layout.margins.toLowerCase() })}
                         </span>
                     )}
                 </div>
@@ -647,7 +652,7 @@ export default function BookPreview({ bookId, onClose }) {
                 {failure ? (
                     <p role="alert" className="px-6 text-center text-[13px] text-status-danger">{failure}</p>
                 ) : meta && items.length === 0 ? (
-                    <p className="px-6 text-center text-[13px] text-text-secondary">Write a chapter to preview the book.</p>
+                    <p className="px-6 text-center text-[13px] text-text-secondary">{t('preview.empty')}</p>
                 ) : !box ? null : (
                     <div style={fit} className="relative shrink-0">
                         <div
@@ -675,7 +680,7 @@ export default function BookPreview({ bookId, onClose }) {
                                 </p>
                             ))}
                             {!ready && (
-                                <p className="absolute inset-0 grid place-items-center text-[12px] text-[#777]">Laying out…</p>
+                                <p className="absolute inset-0 grid place-items-center text-[12px] text-[#777]">{t('preview.laying_out')}</p>
                             )}
                         </div>
                     </div>
@@ -696,7 +701,7 @@ export default function BookPreview({ bookId, onClose }) {
                         title={here.join(' ')}
                         className="absolute right-3 top-3 rounded-badge bg-status-warning-bg px-2 py-1 text-[11px] font-semibold text-status-warning shadow-floatingButton"
                     >
-                        {here.length} issue{here.length === 1 ? '' : 's'} on this page
+                        {t('preview.issues_here', { count: here.length })}
                     </span>
                 )}
             </div>
@@ -709,7 +714,7 @@ export default function BookPreview({ bookId, onClose }) {
                 >
                     {check.state === 'stopped' ? (
                         <>
-                            <p className="text-[12.5px] font-semibold text-status-warning">Page {check.page}:</p>
+                            <p className="text-[12.5px] font-semibold text-status-warning">{t('preview.page_label', { page: check.page })}</p>
                             <ul className="mt-0.5 list-disc pl-4 text-[12.5px] text-text-body">
                                 {check.messages.map((message) => (
                                     <li key={message}>{message}</li>
@@ -718,7 +723,7 @@ export default function BookPreview({ bookId, onClose }) {
                         </>
                     ) : (
                         <p className="text-[12.5px] text-text-body">
-                            Checked {check.checked} page{check.checked === 1 ? '' : 's'} to the end: no layout problems found.
+                            {t('preview.check_done', { count: check.checked })}
                         </p>
                     )}
                     <div className="mt-2 flex gap-2">
@@ -729,7 +734,7 @@ export default function BookPreview({ bookId, onClose }) {
                                 onClick={continueCheck}
                                 className="tap rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white"
                             >
-                                Continue check
+                                {t('preview.continue_check')}
                             </button>
                         )}
                         <button
@@ -738,7 +743,7 @@ export default function BookPreview({ bookId, onClose }) {
                             onClick={() => setCheck(null)}
                             className="tap rounded-control border border-border-input px-3 text-[12.5px] font-medium text-text-body"
                         >
-                            {check.state === 'stopped' ? 'Stop here' : 'OK'}
+                            {check.state === 'stopped' ? t('preview.stop_here') : t('preview.ok')}
                         </button>
                     </div>
                 </div>
@@ -748,7 +753,7 @@ export default function BookPreview({ bookId, onClose }) {
                 <button
                     type="button"
                     data-a="preview:prev"
-                    aria-label="Previous page"
+                    aria-label={t('preview.previous_page')}
                     onClick={previous}
                     disabled={!ready || atStart}
                     className="tap grid h-10 w-10 place-items-center rounded-control text-text-body hover:bg-bg-subtle disabled:opacity-40"
@@ -760,13 +765,13 @@ export default function BookPreview({ bookId, onClose }) {
                         {current === null ? '–' : `${current} / ${estimated}${numbers.total}`}
                     </span>
                     <span className="block truncate text-[11px] text-text-secondary">
-                        Page {typeof position.page === 'number' ? position.page + 1 : 1} of {pagesHere} in this {item?.kind === 'part' ? 'part' : 'section'}
+                        {t('preview.page_of', { page: typeof position.page === 'number' ? position.page + 1 : 1, pages: pagesHere, kind: item?.kind === 'part' ? 'part' : 'section' })}
                     </span>
                 </p>
                 <button
                     type="button"
                     data-a="preview:next"
-                    aria-label="Next page"
+                    aria-label={t('preview.next_page')}
                     onClick={next}
                     disabled={!ready || atEnd}
                     className="tap grid h-10 w-10 place-items-center rounded-control text-text-body hover:bg-bg-subtle disabled:opacity-40"
@@ -777,14 +782,14 @@ export default function BookPreview({ bookId, onClose }) {
 
             {contents && (
                 <Dialog
-                    label="Contents"
+                    label={t('preview.contents')}
                     onClose={() => setContents(false)}
                     data-a="sheet:preview-contents"
                     className="flex max-h-[80dvh] w-[420px] flex-col rounded-panel bg-bg-surface shadow-popover"
                 >
                     <div className="flex shrink-0 items-center justify-between border-b border-border-divider px-4 py-2.5">
-                        <p className="text-[14px] font-semibold text-text-primary">Contents</p>
-                        <CloseButton onClick={() => setContents(false)} label="Close contents" />
+                        <p className="text-[14px] font-semibold text-text-primary">{t('preview.contents')}</p>
+                        <CloseButton onClick={() => setContents(false)} label={t('preview.close_contents')} />
                     </div>
                     <ol className="min-h-0 overflow-y-auto py-1">
                         {items.map((entry, index) => (

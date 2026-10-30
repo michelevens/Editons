@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
+import { t, useI18n } from '../../i18n';
 
 /**
  * Editions.
@@ -14,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
  * translated, because it has not been.
  */
 export default function EditionsPanel({ bookId, onNotify }) {
+    const { formatNumber } = useI18n();
     const [data, setData] = useState(null);
     const [language, setLanguage] = useState('Spanish');
     const [busy, setBusy] = useState(null);
@@ -38,16 +40,16 @@ export default function EditionsPanel({ bookId, onNotify }) {
             });
 
             setData((current) => ({ ...current, editions: response.data.editions }));
-            onNotify?.(`${response.data.edition.title} was created. It is on your shelf now.`);
+            onNotify?.(t('editions.created', { title: response.data.edition.title }));
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That edition could not be created.');
+            onNotify?.(error.response?.data?.message ?? t('editions.not_created'));
         } finally {
             setBusy(null);
         }
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { editions, languages, source, derived_from: derivedFrom } = data;
@@ -55,9 +57,9 @@ export default function EditionsPanel({ bookId, onNotify }) {
     return (
         <div className="flex h-full min-h-0 flex-col">
             <header className="border-b border-border-default px-4 py-3">
-                <h2 className="text-[15px] font-semibold text-text-primary">Editions</h2>
+                <h2 className="text-[15px] font-semibold text-text-primary">{t('editions.title')}</h2>
                 <p className="text-[11.5px] text-text-secondary">
-                    New versions of this book, built from the same manuscript
+                    {t('editions.subtitle')}
                 </p>
             </header>
 
@@ -67,22 +69,22 @@ export default function EditionsPanel({ bookId, onNotify }) {
                         data-a="editions:derived"
                         className="rounded-tile bg-status-info-bg px-3 py-2 text-[11.5px] text-status-info"
                     >
-                        This book is itself a {derivedFrom.type?.replace('_', ' ')} of{' '}
+                        {t('editions.derived_before', { type: typeName(derivedFrom.type) })}{' '}
                         <button
                             onClick={() => router.get(`/books/${derivedFrom.id}/edit`)}
                             className="font-semibold underline"
                         >
                             {derivedFrom.title}
                         </button>
-                        .
+                        {t('editions.derived_after')}
                     </p>
                 )}
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <Card
-                        title="Workbook edition"
-                        body="Builds a companion workbook from this book's headings, with a reflection prompt under each one for the reader to fill in."
-                        action="Create workbook"
+                        title={t('editions.workbook_title')}
+                        body={t('editions.workbook_body')}
+                        action={t('editions.workbook_action')}
                         busy={busy === 'workbook'}
                         disabled={busy !== null || source.chapters === 0}
                         dataA="editions:workbook"
@@ -90,9 +92,9 @@ export default function EditionsPanel({ bookId, onNotify }) {
                     />
 
                     <Card
-                        title="Translation"
-                        body="Starts a translated edition with the same structure and your text in place, ready to be translated chapter by chapter."
-                        action="Start translation"
+                        title={t('editions.translation_title')}
+                        body={t('editions.translation_body')}
+                        action={t('editions.translation_action')}
                         busy={busy === 'translation'}
                         disabled={busy !== null || source.chapters === 0}
                         dataA="editions:translation"
@@ -100,7 +102,7 @@ export default function EditionsPanel({ bookId, onNotify }) {
                     >
                         <label className="mb-2.5 block">
                             <span className="mb-1 block text-[11.5px] font-medium text-text-secondary">
-                                Language
+                                {t('editions.language')}
                             </span>
                             <select
                                 value={language}
@@ -116,9 +118,9 @@ export default function EditionsPanel({ bookId, onNotify }) {
                     </Card>
 
                     <Card
-                        title="Large-print edition"
-                        body="The same text set at 14 point with wide margins on a 7 × 10 inch page, for readers with low vision. It needs its own ISBN."
-                        action="Create large print"
+                        title={t('editions.large_print_title')}
+                        body={t('editions.large_print_body')}
+                        action={t('editions.large_print_action')}
                         busy={busy === 'large_print'}
                         disabled={busy !== null || source.chapters === 0}
                         dataA="editions:large_print"
@@ -128,31 +130,30 @@ export default function EditionsPanel({ bookId, onNotify }) {
 
                 {source.chapters === 0 && (
                     <p className="text-[11.5px] text-status-warning">
-                        Write a chapter before making an edition of this book.
+                        {t('editions.no_chapters')}
                     </p>
                 )}
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                        Editions of this book
+                        {t('editions.list_title')}
                     </h3>
 
                     {editions.length === 0 ? (
                         <p className="text-[11.5px] text-text-secondary">
-                            Editions you create appear here, and on your shelf alongside this
-                            book.
+                            {t('editions.list_empty')}
                         </p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-[12px]">
                                 <thead>
                                     <tr className="border-b border-border-default text-[11px] uppercase tracking-wide text-text-secondary">
-                                        <th className="py-1.5 pr-3 font-medium">Edition</th>
-                                        <th className="py-1.5 pr-3 font-medium">Type</th>
+                                        <th className="py-1.5 pr-3 font-medium">{t('editions.th_edition')}</th>
+                                        <th className="py-1.5 pr-3 font-medium">{t('editions.th_type')}</th>
                                         <th className="py-1.5 pr-3 text-right font-medium">
-                                            Chapters
+                                            {t('editions.th_chapters')}
                                         </th>
-                                        <th className="py-1.5 pr-3 text-right font-medium">Words</th>
+                                        <th className="py-1.5 pr-3 text-right font-medium">{t('editions.th_words')}</th>
                                         <th />
                                     </tr>
                                 </thead>
@@ -166,14 +167,14 @@ export default function EditionsPanel({ bookId, onNotify }) {
                                                 {edition.title}
                                             </td>
                                             <td className="py-2 pr-3 text-text-body">
-                                                {edition.type?.replace('_', ' ')}
+                                                {typeName(edition.type)}
                                                 {edition.language ? ` · ${edition.language}` : ''}
                                             </td>
                                             <td className="py-2 pr-3 text-right tabular-nums text-text-body">
                                                 {edition.sections}
                                             </td>
                                             <td className="py-2 pr-3 text-right tabular-nums text-text-body">
-                                                {edition.word_count.toLocaleString()}
+                                                {formatNumber(edition.word_count)}
                                             </td>
                                             <td className="py-2 text-right">
                                                 <button
@@ -183,7 +184,7 @@ export default function EditionsPanel({ bookId, onNotify }) {
                                                     }
                                                     className="rounded-control bg-brand-fill px-2 py-1 text-[11.5px] font-semibold text-white"
                                                 >
-                                                    Open
+                                                    {t('editions.open')}
                                                 </button>
                                             </td>
                                         </tr>
@@ -196,6 +197,17 @@ export default function EditionsPanel({ bookId, onNotify }) {
             </div>
         </div>
     );
+}
+
+/** An edition's kind, as the table and the "derived from" line name it. */
+function typeName(type) {
+    const names = {
+        workbook: t('editions.type_workbook'),
+        translation: t('editions.type_translation'),
+        large_print: t('editions.type_large_print'),
+    };
+
+    return names[type] ?? type?.replace('_', ' ');
 }
 
 function Card({ title, body, action, busy, disabled, dataA, onAction, children }) {
@@ -212,7 +224,7 @@ function Card({ title, body, action, busy, disabled, dataA, onAction, children }
                 disabled={disabled}
                 className="mt-auto rounded-control bg-brand-fill px-2.5 py-2 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
             >
-                {busy ? 'Creating…' : action}
+                {busy ? t('editions.creating') : action}
             </button>
         </article>
     );

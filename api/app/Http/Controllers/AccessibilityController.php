@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Publishing\AccessibilityAudit;
@@ -80,7 +81,7 @@ class AccessibilityController extends Controller
 
         if (! $found) {
             return response()->json([
-                'message' => 'That image is no longer where it was. Reload the page and try again.',
+                'message' => Locales::t('a11y.image_moved'),
             ], 409);
         }
 
