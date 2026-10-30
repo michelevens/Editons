@@ -4075,3 +4075,97 @@ book's identical export), `tests/Feature/BookSettingsTest.php` (defaults),
 `tests/Browser/book-typography.spec.js` (as you type, Ctrl+Z, `lang` and
 `spellcheck` on the editor, a rule changed, count and fix on Book settings,
 at 1440 and 390 px, no horizontal overflow, no console errors).
+
+## ADR-0052 — Notification frequency, channels, mutes and digests
+
+**Status:** accepted (2026-10-30). Number assigned at merge.
+
+**Context.** The flexibility audit's N1: email preferences were one switch
+per category. "Sales" sent a note on every purchase with no digest; there
+was no per-book mute, no choice between inbox and email, no quiet hours.
+The weekly progress email had been built unscheduled, then (2026-10-28)
+scheduled for everybody on Mondays at 8:00 New York time, default on, with
+no way to pick the day or the hour.
+
+**Decisions.**
+
+- *Frequency per activity category.* The five categories about books
+  (`collaboration`, `writing`, `publishing`, `sales`, `partners`; marked
+  `digestible` in `EmailPreferences::CATEGORIES`) choose instant, daily
+  digest, weekly digest or off. "Off" is the existing `email_preferences`
+  switch, not a second copy: the footer's unsubscribe link, the old toggle
+  and the new select read and write one fact. Everything else (security,
+  billing, receipts: always on; news, tips, weekly progress: on/off) is
+  unchanged.
+- *Inbox channel per category*, for the categories the inbox has kinds for.
+  Off: `Inbox::record` does not write the item. Support, moderation and
+  announcements have no switch.
+- *Settings as overrides* in `users.notification_settings`
+  (`App\Mail\NotificationSettings`), like `email_preferences`: absent means
+  the default, and the defaults are exactly the old behaviour (instant,
+  inbox on, nothing muted, no quiet hours). A person on the defaults stores
+  `null`.
+- *Holding, not dropping.* `Notify::send` keeps the decision in one place: a
+  digestible email to an account (never to a bare address, never a
+  mandatory one) about a muted book is not sent; a daily/weekly one is held
+  in `held_emails` with its subject and link rendered then, in the
+  recipient's language; an instant one inside quiet hours is held with the
+  serialized Mailable and a `release_at`. `Notify::deliver` is the old send
+  path, past every preference. A failure to hold sends the email instead.
+- *One schedule, the person's clock.* A digest day (ISO weekday) and hour,
+  default Monday 8:00, in `users.timezone` (else the platform's reporting
+  zone): daily digests use the hour, weekly digests and weekly progress the
+  day and hour. Whole hours only, because the runner is hourly.
+- *Delivery.* `notifications:deliver`, hourly, replaces the fixed Monday
+  `emails:weekly-digest` schedule (the command stays, for sending by hand).
+  For each person it computes the most recent scheduled moment at or before
+  now; everything held before it goes into that moment's digest, so a
+  missed run catches up on the next and something held after it waits for
+  the next one.
+- *Idempotency.* `email_digests` is unique on (person, kind, period = local
+  date of the moment). A run claims the row with `INSERT … ON CONFLICT DO
+  NOTHING` (catching a unique violation would abort a surrounding Postgres
+  transaction), attaches the held rows in the same transaction, then sends
+  and stamps `sent_at` inside a transaction holding the row lock. A second
+  runner finds the row; a run that died after claiming leaves an unsent
+  row the next run sends. Quiet holds are claimed by stamping `sent_at`
+  where it is still null, before sending: at most once, and preferences are
+  read again at release (muted or switched off since means dropped).
+- *Weekly progress is opt-in.* `digest` gets `'default' => false`, for new
+  and existing accounts. The old profile form saved every switch, so a
+  stored `digest: true` cannot be told from a default-on switch nobody
+  touched; the migration sets those aside as `digest_legacy` (ignored when
+  reading; `down()` restores them) rather than deleting them. A stored
+  `false` stays. Nobody receives it until they turn it on. It goes within a
+  day of the person's moment only, covering the seven days before the send
+  day, and a quiet week is recorded but not sent, as before.
+- *Mute is the person's own.* `PUT /books/{book}/mute`, allowed to anybody
+  who can open the book (a collaborator can mute a book they were invited
+  to), from the shelf card or the profile's list. Muted: no activity email;
+  inbox items still recorded, already read, so the history is there without
+  the badge.
+- *The digest email* (`Account\ActivityDigestMail`, category `account`):
+  one email listing the held items grouped by category, each linking where
+  its own email would have. Always sent, because it exists only for people
+  who asked for it; the footer leads to the settings that turn it off.
+
+**Defaults unchanged.** Somebody who changes nothing gets every activity
+email at once and every inbox item, as before; the one deliberate change is
+that the weekly progress email stops until they opt in.
+
+**Not done.** Minute-precise times (hour granularity), a per-book frequency
+(a mute is all-or-nothing), digests for the inbox itself, and a timezone
+picker on the profile (the zone shown is the one the sales screen sets).
+
+**Tests.** `tests/Feature/Emails/NotificationSettingsTest.php` (defaults
+unchanged, opt-in for new, legacy and explicit accounts, the migration's
+set-aside and rollback, saving and validation, unsubscribe mapping, off,
+inbox off, mute from the card and its tenancy check, security mail never
+muted or held, quiet hours across midnight and release once, a muted
+book's held email dropped, daily digest at the local hour in French and
+once, weekly digest on a Paris Friday, catch-up after a missed run, a
+claimed-but-unsent digest sent once, moment arithmetic across day, week and
+timezone boundaries, weekly progress only to the opted-in on their day and
+hour, no late send), `tests/Feature/ScheduleTest.php` (hourly runner, no
+Monday send to everybody, only opted-in receive it from the scheduled run),
+and `tests/Browser/notifications.spec.js` at 1440 and 390 px.
