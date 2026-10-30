@@ -104,7 +104,7 @@ it('reads a paragraph as one run across marks, and never touches code', function
 
 it('takes the rules from the language until the author picks', function () {
     $french = typoBook();
-    $english = typoBook(['language' => null]);
+    $english = typoBook(['language' => 'English (US)']);
     $kreyol = typoBook(['language' => 'Haitian Creole']);
 
     expect(Typography::resolve($french))->toMatchArray(FR + ['as_you_type' => false, 'apply_at_export' => false, 'language' => 'fr'])
@@ -164,9 +164,9 @@ it('counts first, then fixes with a version of each chapter taken before', funct
 
     $preview = $this->actingAs($book->user)->getJson("/books/{$book->id}/typography/preview")->assertOk();
 
-    // Title: "un" in guillemets (1); text: ? (1), "Oui" (2), ... (1).
-    expect($preview->json('changes'))->toBe(5)
-        ->and($preview->json('chapters'))->toBe([['id' => $section->id, 'title' => 'Chapitre "un"', 'changes' => 5]])
+    // Title: "un" (2); text: ? (1), "Oui" (2), ... (1).
+    expect($preview->json('changes'))->toBe(6)
+        ->and($preview->json('chapters'))->toBe([['id' => $section->id, 'title' => 'Chapitre "un"', 'changes' => 6]])
         ->and($section->fresh()->content)->toBe($before)
         ->and($section->versions()->count())->toBe(0);
 
@@ -175,11 +175,11 @@ it('counts first, then fixes with a version of each chapter taken before', funct
     $section->refresh();
     $version = $section->versions()->first();
 
-    expect($fix->json('changes'))->toBe(5)
+    expect($fix->json('changes'))->toBe(6)
         ->and(shown($section->content['content'][0]['content'][0]['text']))->toBe('Quoi^? «_Oui_»…')
         ->and(shown($section->title))->toBe('Chapitre «_un_»')
         ->and($version->reason)->toBe('typography')
-        ->and($version->label)->toBe('Before typography fix (5 corrections)')
+        ->and($version->label)->toBe('Before typography fix (6 corrections)')
         ->and($version->content)->toBe($before)
         ->and($version->title)->toBe('Chapitre "un"')
         // The chapter with nothing to fix has no new version.
@@ -222,7 +222,7 @@ it('sets French spacing in the EPUB only when the book opts in, never touching t
     };
 
     $plain = $chapter($book);
-    expect($plain)->toContain('dit "bonjour" ! Quoi?')->not->toContain("\u{202F}");
+    expect($plain)->toContain('dit &quot;bonjour&quot; ! Quoi?')->not->toContain("\u{202F}");
 
     $book->update(['settings' => ['typography' => ['apply_at_export' => true]]]);
     $before = $book->sections()->first()->content;
@@ -242,13 +242,13 @@ it('prints a narrow no-break space as a full one in a face without it', function
 });
 
 it('exports an untouched book exactly as before', function () {
-    $book = typoBook(['language' => null], ['She said "it\'s fine" -- and left...']);
+    $book = typoBook(['language' => 'English (US)'], ['She said "it\'s fine" -- and left...']);
     $exporter = app(Exporter::class);
     $html = fn (Book $b) => preg_replace('/\d{4}-\d{2}-\d{2}T[\d:+.Z-]+/', '', Storage::disk('local')->get($exporter->generate($b, 'html')->path));
 
     $untouched = $html($book);
 
-    expect($untouched)->toContain('She said "it\'s fine" -- and left...')->not->toContain('“');
+    expect($untouched)->toContain('She said &quot;it')->toContain('fine&quot; -- and left...')->not->toContain('“');
 
     // Rules chosen but not applied at export: the same file.
     $book->update(['settings' => ['typography' => ['as_you_type' => true, 'quotes' => 'curly']]]);

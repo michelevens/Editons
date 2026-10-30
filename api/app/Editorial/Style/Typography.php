@@ -189,9 +189,18 @@ final class Typography
             }
         }
 
-        $node['content'] = $inline
-            ? self::textblock($children, $rules, $count)
-            : array_map(fn ($child) => is_array($child) ? self::node($child, $rules, $count) : $child, $children);
+        if ($inline) {
+            $node['content'] = self::textblock($children, $rules, $count);
+
+            return $node;
+        }
+
+        // A loop, not array_map: an arrow function would count into a copy.
+        foreach ($children as $i => $child) {
+            if (is_array($child)) {
+                $node['content'][$i] = self::node($child, $rules, $count);
+            }
+        }
 
         return $node;
     }
@@ -235,7 +244,13 @@ final class Typography
         $out = self::scan($chars, $segments, $locked, $rules, $count);
 
         if ($count === $before) {
-            return array_map(fn ($c) => ($c['type'] ?? null) === 'footnote' ? self::node($c, $rules, $count) : $c, $children);
+            foreach ($children as $i => $child) {
+                if (($child['type'] ?? null) === 'footnote') {
+                    $children[$i] = self::node($child, $rules, $count);
+                }
+            }
+
+            return $children;
         }
 
         $texts = [];

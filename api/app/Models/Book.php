@@ -182,7 +182,12 @@ class Book extends Model
     /** Settings with defaults applied, so a missing key is never undefined. */
     public function settings(): array
     {
-        return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
+        $settings = array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
+        // Every key, in one order: jsonb keeps neither a missing key nor
+        // the order they were saved in.
+        $settings['typography'] = Typography::normalise($settings['typography'] ?? null);
+
+        return $settings;
     }
 
     /**
