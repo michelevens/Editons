@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect as baseExpect, test } from '@playwright/test';
 import { signIn, watchForErrors } from './helpers.js';
 
 /**
@@ -10,7 +10,10 @@ import { signIn, watchForErrors } from './helpers.js';
  *
  * SHOTS, when set, is a directory the screenshots are written to.
  */
-test.describe.configure({ timeout: 180_000 });
+// Generous: the php -S server under test answers one request at a time.
+test.describe.configure({ timeout: 480_000 });
+test.use({ actionTimeout: 120_000, navigationTimeout: 180_000 });
+const expect = baseExpect.configure({ timeout: 60_000 });
 
 const shot = (page, name) => (process.env.SHOTS ? page.screenshot({ path: `${process.env.SHOTS}/${name}.png`, fullPage: true }) : null);
 
@@ -25,7 +28,15 @@ const DEFAULTS = {
 
 /** Put the e2e account back on the defaults, through the form's own endpoint. */
 async function reset(page) {
-    await page.evaluate((body) => window.axios.patch('/profile/email-preferences', body), DEFAULTS);
+    // Not through axios: the browser would follow the 302 with a second
+    // PATCH, to /profile. The page's own cookies, the XSRF token, no redirect.
+    const xsrf = (await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN');
+    const response = await page.request.patch('/profile/email-preferences', {
+        data: DEFAULTS,
+        headers: { 'X-XSRF-TOKEN': decodeURIComponent(xsrf.value), Accept: 'text/html' },
+        maxRedirects: 0,
+    });
+    expect(response.status()).toBe(302);
 }
 
 async function noSideScroll(page, width) {
