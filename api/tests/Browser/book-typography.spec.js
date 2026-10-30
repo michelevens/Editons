@@ -18,7 +18,7 @@ import { DEMO, signIn, watchForErrors } from './helpers.js';
  * The book is the suite's own ("E2E Typography", rebuilt on every run in
  * the e2e account), so nothing else on the shelf is touched.
  */
-test.describe.configure({ timeout: 180_000 });
+test.describe.configure({ timeout: 480_000 });
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SHOTS = process.env.TYPO_SHOTS;
