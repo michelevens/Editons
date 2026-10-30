@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Publishing\Anatomy;
@@ -44,7 +45,7 @@ class BookPartsController extends Controller
 
         if (! Anatomy::reorder($book, $data['fingerprint'])) {
             return response()->json([
-                'message' => 'The binder changed since the preview. Check the new preview before reordering.',
+                'message' => Locales::t('parts.binder_changed_preview'),
                 'preview' => Anatomy::reorderPreview($book),
             ], 409);
         }
@@ -75,7 +76,7 @@ class BookPartsController extends Controller
 
         if (! Anatomy::arrange($book, $parentId, $data['ids'])) {
             return response()->json([
-                'message' => 'The binder changed since it was loaded. Reload it and move the chapter again.',
+                'message' => Locales::t('parts.binder_changed_move'),
             ], 409);
         }
 

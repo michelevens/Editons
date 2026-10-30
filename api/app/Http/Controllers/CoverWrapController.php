@@ -7,6 +7,7 @@ use App\Covers\CoverContrast;
 use App\Covers\CoverImages;
 use App\Covers\CoverLayers;
 use App\Covers\CoverTemplates;
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Publishing\CoverWrap;
 use App\Publishing\PrintPages;
@@ -132,7 +133,7 @@ class CoverWrapController extends Controller
         CoverTemplates::refuseWhileFollowing($book);
 
         if (! CoverBackground::for($book, 'wrap')) {
-            return response()->json(['message' => 'There is no background across the wrap to fit.'], 422);
+            return response()->json(['message' => Locales::t('cover.no_wrap_background')], 422);
         }
 
         try {

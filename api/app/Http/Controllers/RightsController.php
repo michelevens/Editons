@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
@@ -59,7 +60,7 @@ class RightsController extends Controller
 
             if (! Isbn::isValid($number)) {
                 throw ValidationException::withMessages([
-                    'isbn' => 'That is not a valid ISBN-13. Check the digits.',
+                    'isbn' => Locales::t('rights.invalid_isbn'),
                 ]);
             }
 
@@ -67,7 +68,7 @@ class RightsController extends Controller
 
             if ($account->isbns()->where('isbn', $number)->exists()) {
                 throw ValidationException::withMessages([
-                    'isbn' => 'That number is already in your account.',
+                    'isbn' => Locales::t('rights.isbn_in_account'),
                 ]);
             }
 
@@ -124,13 +125,13 @@ class RightsController extends Controller
             $number = Isbn::normalise($candidate);
 
             if (! Isbn::isValid($number)) {
-                $rejected[] = $candidate.' — not a valid ISBN-13';
+                $rejected[] = Locales::t('rights.rejected_invalid', ['isbn' => $candidate]);
 
                 continue;
             }
 
             if ($request->user()->isbns()->where('isbn', $number)->exists()) {
-                $rejected[] = $candidate.' — already in your account';
+                $rejected[] = Locales::t('rights.rejected_exists', ['isbn' => $candidate]);
 
                 continue;
             }
@@ -288,7 +289,7 @@ class RightsController extends Controller
     {
         if ($book->isbns()->where('edition_format', $format)->exists()) {
             throw ValidationException::withMessages([
-                'edition_format' => 'That edition already has an ISBN. Unassign it first.',
+                'edition_format' => Locales::t('rights.edition_has_isbn'),
             ]);
         }
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Covers\CoverTemplates;
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\CoverTemplate;
 use App\Platform\AdminAudit;
@@ -94,7 +95,7 @@ class CoverTemplateController extends Controller
         $reason = trim((string) ($data['reason'] ?? ''));
 
         if ($template->user?->isHouse() && mb_strlen($reason) < 4) {
-            throw ValidationException::withMessages(['reason' => 'House books are changed with a reason, kept in the audit log.']);
+            throw ValidationException::withMessages(['reason' => Locales::t('cover.house_reason')]);
         }
 
         $results = $this->templates->applyMany($template, $data['books'], $request->user(), $data['follow'] ?? true, $data['artwork'] ?? null,

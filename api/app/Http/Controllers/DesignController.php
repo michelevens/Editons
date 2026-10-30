@@ -9,6 +9,7 @@ use App\Covers\CoverFonts;
 use App\Covers\CoverImages;
 use App\Covers\CoverLayers;
 use App\Covers\CoverTemplates;
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Platform\Ai\AiControls;
@@ -86,7 +87,7 @@ class DesignController extends Controller
 
         if ($unknown !== []) {
             throw ValidationException::withMessages(collect($unknown)
-                ->mapWithKeys(fn ($key) => [$key => "“{$key}” is not a layout setting."])->all());
+                ->mapWithKeys(fn ($key) => [$key => Locales::t('layout.not_a_setting', ['key' => $key])])->all());
         }
 
         // A book that follows a house style takes its design from the
@@ -313,7 +314,7 @@ class DesignController extends Controller
 
         if (! $size || $size[0] * $size[1] > CoverRenderer::MAX_PIXELS) {
             throw ValidationException::withMessages([
-                'artwork' => 'That image is too large to use. Use one under 40 megapixels (for example 4000 × 6400).',
+                'artwork' => Locales::t('cover.image_too_large'),
             ]);
         }
 
