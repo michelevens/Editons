@@ -1,7 +1,7 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
 import SalesExplorer from '@/Components/Store/SalesExplorer';
-import { money } from '@/Components/Store/money';
+import { useI18n } from '@/i18n';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 
 /**
@@ -12,33 +12,34 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
  */
 export default function Sales({ enabled, report, products, partners = null, query, options, statements, timezone, scope, can_house: canHouse }) {
     const { auth } = usePage().props;
+    const { t, formatMoney } = useI18n();
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title="Sales" />
+            <Head title={t('sales.title')} />
             <AppHeader active="books" user={auth?.user} account={auth?.account} />
 
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto max-w-[1040px] px-4 py-9 sm:px-8">
                     <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
-                        Sales
+                        {t('sales.title')}
                     </h1>
                     <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                         <p className="text-[13px] text-text-secondary">
-                            {scope === 'house' ? 'Books sold by the house imprints' : 'Books sold from your storefront'}
-                            {!enabled && scope !== 'house' && ' · selling turns on once card payments are connected'}
+                            {scope === 'house' ? t('sales.subtitle_house') : t('sales.subtitle_own')}
+                            {!enabled && scope !== 'house' && ` · ${t('sales.selling_turns_on')}`}
                         </p>
                         {canHouse && (
-                            <div className="flex gap-1" role="group" aria-label="Whose sales">
+                            <div className="flex gap-1" role="group" aria-label={t('sales.whose_sales')}>
                                 {[
-                                    [null, 'My sales'],
-                                    ['house', 'House catalog'],
+                                    [null, t('sales.scope_mine')],
+                                    ['house', t('sales.scope_house')],
                                 ].map(([key, label]) => {
                                     const on = (scope === 'house') === (key === 'house');
 
                                     return (
                                         <Link
-                                            key={label}
+                                            key={key ?? 'own'}
                                             href={route('sales.overview', key ? { scope: key } : {})}
                                             data-a={`sales:scope:${key ?? 'own'}`}
                                             aria-current={on ? 'page' : undefined}
@@ -63,13 +64,13 @@ export default function Sales({ enabled, report, products, partners = null, quer
                                 >
                                     <span className="font-semibold text-text-primary">{product.title}</span>
                                     <span className="ml-2 text-text-secondary">
-                                        {money(product.price_cents, product.currency)} ·{' '}
+                                        {formatMoney(product.price_cents, product.currency)} ·{' '}
                                         {product.published ? (
                                             <a href={product.url} className="text-brand-primary hover:underline">
-                                                on sale
+                                                {t('sales.on_sale')}
                                             </a>
                                         ) : (
-                                            'not on sale'
+                                            t('sales.not_on_sale')
                                         )}
                                     </span>
                                 </li>
@@ -96,15 +97,16 @@ export default function Sales({ enabled, report, products, partners = null, quer
  * to partner (they skip the application queue, for these books only).
  */
 function Partners({ partners }) {
+    const { t, formatMoney } = useI18n();
     const invite = useForm({ email: '' });
 
     return (
         <section data-a="sales:partners" className="mt-8 rounded-tile border border-border-default bg-bg-surface p-4">
-            <h2 className="text-[15px] font-semibold text-text-primary">Partners selling your books</h2>
+            <h2 className="text-[15px] font-semibold text-text-primary">{t('sales.partners_title')}</h2>
             <p className="mt-1 text-[12.5px] text-text-secondary">
                 {partners.opted_in > 0
-                    ? `${partners.opted_in} of your books ${partners.opted_in === 1 ? 'is' : 'are'} open to partners. Their commission comes out of your royalty on the sales they bring.`
-                    : 'Let partners sell a book from its storefront settings, then invite people who could share it.'}
+                    ? t('sales.partners_opted_in', { count: partners.opted_in })
+                    : t('sales.partners_none_opted_in')}
             </p>
 
             {partners.partners.length > 0 && (
@@ -120,10 +122,10 @@ function Partners({ partners }) {
                                     <span className="font-semibold text-text-primary">{p.name}</span>
                                 )}
                                 <span className="ml-2 text-[11.5px] text-text-secondary">
-                                    {p.sales} sale{p.sales === 1 ? '' : 's'}
-                                    {p.commissions.map((c) => ` · ${money(c.cents, c.currency)} commission`).join('')}
-                                    {p.on_page && ' · on their page'}
-                                    {p.status !== 'active' && ' · inactive'}
+                                    {t('sales.partner_sales', { count: p.sales })}
+                                    {p.commissions.map((c) => ` · ${t('sales.partner_commission', { amount: formatMoney(c.cents, c.currency) })}`).join('')}
+                                    {p.on_page && ` · ${t('sales.partner_on_page')}`}
+                                    {p.status !== 'active' && ` · ${t('sales.partner_inactive')}`}
                                 </span>
                             </span>
                             <button
@@ -132,12 +134,12 @@ function Partners({ partners }) {
                                 onClick={() =>
                                     p.blocked
                                         ? router.delete(route('sales.partners.unblock', p.id), { preserveScroll: true })
-                                        : window.confirm(`Stop ${p.name} selling your books? Commissions already earned are kept.`) &&
+                                        : window.confirm(t('sales.partner_block_confirm', { name: p.name })) &&
                                           router.post(route('sales.partners.block', p.id), {}, { preserveScroll: true })
                                 }
                                 className={`tap min-h-[36px] rounded-button border px-3 text-[12px] font-semibold ${p.blocked ? 'border-border-default text-text-primary' : 'border-status-danger/40 text-status-danger'}`}
                             >
-                                {p.blocked ? 'Unblock' : 'Block'}
+                                {p.blocked ? t('sales.partner_unblock') : t('sales.partner_block')}
                             </button>
                         </li>
                     ))}
@@ -152,25 +154,25 @@ function Partners({ partners }) {
                 }}
             >
                 <label htmlFor="invite-partner" className="sr-only">
-                    Invite a partner by email
+                    {t('sales.invite_by_email')}
                 </label>
                 <input
                     id="invite-partner"
                     type="email"
                     required
-                    placeholder="Invite a partner by email"
+                    placeholder={t('sales.invite_by_email')}
                     value={invite.data.email}
                     onChange={(e) => invite.setData('email', e.target.value)}
                     className="min-w-0 flex-1 rounded-input border border-border-input bg-bg-surface px-3 py-2 text-[13.5px] text-text-primary sm:max-w-[320px]"
                 />
                 <button type="submit" disabled={invite.processing} className="tap min-h-[40px] rounded-button bg-brand-primary px-4 text-[13px] font-semibold text-white disabled:opacity-60">
-                    Send invitation
+                    {t('sales.send_invitation')}
                 </button>
                 {invite.errors.email && <p className="w-full text-[12px] text-status-danger">{invite.errors.email}</p>}
             </form>
             {partners.invitations.length > 0 && (
                 <p className="mt-2 text-[11.5px] text-text-secondary">
-                    Invited: {partners.invitations.map((i) => `${i.email} (${i.status})`).join(', ')}
+                    {t('sales.invited', { list: partners.invitations.map((i) => `${i.email} (${i.status})`).join(', ') })}
                 </p>
             )}
         </section>

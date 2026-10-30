@@ -1,6 +1,7 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import Icon from '@/Components/Studio/Icon';
 import MobileNav from '@/Components/Studio/MobileNav';
+import { useI18n } from '@/i18n';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -36,10 +37,18 @@ const KIND_ICONS = {
 };
 
 const VIEWS = [
-    { key: 'inbox', label: 'Inbox' },
-    { key: 'snoozed', label: 'Snoozed' },
-    { key: 'done', label: 'Done' },
+    { key: 'inbox', tKey: 'inbox.view_inbox' },
+    { key: 'snoozed', tKey: 'inbox.view_snoozed' },
+    { key: 'done', tKey: 'inbox.view_done' },
 ];
+
+/** The toast after each action, with Undo beside it. */
+const SAID = {
+    done: { tKey: 'inbox.said_done' },
+    undone: { tKey: 'inbox.said_undone' },
+    snooze: { tKey: 'inbox.said_snooze' },
+    unsnooze: { tKey: 'inbox.said_unsnooze' },
+};
 
 /** What a swipe each way does, in each view; null where it does nothing. */
 const SWIPES = {
@@ -49,14 +58,15 @@ const SWIPES = {
 };
 
 const ACTIONS = {
-    done: { label: 'Done', icon: 'check', tone: 'bg-status-success-fill', undo: 'undone', said: 'Marked done.' },
-    undone: { label: 'Back to inbox', icon: 'reset', tone: 'bg-brand-fill', undo: 'done', said: 'Moved back to the inbox.' },
-    snooze: { label: 'Tomorrow', icon: 'history', tone: 'bg-status-warning-fill', undo: 'unsnooze', said: 'Snoozed until tomorrow morning.' },
-    unsnooze: { label: 'Wake now', icon: 'bell', tone: 'bg-brand-fill', undo: 'snooze', said: 'Back in the inbox.' },
+    done: { tKey: 'inbox.action_done', icon: 'check', tone: 'bg-status-success-fill', undo: 'undone' },
+    undone: { tKey: 'inbox.action_back_to_inbox', icon: 'reset', tone: 'bg-brand-fill', undo: 'done' },
+    snooze: { tKey: 'inbox.action_tomorrow', icon: 'history', tone: 'bg-status-warning-fill', undo: 'unsnooze' },
+    unsnooze: { tKey: 'inbox.action_wake_now', icon: 'bell', tone: 'bg-brand-fill', undo: 'snooze' },
 };
 
 export default function Inbox({ view, items: initialItems, counts: initialCounts }) {
     const { auth } = usePage().props;
+    const { t } = useI18n();
     const [items, setItems] = useState(initialItems);
     const [counts, setCounts] = useState(initialCounts);
     const [undo, setUndo] = useState(null);
@@ -88,7 +98,7 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
             timer.current = window.setTimeout(() => setUndo(null), 6000);
         } catch {
             setItems((current) => insert(current, item, at));
-            setFailure('That did not save. Try again.');
+            setFailure(t('inbox.failure_save'));
         }
     };
 
@@ -103,7 +113,7 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
             const restored = await send(item, ACTIONS[action].undo);
             setItems((current) => insert(current, restored, at));
         } catch {
-            setFailure('That could not be undone.');
+            setFailure(t('inbox.failure_undo'));
         }
     };
 
@@ -135,7 +145,7 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title="Inbox" />
+            <Head title={t('inbox.title')} />
             <AppHeader active="books" user={auth?.user} account={auth?.account} />
 
             <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
@@ -143,10 +153,10 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
                     <div className="flex items-end gap-3 px-4 sm:px-0">
                         <div className="min-w-0 flex-1">
                             <h1 className="font-display text-[26px] font-extrabold tracking-[-0.03em] text-text-primary sm:text-[30px]">
-                                Inbox
+                                {t('inbox.title')}
                             </h1>
                             <p data-a="inbox:summary" className="mt-0.5 text-[13px] text-text-secondary">
-                                {counts.unread > 0 ? `${counts.unread} unread` : 'All read'}
+                                {counts.unread > 0 ? t('inbox.unread_count', { n: counts.unread }) : t('inbox.all_read')}
                             </p>
                         </div>
                         {view === 'inbox' && counts.unread > 0 && (
@@ -156,12 +166,12 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
                                 onClick={readAll}
                                 className="tap rounded-control border border-border-input px-3 text-[12.5px] font-medium text-text-body transition hover:border-brand-primary/40"
                             >
-                                Mark all read
+                                {t('inbox.mark_all_read')}
                             </button>
                         )}
                     </div>
 
-                    <nav aria-label="Inbox views" className="mt-4 flex gap-1 border-b border-border-default px-3 sm:px-0">
+                    <nav aria-label={t('inbox.views_label')} className="mt-4 flex gap-1 border-b border-border-default px-3 sm:px-0">
                         {VIEWS.map((option) => (
                             <Link
                                 key={option.key}
@@ -175,7 +185,7 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
                                         : 'border-transparent text-text-secondary hover:text-text-primary'
                                 }`}
                             >
-                                {option.label}
+                                {t(option.tKey)}
                                 {option.key !== 'done' && counts[option.key] > 0 && (
                                     <span className="rounded-badge bg-bg-subtle px-1.5 text-[11px] tabular-nums text-text-secondary">
                                         {counts[option.key]}
@@ -187,13 +197,13 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
 
                     <p className="mt-2 px-4 text-[11.5px] text-text-secondary sm:px-0">
                         <span className="sm:hidden">
-                            {swipes.left && `Swipe left: ${ACTIONS[swipes.left].label.toLowerCase()}`}
-                            {swipes.right && ` · right: ${ACTIONS[swipes.right].label.toLowerCase()}`}
+                            {swipes.left && t('inbox.swipe_left', { action: t(ACTIONS[swipes.left].tKey).toLowerCase() })}
+                            {swipes.right && ` · ${t('inbox.swipe_right', { action: t(ACTIONS[swipes.right].tKey).toLowerCase() })}`}
                         </span>
                         <span className="max-sm:hidden">
-                            Keys: ↑ ↓ to move, Enter to open
-                            {swipes.left === 'done' && ', E done'}
-                            {swipes.right === 'snooze' && ', H snooze until tomorrow'}, U read or unread.
+                            {t('inbox.keys_move')}
+                            {swipes.left === 'done' && `, ${t('inbox.keys_done')}`}
+                            {swipes.right === 'snooze' && `, ${t('inbox.keys_snooze')}`}, {t('inbox.keys_read')}
                         </span>
                     </p>
 
@@ -209,14 +219,14 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
                                 <Icon name="bell" size={22} />
                             </span>
                             <p className="mt-3 text-[14px] font-semibold text-text-primary">
-                                {view === 'snoozed' ? 'Nothing snoozed' : view === 'done' ? 'Nothing done yet' : 'You are all caught up'}
+                                {view === 'snoozed' ? t('inbox.empty_snoozed') : view === 'done' ? t('inbox.empty_done') : t('inbox.empty_inbox')}
                             </p>
                             <p className="mt-1 text-[12.5px] text-text-secondary">
-                                Comments, review-board moves, new team members, finished exports and AI reviews arrive here.
+                                {t('inbox.empty_hint')}
                             </p>
                         </div>
                     ) : (
-                        <ul ref={list} aria-label={`${VIEWS.find((v) => v.key === view)?.label ?? 'Inbox'} items`} className="mt-2 sm:space-y-1.5">
+                        <ul ref={list} aria-label={t('inbox.items_label', { view: t(VIEWS.find((v) => v.key === view)?.tKey ?? 'inbox.view_inbox') })} className="mt-2 sm:space-y-1.5">
                             {items.map((item) => (
                                 <InboxRow
                                     key={item.id}
@@ -240,14 +250,14 @@ export default function Inbox({ view, items: initialItems, counts: initialCounts
                         data-a="inbox:toast"
                         className="pointer-events-auto flex items-center gap-3 rounded-panel bg-bg-inverse px-4 py-2.5 text-[13px] text-text-inverse shadow-popover"
                     >
-                        <span>{ACTIONS[undo.action].said}</span>
+                        <span>{t(SAID[undo.action].tKey)}</span>
                         <button
                             type="button"
                             data-a="inbox:undo"
                             onClick={revert}
                             className="tap rounded-control px-2 font-semibold underline underline-offset-2"
                         >
-                            Undo
+                            {t('inbox.undo')}
                         </button>
                     </div>
                 </div>
@@ -272,6 +282,7 @@ function insert(list, item, at) {
  * Tab on a phone, so nothing here needs a finger.
  */
 function InboxRow({ item, swipes, onOpen, onAct, onToggleRead, onMove }) {
+    const { t } = useI18n();
     const [dx, setDx] = useState(0);
     const [dragging, setDragging] = useState(false);
     const start = useRef(null);
@@ -379,12 +390,12 @@ function InboxRow({ item, swipes, onOpen, onAct, onToggleRead, onMove }) {
             {right && dx > 0 && (
                 <div aria-hidden="true" className={`absolute inset-y-0 left-0 flex items-center gap-2 px-5 text-[13px] font-semibold text-white ${right.tone}`} style={{ width: Math.abs(dx) + 40 }}>
                     <Icon name={right.icon} size={18} />
-                    {right.label}
+                    {t(right.tKey)}
                 </div>
             )}
             {left && dx < 0 && (
                 <div aria-hidden="true" className={`absolute inset-y-0 right-0 flex items-center justify-end gap-2 px-5 text-[13px] font-semibold text-white ${left.tone}`} style={{ width: Math.abs(dx) + 40 }}>
-                    {left.label}
+                    {t(left.tKey)}
                     <Icon name={left.icon} size={18} />
                 </div>
             )}
@@ -413,7 +424,7 @@ function InboxRow({ item, swipes, onOpen, onAct, onToggleRead, onMove }) {
                         </span>
                         {!item.read && (
                             <span data-a="inbox:unread-dot" className="absolute -left-1 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-bg-surface bg-brand-fill">
-                                <span className="sr-only">Unread</span>
+                                <span className="sr-only">{t('inbox.unread')}</span>
                             </span>
                         )}
                     </span>
@@ -440,8 +451,8 @@ function InboxRow({ item, swipes, onOpen, onAct, onToggleRead, onMove }) {
                             key={action}
                             type="button"
                             data-a={`inbox:${action}`}
-                            aria-label={`${ACTIONS[action].label}: ${item.title}`}
-                            title={ACTIONS[action].label}
+                            aria-label={`${t(ACTIONS[action].tKey)}: ${item.title}`}
+                            title={t(ACTIONS[action].tKey)}
                             onClick={() => onAct(action)}
                             className="grid h-9 w-9 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary max-sm:sr-only max-sm:focus:not-sr-only"
                         >

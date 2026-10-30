@@ -1,5 +1,6 @@
 import { Agreement } from '@/Components/Partners/PartnerKit';
 import StoreLayout from '@/Layouts/StoreLayout';
+import { useI18n } from '@/i18n';
 import { Head, Link, useForm } from '@inertiajs/react';
 
 /**
@@ -8,34 +9,35 @@ import { Head, Link, useForm } from '@inertiajs/react';
  * under the invited address.
  */
 export default function Invitation({ token, open, seller, titles, email, signed_in_as: signedInAs, agreement }) {
+    const { t } = useI18n();
     const form = useForm({ agreement_version: agreement.version, accept: false });
     const matches = signedInAs && signedInAs.toLowerCase() === email.toLowerCase();
 
     return (
         <StoreLayout>
-            <Head title="Partner invitation" />
+            <Head title={t('partner.invitation_title')} />
             <div className="mx-auto max-w-[600px] rounded-panel border border-border-default bg-bg-surface p-5" data-a="partners:invitation">
-                <h1 className="font-display text-[24px] font-extrabold tracking-[-0.02em] text-text-primary">{seller} invited you to sell their books</h1>
+                <h1 className="font-display text-[24px] font-extrabold tracking-[-0.02em] text-text-primary">{t('partner.invitation_heading', { seller })}</h1>
                 <p className="mt-2 text-[14px] text-text-body">
-                    As an Écrivain Partner you share these books from a page of your own and earn a commission on each copy sold through it.
+                    {t('partner.invitation_intro')}
                 </p>
                 <ul className="mt-3 list-disc pl-5 text-[13.5px] text-text-body">
-                    {titles.map((t) => (
-                        <li key={t}>{t}</li>
+                    {titles.map((title) => (
+                        <li key={title}>{title}</li>
                     ))}
                 </ul>
 
                 {!open ? (
-                    <p className="mt-4 rounded-tile bg-status-warning-bg px-3 py-2 text-[13px] text-status-warning">This invitation has expired or was already used.</p>
+                    <p className="mt-4 rounded-tile bg-status-warning-bg px-3 py-2 text-[13px] text-status-warning">{t('partner.invitation_expired')}</p>
                 ) : !signedInAs ? (
                     <p className="mt-4 text-[13.5px]">
-                        It was sent to <strong>{email}</strong>.{' '}
-                        <Link href={route('register')} className="font-semibold text-brand-primary hover:underline">Create a free account</Link> or{' '}
-                        <Link href={route('login')} className="font-semibold text-brand-primary hover:underline">sign in</Link> with that address, then open this link again.
+                        {t('partner.invitation_sent_to')} <strong>{email}</strong>.{' '}
+                        <Link href={route('register')} className="font-semibold text-brand-primary hover:underline">{t('partner.invitation_create_account')}</Link> {t('partner.invitation_or')}{' '}
+                        <Link href={route('login')} className="font-semibold text-brand-primary hover:underline">{t('partner.invitation_sign_in')}</Link> {t('partner.invitation_then_open')}
                     </p>
                 ) : !matches ? (
                     <p className="mt-4 rounded-tile bg-status-warning-bg px-3 py-2 text-[13px] text-status-warning">
-                        You are signed in as {signedInAs}, but the invitation was sent to {email}. Sign in with that address to accept it.
+                        {t('partner.invitation_wrong_account', { signed_in_as: signedInAs, email })}
                     </p>
                 ) : (
                     <form
@@ -48,13 +50,13 @@ export default function Invitation({ token, open, seller, titles, email, signed_
                         <Agreement agreement={agreement} />
                         <label className="flex items-start gap-2 text-[13.5px]">
                             <input type="checkbox" className="mt-1" required checked={form.data.accept} onChange={(e) => form.setData('accept', e.target.checked)} data-a="partners:invitation:accept" />
-                            I accept the Partner Agreement (version {agreement.version}).
+                            {t('partner.invitation_accept', { version: agreement.version })}
                         </label>
                         {Object.values(form.errors).map((m) => (
                             <p key={m} className="text-[12.5px] text-status-danger">{m}</p>
                         ))}
                         <button type="submit" disabled={form.processing} data-a="partners:invitation:send" className="tap min-h-[44px] rounded-button bg-brand-primary px-5 text-[14px] font-semibold text-white disabled:opacity-60">
-                            Accept and set up my page
+                            {t('partner.invitation_submit')}
                         </button>
                     </form>
                 )}

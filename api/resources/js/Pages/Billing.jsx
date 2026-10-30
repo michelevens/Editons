@@ -1,6 +1,7 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
 import Icon from '@/Components/Studio/Icon';
+import { useI18n } from '@/i18n';
 import { Head, usePage } from '@inertiajs/react';
 
 /**
@@ -21,6 +22,10 @@ export default function Billing({
     checkout_available: checkoutAvailable,
 }) {
     const { auth } = usePage().props;
+    const { t, formatNumber } = useI18n();
+    // Plan and pack prices are whole dollars (or dollars and cents) from the
+    // catalogue; shown as before, "$12" rather than "$12.00".
+    const usd = (dollars) => formatNumber(dollars, { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
 
     const pct = current.monthly_credits
         ? Math.max(0, Math.min(100, Math.round((current.credits / current.monthly_credits) * 100)))
@@ -30,7 +35,7 @@ export default function Billing({
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title="Plans & Billing" />
+            <Head title={t('billing.title')} />
 
             <AppHeader
                 active="books"
@@ -38,31 +43,31 @@ export default function Billing({
                 account={auth?.account}
             />
 
-            <main id="main" tabIndex={0} aria-label="Plans and billing" className="min-h-0 flex-1 overflow-y-auto outline-none">
+            <main id="main" tabIndex={0} aria-label={t('billing.main_label')} className="min-h-0 flex-1 overflow-y-auto outline-none">
                 <div className="mx-auto max-w-[1040px] px-8 py-9">
                     <header className="flex flex-wrap items-start justify-between gap-5">
                         <div className="min-w-0">
                             <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
-                                Plans &amp; Billing
+                                {t('billing.title')}
                             </h1>
                             <p className="mt-1 text-[13px] text-text-secondary">
-                                {current.name} plan
-                                {current.price > 0 ? ` · $${current.price} a month` : ' · free'}
-                                {current.renews_at ? ` · renews ${current.renews_at}` : ''}
+                                {t('billing.plan_name', { plan: current.name })}
+                                {current.price > 0 ? ` · ${t('billing.price_a_month', { price: usd(current.price) })}` : ` · ${t('billing.free_lower')}`}
+                                {current.renews_at ? ` · ${t('billing.renews', { date: current.renews_at })}` : ''}
                             </p>
                         </div>
                     </header>
 
                     <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                        <Box title="AI credits">
+                        <Box title={t('billing.ai_credits')}>
                             <p className="flex items-baseline gap-2">
                                 <b className="font-display text-[30px] font-extrabold tracking-[-0.02em] text-text-primary">
-                                    {current.credits.toLocaleString()}
+                                    {formatNumber(current.credits)}
                                 </b>
                                 <span className="text-[12.5px] text-text-secondary">
                                     {current.monthly_credits > 0
-                                        ? `of ${current.monthly_credits.toLocaleString()} this month`
-                                        : 'in your account'}
+                                        ? t('billing.of_this_month', { total: formatNumber(current.monthly_credits) })
+                                        : t('billing.in_your_account')}
                                 </span>
                             </p>
 
@@ -78,12 +83,12 @@ export default function Billing({
                             )}
 
                             <p className="mt-2.5 text-[11.5px] text-text-secondary">
-                                {current.used_this_month.toLocaleString()} used this month
-                                {current.renews_at ? ` · resets ${current.renews_at}` : ''}
+                                {t('billing.used_this_month', { used: formatNumber(current.used_this_month) })}
+                                {current.renews_at ? ` · ${t('billing.resets', { date: current.renews_at })}` : ''}
                             </p>
 
                             <h3 className="mt-5 mb-1.5 text-[12px] font-semibold text-text-primary">
-                                What things cost
+                                {t('billing.what_things_cost')}
                             </h3>
                             <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
                                 {costs.map((cost) => (
@@ -97,13 +102,13 @@ export default function Billing({
                             </dl>
                         </Box>
 
-                        <Box title="Credits used per day">
+                        <Box title={t('billing.credits_per_day')}>
                             <DailyChart days={daily} />
                         </Box>
                     </div>
 
-                    <Box title="Plans" className="mt-4">
-                        <div tabIndex={0} role="region" aria-label="Plans" className="overflow-x-auto">
+                    <Box title={t('billing.plans')} className="mt-4">
+                        <div tabIndex={0} role="region" aria-label={t('billing.plans')} className="overflow-x-auto">
                             <table className="w-full min-w-[520px] text-left text-[12.5px]">
                                 <thead>
                                     <tr>
@@ -121,26 +126,26 @@ export default function Billing({
                                                     {plan.name}
                                                 </b>
                                                 <span className="text-[12px] text-text-secondary">
-                                                    {plan.price > 0 ? `$${plan.price}/mo` : 'Free'}
+                                                    {plan.price > 0 ? t('billing.price_per_month', { price: usd(plan.price) }) : t('billing.free')}
                                                 </span>
                                             </th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <Row label="AI credits each month" plans={plans} value={(p) => p.credits.toLocaleString()} />
-                                    <Row label="Active books" plans={plans} value={(p) => (p.books === null ? 'Unlimited' : p.books)} />
-                                    <Row label="Team seats" plans={plans} value={(p) => (p.seats === null ? 'Unlimited' : p.seats)} />
+                                    <Row label={t('billing.row_credits')} plans={plans} value={(p) => formatNumber(p.credits)} />
+                                    <Row label={t('billing.row_books')} plans={plans} value={(p) => (p.books === null ? t('billing.unlimited') : p.books)} />
+                                    <Row label={t('billing.row_seats')} plans={plans} value={(p) => (p.seats === null ? t('billing.unlimited') : p.seats)} />
                                     <Row
-                                        label="Export formats"
+                                        label={t('billing.row_formats')}
                                         plans={plans}
                                         value={(p) => p.formats.map((f) => f.toUpperCase()).join(', ')}
                                     />
                                     <Row
-                                        label="Specialist reviewers"
+                                        label={t('billing.row_reviewers')}
                                         plans={plans}
                                         value={(p) =>
-                                            ['General editors only', '+ Fact check, Consistency', '+ Subject matter'][p.tier]
+                                            [t('billing.tier_general'), t('billing.tier_fact_check'), t('billing.tier_subject')][p.tier]
                                         }
                                     />
 
@@ -155,7 +160,7 @@ export default function Billing({
                                             >
                                                 {plan.current ? (
                                                     <span className="inline-block rounded-badge bg-status-success-bg px-2 py-0.5 text-[11px] font-semibold text-status-success">
-                                                        Current plan
+                                                        {t('billing.current_plan')}
                                                     </span>
                                                 ) : (
                                                     <button
@@ -164,7 +169,7 @@ export default function Billing({
                                                         title={
                                                             checkoutAvailable
                                                                 ? undefined
-                                                                : 'Card payments are not connected yet'
+                                                                : t('billing.card_not_connected')
                                                         }
                                                         onClick={() => {}}
                                                         className={`rounded-control px-2.5 py-1 text-[11.5px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -173,7 +178,7 @@ export default function Billing({
                                                                 : 'border border-border-input text-text-body'
                                                         }`}
                                                     >
-                                                        {plan.tier > current.tier ? 'Upgrade' : 'Downgrade'}
+                                                        {plan.tier > current.tier ? t('billing.upgrade') : t('billing.downgrade')}
                                                     </button>
                                                 )}
                                             </td>
@@ -188,16 +193,13 @@ export default function Billing({
                                 data-a="billing:checkout-unavailable"
                                 className="mt-3 rounded-tile bg-status-info-bg px-3 py-2 text-[11.5px] leading-relaxed text-status-info"
                             >
-                                Card payments are not connected on this environment yet, so plans
-                                cannot be changed here. The limits above are enforced — this is
-                                not a mock-up of a paywall, it is the real one with no till
-                                attached.
+                                {t('billing.checkout_unavailable')}
                             </p>
                         )}
                     </Box>
 
                     <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                        <Box title="Credit packs">
+                        <Box title={t('billing.credit_packs')}>
                             {packs.map((pack) => (
                                 <div
                                     key={pack.key}
@@ -205,10 +207,10 @@ export default function Billing({
                                 >
                                     <div>
                                         <p className="text-[12.5px] font-medium text-text-primary">
-                                            {pack.credits.toLocaleString()} credits
+                                            {t('billing.pack_credits', { credits: formatNumber(pack.credits) })}
                                         </p>
                                         <p className="text-[11px] text-text-secondary">
-                                            ${pack.price} one off · they do not expire
+                                            {t('billing.pack_price', { price: usd(pack.price) })}
                                         </p>
                                     </div>
                                     <button
@@ -217,17 +219,17 @@ export default function Billing({
                                         title={
                                             checkoutAvailable
                                                 ? undefined
-                                                : 'Card payments are not connected yet'
+                                                : t('billing.card_not_connected')
                                         }
                                         className="rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-medium text-text-body disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        Buy
+                                        {t('billing.buy')}
                                     </button>
                                 </div>
                             ))}
                         </Box>
 
-                        <Box title="Payment method">
+                        <Box title={t('billing.payment_method')}>
                             {current.card ? (
                                 <div className="flex items-center gap-2.5">
                                     <span className="text-text-secondary">
@@ -239,25 +241,23 @@ export default function Billing({
                                         </b>
                                         {current.renews_at && (
                                             <span className="text-[11px] text-text-secondary">
-                                                Next charge {current.renews_at}
+                                                {t('billing.next_charge', { date: current.renews_at })}
                                             </span>
                                         )}
                                     </div>
                                 </div>
                             ) : (
                                 <p className="text-[11.5px] leading-relaxed text-text-secondary">
-                                    No card on file. You do not need one on the {current.name}{' '}
-                                    plan.
+                                    {t('billing.no_card', { plan: current.name })}
                                 </p>
                             )}
                         </Box>
                     </div>
 
-                    <Box title="Recent credit use" className="mt-4 mb-4">
+                    <Box title={t('billing.recent_use')} className="mt-4 mb-4">
                         {activity.length === 0 ? (
                             <p className="text-[11.5px] leading-relaxed text-text-secondary">
-                                Reviews and generators you run will appear here with what they
-                                cost.
+                                {t('billing.recent_use_empty')}
                             </p>
                         ) : (
                             <ul>
@@ -302,6 +302,7 @@ export default function Billing({
  * credits faster than usual", and a precise reading belongs in the list below.
  */
 function DailyChart({ days }) {
+    const { t } = useI18n();
     const peak = Math.max(1, ...days.map((day) => day.credits));
     const anything = days.some((day) => day.credits > 0);
 
@@ -312,8 +313,8 @@ function DailyChart({ days }) {
                 role="img"
                 aria-label={
                     anything
-                        ? `Credits used per day over two weeks, highest ${peak}`
-                        : 'No credits used in the last two weeks'
+                        ? t('billing.chart_label', { peak })
+                        : t('billing.chart_label_empty')
                 }
             >
                 {days.map((day) => (
@@ -337,12 +338,12 @@ function DailyChart({ days }) {
 
             <div className="mt-1.5 flex justify-between text-[10.5px] text-text-secondary">
                 <span>{days[0]?.label}</span>
-                <span>Today</span>
+                <span>{t('billing.today')}</span>
             </div>
 
             {!anything && (
                 <p className="mt-2 text-[11.5px] text-text-secondary">
-                    Nothing spent in the last two weeks.
+                    {t('billing.chart_nothing')}
                 </p>
             )}
         </>

@@ -1,5 +1,6 @@
 import ProductEditor from '@/Components/Store/ProductEditor';
 import SalesReport from '@/Components/Store/SalesReport';
+import { useI18n } from '@/i18n';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useState } from 'react';
  * about what it earns.
  */
 export default function SalesPanel({ bookId, variant = 'distribution' }) {
+    const { t, formatNumber } = useI18n();
     const [data, setData] = useState(null);
 
     const load = useCallback(async () => {
@@ -30,7 +32,7 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
     }, [load]);
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { channels, status, price, reporting, direct } = data;
@@ -40,14 +42,14 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
         <div className="flex h-full min-h-0 flex-col">
             <header className="border-b border-border-default px-4 py-3">
                 <h2 className="text-[15px] font-semibold text-text-primary">
-                    {royalties ? 'Royalties' : 'Sales & Distribution'}
+                    {royalties ? t('sales.royalties') : t('sales.sales_distribution')}
                 </h2>
                 <p className="text-[11.5px] text-text-secondary">
                     {status.live > 0
-                        ? `Live in ${status.live} store${status.live === 1 ? '' : 's'}`
+                        ? t('sales.live_in_stores', { count: status.live })
                         : status.in_review > 0
-                          ? `${status.in_review} store${status.in_review === 1 ? '' : 's'} reviewing`
-                          : 'Not on sale yet'}
+                          ? t('sales.stores_reviewing', { count: status.in_review })
+                          : t('sales.not_on_sale_yet')}
                 </p>
             </header>
 
@@ -64,7 +66,7 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                 {royalties && direct && (
                     <section data-a="sales:direct" className="space-y-2">
                         <h3 className="text-[13px] font-semibold text-text-primary">
-                            Your storefront
+                            {t('sales.your_storefront')}
                         </h3>
                         <SalesReport report={direct} compact />
                     </section>
@@ -73,36 +75,35 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                 {channels.length === 0 ? (
                     <section className="rounded-tile border border-border-default bg-bg-surface p-6 text-center">
                         <p className="text-[12.5px] text-text-secondary">
-                            Choose stores on the Export &amp; Publish screen, and they will appear
-                            here with their terms.
+                            {t('sales.no_channels')}
                         </p>
                     </section>
                 ) : (
                     <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                         <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                            {royalties ? 'What each store pays' : 'Where the book is'}
+                            {royalties ? t('sales.what_each_store_pays') : t('sales.where_the_book_is')}
                         </h3>
 
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-[12px]">
                                 <thead>
                                     <tr className="border-b border-border-default text-[11px] uppercase tracking-wide text-text-secondary">
-                                        <th className="py-1.5 pr-3 font-medium">Store</th>
-                                        <th className="py-1.5 pr-3 font-medium">Status</th>
+                                        <th className="py-1.5 pr-3 font-medium">{t('sales.col_store')}</th>
+                                        <th className="py-1.5 pr-3 font-medium">{t('sales.col_status')}</th>
                                         {royalties ? (
                                             <>
                                                 <th className="py-1.5 pr-3 text-right font-medium">
-                                                    Your share
+                                                    {t('sales.col_your_share')}
                                                 </th>
                                                 <th className="py-1.5 pr-3 text-right font-medium">
-                                                    Per copy
+                                                    {t('sales.col_per_copy')}
                                                 </th>
                                             </>
                                         ) : (
                                             <>
-                                                <th className="py-1.5 pr-3 font-medium">Format</th>
+                                                <th className="py-1.5 pr-3 font-medium">{t('sales.col_format')}</th>
                                                 <th className="py-1.5 pr-3 text-right font-medium">
-                                                    Units
+                                                    {t('sales.col_units')}
                                                 </th>
                                             </>
                                         )}
@@ -140,11 +141,11 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                                                         {channel.per_copy === null ? (
                                                             <span className="text-text-secondary" title={channel.note}>
                                                                 {channel.channel === 'ingram_print'
-                                                                    ? 'see note'
-                                                                    : 'set a price'}
+                                                                    ? t('sales.see_note')
+                                                                    : t('sales.set_a_price')}
                                                             </span>
                                                         ) : (
-                                                            `$${Number(channel.per_copy).toFixed(2)}`
+                                                            formatNumber(Number(channel.per_copy), { style: 'currency', currency: 'USD' })
                                                         )}
                                                     </td>
                                                 </>
@@ -152,8 +153,8 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                                                 <>
                                                     <td className="py-2 pr-3 text-text-body">
                                                         {channel.format === 'print'
-                                                            ? 'Print'
-                                                            : 'eBook'}
+                                                            ? t('sales.format_print')
+                                                            : t('sales.format_ebook')}
                                                     </td>
                                                     <td className="py-2 pr-3 text-right tabular-nums text-text-secondary">
                                                         —
@@ -169,8 +170,8 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                         {royalties && (
                             <p className="mt-2.5 text-[11px] leading-relaxed text-text-secondary">
                                 {price
-                                    ? `Per-copy figures are the store's published rate applied to your $${price} list price. Delivery and print costs come off the top at some stores.`
-                                    : 'Set a list price on Export & Publish to see what each store would pay.'}
+                                    ? t('sales.per_copy_explained', { price: formatNumber(Number(price), { style: 'currency', currency: 'USD' }) })
+                                    : t('sales.set_list_price')}
                             </p>
                         )}
                     </section>
@@ -181,12 +182,13 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
 }
 
 function Status({ status }) {
+    const { t } = useI18n();
     const look = {
-        live: ['bg-status-success-bg', 'text-status-success', 'Live'],
-        in_review: ['bg-status-warning-bg', 'text-status-warning', 'In review'],
-        ready_to_submit: ['bg-status-warning-bg', 'text-status-warning', 'To upload'],
-        unpublished: ['bg-bg-subtle', 'text-text-secondary', 'Off sale'],
-        not_submitted: ['bg-bg-subtle', 'text-text-secondary', 'Not submitted'],
+        live: ['bg-status-success-bg', 'text-status-success', t('sales.status_live')],
+        in_review: ['bg-status-warning-bg', 'text-status-warning', t('sales.status_in_review')],
+        ready_to_submit: ['bg-status-warning-bg', 'text-status-warning', t('sales.status_to_upload')],
+        unpublished: ['bg-bg-subtle', 'text-text-secondary', t('sales.status_off_sale')],
+        not_submitted: ['bg-bg-subtle', 'text-text-secondary', t('sales.status_not_submitted')],
     }[status] ?? ['bg-bg-subtle', 'text-text-secondary', status];
 
     return (
