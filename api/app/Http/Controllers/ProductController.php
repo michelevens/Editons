@@ -6,6 +6,8 @@ use App\Commerce\Commerce;
 use App\Commerce\Listing;
 use App\Commerce\Partners\Commissions;
 use App\Commerce\Partners\Program;
+use App\Commerce\Pricing;
+use App\Commerce\Print\LuluPrinting;
 use App\Commerce\Revenue;
 use App\Commerce\Sample;
 use App\Models\Book;
@@ -14,6 +16,7 @@ use App\Models\Product;
 use App\Platform\Features;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -58,17 +61,49 @@ class ProductController extends Controller
             'partner_rate' => ['nullable', 'integer'],
             // "Read a sample" on the product page (App\Commerce\Sample).
             'sample_enabled' => ['sometimes', 'boolean'],
+            // Each format at its own price, and time-limited sales
+            // (App\Commerce\Pricing). Left out, what is stored stays.
+            'format_prices' => ['sometimes', 'nullable', 'array'],
+            'format_prices.*' => ['nullable', 'numeric', 'min:0', 'max:9999.99'],
+            'sales' => ['sometimes', 'array', 'max:6'],
+            'sales.*.offer' => ['required', 'string', 'max:16'],
+            'sales.*.price' => ['required', 'numeric', 'min:0', 'max:9999.99'],
+            'sales.*.starts_at' => ['required', 'date'],
+            'sales.*.ends_at' => ['required', 'date'],
+            // A pre-order: the day it is released, in the seller's zone.
+            'release_on' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
         ]);
+
+        $releaseAt = array_key_exists('release_on', $data)
+            ? (filled($data['release_on']) ? Carbon::parse($data['release_on'], Pricing::timezone($request->user()))->startOfDay()->utc() : null)
+            : $book->product?->release_at;
+
+        // A date already stored may have passed (the book is out); a new one
+        // must be ahead.
+        $stored = $book->product?->release_at;
+
+        if ($releaseAt && $releaseAt->isPast() && ! ($stored && $releaseAt->eq($stored))) {
+            throw ValidationException::withMessages(['release_on' => __('Choose a release date in the future.')]);
+        }
 
         $partners = $this->partnerSettings($request, $data, $book->product);
 
         $cents = (int) round(((float) $data['price']) * 100);
 
         if ($data['published']) {
-            $this->assertSellable($book, $cents, $data['currency'], $data['formats']);
+            Listing::assertSellable($book, $cents, $data['currency'], $data['formats'], preorder: $releaseAt !== null && $releaseAt->isFuture());
         }
 
         $product = $book->product ?? new Product;
+        $pricing = Pricing::fromForm(
+            $product,
+            $cents,
+            array_values($data['formats']),
+            array_key_exists('format_prices', $data) ? $data['format_prices'] : self::decimals($product->format_prices),
+            array_key_exists('sales', $data) ? $data['sales'] : Pricing::toForm($product, 'UTC'),
+            $data['currency'],
+            array_key_exists('sales', $data) ? Pricing::timezone($request->user()) : 'UTC',
+        );
         $wasPublished = $product->exists && $product->published_at !== null;
 
         $product->fill([
@@ -84,6 +119,8 @@ class ProductController extends Controller
             'published_at' => $data['published'] ? ($wasPublished ? $product->published_at : now()) : null,
         ]);
         $product->forceFill($partners);
+        $product->forceFill($pricing);
+        $product->forceFill(['release_at' => $releaseAt]);
 
         if (array_key_exists('sample_enabled', $data)) {
             $product->forceFill(['sample_enabled' => (bool) $data['sample_enabled']]);
@@ -122,10 +159,15 @@ class ProductController extends Controller
         return ['partner_enabled' => (bool) $data['partner_enabled'], 'partner_rate_bps' => $rate * 100];
     }
 
-    /** @param  list<string>  $formats */
-    private function assertSellable(Book $book, int $cents, string $currency, array $formats): void
+    /**
+     * Stored cents as the form's decimals.
+     *
+     * @param  array<string, int>|null  $cents
+     * @return array<string, string>|null
+     */
+    private static function decimals(?array $cents): ?array
     {
-        Listing::assertSellable($book, $cents, $currency, $formats);
+        return $cents ? array_map(fn ($c) => number_format(((int) $c) / 100, 2, '.', ''), $cents) : null;
     }
 
     /** @return array{price_cents: int, without: int, with: int, commission: int, fee: int} */
@@ -178,7 +220,17 @@ class ProductController extends Controller
                 'partner_enabled' => (bool) $product->partner_enabled,
                 'partner_rate' => $product->partner_rate_bps ? intdiv($product->partner_rate_bps, 100) : null,
                 'sample_enabled' => (bool) $product->sample_enabled,
+                // Per-format prices and sales (App\Commerce\Pricing); sale
+                // dates in the seller's zone.
+                'format_prices' => self::decimals($product->format_prices),
+                'sales' => Pricing::toForm($product, Pricing::timezone($request->user())),
+                'offers' => Pricing::storefront($product),
+                'release_on' => $product->release_at?->setTimezone(Pricing::timezone($request->user()))->toDateString(),
+                'preorder' => $product->isPreorder(),
             ] : null,
+            'timezone' => Pricing::timezone($request->user()),
+            // Whether a paperback is on sale, so a sale can be put on it.
+            'paperback' => $product && app(LuluPrinting::class)->sellable($product),
             // The Sample-profile files a "Read a sample" link can offer
             // (App\Commerce\Sample), made on Export & Publish.
             'samples' => collect(Sample::FORMATS)

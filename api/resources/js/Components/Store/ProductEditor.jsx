@@ -1,3 +1,4 @@
+import { useI18n } from '@/i18n';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -11,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
  * Owner only: the server answers 403 to anyone else, and this hides itself.
  */
 export default function ProductEditor({ bookId, onSaved }) {
+    const { t } = useI18n();
     const [data, setData] = useState(null);
     const [form, setForm] = useState(null);
     const [errors, setErrors] = useState({});
@@ -64,8 +66,10 @@ export default function ProductEditor({ bookId, onSaved }) {
         setNotice(null);
 
         try {
+            const { per_format: perFormat, ...fields } = form;
             const response = await window.axios.put(`/books/${bookId}/product`, {
-                ...form,
+                ...fields,
+                format_prices: perFormat ? form.format_prices : null,
                 published,
             });
             setData(response.data);
@@ -180,6 +184,21 @@ export default function ProductEditor({ bookId, onSaved }) {
                         </label>
                     ))}
                 </div>
+            </Field>
+
+            <Pricing form={form} set={set} errors={errors} data={data} t={t} />
+
+            {/* A pre-order (App\Commerce\Preorders): bought now, delivered on
+                this day, in the account's reporting timezone. */}
+            <Field label={t('pricing.release_on')} error={errors.release_on}>
+                <input
+                    data-a="store:release-on"
+                    type="date"
+                    value={form.release_on ?? ''}
+                    onChange={(e) => set('release_on', e.target.value || null)}
+                    className="w-full max-w-[200px] rounded-input border border-border-input bg-bg-surface px-2 py-1.5 text-[13px] text-text-primary"
+                />
+                <p className="mt-1 text-[11px] leading-snug text-text-secondary">{t('pricing.release_help', { timezone: data.timezone })}</p>
             </Field>
 
             <Field label="License" error={errors.license}>
@@ -303,6 +322,10 @@ function toForm(data) {
         title: p?.title ?? '',
         description: p?.description ?? '',
         sample_enabled: p?.sample_enabled ?? false,
+        per_format: !!p?.format_prices,
+        format_prices: p?.format_prices ?? {},
+        sales: p?.sales ?? [],
+        release_on: p?.release_on ?? null,
         // Sent only when the partner program is on for this account.
         ...(data.partners
             ? {
@@ -393,6 +416,153 @@ function PartnerOptions({ partners, form, set, errors }) {
                 At {format(priceCents)}, after the estimated card fee ({format(split.fee)}). Discounts lower both. The rate is fixed
                 when a reader starts checkout.
             </p>
+        </div>
+    );
+}
+
+const OFFER_LABELS = { epub: 'EPUB', pdf: 'PDF' };
+
+/**
+ * Each format at its own price, and time-limited sales
+ * (App\Commerce\Pricing). Off, the one price above buys every format, as
+ * it always has. Sale dates are in the account's reporting timezone.
+ */
+function Pricing({ form, set, errors, data, t }) {
+    const offers = [
+        ...(form.per_format ? form.formats : []),
+        ...(!form.per_format || form.formats.length > 1 ? ['all'] : []),
+        ...(data.paperback ? ['paperback'] : []),
+    ];
+    const label = (offer) =>
+        offer === 'all'
+            ? t('store.offer_all', { formats: form.formats.map((f) => OFFER_LABELS[f] ?? f.toUpperCase()).join(' + ') })
+            : offer === 'paperback'
+              ? t('pricing.paperback')
+              : (OFFER_LABELS[offer] ?? offer.toUpperCase());
+    const setSale = (i, key, value) => set('sales', form.sales.map((sale, j) => (j === i ? { ...sale, [key]: value } : sale)));
+    const input = 'w-full rounded-input border border-border-input bg-bg-surface px-2 py-1.5 text-[13px] text-text-primary';
+    const error = (key) => {
+        const e = errors[key];
+
+        return e ? <p className="mt-1 text-[11.5px] text-status-danger">{Array.isArray(e) ? e[0] : e}</p> : null;
+    };
+
+    return (
+        <div data-a="store:pricing" className="mb-3 rounded-input border border-border-default p-2.5">
+            <label className="flex items-start gap-2 text-[12.5px] text-text-body">
+                <input
+                    type="checkbox"
+                    data-a="store:per-format"
+                    checked={!!form.per_format}
+                    onChange={(e) => set('per_format', e.target.checked)}
+                    className="mt-0.5"
+                />
+                <span>
+                    {t('pricing.per_format')}
+                    <span className="block text-[11px] leading-snug text-text-secondary">{t('pricing.per_format_help')}</span>
+                </span>
+            </label>
+
+            {form.per_format && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                    {form.formats.map((format) => (
+                        <div key={format}>
+                            <label className="mb-0.5 block text-[11px] text-text-secondary" htmlFor={`format-price-${format}`}>
+                                {t('pricing.format_price', { format: OFFER_LABELS[format] ?? format.toUpperCase() })}
+                            </label>
+                            <input
+                                id={`format-price-${format}`}
+                                data-a={`store:format-price:${format}`}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                inputMode="decimal"
+                                placeholder={form.price}
+                                value={form.format_prices?.[format] ?? ''}
+                                onChange={(e) => set('format_prices', { ...form.format_prices, [format]: e.target.value })}
+                                className={input}
+                            />
+                            {error(`format_prices.${format}`)}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="mt-3 border-t border-border-default pt-2.5">
+                <p className="text-[12.5px] font-semibold text-text-primary">{t('pricing.sales')}</p>
+                <p className="mb-2 text-[11px] leading-snug text-text-secondary">
+                    {t('pricing.sales_help', { timezone: data.timezone })}
+                </p>
+                {form.sales.map((sale, i) => (
+                    <div key={i} data-a="store:sale" className="mb-2 grid grid-cols-2 gap-2 rounded-input bg-bg-subtle/50 p-2 sm:grid-cols-[1fr_90px]">
+                        <select
+                            aria-label={t('pricing.sale_format')}
+                            data-a="store:sale-offer"
+                            value={sale.offer}
+                            onChange={(e) => setSale(i, 'offer', e.target.value)}
+                            className={input}
+                        >
+                            {offers.map((offer) => (
+                                <option key={offer} value={offer}>
+                                    {label(offer)}
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            aria-label={t('pricing.sale_price')}
+                            data-a="store:sale-price"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={sale.price}
+                            onChange={(e) => setSale(i, 'price', e.target.value)}
+                            className={input}
+                        />
+                        <label className="min-w-0 text-[11px] text-text-secondary">
+                            {t('pricing.sale_starts')}
+                            <input
+                                type="datetime-local"
+                                data-a="store:sale-starts"
+                                value={sale.starts_at}
+                                onChange={(e) => setSale(i, 'starts_at', e.target.value)}
+                                className={input}
+                            />
+                        </label>
+                        <label className="min-w-0 text-[11px] text-text-secondary">
+                            {t('pricing.sale_ends')}
+                            <input
+                                type="datetime-local"
+                                data-a="store:sale-ends"
+                                value={sale.ends_at}
+                                onChange={(e) => setSale(i, 'ends_at', e.target.value)}
+                                className={input}
+                            />
+                        </label>
+                        <div className="col-span-2">
+                            {error(`sales.${i}.offer`)}
+                            {error(`sales.${i}.price`)}
+                            {error(`sales.${i}.starts_at`)}
+                            {error(`sales.${i}.ends_at`)}
+                            <button
+                                type="button"
+                                onClick={() => set('sales', form.sales.filter((_, j) => j !== i))}
+                                className="text-[11.5px] font-semibold text-status-danger hover:underline"
+                            >
+                                {t('pricing.remove_sale')}
+                            </button>
+                        </div>
+                    </div>
+                ))}
+                <button
+                    type="button"
+                    data-a="store:add-sale"
+                    onClick={() => set('sales', [...form.sales, { offer: offers[0], price: '', starts_at: '', ends_at: '' }])}
+                    className="rounded-button border border-border-default px-2.5 py-1 text-[12px] font-semibold text-text-body hover:bg-bg-subtle"
+                >
+                    {t('pricing.add_sale')}
+                </button>
+            </div>
         </div>
     );
 }

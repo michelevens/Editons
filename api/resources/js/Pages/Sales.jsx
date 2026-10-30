@@ -1,6 +1,7 @@
 import AppHeader from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
 import SalesExplorer from '@/Components/Store/SalesExplorer';
+import StoreTools from '@/Components/Store/StoreTools';
 import { useI18n } from '@/i18n';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 
@@ -81,6 +82,9 @@ export default function Sales({ enabled, report, products, partners = null, quer
                     <div className="mt-6">
                         <SalesExplorer report={report} query={query} options={options} statements={statements} timezone={timezone} scope={scope} />
                     </div>
+
+                    {/* The author's own discount codes and bundles. */}
+                    {enabled && scope !== 'house' && <StoreTools />}
 
                     {partners && <Partners partners={partners} />}
                 </div>

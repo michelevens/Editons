@@ -289,7 +289,10 @@ final class SalesExplorer
     public function csvLines(ReportRange $range): \Generator
     {
         yield ['order', 'paid_at', 'date', 'book_id', 'title', 'format', 'channel', 'currency', 'units',
-            'gross', 'discount', 'refunded', 'fee_estimate', 'net', 'partner_commission', 'royalty', 'status', 'buyer_country'];
+            'gross', 'discount', 'refunded', 'fee_estimate', 'net', 'partner_commission', 'royalty', 'status', 'buyer_country',
+            // The bundle the book was sold in, if any: its gross is the
+            // book's share of the bundle price (App\Commerce\Bundles).
+            'bundle'];
 
         foreach ($this->lines($range) as $item) {
             $line = Tally::line($item);
@@ -314,6 +317,7 @@ final class SalesExplorer
                 self::decimal($line['royalty_cents']),
                 $item->order->status,
                 $item->order->buyer_country,
+                $item->bundle_title,
             ];
         }
     }

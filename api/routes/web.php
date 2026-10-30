@@ -36,6 +36,7 @@ use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\PartnerPageController;
 use App\Http\Controllers\PlatformStatusController;
+use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\PreviewController;
 use App\Http\Controllers\PrintFileController;
 use App\Http\Controllers\PrintKitController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\SellerPartnersController;
+use App\Http\Controllers\SellerStoreController;
 use App\Http\Controllers\ShelfController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\StyleGuideController;
@@ -55,7 +57,6 @@ use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\WorkflowController;
-use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -736,6 +737,21 @@ Route::middleware('auth')->group(function () {
     // What this account has bought, with fresh download links.
     Route::get('/purchases', [StoreController::class, 'purchases'])
         ->name('purchases.index');
+    // Cancel a pre-order before its release (App\Commerce\Preorders).
+    Route::post('/purchases/{number}/cancel', [StoreController::class, 'cancelPreorder'])
+        ->middleware('throttle:10,1')
+        ->name('purchases.cancel');
+
+    // An author's own discount codes and bundles (ADR — per-format pricing,
+    // sales, author codes, bundles and pre-orders). The signed-in seller's
+    // own only.
+    Route::get('/sales/discounts', [SellerStoreController::class, 'discounts'])->name('seller.discounts.index');
+    Route::post('/sales/discounts', [SellerStoreController::class, 'storeDiscount'])->name('seller.discounts.store');
+    Route::put('/sales/discounts/{discount}', [SellerStoreController::class, 'updateDiscount'])->name('seller.discounts.update');
+    Route::get('/sales/bundles', [SellerStoreController::class, 'bundles'])->name('seller.bundles.index');
+    Route::post('/sales/bundles', [SellerStoreController::class, 'storeBundle'])->name('seller.bundles.store');
+    Route::put('/sales/bundles/{bundle}', [SellerStoreController::class, 'updateBundle'])->name('seller.bundles.update');
+    Route::delete('/sales/bundles/{bundle}', [SellerStoreController::class, 'destroyBundle'])->name('seller.bundles.destroy');
 });
 
 /*
@@ -760,6 +776,15 @@ Route::prefix('store')->name('store.')->group(function () {
     Route::get('/downloads/{key}/{format}', [StoreController::class, 'download'])
         ->middleware(['signed:relative', 'throttle:30,1'])
         ->name('download');
+
+    // Bundles: several of one author's books at one price.
+    Route::get('/bundles/{bundle:slug}', [StoreController::class, 'bundle'])
+        ->name('bundle');
+    Route::post('/bundles/{bundle:slug}/checkout', [StoreController::class, 'bundleCheckout'])
+        ->middleware('throttle:10,1')
+        ->name('bundle.checkout');
+    Route::get('/bundles/{bundle:slug}/cancelled', [StoreController::class, 'bundleCancelled'])
+        ->name('bundle.cancelled');
 
     Route::get('/authors/{handle}', [StoreController::class, 'author'])
         ->name('author');

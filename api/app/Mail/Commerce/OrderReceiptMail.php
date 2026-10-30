@@ -37,6 +37,8 @@ class OrderReceiptMail extends EcrivainMail implements ShouldQueue
         public ?int $taxCents = null,
         public ?string $sellerName = null,
         public ?string $paymentMethod = null,
+        // A pre-order: when the files arrive (App\Jobs\ReleasePreorders).
+        public ?CarbonInterface $releaseAt = null,
     ) {}
 
     public function letter(): Letter
@@ -89,6 +91,13 @@ class OrderReceiptMail extends EcrivainMail implements ShouldQueue
 
         if ($downloads !== []) {
             $letter->items($downloads, __('Your downloads'));
+        }
+
+        // Nothing to download yet: a pre-order, delivered at its release.
+        if ($downloads === [] && $this->releaseAt) {
+            $letter->preheader(__(':total paid. Your pre-order is confirmed.', ['total' => $total]))
+                ->headline(__('Your pre-order is confirmed'))
+                ->lede(self::greet($this->buyerName, __('thank you for your pre-order. Your downloads arrive by email on :date.', ['date' => $this->releaseAt->translatedFormat('F j, Y')])));
         }
 
         $letter->facts([

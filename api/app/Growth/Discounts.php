@@ -4,16 +4,26 @@ namespace App\Growth;
 
 use App\Billing\Payments;
 use App\Commerce\Gateway\PaymentGateway;
+use App\Models\Bundle;
 use App\Models\DiscountCode;
 use App\Models\DiscountRedemption;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\User;
 use App\Platform\AdminAudit;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Discount codes: made by the owner, used by buyers at checkout.
+ * Discount codes: made by the owner, or by an author for their own books,
+ * used by buyers at checkout.
+ *
+ * An author's code (seller_id set; ADR — per-format pricing, sales, author
+ * codes, bundles and pre-orders) works only on that author's products and
+ * bundles — all of them, or the ones it names — and never on plans. Codes
+ * are unique per seller, so one author's SUMMER neither collides with nor
+ * reveals another's; on an author's book their own code wins over a
+ * site-wide one with the same name.
  *
  * Storefront: a code entered on a product page lowers the order's price
  * before the Checkout Session is created, so the session, the amount check
@@ -45,7 +55,7 @@ final class Discounts
     {
         $code = strtoupper(trim($data['code']));
 
-        if (DiscountCode::whereRaw('upper(code) = ?', [$code])->exists()) {
+        if (DiscountCode::whereNull('seller_id')->whereRaw('upper(code) = ?', [$code])->exists()) {
             throw ValidationException::withMessages(['code' => 'That code already exists.']);
         }
 
@@ -121,13 +131,25 @@ final class Discounts
      *
      * @throws ValidationException under `code`
      */
-    public function quote(string $code, string $context, int $amountCents, string $currency, ?User $buyer = null, ?string $email = null, ?string $planKey = null): array
+    public function quote(string $code, string $context, int $amountCents, string $currency, ?User $buyer = null, ?string $email = null, ?string $planKey = null, Product|Bundle|null $item = null): array
     {
         $refuse = fn (string $message) => throw ValidationException::withMessages(['code' => $message]);
-        $discount = DiscountCode::whereRaw('upper(code) = ?', [strtoupper(trim($code))])->first();
+        $discount = self::find($code, $context === 'storefront' ? $item?->user_id : null);
 
         if (! $discount || ! $discount->active) {
             $refuse('That code is not valid.');
+        }
+
+        // An author's code names the products (and bundles) it is for; with
+        // neither list it is for all of them.
+        if ($discount->seller_id !== null && ($discount->product_ids !== null || $discount->bundle_ids !== null)) {
+            $allowed = $item instanceof Bundle
+                ? in_array($item->id, $discount->bundle_ids ?? [], true)
+                : in_array($item?->id, $discount->product_ids ?? [], true);
+
+            if (! $allowed) {
+                $refuse(__('That code cannot be used on this book.'));
+            }
         }
 
         if ($discount->expires_at && $discount->expires_at->isPast()) {
@@ -164,6 +186,110 @@ final class Discounts
         }
 
         return ['discount' => $discount, 'discount_cents' => $off, 'total_cents' => $total];
+    }
+
+    /**
+     * The code a buyer typed, for a purchase from $sellerId: that seller's
+     * own code first, else a site-wide one. Another author's code is never
+     * found, so it reads as "not valid" rather than "not for this book".
+     */
+    public static function find(string $code, ?int $sellerId): ?DiscountCode
+    {
+        $codes = DiscountCode::whereRaw('upper(code) = ?', [strtoupper(trim($code))])
+            ->where(fn ($q) => $q->whereNull('seller_id')->when($sellerId, fn ($w) => $w->orWhere('seller_id', $sellerId)))
+            ->get();
+
+        return $codes->first(fn (DiscountCode $d) => $sellerId !== null && $d->seller_id === $sellerId)
+            ?? $codes->first(fn (DiscountCode $d) => $d->seller_id === null);
+    }
+
+    /**
+     * An author's own code. Storefront only, no Stripe coupon (the
+     * storefront takes the discount off before the session exists), and
+     * only for the author's own products and bundles.
+     *
+     * @param  array<string, mixed>  $data  validated
+     */
+    public function createForSeller(array $data, User $seller): DiscountCode
+    {
+        $code = strtoupper(trim($data['code']));
+
+        if (DiscountCode::where('seller_id', $seller->id)->whereRaw('upper(code) = ?', [$code])->exists()) {
+            throw ValidationException::withMessages(['code' => __('You already have a code with that name.')]);
+        }
+
+        [$products, $bundles] = self::ownTargets($seller, $data);
+
+        return DiscountCode::create([
+            'seller_id' => $seller->id,
+            'code' => $code,
+            'description' => $data['description'] ?? null,
+            'kind' => $data['kind'],
+            'percent_off' => $data['kind'] === 'percent' ? (int) $data['percent_off'] : null,
+            'amount_off_cents' => $data['kind'] === 'amount' ? (int) round(((float) $data['amount_off']) * 100) : null,
+            'currency' => $data['kind'] === 'amount' ? strtolower($data['currency']) : null,
+            'applies_to_plans' => false,
+            'applies_to_storefront' => true,
+            'product_ids' => $products,
+            'bundle_ids' => $bundles,
+            'max_redemptions' => $data['max_redemptions'] ?? null,
+            'expires_at' => self::sellerExpiry($data['expires_at'] ?? null, $seller),
+            'first_time_only' => false,
+            'active' => true,
+            'created_by' => $seller->id,
+            'updated_by' => $seller->id,
+        ]);
+    }
+
+    /**
+     * What an author may change on their code: as for the owner's codes,
+     * kind and value stay fixed once people may have it.
+     *
+     * @param  array<string, mixed>  $data  validated
+     */
+    public function updateForSeller(DiscountCode $discount, array $data, User $seller): DiscountCode
+    {
+        [$products, $bundles] = self::ownTargets($seller, $data);
+
+        $discount->fill([
+            'active' => (bool) $data['active'],
+            'max_redemptions' => $data['max_redemptions'] ?? null,
+            'expires_at' => self::sellerExpiry($data['expires_at'] ?? null, $seller),
+            'description' => $data['description'] ?? null,
+            'product_ids' => $products,
+            'bundle_ids' => $bundles,
+            'updated_by' => $seller->id,
+        ])->save();
+
+        return $discount;
+    }
+
+    /**
+     * The products and bundles a code names, each the seller's own.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{0: ?list<int>, 1: ?list<int>}
+     */
+    private static function ownTargets(User $seller, array $data): array
+    {
+        $products = array_values(array_unique(array_map('intval', $data['product_ids'] ?? [])));
+        $bundles = array_values(array_unique(array_map('intval', $data['bundle_ids'] ?? [])));
+
+        if ($products !== [] && Product::where('user_id', $seller->id)->whereKey($products)->count() !== count($products)) {
+            throw ValidationException::withMessages(['product_ids' => __('Choose among your own books.')]);
+        }
+
+        if ($bundles !== [] && Bundle::where('user_id', $seller->id)->whereKey($bundles)->count() !== count($bundles)) {
+            throw ValidationException::withMessages(['bundle_ids' => __('Choose among your own bundles.')]);
+        }
+
+        return $products === [] && $bundles === [] ? [null, null] : [$products, $bundles];
+    }
+
+    /** The end of the chosen day in the seller's own zone. */
+    private static function sellerExpiry(?string $date, User $seller): ?Carbon
+    {
+        return filled($date) ? Carbon::parse($date, $seller->reportTimezone())->endOfDay()->utc() : null;
     }
 
     /** Record the code on a paid order. Once per order, whatever repeats. */

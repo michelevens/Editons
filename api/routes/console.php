@@ -68,6 +68,12 @@ Schedule::command('partners:statements')->monthlyOn(1, '09:30')->withoutOverlapp
 Schedule::command('lulu:poll')->everyThirtyMinutes()->withoutOverlapping();
 
 /*
+ | Storefront pre-orders (App\Commerce\Preorders): items whose release date
+ | has come get their licence, and the buyer their download links.
+ */
+Schedule::command('commerce:release-preorders')->everyFiveMinutes()->withoutOverlapping();
+
+/*
  | The Monday writing digest ("Weekly progress" in email preferences). Built
  | with its command but never scheduled, so the preference did nothing
  | (flexibility audit, 2026-10-28). 8:00 New York time, not the server's UTC;

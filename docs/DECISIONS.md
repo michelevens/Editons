@@ -3982,3 +3982,72 @@ every string of the priority emails translated, Laravel message files
 complete), `tests/Browser/i18n.spec.js` (French, Kreyòl and back to English
 on the shelf, editor and publish screens at 1440 and 390 px, no horizontal
 overflow, no console errors).
+
+## ADR-00XX — Per-format pricing, sales, author discount codes, bundles and pre-orders
+
+**Status:** accepted · **Audit:** flexibility finding P2 · **Guide:** `docs/PRICING.md`
+
+**Context.** A product had one price for everything it delivered, one
+currency, no sale, no pre-order and no bundle, and discount codes were the
+owner's alone (`Discounts::create`). Authors selling a series wanted a
+cheaper EPUB, a launch sale, their own codes, the series as one purchase,
+and pre-orders.
+
+**Decision.**
+
+- *Offers* (`App\Commerce\Pricing`). `all` (every format, `price_cents`),
+  each format (`format_prices`, falling back to `price_cents`), `paperback`.
+  `format_prices` null means one offer, `all`: the old behaviour. One
+  currency per product from the existing allow-list; no conversion.
+- *Sales.* `products.sales` per offer, UTC, entered in the seller's
+  reporting zone, start inclusive, end exclusive, below the list price.
+  Checkout charges `Pricing::quote` at the moment the checkout starts — the
+  order and the Stripe session are written from it — so the buyer pays what
+  the page showed even if the sale ends while Stripe's page is open. Order
+  items keep `offer` and `list_price_cents`.
+- *Author codes.* `discount_codes.seller_id` (+ `product_ids`,
+  `bundle_ids`); storefront only, no Stripe coupon, made and paused on the
+  Sales page (`SellerStoreController`, the signed-in seller's own only,
+  others 404). The global unique index on `code` became unique per seller;
+  lookup at checkout is the selling author's code first, then a site-wide
+  one, so another author's code is "not valid" (no existence leak).
+- *Bundles* (`bundles`, `bundle_items`). A bundle sale is one order item
+  per book. The royalty rule: the price paid (after any code) is split by
+  the books' list prices with `Revenue::allocate` (whole cents, remainder on
+  the last), then fee and royalty per item as for any multi-item order. So
+  licences, refunds, royalty statements and the sales explorer needed no
+  bundle-specific arithmetic; the lines CSV gained a `bundle` column. A
+  bundle is on sale only while every book in it is. No partner commission
+  on bundles.
+- *Pre-orders.* `products.release_at`; items carry `release_at` and get no
+  licence when paid; `commerce:release-preorders` (every five minutes)
+  licenses due items once, under a row lock, and sends
+  `PreorderReleasedMail`. A signed-in buyer cancels from Your purchases
+  before release; the refund goes through `Refunds::refundOrder` (audited,
+  buyer as actor; with Stripe, applied on `charge.refunded`). An order with
+  a refund under way is never released. A pre-order may go on sale before
+  its exports exist; a paperback cannot be pre-ordered.
+
+**Defaults unchanged.** Every new column is nullable; a product saved by
+the old form (no `format_prices`, `sales` or `release_on` keys) keeps what
+is stored. Existing products sell `all` at `price_cents`, the Buy button
+posts no offer and gets `all`, line items and webhook amounts are as before
+(`CommerceTest` unchanged and passing), and site-wide codes work on every
+book.
+
+**Not done.** Guest buyers cancel a pre-order through support (no signed
+cancel link). Sales on bundles. Partner commissions on bundles. Currency
+per format.
+
+**Tests.** `tests/Feature/Commerce/PricingTest.php` (default unchanged,
+per-format resolution and checkout, minimum price, sale window in the
+seller's zone, struck-through price on the page, code on a sale price,
+invalid sales, older form keeps stored values),
+`tests/Feature/Commerce/SellerStoreTest.php` (author code scoped to a book
+and used up, per-seller uniqueness and isolation, site-wide codes, paused
+and expired codes, bundle checkout and Stripe fake payload, proportional
+split and royalties, sales explorer and statement, rounding with a code,
+bundle off sale with a book, bundle isolation, bundle refund revokes every
+licence, pre-order release job once, cancel and refund, no release after
+cancel, past release date refused), `tests/Browser/pricing.spec.js` (1440
+and 390 px).

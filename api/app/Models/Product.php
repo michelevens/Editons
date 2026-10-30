@@ -37,6 +37,10 @@ class Product extends Model
             'print' => 'array',
             // "Read a sample" on the product page (App\Commerce\Sample).
             'sample_enabled' => 'boolean',
+            // Per-format prices, sales and pre-orders (App\Commerce\Pricing).
+            'format_prices' => 'array',
+            'sales' => 'array',
+            'release_at' => 'datetime',
         ];
     }
 
@@ -88,6 +92,12 @@ class Product extends Model
     public function isPublished(): bool
     {
         return $this->published_at !== null && $this->published_at->lte(now()) && ! $this->isTakenDown();
+    }
+
+    /** On sale before its release: bought now, delivered at release_at. */
+    public function isPreorder(): bool
+    {
+        return $this->release_at !== null && $this->release_at->isFuture();
     }
 
     /** Taken down by Ecrivain. Buyers keep their licences and downloads. */

@@ -22,6 +22,7 @@ use App\Mail\Collaboration\ReviewerAssignedMail;
 use App\Mail\Commerce\NewSaleMail;
 use App\Mail\Commerce\OrderReceiptMail;
 use App\Mail\Commerce\PaperbackShippedMail;
+use App\Mail\Commerce\PreorderReleasedMail;
 use App\Mail\Commerce\RefundProcessedMail;
 use App\Mail\Commerce\RoyaltyStatementMail;
 use App\Mail\Publishing\BookLiveMail;
@@ -325,6 +326,12 @@ final class Notify
     public static function paperbackShipped(string $buyerEmail, mixed ...$details): bool
     {
         return self::send($buyerEmail, new PaperbackShippedMail($buyerEmail, ...$details));
+    }
+
+    /** A pre-ordered book was released (App\Commerce\Preorders). */
+    public static function preorderReleased(string $buyerEmail, mixed ...$details): bool
+    {
+        return self::send($buyerEmail, new PreorderReleasedMail($buyerEmail, ...$details));
     }
 
     public static function royaltyStatement(User $author, mixed ...$details): bool

@@ -5,7 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/** A code that takes money off a purchase (App\Growth\Discounts). */
+/**
+ * A code that takes money off a purchase (App\Growth\Discounts): the
+ * owner's (seller_id null) or an author's own (seller_id).
+ */
 class DiscountCode extends Model
 {
     protected $guarded = ['id'];
@@ -22,6 +25,9 @@ class DiscountCode extends Model
             'expires_at' => 'datetime',
             'first_time_only' => 'boolean',
             'active' => 'boolean',
+            // An author's own code: their products and bundles, or all.
+            'product_ids' => 'array',
+            'bundle_ids' => 'array',
         ];
     }
 

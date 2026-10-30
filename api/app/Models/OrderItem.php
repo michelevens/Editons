@@ -26,6 +26,9 @@ class OrderItem extends Model
             'royalty_cents' => 'integer',
             'refunded_cents' => 'integer',
             'print_cost_cents' => 'integer',
+            'list_price_cents' => 'integer',
+            'release_at' => 'datetime',
+            'delivered_at' => 'datetime',
         ];
     }
 
@@ -58,6 +61,17 @@ class OrderItem extends Model
     public function printJob(): HasOne
     {
         return $this->hasOne(PrintJob::class);
+    }
+
+    public function bundle(): BelongsTo
+    {
+        return $this->belongsTo(Bundle::class);
+    }
+
+    /** Pre-ordered and not released yet: no licence, no downloads. */
+    public function awaitingRelease(): bool
+    {
+        return $this->delivered_at === null && $this->release_at !== null && $this->release_at->isFuture();
     }
 
     public function isPaperback(): bool

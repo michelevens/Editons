@@ -101,6 +101,7 @@ Toggles are on the profile page (`#email-preferences`). The footer's unsubscribe
 | New sale (author) | `Commerce\NewSaleMail` | sales | queued | **Wired**: order fulfilled, to each seller |
 | Refund processed | `Commerce\RefundProcessedMail` | receipts | queued | **Wired**: `charge.refunded` (`Fulfilment::chargeRefunded`), once per refunded amount |
 | Paperback shipped (buyer) | `Commerce\PaperbackShippedMail` | receipts | queued | **Wired**: `lulu:poll` → `App\Commerce\Print\PrintJobs::apply` when Lulu says SHIPPED, once per print job, with the carrier's tracking |
+| Pre-order released (buyer) | `Commerce\PreorderReleasedMail` | receipts | queued | **Wired**: `commerce:release-preorders` (every five minutes) → `App\Commerce\Preorders::releaseDue`, once per released order, with the download links. The order receipt of a pre-order says when the files arrive (`OrderReceiptMail::$releaseAt`) |
 | Royalty statement | `Commerce\RoyaltyStatementMail` | billing | queued | **Command**: `commerce:royalty-statements` (not scheduled; one per author, month and currency, ever). Partner commissions are their own negative line |
 | Partner application received | `Partners\PartnerApplicationReceivedMail` | account | queued | **Wired**: `Commerce\Partners\Applications::apply` (+ inbox) |
 | Partner approved | `Partners\PartnerApprovedMail` | account | queued | **Wired**: `Applications::approve` (console), `Partners\Invitations::accept` (+ inbox) |

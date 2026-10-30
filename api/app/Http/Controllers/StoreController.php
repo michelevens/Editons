@@ -2,17 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Commerce\Bundles;
 use App\Commerce\Checkout;
 use App\Commerce\Commerce;
 use App\Commerce\Downloads;
 use App\Commerce\Fulfilment;
 use App\Commerce\Partners\Attribution;
 use App\Commerce\Partners\PartnerPages;
+use App\Commerce\Preorders;
+use App\Commerce\Pricing;
 use App\Commerce\Print\LuluPrinting;
 use App\Commerce\Sample;
 use App\Growth\Discounts;
 use App\Jobs\GenerateExport;
 use App\Models\BookExport;
+use App\Models\Bundle;
 use App\Models\License;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -78,6 +82,8 @@ class StoreController extends Controller
             ];
         }
 
+        $paperback = Pricing::quote($product, Pricing::PAPERBACK);
+
         return Inertia::render('Store/Product', [
             'product' => $this->card($product) + [
                 'subtitle' => $book->subtitle,
@@ -85,9 +91,16 @@ class StoreController extends Controller
                 'language' => $book->language,
                 'license' => $product->licenseTerms(),
                 'checkout_url' => route('store.checkout', $product->slug),
+                // What a buyer can choose: the whole product, or each
+                // format at its own price, each with any sale running now.
+                'offers' => Pricing::storefront($product),
                 // A paperback printed and posted by Lulu, when it is on sale.
-                'paperback' => app(LuluPrinting::class)->sellable($product) ? [
-                    'price_cents' => $product->paperback_price_cents,
+                // A pre-order: bought now, delivered on release.
+                'preorder' => $product->isPreorder() ? ['release_at' => $product->release_at->toIso8601String()] : null,
+                // Not while the book is a pre-order: it would be printed now.
+                'paperback' => app(LuluPrinting::class)->sellable($product) && ! $product->isPreorder() ? [
+                    'price_cents' => $paperback['price_cents'],
+                    'list_cents' => $paperback['on_sale'] ? $paperback['list_cents'] : null,
                     'shipping_cents' => (int) config('commerce.paperback.shipping_cents'),
                     'countries' => config('commerce.paperback.countries'),
                 ] : null,
@@ -177,7 +190,15 @@ class StoreController extends Controller
             'email' => ['nullable', 'email:rfc', 'max:255'],
             'code' => ['nullable', 'string', 'max:40'],
             'edition' => ['nullable', 'string', 'in:digital,paperback'],
+            // all | a format (App\Commerce\Pricing::offers).
+            'offer' => ['nullable', 'string', 'max:16'],
         ]);
+
+        $offer = $data['offer'] ?? Pricing::defaultOffer($product);
+
+        if (! Pricing::sells($product, $offer)) {
+            return back()->withErrors(['checkout' => __('That format is not on sale.')]);
+        }
 
         $paperback = ($data['edition'] ?? null) === 'paperback';
 
@@ -192,7 +213,7 @@ class StoreController extends Controller
         // Checked before anything is created; a code that does not apply is
         // a message under the field, not a failed checkout.
         $discount = filled($data['code'] ?? null)
-            ? app(Discounts::class)->quote($data['code'], 'storefront', $product->price_cents, $product->currency, $request->user(), $data['email'] ?? $request->user()?->email)
+            ? app(Discounts::class)->quote($data['code'], 'storefront', Pricing::quote($product, $offer)['price_cents'], $product->currency, $request->user(), $data['email'] ?? $request->user()?->email, item: $product)
             : null;
 
         // Which partner sent this buyer, if any (a partner's code beats
@@ -201,7 +222,7 @@ class StoreController extends Controller
             + ['ip_hash' => Attribution::hash((string) $request->ip())];
 
         try {
-            $session = $checkout->start($product, $request->user(), $data['email'] ?? null, $discount, $partner, $paperback);
+            $session = $checkout->start($product, $request->user(), $data['email'] ?? null, $discount, $partner, $paperback, $paperback ? null : $offer);
         } catch (Throwable $e) {
             report($e);
 
@@ -213,6 +234,84 @@ class StoreController extends Controller
         $request->session()->push('store.checkouts', $session->id);
 
         return Inertia::location($session->url);
+    }
+
+    /**
+     * A bundle's page: its books, its price, and what they cost apart.
+     * Only while every book in it is on sale (Bundles::sellable).
+     */
+    public function bundle(Bundle $bundle): Response
+    {
+        abort_unless(Bundles::sellable($bundle), 404);
+
+        $products = $bundle->products;
+
+        return Inertia::render('Store/Bundle', [
+            'bundle' => [
+                'slug' => $bundle->slug,
+                'title' => $bundle->title,
+                'description' => $bundle->displayDescription(),
+                'price_cents' => $bundle->price_cents,
+                'separately_cents' => Bundles::separately($bundle),
+                'currency' => $bundle->currency,
+                'checkout_url' => route('store.bundle.checkout', $bundle->slug),
+                'preorder' => $products->contains(fn (Product $p) => $p->isPreorder()),
+                'products' => $products->map(fn (Product $p) => $this->card($p) + [
+                    'preorder_at' => $p->isPreorder() ? $p->release_at->toIso8601String() : null,
+                ])->values()->all(),
+            ],
+        ]);
+    }
+
+    /** Start a bundle purchase: one item per book, the price split by list price. */
+    public function bundleCheckout(Request $request, Bundle $bundle, Checkout $checkout): HttpResponse
+    {
+        abort_unless(Bundles::sellable($bundle), 404);
+
+        $data = $request->validate([
+            'email' => ['nullable', 'email:rfc', 'max:255'],
+            'code' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $discount = filled($data['code'] ?? null)
+            ? app(Discounts::class)->quote($data['code'], 'storefront', $bundle->price_cents, $bundle->currency, $request->user(), $data['email'] ?? $request->user()?->email, item: $bundle)
+            : null;
+
+        try {
+            $session = $checkout->startBundle($bundle, $request->user(), $data['email'] ?? null, $discount);
+        } catch (Throwable $e) {
+            report($e);
+
+            return back()->withErrors(['checkout' => 'Payment could not be started. Please try again in a moment.']);
+        }
+
+        $request->session()->push('store.checkouts', $session->id);
+
+        return Inertia::location($session->url);
+    }
+
+    /** Where Stripe sends a bundle buyer who backs out. */
+    public function bundleCancelled(Bundle $bundle): Response
+    {
+        abort_unless(Bundles::sellable($bundle), 404);
+
+        return Inertia::render('Store/Checkout', [
+            'state' => 'cancelled',
+            'product' => ['url' => route('store.bundle', $bundle->slug), 'title' => $bundle->title],
+        ]);
+    }
+
+    /**
+     * Cancel a pre-order before its release, from Your purchases: refunded
+     * in full through the console's refund path (App\Commerce\Preorders).
+     */
+    public function cancelPreorder(Request $request, string $number, Preorders $preorders): RedirectResponse
+    {
+        $order = Order::where('number', $number)->where('buyer_user_id', $request->user()->id)->firstOrFail();
+
+        $preorders->cancel($order, $request->user());
+
+        return back()->with('platform_notice', __('Pre-order cancelled. Your refund is on its way.'));
     }
 
     /** Where Stripe sends the buyer after paying. */
@@ -391,7 +490,9 @@ class StoreController extends Controller
             'author' => $product->authorName(),
             'series_name' => $product->book->series_name,
             'series_number' => $product->book->series_number,
-            'price_cents' => $product->price_cents,
+            // The cheapest way to buy it now: "from" when formats differ,
+            // the usual price struck through during a sale.
+            ...Pricing::cheapest($product),
             'currency' => $product->currency,
             'formats' => array_map(
                 fn (string $f) => BookExport::FORMATS[$f][0] ?? strtoupper($f),
@@ -417,8 +518,15 @@ class StoreController extends Controller
             'paid_at' => $order->paid_at?->toFormattedDateString(),
             // Shown to the buyer only.
             'email' => $withDownloads ? $order->buyer_email : null,
+            // A pre-order the buyer may still cancel (Preorders::cancellable).
+            'cancel_url' => $withDownloads && $order->buyer_user_id && Preorders::cancellable($order)
+                ? route('purchases.cancel', $order->number) : null,
+            'cancelling' => $withDownloads && $order->status === 'paid' && Preorders::refundUnderWay($order),
             'items' => $order->items->map(fn (OrderItem $item) => [
                 'title' => $item->title,
+                'bundle_title' => $item->bundle_title,
+                // Pre-ordered: no downloads until this date.
+                'release_at' => $item->awaitingRelease() ? $item->release_at->toIso8601String() : null,
                 'price_cents' => $item->price_cents,
                 'formats' => array_map(fn (string $f) => $f === 'paperback' ? 'Paperback' : (BookExport::FORMATS[$f][0] ?? strtoupper($f)), $item->formats),
                 // A paperback: where its print job stands, never the address.

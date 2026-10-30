@@ -104,18 +104,12 @@ final class Fulfilment
                 ])->save();
 
                 // A paperback is posted, not downloaded: no licence or links.
-                if ($item->isPaperback()) {
+                // A pre-order is licensed at its release (ReleasePreorders).
+                if ($item->isPaperback() || $item->awaitingRelease()) {
                     continue;
                 }
 
-                $license = new License;
-                $license->forceFill([
-                    'order_item_id' => $item->id,
-                    'key' => License::newKey(),
-                    'license' => $item->license_type,
-                    'terms' => (config("commerce.licenses.{$item->license_type}") ?? config('commerce.licenses.personal'))['terms'],
-                    'status' => 'active',
-                ])->save();
+                self::license($item);
             }
 
             // A discount code counts as used once the order is paid.
@@ -243,6 +237,32 @@ final class Fulfilment
         return $order;
     }
 
+    /**
+     * Issue an item's licence and mark it delivered. Once: an item that
+     * already has one keeps it.
+     */
+    public static function license(OrderItem $item): License
+    {
+        $existing = License::where('order_item_id', $item->id)->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $license = new License;
+        $license->forceFill([
+            'order_item_id' => $item->id,
+            'key' => License::newKey(),
+            'license' => $item->license_type,
+            'terms' => (config("commerce.licenses.{$item->license_type}") ?? config('commerce.licenses.personal'))['terms'],
+            'status' => 'active',
+        ])->save();
+
+        $item->forceFill(['delivered_at' => now()])->save();
+
+        return $license;
+    }
+
     // ── Internals ───────────────────────────────────────────────────────
 
     /**
@@ -319,7 +339,8 @@ final class Fulfilment
 
         $items = $order->items->map(fn (OrderItem $item) => [
             'title' => $item->title,
-            'format' => implode(' + ', array_map('strtoupper', $item->formats)),
+            'format' => implode(' + ', array_map('strtoupper', $item->formats))
+                .($item->awaitingRelease() ? ' · '.__('pre-order, available :date', ['date' => $item->release_at->translatedFormat('F j, Y')]) : ''),
             'amount_cents' => $item->price_cents,
             'downloads' => $item->license
                 ? array_map(fn (array $link) => ['detail' => $link['label'], 'url' => $link['url']], Downloads::links($item->license, $expires))
@@ -343,6 +364,7 @@ final class Fulfilment
                 receiptUrl: $order->buyer_user_id ? route('purchases.index') : null,
                 sellerName: $this->sellerName($order),
                 paymentMethod: $order->payment_method,
+                releaseAt: $order->items->filter(fn (OrderItem $item) => $item->awaitingRelease())->min('release_at'),
             );
         }
 

@@ -325,7 +325,7 @@ it('exports the current view as CSV lines and a summary, defused, with a BOM', f
     $lines = srCsv($this->actingAs($author)->get('/sales/export/lines.csv?range=custom&from=2026-10-01&to=2026-10-31')->assertOk());
 
     expect($lines[0])->toBe(['order', 'paid_at', 'date', 'book_id', 'title', 'format', 'channel', 'currency', 'units',
-        'gross', 'discount', 'refunded', 'fee_estimate', 'net', 'partner_commission', 'royalty', 'status', 'buyer_country'])
+        'gross', 'discount', 'refunded', 'fee_estimate', 'net', 'partner_commission', 'royalty', 'status', 'buyer_country', 'bundle'])
         ->and(count($lines))->toBe(3)
         ->and($lines[1][4])->toBe('\'=HYPERLINK("http://x")')
         ->and($lines[1][2])->toBe('2026-10-10')

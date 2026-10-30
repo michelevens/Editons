@@ -21,11 +21,15 @@ final class Listing
     public const MINIMUM_CENTS = ['usd' => 50, 'eur' => 50, 'cad' => 50, 'gbp' => 30];
 
     /**
+     * A pre-order ($preorder) may go on sale before its files exist: they
+     * are needed at its release, when the buyer's licence is issued, and a
+     * missing one is rebuilt on the first download.
+     *
      * @param  list<string>  $formats
      *
      * @throws ValidationException
      */
-    public static function assertSellable(Book $book, int $cents, string $currency, array $formats): void
+    public static function assertSellable(Book $book, int $cents, string $currency, array $formats, bool $preorder = false): void
     {
         $errors = [];
 
@@ -42,7 +46,7 @@ final class Listing
             $errors['published'] = 'Ecrivain has taken this store page down: '.$book->product->taken_down_reason.' Write to support from Help if you think it is a mistake.';
         }
 
-        $missing = array_values(array_filter($formats, fn (string $format) => ! self::readyExport($book, $format)));
+        $missing = $preorder ? [] : array_values(array_filter($formats, fn (string $format) => ! self::readyExport($book, $format)));
 
         if ($missing !== []) {
             $errors['formats'] = 'Export '.implode(' and ', array_map(

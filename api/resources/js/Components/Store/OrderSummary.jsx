@@ -1,10 +1,21 @@
 import { money } from '@/Components/Store/money';
+import { useI18n } from '@/i18n';
+import { router } from '@inertiajs/react';
 
 /**
  * An order as its buyer sees it: items, total, and — when the server judged
  * this viewer to be the buyer — license keys and signed download links.
  */
 export default function OrderSummary({ order }) {
+    const { t, formatDate } = useI18n();
+
+    // Cancel a pre-order before its release: refunded in full.
+    const cancel = () => {
+        if (window.confirm(t('purchases.cancel_confirm'))) {
+            router.post(order.cancel_url, {}, { preserveScroll: true });
+        }
+    };
+
     return (
         <section
             data-a="store:order"
@@ -23,6 +34,14 @@ export default function OrderSummary({ order }) {
                 {order.items.map((item) => (
                     <li key={item.title} className="border-t border-border-default pt-3">
                         <p className="text-[14px] font-semibold text-text-primary">{item.title}</p>
+                        {item.bundle_title && (
+                            <p className="text-[11.5px] text-text-secondary">{t('purchases.in_bundle', { bundle: item.bundle_title })}</p>
+                        )}
+                        {item.release_at && (
+                            <p data-a="store:preorder-item" className="mt-0.5 text-[12px] font-medium text-text-body">
+                                {t('purchases.preorder_on', { date: formatDate(item.release_at, { dateStyle: 'long' }) })}
+                            </p>
+                        )}
                         <p className="text-[12px] text-text-secondary">
                             {item.formats.join(' + ')} · {money(item.price_cents, order.currency)}
                         </p>
@@ -65,6 +84,22 @@ export default function OrderSummary({ order }) {
                     </li>
                 ))}
             </ul>
+
+            {order.cancel_url && (
+                <button
+                    type="button"
+                    data-a="store:cancel-preorder"
+                    onClick={cancel}
+                    className="mt-3 rounded-button border border-border-default px-3 py-1.5 text-[12.5px] font-semibold text-status-danger hover:bg-bg-subtle"
+                >
+                    {t('purchases.cancel_preorder')}
+                </button>
+            )}
+            {order.cancelling && (
+                <p role="status" className="mt-3 text-[12px] text-text-secondary">
+                    {t('purchases.cancelling')}
+                </p>
+            )}
 
             {order.links_expire_at && (
                 <p className="mt-3 text-[11.5px] text-text-secondary">
