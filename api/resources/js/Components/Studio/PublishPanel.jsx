@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatNumber, t, useI18n } from '../../i18n';
 import ExportProfiles, { formatProblem, profileInput } from './ExportProfiles';
 import Icon from './Icon';
 import PrintKit from './PrintKit';
@@ -12,6 +13,7 @@ import PrintKit from './PrintKit';
  * find the description is the failure this avoids.
  */
 export default function PublishPanel({ bookId, onNotify, onPreview }) {
+    useI18n();
     const [data, setData] = useState(null);
     // When the payload arrived, and the clock it is read against: a
     // generating row's wait_seconds counts from the former.
@@ -70,7 +72,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                 const response = await window.axios.patch(`/books/${bookId}/publishing`, batch);
                 apply(response.data);
             } catch (error) {
-                onNotify?.(error.response?.data?.message ?? 'That change was not saved.');
+                onNotify?.(error.response?.data?.message ?? t('publish.change_not_saved'));
                 load();
             }
         }, 600);
@@ -87,7 +89,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
 
             apply(response.data);
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That store could not be changed.');
+            onNotify?.(error.response?.data?.message ?? t('publish.store_not_changed'));
         } finally {
             setBusy(null);
         }
@@ -95,7 +97,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
 
     const unpublish = async (channelLabel, channelId) => {
         // Confirmed because it takes a book off sale, which readers see.
-        if (!window.confirm(`Take this book off sale in ${channelLabel}?`)) return;
+        if (!window.confirm(t('publish.confirm_unpublish', { store: channelLabel }))) return;
 
         setBusy(`unpublish:${channelId}`);
 
@@ -106,7 +108,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
 
             apply(response.data);
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That store could not be changed.');
+            onNotify?.(error.response?.data?.message ?? t('publish.store_not_changed'));
         } finally {
             setBusy(null);
         }
@@ -124,7 +126,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
 
             apply(response.data);
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That store could not be changed.');
+            onNotify?.(error.response?.data?.message ?? t('publish.store_not_changed'));
         } finally {
             setBusy(null);
         }
@@ -138,7 +140,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
             apply(response.data);
             onNotify?.(
                 response.data.message ??
-                    'Ready to upload. Upload the file at each store, then mark it submitted.',
+                    t('publish.ready_to_upload_toast'),
             );
         } catch (error) {
             // Flushed into the payload so every message lands beside its
@@ -148,9 +150,9 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                     ...current,
                     blockers: error.response.data.errors ?? current.blockers,
                 }));
-                onNotify?.(error.response.data.message ?? 'This book is not ready to submit.');
+                onNotify?.(error.response.data.message ?? t('publish.not_ready_to_submit'));
             } else {
-                onNotify?.('The book could not be marked ready.');
+                onNotify?.(t('publish.not_marked_ready'));
             }
         } finally {
             setBusy(null);
@@ -185,20 +187,20 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
             apply(response.data.book);
             onNotify?.(
                 response.data.already
-                    ? `${response.data.export.label} is already being generated. It will appear below when it is ready.`
+                    ? t('publish.generate_already', { label: response.data.export.label })
                     : response.data.export.status === 'generating'
-                      ? `${response.data.export.label} is being generated. It will appear below when it is ready.`
-                      : `${response.data.export.label} is ready.`,
+                      ? t('publish.generate_started', { label: response.data.export.label })
+                      : t('publish.generate_ready', { label: response.data.export.label }),
             );
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That file could not be generated.');
+            onNotify?.(error.response?.data?.message ?? t('publish.generate_failed'));
         } finally {
             setBusy(null);
         }
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { book, channels, formats, exports, blockers, categories, warnings = {}, profiles } = data;
@@ -225,16 +227,16 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
             <header className="flex flex-wrap items-center gap-3 border-b border-border-default px-4 py-3">
                 <div className="min-w-0">
                     <h2 className="text-[15px] font-semibold text-text-primary">
-                        Export &amp; Publish
+                        {t('publish.panel_title')}
                     </h2>
                     <p className="text-[11.5px] text-text-secondary">
                         {live > 0
-                            ? `Live in ${live} store${live === 1 ? '' : 's'}${reviewing ? ` · ${reviewing} in review` : ''}`
+                            ? `${t('publish.live_in', { count: live })}${reviewing ? ` · ${t('publish.in_review_count', { count: reviewing })}` : ''}`
                             : reviewing > 0
-                              ? `${reviewing} store${reviewing === 1 ? '' : 's'} reviewing this book`
+                              ? t('publish.reviewing', { count: reviewing })
                               : toUpload > 0
-                                ? `Ready to upload to ${toUpload} store${toUpload === 1 ? '' : 's'}`
-                                : 'Not published yet'}
+                                ? t('publish.ready_upload_to', { count: toUpload })
+                                : t('publish.not_published')}
                     </p>
                 </div>
 
@@ -246,7 +248,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                         className="ml-auto inline-flex items-center gap-1.5 rounded-control border border-border-input px-3 py-2 text-[12.5px] font-medium text-text-body transition hover:border-brand-primary/40"
                     >
                         <Icon name="eye" size={13} strokeWidth={2} />
-                        Preview
+                        {t('publish.preview')}
                     </button>
                 )}
 
@@ -257,7 +259,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                     className={`${onPreview ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50`}
                 >
                     <Icon name="exp" size={13} strokeWidth={2} />
-                    {busy === 'submit' ? 'Checking…' : 'Prepare for stores'}
+                    {busy === 'submit' ? t('publish.checking') : t('publish.prepare')}
                 </button>
             </header>
 
@@ -269,7 +271,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                         className="rounded-tile border border-status-warning/30 bg-status-warning-bg p-3"
                     >
                         <p className="text-[12.5px] font-semibold text-status-warning">
-                            Before this book can be submitted:
+                            {t('publish.blockers_title')}
                         </p>
                         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
                             {Object.entries(blockers).map(([key, message]) => (
@@ -303,10 +305,10 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                         <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">
-                            Store listing
+                            {t('publish.listing')}
                         </h3>
 
-                        <Field label="Title" error={problem('title')}>
+                        <Field label={t('publish.field_title')} error={problem('title')}>
                             <input
                                 value={book.title ?? ''}
                                 data-a="publish:title"
@@ -315,57 +317,56 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                             />
                         </Field>
 
-                        <Field label="Author" error={problem('author_name')}>
+                        <Field label={t('publish.field_author')} error={problem('author_name')}>
                             <input
                                 value={book.author_name ?? ''}
                                 data-a="publish:author"
-                                placeholder="The name as it appears on the cover"
+                                placeholder={t('publish.author_placeholder')}
                                 onChange={(event) => save({ author_name: event.target.value })}
                                 className={inputClass(problem('author_name'))}
                             />
                         </Field>
 
-                        <Field label="Description" error={problem('description')}>
+                        <Field label={t('publish.field_description')} error={problem('description')}>
                             <textarea
                                 value={book.description ?? ''}
                                 rows={5}
                                 data-a="publish:description"
-                                placeholder="What a reader will get from this book, in two or three sentences."
+                                placeholder={t('publish.description_placeholder')}
                                 onChange={(event) => save({ description: event.target.value })}
                                 className={inputClass(problem('description'))}
                             />
                             <span className="mt-0.5 block text-[10.5px] text-text-secondary">
-                                {(book.description ?? '').length} characters · most stores want
-                                100 or more
+                                {t('publish.description_count', { count: (book.description ?? '').length })}
                             </span>
                         </Field>
 
-                        <Field label="Category" error={problem('category')}>
+                        <Field label={t('publish.category')} error={problem('category')}>
                             <select
                                 value={book.category ?? ''}
                                 data-a="publish:category"
                                 onChange={(event) => save({ category: event.target.value })}
                                 className={inputClass(problem('category'))}
                             >
-                                <option value="">Choose a category…</option>
+                                <option value="">{t('publish.choose_category')}</option>
                                 {categories.map((category) => (
                                     <option key={category} value={category}>{category}</option>
                                 ))}
                             </select>
                         </Field>
 
-                        <Field label="Keywords">
+                        <Field label={t('publish.field_keywords')}>
                             <input
                                 value={book.keywords ?? ''}
                                 data-a="publish:keywords"
-                                placeholder="Comma separated"
+                                placeholder={t('publish.keywords_placeholder')}
                                 onChange={(event) => save({ keywords: event.target.value })}
                                 className={inputClass(null)}
                             />
                         </Field>
 
                         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                            <Field label="List price (USD)" error={problem('list_price')}>
+                            <Field label={t('publish.field_price')} error={problem('list_price')}>
                                 <input
                                     value={book.list_price ?? ''}
                                     inputMode="decimal"
@@ -386,8 +387,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                     className={inputClass(problem('isbn'))}
                                 />
                                 <span className="mt-0.5 block text-[10.5px] text-text-secondary">
-                                    Assign one on the ISBN &amp; Rights screen, or leave blank
-                                    and let the store issue its own.
+                                    {t('publish.isbn_help')}
                                 </span>
                             </Field>
                         </div>
@@ -396,11 +396,10 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                     <div className="space-y-4">
                         <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                             <h3 className="mb-1 text-[13px] font-semibold text-text-primary">
-                                Stores
+                                {t('publish.stores')}
                             </h3>
                             <p className="mb-1.5 text-[11px] leading-snug text-text-secondary">
-                                Écrivain checks the book and prepares the files. You upload them
-                                at each store yourself, then mark the store submitted here.
+                                {t('publish.stores_help')}
                             </p>
                             {problem('channels') && (
                                 <p className="mb-1.5 text-[11px] font-medium text-status-warning">
@@ -418,7 +417,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                             {channel.label}
                                         </p>
                                         <p className="text-[11px] text-text-secondary">
-                                            {channel.format === 'print' ? 'Print' : 'eBook'}
+                                            {channel.format === 'print' ? t('publish.format_print') : t('publish.format_ebook')}
                                             {' · '}
                                             <ChannelStatus channel={channel} />
                                         </p>
@@ -434,7 +433,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                                     rel="noopener noreferrer"
                                                     className="font-semibold text-brand-primary hover:underline"
                                                 >
-                                                    Open {channel.label}
+                                                    {t('publish.open_store', { store: channel.label })}
                                                 </a>
                                             </p>
                                         )}
@@ -447,7 +446,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                             onClick={() => markSubmitted(channel.id)}
                                             className="shrink-0 rounded-control border border-border-input px-2 py-1 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
                                         >
-                                            I uploaded it
+                                            {t('publish.i_uploaded')}
                                         </button>
                                     ) : channel.status === 'live' ? (
                                         <button
@@ -456,7 +455,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                             onClick={() => unpublish(channel.label, channel.id)}
                                             className="shrink-0 rounded-control border border-border-input px-2 py-1 text-[11.5px] font-medium text-text-body transition hover:border-status-danger/40 disabled:opacity-50"
                                         >
-                                            Unpublish
+                                            {t('publish.unpublish')}
                                         </button>
                                     ) : (
                                         <button
@@ -487,7 +486,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
 
                         <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                             <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                                Files
+                                {t('publish.files')}
                             </h3>
 
                             <ExportProfiles
@@ -531,8 +530,8 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                     >
                                         {busy === `format:${format.format}` ||
                                         rendering(format.format)
-                                            ? 'Generating…'
-                                            : 'Generate'}
+                                            ? t('publish.generating')
+                                            : t('publish.generate')}
                                     </button>
                                 </div>
                                 );
@@ -562,23 +561,22 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                        Export history
+                        {t('publish.history')}
                     </h3>
 
                     {exports.length === 0 ? (
                         <p className="text-[11.5px] text-text-secondary">
-                            Files you generate are kept here, so you can always go back to the
-                            one you uploaded.
+                            {t('publish.history_empty')}
                         </p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-[12px]">
                                 <thead>
                                     <tr className="border-b border-border-default text-[11px] uppercase tracking-wide text-text-secondary">
-                                        <th className="py-1.5 pr-3 font-medium">File</th>
-                                        <th className="py-1.5 pr-3 text-right font-medium">Words</th>
-                                        <th className="py-1.5 pr-3 text-right font-medium">Size</th>
-                                        <th className="py-1.5 pr-3 font-medium">Created</th>
+                                        <th className="py-1.5 pr-3 font-medium">{t('publish.col_file')}</th>
+                                        <th className="py-1.5 pr-3 text-right font-medium">{t('publish.col_words')}</th>
+                                        <th className="py-1.5 pr-3 text-right font-medium">{t('publish.col_size')}</th>
+                                        <th className="py-1.5 pr-3 font-medium">{t('publish.col_created')}</th>
                                         <th />
                                     </tr>
                                 </thead>
@@ -592,12 +590,12 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                                 {item.label}
                                                 {!item.full_book && (
                                                     <span className="ml-1.5 whitespace-nowrap rounded-full bg-bg-subtle px-1.5 py-px text-[10.5px] font-medium text-text-secondary">
-                                                        Not for stores
+                                                        {t('publish.not_for_stores')}
                                                     </span>
                                                 )}
                                             </td>
                                             <td className="py-1.5 pr-3 text-right tabular-nums text-text-body">
-                                                {item.word_count.toLocaleString()}
+                                                {formatNumber(item.word_count)}
                                             </td>
                                             <td className="py-1.5 pr-3 text-right tabular-nums text-text-body">
                                                 {item.size ?? '—'}
@@ -612,14 +610,14 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                                         data-a={`publish:download:${item.id}`}
                                                         className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                                                     >
-                                                        Download
+                                                        {t('publish.download')}
                                                     </a>
                                                 ) : waiting(item) ? (
                                                     <span
                                                         data-a={`publish:generating:${item.id}`}
                                                         className="text-[11px] text-text-secondary"
                                                     >
-                                                        Generating…
+                                                        {t('publish.generating')}
                                                     </span>
                                                 ) : (
                                                     <span
@@ -627,8 +625,8 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                                         className={`text-[11px] ${item.status === 'expired' ? 'text-text-secondary' : 'text-status-danger'}`}
                                                     >
                                                         {item.status === 'expired'
-                                                            ? 'File no longer stored'
-                                                            : 'Failed'}
+                                                            ? t('publish.file_gone')
+                                                            : t('publish.failed')}
                                                         {available(item.format) && (
                                                             <>
                                                                 {' — '}
@@ -642,8 +640,8 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                                                     className="font-semibold text-brand-primary hover:underline disabled:opacity-50"
                                                                 >
                                                                     {item.status === 'expired'
-                                                                        ? 'generate again'
-                                                                        : 'try again'}
+                                                                        ? t('publish.generate_again')
+                                                                        : t('publish.try_again')}
                                                                 </button>
                                                             </>
                                                         )}
@@ -666,7 +664,7 @@ function ChannelStatus({ channel }) {
     if (channel.status === 'live') {
         return (
             <span className="font-medium text-status-success">
-                Live{channel.went_live_at ? ` · ${channel.went_live_at}` : ''}
+                {t('publish.status_live')}{channel.went_live_at ? ` · ${channel.went_live_at}` : ''}
             </span>
         );
     }
@@ -674,22 +672,22 @@ function ChannelStatus({ channel }) {
     if (channel.status === 'in_review') {
         return (
             <span className="font-medium text-status-warning">
-                In review{channel.submitted_at ? ` · uploaded ${channel.submitted_at}` : ''}
+                {t('publish.in_review')}{channel.submitted_at ? ` · ${t('publish.uploaded_on', { date: channel.submitted_at })}` : ''}
             </span>
         );
     }
 
     if (channel.status === 'ready_to_submit') {
-        return <span className="font-medium text-status-warning">Ready to upload</span>;
+        return <span className="font-medium text-status-warning">{t('publish.status_ready_to_submit')}</span>;
     }
 
     if (channel.status === 'unpublished') {
-        return <span className="text-text-secondary">Taken off sale</span>;
+        return <span className="text-text-secondary">{t('publish.status_unpublished')}</span>;
     }
 
     return (
         <span className="text-text-secondary">
-            {channel.enabled ? 'Selected, not yet submitted' : 'Not selected'}
+            {channel.enabled ? t('publish.selected_not_submitted') : t('publish.not_selected')}
         </span>
     );
 }
