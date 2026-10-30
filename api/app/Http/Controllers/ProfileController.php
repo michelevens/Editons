@@ -40,7 +40,7 @@ class ProfileController extends Controller
                 'daily_word_goal' => $user->daily_word_goal,
             ],
             'book_types' => array_map(
-                fn (BookType $type) => ['key' => $type->key, 'name' => $type->name()],
+                fn (BookType $type) => ['key' => $type->key, 'name' => $type->displayName()],
                 BookType::all(),
             ),
             // Shown here as well as on Plans & Billing: an author checking

@@ -2,6 +2,8 @@
 
 namespace App\Editorial;
 
+use App\I18n\Locales;
+
 /**
  * The editorial agent catalogue.
  *
@@ -51,6 +53,22 @@ enum EditorialAgent: string
             self::MastersExaminer => "Reads a thesis chapter as a master's examiner would: aim, literature, method, evidence, citations. Coaches; never writes.",
             self::DoctoralExaminer => 'Reads a dissertation chapter as a doctoral examiner would: original contribution, rigour, defensibility at the viva. Coaches; never writes.',
         };
+    }
+
+    /**
+     * The name in the reader's interface language (ADR-0050), for screens.
+     * label() stays English: it is what the model is told it is, and what
+     * logs and the staff console show.
+     */
+    public function displayLabel(): string
+    {
+        return Locales::t("agent.{$this->value}_label");
+    }
+
+    /** description(), in the reader's interface language. */
+    public function displayDescription(): string
+    {
+        return Locales::t("agent.{$this->value}_description");
     }
 
     /**
@@ -125,8 +143,8 @@ enum EditorialAgent: string
 
         $agents = array_map(fn (self $a) => [
             'value' => $a->value,
-            'label' => $a->label(),
-            'description' => $a->description(),
+            'label' => $a->displayLabel(),
+            'description' => $a->displayDescription(),
             'specialist' => $a->isSpecialist(),
             'minimum_tier' => $a->minimumTier(),
             'cost' => config("billing.costs.{$a->costLabel()}"),

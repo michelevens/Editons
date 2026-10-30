@@ -401,7 +401,7 @@ class EditorialController extends Controller
             ->map(fn (EditorialFinding $f) => [
                 'id' => $f->id,
                 'agent' => $f->agent->value,
-                'agent_label' => $f->agent->label(),
+                'agent_label' => $f->agent->displayLabel(),
                 'severity' => $f->severity,
                 'title' => $f->title,
                 'detail' => $f->detail,

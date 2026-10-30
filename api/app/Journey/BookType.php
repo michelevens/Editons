@@ -2,6 +2,7 @@
 
 namespace App\Journey;
 
+use App\I18n\Locales;
 use InvalidArgumentException;
 
 /**
@@ -64,6 +65,29 @@ class BookType
     public function blurb(): string
     {
         return $this->config['blurb'];
+    }
+
+    /**
+     * name() and blurb() in the reader's interface language (ADR-0050), for
+     * screens. The English ones stay for the coaching sentences and the
+     * prompts built from them; a type the catalogue has not caught up with
+     * shows its configured English.
+     */
+    public function displayName(): string
+    {
+        return $this->translated('name', $this->name());
+    }
+
+    public function displayBlurb(): string
+    {
+        return $this->translated('blurb', $this->blurb());
+    }
+
+    private function translated(string $what, string $english): string
+    {
+        $key = "booktype.{$this->key}_{$what}";
+
+        return array_key_exists($key, Locales::catalogue(Locales::DEFAULT)) ? Locales::t($key) : $english;
     }
 
     /** @return array{0: int, 1: int} typical total words */
@@ -167,8 +191,8 @@ class BookType
     {
         return [
             'key' => $this->key,
-            'name' => $this->name(),
-            'blurb' => $this->blurb(),
+            'name' => $this->displayName(),
+            'blurb' => $this->displayBlurb(),
             'words' => $this->words(),
             'chapters' => $this->chapters(),
             'suggested_words' => $this->suggestedWords(),
