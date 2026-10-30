@@ -23,6 +23,7 @@ import { PlacedImage, PlacedTable, PlacedTableView, setTextBlock } from './Place
 import { ImageBar, TableBar } from './PlacementBar';
 import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
+import { Typography } from './Typography';
 import { matches } from '../../shortcuts';
 import { useI18n } from '../../i18n';
 
@@ -112,6 +113,12 @@ export default function ManuscriptEditor({
     bookId,
     onSaved,
     autosave = true,
+    // The book's language, for the browser's spell-check, and its
+    // typography rules, applied as you type when the book says so
+    // (Typography.js).
+    language = null,
+    spellcheck = true,
+    typography = null,
     headerActions = null,
     onChapters = null,
     // Suggest mode: told the chapter's pending changes when they change,
@@ -294,6 +301,14 @@ export default function ManuscriptEditor({
                 CommentAnchors,
                 // A quotation's box kind, chosen in the toolbar (Callout.js).
                 CalloutChoice,
+                ...(typography?.as_you_type
+                    ? [Typography.configure({
+                        quotes: typography.quotes,
+                        french_spacing: typography.french_spacing,
+                        dashes: typography.dashes,
+                        ellipsis: typography.ellipsis,
+                    })]
+                    : []),
             ],
             content: section?.content ?? '',
             onUpdate: ({ editor }) => {
@@ -326,6 +341,9 @@ export default function ManuscriptEditor({
                     // A screen reader announced an unnamed edit box.
                     'aria-label': `${section?.title ?? 'Chapter'}, manuscript`,
                     'aria-multiline': 'true',
+                    // The browser checks spelling in the book's language.
+                    ...(language ? { lang: language } : {}),
+                    spellcheck: spellcheck ? 'true' : 'false',
                 },
             },
             // Tiptap 3 renders on the client only; without this React warns

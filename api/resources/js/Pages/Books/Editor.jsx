@@ -1058,6 +1058,9 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         bookId={book.id}
                                         onSaved={onSaved}
                                         autosave={book.autosave ?? true}
+                                        language={book.language_code}
+                                        spellcheck={book.spellcheck ?? true}
+                                        typography={book.typography}
                                         onChapters={() => setBinderOpen(true)}
                                         onChanges={setChanges}
                                         onShowChanges={showChanges}
