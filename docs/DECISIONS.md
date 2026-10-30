@@ -3983,7 +3983,7 @@ complete), `tests/Browser/i18n.spec.js` (French, Kreyòl and back to English
 on the shelf, editor and publish screens at 1440 and 390 px, no horizontal
 overflow, no console errors).
 
-## ADR-00XX — Book language and typography
+## ADR-0051 — Book language and typography
 
 **Status:** accepted (2026-10-30). Number assigned at merge.
 
