@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Editorial\Style\Typography;
 use App\Publishing\AccessibilityAudit;
 use App\Publishing\CoverRenderer;
 use App\Publishing\InteriorDesign;
@@ -150,6 +151,11 @@ class Book extends Model
         'review_on_save' => false,
         // The author's choice, and what the references screen and exports use.
         'citation_style' => 'APA',
+        // The browser's spell-check in the editor, in the book's language.
+        'spellcheck' => true,
+        // Quotes, French spacing, dashes and the ellipsis (Typography):
+        // nothing applied until the author turns it on.
+        'typography' => Typography::DEFAULTS,
     ];
 
     /**
@@ -176,7 +182,12 @@ class Book extends Model
     /** Settings with defaults applied, so a missing key is never undefined. */
     public function settings(): array
     {
-        return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
+        $settings = array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
+        // Every key, in one order: jsonb keeps neither a missing key nor
+        // the order they were saved in.
+        $settings['typography'] = Typography::normalise($settings['typography'] ?? null);
+
+        return $settings;
     }
 
     /**

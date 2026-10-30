@@ -1510,6 +1510,14 @@ class PrintBook
                 $run = '';
 
                 foreach (mb_str_split($m[0]) as $ch) {
+                    // A narrow no-break space (French spacing before ; ! ?)
+                    // in a face without one prints as a full no-break
+                    // space: in DejaVu, as an inline box of its own, the
+                    // line could break before it, which is what it is for.
+                    if ($ch === "\u{202F}" && ! isset($has[0x202F]) && isset($has[0xA0])) {
+                        $ch = "\u{00A0}";
+                    }
+
                     if (isset($has[mb_ord($ch)])) {
                         $out .= ($run !== '' ? '<span class="glyph">'.$run.'</span>' : '').$ch;
                         $run = '';

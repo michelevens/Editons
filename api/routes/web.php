@@ -54,6 +54,7 @@ use App\Http\Controllers\StyleGuideController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TwoFactorController;
+use App\Http\Controllers\TypographyController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\WorkspaceController;
@@ -356,6 +357,13 @@ Route::middleware('auth')->group(function () {
         ->name('references.show');
     Route::put('/books/{book}/references/style', [ReferencesController::class, 'style'])
         ->name('references.style');
+
+    // "Fix typography" (ADR — Book language and typography): count first,
+    // then apply, a version of each changed chapter taken before.
+    Route::get('/books/{book}/typography/preview', [TypographyController::class, 'preview'])
+        ->name('typography.preview');
+    Route::post('/books/{book}/typography/fix', [TypographyController::class, 'fix'])
+        ->name('typography.fix');
 });
 
 /*

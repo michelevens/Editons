@@ -3982,3 +3982,96 @@ every string of the priority emails translated, Laravel message files
 complete), `tests/Browser/i18n.spec.js` (French, Kreyòl and back to English
 on the shelf, editor and publish screens at 1440 and 390 px, no horizontal
 overflow, no console errors).
+
+## ADR-00XX — Book language and typography
+
+**Status:** accepted (2026-10-30). Number assigned at merge.
+
+**Context.** The flexibility audit's N2: a book's writing settings were
+four values (autosave, two unused AI switches, citation style). There was no
+choice of quotation marks or French spacing, the editor's spell-check did
+not know the book's language, and exports could only declare one of the
+seven display names Book settings offered (anything else came out as
+`en-US`). PrintBook already made the space a French author typed before
+`: ; ! ? »` non-breaking, in print only.
+
+**Decisions.**
+
+- *Language*: the book's `language` column stays the source (no new
+  column). `Exporter::languageCode()` also maps Italian and Dutch (the
+  translation languages), keeps `en`/`English` as `en-US` as before, and
+  passes through anything shaped like a BCP 47 tag (`fr-CA`, `pt-BR`,
+  `zh-Hant`), cased as usual. Book settings' language list ends with
+  "Other (language code)…". EPUB `dc:language` and `xml:lang`, HTML and PDF
+  `lang`, DOCX `w:lang` and the print hyphenation already read that code.
+  The editor gets `lang` and `spellcheck` on its editable root, so the
+  browser checks spelling in the book's language; `settings.spellcheck`
+  (default on, which is what the browser did) turns it off.
+- *Typography rules*: `settings.typography` holds `quotes` (`curly` |
+  `guillemets` | `none`), `french_spacing`, `dashes`, `ellipsis` — each null
+  until the author picks, null meaning the language's default
+  (`App\Editorial\Style\Typography::forLanguage`: French and Kreyòl
+  guillemets with French spacing, Spanish guillemets without, everything
+  else curly quotes; dashes and ellipsis on) — and two switches,
+  `as_you_type` and `apply_at_export`, both off. French spacing is a narrow
+  no-break space (U+202F) before `; ! ?`, a no-break space (U+00A0) before
+  `:` and inside `« »`; a colon or `?` only counts when a space, the end of
+  the paragraph or closing punctuation follows, so `10:30`, `https://` and
+  `?q=` are left alone. `--`/`---` become an em dash, a hyphen between
+  spaces an en dash, `...` an ellipsis; four or more hyphens are a rule and
+  stay. The rules are applied to the text of a paragraph as one run across
+  marks (a quote opened in italics closes in roman), never to code (block or
+  mark) or attributes, except a footnote's text. Settings are validated
+  (`Typography::validationRules`) and merged key by key.
+- *As you type*: `resources/js/Components/Editor/Typography.js`, Tiptap
+  input rules installed only when `as_you_type` is on. Tiptap 3 inserts the
+  typed character, closes the history group and then applies the rule, so
+  Ctrl/Cmd+Z (or Backspace) undoes the correction and keeps what was typed.
+  Typed, a colon is spaced only after a typed space, since the rule cannot
+  see what follows.
+- *Fix typography*: Book settings → Language and typography. `GET
+  /books/{book}/typography/preview` counts the corrections per chapter and
+  changes nothing; `POST …/fix` applies them chapter by chapter, under the
+  chapter's row lock, through `ManuscriptWriter::save` with the new version
+  reason `typography` (migration `2026_11_09_120000`), which snapshots the
+  chapter first, labelled "Before typography fix (n corrections)". Titles
+  are corrected too. A second count is zero: the pass is idempotent.
+- *At export*: with `apply_at_export`, `Exporter::chapters()` and
+  `structure()` hand every renderer (EPUB, PDF, print PDF, DOCX, HTML,
+  Markdown, and the print and reader previews) a corrected copy of each
+  section; the manuscript is never written. The PDF faces except Source
+  Sans lack U+202F, so `PrintBook::fallbackGlyphs` prints it as U+00A0 in a
+  face without it rather than as a DejaVu box the line could break before.
+- *Paragraphs and headings*: not duplicated. The section shows the interior
+  design's paragraph style, chapter label and figure numbering and links to
+  Design & Layout, where they are set (ADR-0040/0041/0044).
+- *Style guides* (ADR-0047) keep their own `quotes`, `french_spacing` and
+  `dashes`, which tell the AI reviewers what to expect; the book's
+  typography rules are what the editor, the pass and the renderers apply.
+  Unifying the two is follow-up work.
+
+**Defaults unchanged.** Existing and new books store the defaults: both
+switches off, every rule null. Nothing is corrected as you type, the fix
+pass runs only when the author confirms it, and an export with
+`apply_at_export` off is set from the manuscript exactly as before (tested:
+the HTML of a book with rules chosen but not applied at export is identical
+to the untouched book's). The one visible difference is the editor's `lang`
+attribute, which makes the browser spell-check a French book in French.
+Settings now report `spellcheck` and `typography` among their defaults.
+
+**Not done.** Rules beyond the four (German „ “ quotes, number and unit
+spacing, `%`), a per-chapter or per-paragraph language for the editor's
+spell-check (the print hyphenator already guesses English passages), and
+running the pass over part titles that have no text of their own (they are
+corrected at export).
+
+**Tests.** `tests/Feature/BookTypographyTest.php` (French and English rules,
+idempotence, addresses and times untouched, runs across marks, code and
+footnotes, language defaults, settings validation and merge, the editor's
+props, count then fix with a `typography` version per changed chapter and
+none for a clean one, export language codes, French spacing in the EPUB only
+when opted in with the manuscript unchanged, U+202F in print, an untouched
+book's identical export), `tests/Feature/BookSettingsTest.php` (defaults),
+`tests/Browser/book-typography.spec.js` (as you type, Ctrl+Z, `lang` and
+`spellcheck` on the editor, a rule changed, count and fix on Book settings,
+at 1440 and 390 px, no horizontal overflow, no console errors).
