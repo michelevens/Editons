@@ -1,7 +1,7 @@
 # Storefront pricing: formats, sales, codes, bundles, pre-orders
 
 How a book on the author's own storefront is priced, and what a buyer pays.
-Decision record: `docs/DECISIONS.md`, "ADR-00XX — Per-format pricing, sales,
+Decision record: `docs/DECISIONS.md`, "ADR-0053 — Per-format pricing, sales,
 author discount codes, bundles and pre-orders". Code: `App\Commerce\Pricing`,
 `App\Commerce\Bundles`, `App\Commerce\Preorders`, `App\Growth\Discounts`.
 

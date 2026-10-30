@@ -3983,7 +3983,194 @@ complete), `tests/Browser/i18n.spec.js` (French, Kreyòl and back to English
 on the shelf, editor and publish screens at 1440 and 390 px, no horizontal
 overflow, no console errors).
 
-## ADR-00XX — Per-format pricing, sales, author discount codes, bundles and pre-orders
+## ADR-0051 — Book language and typography
+
+**Status:** accepted (2026-10-30). Number assigned at merge.
+
+**Context.** The flexibility audit's N2: a book's writing settings were
+four values (autosave, two unused AI switches, citation style). There was no
+choice of quotation marks or French spacing, the editor's spell-check did
+not know the book's language, and exports could only declare one of the
+seven display names Book settings offered (anything else came out as
+`en-US`). PrintBook already made the space a French author typed before
+`: ; ! ? »` non-breaking, in print only.
+
+**Decisions.**
+
+- *Language*: the book's `language` column stays the source (no new
+  column). `Exporter::languageCode()` also maps Italian and Dutch (the
+  translation languages), keeps `en`/`English` as `en-US` as before, and
+  passes through anything shaped like a BCP 47 tag (`fr-CA`, `pt-BR`,
+  `zh-Hant`), cased as usual. Book settings' language list ends with
+  "Other (language code)…". EPUB `dc:language` and `xml:lang`, HTML and PDF
+  `lang`, DOCX `w:lang` and the print hyphenation already read that code.
+  The editor gets `lang` and `spellcheck` on its editable root, so the
+  browser checks spelling in the book's language; `settings.spellcheck`
+  (default on, which is what the browser did) turns it off.
+- *Typography rules*: `settings.typography` holds `quotes` (`curly` |
+  `guillemets` | `none`), `french_spacing`, `dashes`, `ellipsis` — each null
+  until the author picks, null meaning the language's default
+  (`App\Editorial\Style\Typography::forLanguage`: French and Kreyòl
+  guillemets with French spacing, Spanish guillemets without, everything
+  else curly quotes; dashes and ellipsis on) — and two switches,
+  `as_you_type` and `apply_at_export`, both off. French spacing is a narrow
+  no-break space (U+202F) before `; ! ?`, a no-break space (U+00A0) before
+  `:` and inside `« »`; a colon or `?` only counts when a space, the end of
+  the paragraph or closing punctuation follows, so `10:30`, `https://` and
+  `?q=` are left alone. `--`/`---` become an em dash, a hyphen between
+  spaces an en dash, `...` an ellipsis; four or more hyphens are a rule and
+  stay. The rules are applied to the text of a paragraph as one run across
+  marks (a quote opened in italics closes in roman), never to code (block or
+  mark) or attributes, except a footnote's text. Settings are validated
+  (`Typography::validationRules`) and merged key by key.
+- *As you type*: `resources/js/Components/Editor/Typography.js`, Tiptap
+  input rules installed only when `as_you_type` is on. Tiptap 3 inserts the
+  typed character, closes the history group and then applies the rule, so
+  Ctrl/Cmd+Z (or Backspace) undoes the correction and keeps what was typed.
+  Typed, a colon is spaced only after a typed space, since the rule cannot
+  see what follows.
+- *Fix typography*: Book settings → Language and typography. `GET
+  /books/{book}/typography/preview` counts the corrections per chapter and
+  changes nothing; `POST …/fix` applies them chapter by chapter, under the
+  chapter's row lock, through `ManuscriptWriter::save` with the new version
+  reason `typography` (migration `2026_11_09_120000`), which snapshots the
+  chapter first, labelled "Before typography fix (n corrections)". Titles
+  are corrected too. A second count is zero: the pass is idempotent.
+- *At export*: with `apply_at_export`, `Exporter::chapters()` and
+  `structure()` hand every renderer (EPUB, PDF, print PDF, DOCX, HTML,
+  Markdown, and the print and reader previews) a corrected copy of each
+  section; the manuscript is never written. The PDF faces except Source
+  Sans lack U+202F, so `PrintBook::fallbackGlyphs` prints it as U+00A0 in a
+  face without it rather than as a DejaVu box the line could break before.
+- *Paragraphs and headings*: not duplicated. The section shows the interior
+  design's paragraph style, chapter label and figure numbering and links to
+  Design & Layout, where they are set (ADR-0040/0041/0044).
+- *Style guides* (ADR-0047) keep their own `quotes`, `french_spacing` and
+  `dashes`, which tell the AI reviewers what to expect; the book's
+  typography rules are what the editor, the pass and the renderers apply.
+  Unifying the two is follow-up work.
+
+**Defaults unchanged.** Existing and new books store the defaults: both
+switches off, every rule null. Nothing is corrected as you type, the fix
+pass runs only when the author confirms it, and an export with
+`apply_at_export` off is set from the manuscript exactly as before (tested:
+the HTML of a book with rules chosen but not applied at export is identical
+to the untouched book's). The one visible difference is the editor's `lang`
+attribute, which makes the browser spell-check a French book in French.
+Settings now report `spellcheck` and `typography` among their defaults.
+
+**Not done.** Rules beyond the four (German „ “ quotes, number and unit
+spacing, `%`), a per-chapter or per-paragraph language for the editor's
+spell-check (the print hyphenator already guesses English passages), and
+running the pass over part titles that have no text of their own (they are
+corrected at export).
+
+**Tests.** `tests/Feature/BookTypographyTest.php` (French and English rules,
+idempotence, addresses and times untouched, runs across marks, code and
+footnotes, language defaults, settings validation and merge, the editor's
+props, count then fix with a `typography` version per changed chapter and
+none for a clean one, export language codes, French spacing in the EPUB only
+when opted in with the manuscript unchanged, U+202F in print, an untouched
+book's identical export), `tests/Feature/BookSettingsTest.php` (defaults),
+`tests/Browser/book-typography.spec.js` (as you type, Ctrl+Z, `lang` and
+`spellcheck` on the editor, a rule changed, count and fix on Book settings,
+at 1440 and 390 px, no horizontal overflow, no console errors).
+
+## ADR-0052 — Notification frequency, channels, mutes and digests
+
+**Status:** accepted (2026-10-30). Number assigned at merge.
+
+**Context.** The flexibility audit's N1: email preferences were one switch
+per category. "Sales" sent a note on every purchase with no digest; there
+was no per-book mute, no choice between inbox and email, no quiet hours.
+The weekly progress email had been built unscheduled, then (2026-10-28)
+scheduled for everybody on Mondays at 8:00 New York time, default on, with
+no way to pick the day or the hour.
+
+**Decisions.**
+
+- *Frequency per activity category.* The five categories about books
+  (`collaboration`, `writing`, `publishing`, `sales`, `partners`; marked
+  `digestible` in `EmailPreferences::CATEGORIES`) choose instant, daily
+  digest, weekly digest or off. "Off" is the existing `email_preferences`
+  switch, not a second copy: the footer's unsubscribe link, the old toggle
+  and the new select read and write one fact. Everything else (security,
+  billing, receipts: always on; news, tips, weekly progress: on/off) is
+  unchanged.
+- *Inbox channel per category*, for the categories the inbox has kinds for.
+  Off: `Inbox::record` does not write the item. Support, moderation and
+  announcements have no switch.
+- *Settings as overrides* in `users.notification_settings`
+  (`App\Mail\NotificationSettings`), like `email_preferences`: absent means
+  the default, and the defaults are exactly the old behaviour (instant,
+  inbox on, nothing muted, no quiet hours). A person on the defaults stores
+  `null`.
+- *Holding, not dropping.* `Notify::send` keeps the decision in one place: a
+  digestible email to an account (never to a bare address, never a
+  mandatory one) about a muted book is not sent; a daily/weekly one is held
+  in `held_emails` with its subject and link rendered then, in the
+  recipient's language; an instant one inside quiet hours is held with the
+  serialized Mailable and a `release_at`. `Notify::deliver` is the old send
+  path, past every preference. A failure to hold sends the email instead.
+- *One schedule, the person's clock.* A digest day (ISO weekday) and hour,
+  default Monday 8:00, in `users.timezone` (else the platform's reporting
+  zone): daily digests use the hour, weekly digests and weekly progress the
+  day and hour. Whole hours only, because the runner is hourly.
+- *Delivery.* `notifications:deliver`, hourly, replaces the fixed Monday
+  `emails:weekly-digest` schedule (the command stays, for sending by hand).
+  For each person it computes the most recent scheduled moment at or before
+  now; everything held before it goes into that moment's digest, so a
+  missed run catches up on the next and something held after it waits for
+  the next one.
+- *Idempotency.* `email_digests` is unique on (person, kind, period = local
+  date of the moment). A run claims the row with `INSERT … ON CONFLICT DO
+  NOTHING` (catching a unique violation would abort a surrounding Postgres
+  transaction), attaches the held rows in the same transaction, then sends
+  and stamps `sent_at` inside a transaction holding the row lock. A second
+  runner finds the row; a run that died after claiming leaves an unsent
+  row the next run sends. Quiet holds are claimed by stamping `sent_at`
+  where it is still null, before sending: at most once, and preferences are
+  read again at release (muted or switched off since means dropped).
+- *Weekly progress is opt-in.* `digest` gets `'default' => false`, for new
+  and existing accounts. The old profile form saved every switch, so a
+  stored `digest: true` cannot be told from a default-on switch nobody
+  touched; the migration sets those aside as `digest_legacy` (ignored when
+  reading; `down()` restores them) rather than deleting them. A stored
+  `false` stays. Nobody receives it until they turn it on. It goes within a
+  day of the person's moment only, covering the seven days before the send
+  day, and a quiet week is recorded but not sent, as before.
+- *Mute is the person's own.* `PUT /books/{book}/mute`, allowed to anybody
+  who can open the book (a collaborator can mute a book they were invited
+  to), from the shelf card or the profile's list. Muted: no activity email;
+  inbox items still recorded, already read, so the history is there without
+  the badge.
+- *The digest email* (`Account\ActivityDigestMail`, category `account`):
+  one email listing the held items grouped by category, each linking where
+  its own email would have. Always sent, because it exists only for people
+  who asked for it; the footer leads to the settings that turn it off.
+
+**Defaults unchanged.** Somebody who changes nothing gets every activity
+email at once and every inbox item, as before; the one deliberate change is
+that the weekly progress email stops until they opt in.
+
+**Not done.** Minute-precise times (hour granularity), a per-book frequency
+(a mute is all-or-nothing), digests for the inbox itself, and a timezone
+picker on the profile (the zone shown is the one the sales screen sets).
+
+**Tests.** `tests/Feature/Emails/NotificationSettingsTest.php` (defaults
+unchanged, opt-in for new, legacy and explicit accounts, the migration's
+set-aside and rollback, saving and validation, unsubscribe mapping, off,
+inbox off, mute from the card and its tenancy check, security mail never
+muted or held, quiet hours across midnight and release once, a muted
+book's held email dropped, daily digest at the local hour in French and
+once, weekly digest on a Paris Friday, catch-up after a missed run, a
+claimed-but-unsent digest sent once, moment arithmetic across day, week and
+timezone boundaries, weekly progress only to the opted-in on their day and
+hour, no late send), `tests/Feature/ScheduleTest.php` (hourly runner, no
+Monday send to everybody, only opted-in receive it from the scheduled run),
+and `tests/Browser/notifications.spec.js` at 1440 and 390 px.
+
+## ADR-0053 — Per-format pricing, sales, author discount codes, bundles and pre-orders
 
 **Status:** accepted · **Audit:** flexibility finding P2 · **Guide:** `docs/PRICING.md`
 

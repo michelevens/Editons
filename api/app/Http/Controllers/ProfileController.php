@@ -6,6 +6,7 @@ use App\Billing\CreditLedger;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Journey\BookType;
 use App\Mail\EmailPreferences;
+use App\Mail\NotificationSettings;
 use App\Mail\Notify;
 use App\Platform\TwoFactor;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -56,6 +57,7 @@ class ProfileController extends Controller
                 'book_limit' => $limits['books'],
             ],
             'email_preferences' => EmailPreferences::describe($user),
+            'notifications' => NotificationSettings::describe($user),
             'two_factor' => app(TwoFactor::class)->state($user),
         ]);
     }
@@ -87,20 +89,29 @@ class ProfileController extends Controller
     }
 
     /**
-     * Switch email categories on or off.
+     * Switch email categories on or off, and how and when the rest arrive.
      *
      * Mandatory categories (security, billing, receipts) are ignored rather
      * than refused: EmailPreferences::update only ever stores toggleable
-     * keys, so a crafted request cannot silence a security notice.
+     * keys, so a crafted request cannot silence a security notice. The
+     * notification settings (frequency, inbox, quiet hours, digest day and
+     * hour) are validated here and stored by NotificationSettings, which
+     * likewise ignores categories it does not know.
      */
     public function updateEmailPreferences(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'preferences' => ['required', 'array'],
+            'preferences' => ['required_without_all:frequency,inbox,quiet_hours,digest_day,digest_hour', 'array'],
             'preferences.*' => ['boolean'],
-        ]);
+        ] + NotificationSettings::rules());
 
-        EmailPreferences::update($request->user(), $data['preferences']);
+        // Frequency first: its "off" and "instant" are the same switches as
+        // the toggles, and the toggles, sent with it, win.
+        NotificationSettings::update($request->user(), $data);
+
+        if (isset($data['preferences'])) {
+            EmailPreferences::update($request->user(), $data['preferences']);
+        }
 
         return Redirect::route('profile.edit')->with('status', 'email-preferences-updated');
     }

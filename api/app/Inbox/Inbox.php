@@ -2,6 +2,7 @@
 
 namespace App\Inbox;
 
+use App\Mail\NotificationSettings;
 use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookExport;
@@ -20,8 +21,9 @@ use Throwable;
  *
  * Written where things happen, beside the email Notify sends, but not
  * gated by email preferences: somebody who turned off comment emails still
- * wants to find the comment. Every method says what happened and decides
- * here who hears about it, the way Notify does:
+ * wants to find the comment. It has its own switch per category, and a
+ * muted book's items arrive read (NotificationSettings). Every method says
+ * what happened and decides here who hears about it, the way Notify does:
  *
  *  - nobody is told about their own action;
  *  - nobody is told about a book they cannot open (tenancy is checked when
@@ -54,6 +56,17 @@ final class Inbox
 
             if ($book && ! $to->can('view', $book)) {
                 return null;
+            }
+
+            // The person's inbox choices (App\Mail\NotificationSettings):
+            // a category switched off for the inbox is not recorded; an
+            // item about a muted book is kept, but arrives already read.
+            if (! NotificationSettings::inboxAllows($to, $kind)) {
+                return null;
+            }
+
+            if (NotificationSettings::categoryForKind($kind) !== null && NotificationSettings::isMuted($to, $book)) {
+                $read = true;
             }
 
             $values = [

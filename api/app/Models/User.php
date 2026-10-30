@@ -215,6 +215,8 @@ class User extends Authenticatable implements HasLocalePreference
             'offboarded_at' => 'datetime',
             // Overrides only; App\Mail\EmailPreferences resolves defaults.
             'email_preferences' => 'array',
+            // Frequency, inbox, mutes, quiet hours: App\Mail\NotificationSettings.
+            'notification_settings' => 'array',
             // The writing workspace: App\Workspace\Workspace reads and writes it.
             'workspace' => 'array',
             'password' => 'hashed',

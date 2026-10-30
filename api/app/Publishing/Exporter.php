@@ -2,6 +2,7 @@
 
 namespace App\Publishing;
 
+use App\Editorial\Style\Typography;
 use App\Inbox\Inbox;
 use App\Jobs\GenerateExport;
 use App\Mail\Notify;
@@ -483,12 +484,14 @@ class Exporter
      */
     private function chapters(Book $book)
     {
+        $rules = $this->exportTypography($book);
+
         return $book->sections()
             ->orderBy('position')
             ->get()
             ->reject(fn (ManuscriptSection $section) => $section->isContainer())
             // The book as it stands: pending suggestions read as rejected.
-            ->map(fn (ManuscriptSection $section) => $section->asPublished())
+            ->map(fn (ManuscriptSection $section) => $this->typeset($section->asPublished(), $rules))
             // Generated lists are empty in the binder and full in the book.
             ->filter(fn (ManuscriptSection $section) => Numbering::listKind($section) !== null || trim($section->plainText()) !== '')
             ->values();
@@ -513,8 +516,9 @@ class Exporter
      */
     private function structure(Book $book)
     {
+        $rules = $this->exportTypography($book);
         $sections = $book->sections()->get()
-            ->map(fn (ManuscriptSection $section) => $section->asPublished())
+            ->map(fn (ManuscriptSection $section) => $this->typeset($section->asPublished(), $rules))
             ->keyBy('id');
 
         return collect(Anatomy::plan($book)['pages'])
@@ -524,6 +528,35 @@ class Exporter
                 || Numbering::listKind($s) !== null
                 || trim($s->plainText()) !== ''))
             ->values();
+    }
+
+    /**
+     * The book's typography rules when the author asked for them at export
+     * (ADR — Book language and typography), else null: an export without
+     * the option is set from the manuscript exactly as it is.
+     */
+    private function exportTypography(Book $book): ?array
+    {
+        $rules = Typography::resolve($book);
+
+        return $rules['apply_at_export'] && Typography::active($rules) ? $rules : null;
+    }
+
+    /**
+     * A copy of the section with the rules applied to its title and text.
+     * The manuscript itself is never written: the copy is the export's.
+     */
+    private function typeset(ManuscriptSection $section, ?array $rules): ManuscriptSection
+    {
+        if ($rules === null) {
+            return $section;
+        }
+
+        $copy = clone $section;
+        $copy->title = Typography::text((string) $section->title, $rules);
+        $copy->content = Typography::document($section->content, $rules);
+
+        return $copy;
     }
 
     /**
@@ -1881,8 +1914,36 @@ class Exporter
             'German' => 'de',
             'Portuguese' => 'pt',
             'English (UK)' => 'en-GB',
-            default => 'en-US',
+            // The translation languages Editions offers.
+            'Italian' => 'it',
+            'Dutch' => 'nl',
+            // English has always been written as en-US here.
+            'en', 'English', 'English (US)' => 'en-US',
+            default => self::bcp47($language) ?? 'en-US',
         };
+    }
+
+    /**
+     * A language the author gave as a BCP 47 tag ("fr-CA", "it", "pt-BR"),
+     * in its usual case, or null when it is not one. Display names never
+     * match: they are longer than a primary subtag.
+     */
+    public static function bcp47(?string $language): ?string
+    {
+        $language = trim((string) $language);
+
+        if (! preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $language)) {
+            return null;
+        }
+
+        $parts = explode('-', $language);
+
+        return implode('-', array_map(fn (string $p, int $i) => match (true) {
+            $i === 0 => strtolower($p),
+            strlen($p) === 2 => strtoupper($p),
+            strlen($p) === 4 => ucfirst(strtolower($p)),
+            default => strtolower($p),
+        }, $parts, array_keys($parts)));
     }
 
     private function put(Book $book, BookExport $export, string $contents): string
