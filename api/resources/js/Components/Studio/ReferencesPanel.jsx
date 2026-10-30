@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 import Icon from './Icon';
 
 /**
@@ -9,6 +10,7 @@ import Icon from './Icon';
  * never used — the question that matters before publication.
  */
 export default function ReferencesPanel({ bookId, onOpenSection }) {
+    const { t } = useI18n();
     // Null until loaded: the book's own style comes from the server, and
     // guessing APA first would flash the wrong bibliography.
     const [style, setStyle] = useState(null);
@@ -63,7 +65,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
     };
 
     if (!data) {
-        return <p className="p-8 text-center text-[13px] text-text-secondary">Loading…</p>;
+        return <p className="p-8 text-center text-[13px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const uncited = data.usage.filter((row) => row.citation_count === 0);
@@ -73,16 +75,16 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
             <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
-                        References &amp; Citations
+                        {t('side.references')}
                     </h2>
                     <p className="mt-1.5 text-[14px] text-text-secondary">
-                        Your bibliography, and where each source is doing work.
+                        {t('references.intro')}
                     </p>
                 </div>
 
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                     <label className="flex min-w-0 items-center gap-2 text-[12.5px] text-text-secondary">
-                        Style
+                        {t('references.style')}
                         <select
                             value={data.style}
                             data-a="references:style"
@@ -92,7 +94,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                             {data.options.map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
-                                    {option.value === data.saved_style ? ' — this book' : ''}
+                                    {option.value === data.saved_style ? ` ${t('references.this_book')}` : ''}
                                 </option>
                             ))}
                         </select>
@@ -105,7 +107,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                             disabled={saving}
                             className="h-[34px] rounded-control border border-border-input px-3.5 text-[13px] font-semibold text-text-primary transition hover:bg-bg-muted disabled:opacity-50"
                         >
-                            {saving ? 'Saving…' : 'Use for this book'}
+                            {saving ? t('editor.save_saving') : t('references.use_for_book')}
                         </button>
                     )}
 
@@ -115,20 +117,21 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                         disabled={data.entries.length === 0}
                         className="h-[34px] rounded-control bg-brand-fill px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
-                        {copied ? 'Copied' : 'Copy bibliography'}
+                        {copied ? t('references.copied') : t('references.copy')}
                     </button>
                 </div>
             </header>
 
             <section className="rounded-panel border border-border-default bg-bg-surface p-5">
                 <h3 className="text-[15px] font-semibold text-text-primary">
-                    Bibliography — {data.options.find((o) => o.value === data.style)?.label}
+                    {t('references.bibliography_heading', {
+                        style: data.options.find((o) => o.value === data.style)?.label ?? '',
+                    })}
                 </h3>
 
                 {data.entries.length === 0 ? (
                     <p className="mt-3 text-[13px] text-text-secondary">
-                        No sources yet. Add them in the Research Library and
-                        they appear here.
+                        {t('references.no_sources')}
                     </p>
                 ) : (
                     <ol
@@ -143,14 +146,14 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                                     dangerouslySetInnerHTML={{ __html: entry.html }}
                                 />
                                 <span
-                                    title="How to cite it in the text"
+                                    title={t('references.how_to_cite')}
                                     className="shrink-0 font-mono text-[11.5px] text-text-secondary"
                                 >
                                     {entry.in_text}
                                 </span>
                                 {entry.verification !== 'verified' && (
                                     <span
-                                        title="This source has not been verified."
+                                        title={t('references.not_verified')}
                                         className="mt-0.5 shrink-0 text-status-warning"
                                     >
                                         <Icon name="info" size={14} />
@@ -162,28 +165,27 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
                 )}
 
                 <p className="mt-4 text-[11px] leading-relaxed text-text-secondary">
-                    Follows the manual for articles, books, reports and web
-                    pages. Check unusual sources against the manual itself.
+                    {t('references.manual_note')}
                     {data.options.find((o) => o.value === data.style)?.numeric &&
-                        ' Numbered in the order the manuscript first cites each source.'}
+                        ` ${t('references.numbered')}`}
                 </p>
             </section>
 
             <section className="mt-5 rounded-panel border border-border-default bg-bg-surface">
                 <header className="flex items-baseline justify-between border-b border-border-divider px-5 py-3.5">
                     <h3 className="text-[15px] font-semibold text-text-primary">
-                        Where each source is cited
+                        {t('references.where_cited')}
                     </h3>
                     {uncited.length > 0 && (
                         <span className="text-[12px] text-status-warning">
-                            {uncited.length} cited nowhere
+                            {t('references.cited_nowhere', { count: uncited.length })}
                         </span>
                     )}
                 </header>
 
                 {data.usage.length === 0 ? (
                     <p className="px-5 py-6 text-[13px] text-text-secondary">
-                        Nothing to show yet.
+                        {t('references.nothing')}
                     </p>
                 ) : (
                     <ul className="divide-y divide-border-divider">
@@ -200,7 +202,7 @@ export default function ReferencesPanel({ bookId, onOpenSection }) {
 
                                 {row.cited_in.length === 0 ? (
                                     <p className="mt-1.5 text-[12.5px] italic text-text-secondary">
-                                        Not cited anywhere yet.
+                                        {t('references.not_cited')}
                                     </p>
                                 ) : (
                                     <ul className="mt-2 flex flex-wrap gap-1.5">

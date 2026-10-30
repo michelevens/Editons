@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * The author's notes about the book.
@@ -9,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * noise.
  */
 export default function NotesPanel({ bookId, onNotify }) {
+    const { t } = useI18n();
     const [notes, setNotes] = useState(null);
     const [status, setStatus] = useState('idle');
     const timer = useRef(null);
@@ -39,22 +41,22 @@ export default function NotesPanel({ bookId, onNotify }) {
                 // writer who believes their notes are saved when they are not
                 // is the failure worth avoiding.
                 setStatus('error');
-                onNotify?.('Those notes were not saved.');
+                onNotify?.(t('notes.not_saved_toast'));
             }
         }, 800);
     };
 
     if (notes === null) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     return (
         <div className="flex h-full min-h-0 flex-col">
             <header className="flex items-center gap-3 border-b border-border-default px-4 py-3">
                 <div>
-                    <h2 className="text-[15px] font-semibold text-text-primary">Notes</h2>
+                    <h2 className="text-[15px] font-semibold text-text-primary">{t('side.notes')}</h2>
                     <p className="text-[11.5px] text-text-secondary">
-                        Yours alone — not part of the manuscript, and never exported
+                        {t('notes.private')}
                     </p>
                 </div>
 
@@ -64,7 +66,7 @@ export default function NotesPanel({ bookId, onNotify }) {
                         status === 'error' ? 'font-semibold text-status-danger' : 'text-text-secondary'
                     }`}
                 >
-                    {{ idle: '', dirty: 'Unsaved', saving: 'Saving…', saved: 'Saved', error: 'Not saved' }[status]}
+                    {{ idle: '', dirty: t('notes.unsaved'), saving: t('editor.save_saving'), saved: t('editor.save_saved'), error: t('notes.not_saved') }[status]}
                 </span>
             </header>
 
@@ -72,7 +74,7 @@ export default function NotesPanel({ bookId, onNotify }) {
                 <textarea
                     value={notes}
                     data-a="notes:body"
-                    placeholder={'Who is this book for?\nWhat should the tone be?\nAnything you keep forgetting.'}
+                    placeholder={t('notes.placeholder')}
                     onChange={(event) => change(event.target.value)}
                     className="h-full w-full resize-none rounded-tile border border-border-input p-3 font-manuscript text-[13.5px] leading-relaxed placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
                 />

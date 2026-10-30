@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 import Icon from './Icon';
 
 /**
@@ -22,6 +23,7 @@ import Icon from './Icon';
 const CARD_SHARES = { research: 217, design: 371, cover: 188, export: 210 };
 
 export function BottomRow({ sources, onOpenLibrary, onAddSource, onOpenLayout, onOpenCover, onOpenExport, cards = null }) {
+    const { t } = useI18n();
     // The cards the author keeps (the workspace's sub-panels); the rest
     // give their share of the row to those left.
     const shown = Object.keys(CARD_SHARES).filter((key) => !cards || cards[key] !== false);
@@ -41,17 +43,17 @@ export function BottomRow({ sources, onOpenLibrary, onAddSource, onOpenLayout, o
             {shown.includes('design') && (
                 <DoorCard
                     id="design"
-                    title="Book Design"
+                    title={t('cards.book_design')}
                     onOpen={onOpenLayout}
-                    text="Trim size, margins, typeface, size and leading, drop caps and running heads, previewed on your own chapter and used by the PDF."
+                    text={t('cards.design_text')}
                 />
             )}
             {shown.includes('cover') && (
                 <DoorCard
                     id="cover"
-                    title="Cover Studio"
+                    title={t('side.cover')}
                     onOpen={onOpenCover}
-                    text="Title, author and colours for the front cover, with your own artwork uploaded."
+                    text={t('cards.cover_text')}
                 />
             )}
             {shown.includes('export') && <ExportCard onOpen={onOpenExport} />}
@@ -61,6 +63,7 @@ export function BottomRow({ sources, onOpenLibrary, onAddSource, onOpenLayout, o
 
 /** A card that opens the screen it describes. */
 function DoorCard({ id, title, text, onOpen }) {
+    const { t } = useI18n();
     return (
         <Card
             title={title}
@@ -70,7 +73,7 @@ function DoorCard({ id, title, text, onOpen }) {
                     onClick={onOpen}
                     className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                 >
-                    Open
+                    {t('cards.open')}
                 </button>
             }
         >
@@ -89,35 +92,35 @@ function DoorCard({ id, title, text, onOpen }) {
  * door into the panel where the formats and their costs are visible.
  */
 function ExportCard({ onOpen }) {
+    const { t } = useI18n();
+
     return (
         <Card
-            title="Export & Publish"
+            title={t('side.export')}
             action={
                 <button
                     data-a="bottom:export"
                     onClick={onOpen}
                     className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                 >
-                    Open
+                    {t('cards.open')}
                 </button>
             }
         >
             <div className="p-3">
                 <p className="text-[11.5px] leading-relaxed text-text-secondary">
-                    PDF, EPUB 3, Word, Markdown and HTML, generated from the
-                    manuscript as it stands — with its title page, contents and
-                    parts.
+                    {t('cards.export_text')}
                 </p>
 
                 <ul className="mt-2.5 space-y-1">
                     {[
-                        ['PDF', 'typeset as a book, at your trim size'],
-                        ['EPUB 3', 'Kindle, Apple Books, Kobo'],
-                        ['Word', 'editors and co-authors'],
-                        ['Markdown', 'plain text, structure kept'],
-                        ['Print-ready HTML', 'print to PDF at your trim size'],
-                    ].map(([name, what]) => (
-                        <li key={name} className="flex items-baseline gap-1.5">
+                        ['pdf', 'PDF', t('cards.export_pdf')],
+                        ['epub', 'EPUB 3', 'Kindle, Apple Books, Kobo'],
+                        ['docx', 'Word', t('cards.export_word')],
+                        ['markdown', 'Markdown', t('cards.export_markdown')],
+                        ['html', t('cards.export_html_name'), t('cards.export_html')],
+                    ].map(([id, name, what]) => (
+                        <li key={id} className="flex items-baseline gap-1.5">
                             <Icon
                                 name="check"
                                 size={12}
@@ -133,8 +136,7 @@ function ExportCard({ onOpen }) {
                 </ul>
 
                 <p className="mt-2.5 text-[10.5px] leading-relaxed text-text-secondary">
-                    Set in EB Garamond, with a contents page, running heads and
-                    hyphenation.
+                    {t('cards.export_typeset')}
                 </p>
             </div>
         </Card>
@@ -160,10 +162,10 @@ function Card({ title, action, children }) {
 }
 
 const FILTERS = [
-    ['all', 'All'],
-    ['pdf', 'Papers'],
-    ['web', 'Web'],
-    ['note', 'Notes'],
+    { key: 'all', tKey: 'shelf.filter_all' },
+    { key: 'pdf', tKey: 'cards.filter_papers' },
+    { key: 'web', tKey: 'cards.filter_web' },
+    { key: 'note', tKey: 'cards.filter_notes' },
 ];
 
 /** Maps a source's stored kind onto the card's filter buckets. */
@@ -183,6 +185,7 @@ const KIND_GLYPH = {
 };
 
 function ResearchCard({ sources = [], onOpen, onAdd }) {
+    const { t } = useI18n();
     const [filter, setFilter] = useState('all');
 
     const rows = sources.filter(
@@ -191,19 +194,19 @@ function ResearchCard({ sources = [], onOpen, onAdd }) {
 
     return (
         <Card
-            title="Research Library"
+            title={t('side.research')}
             action={
                 <button
                     data-a="research-card:add"
                     onClick={onAdd}
                     className="flex items-center gap-1 rounded-control bg-brand-primary-subtle px-2 py-1 text-[11px] font-semibold text-brand-primary transition hover:bg-brand-primary-subtle/70"
                 >
-                    <Icon name="plus" size={12} strokeWidth={2.2} /> Add
+                    <Icon name="plus" size={12} strokeWidth={2.2} /> {t('cards.add')}
                 </button>
             }
         >
             <div className="flex gap-1 px-2.5 py-2">
-                {FILTERS.map(([key, label]) => (
+                {FILTERS.map(({ key, tKey }) => (
                     <button
                         key={key}
                         data-a={`research-card:filter:${key}`}
@@ -214,7 +217,7 @@ function ResearchCard({ sources = [], onOpen, onAdd }) {
                                 : 'text-text-secondary hover:bg-bg-subtle'
                         }`}
                     >
-                        {label}
+                        {t(tKey)}
                     </button>
                 ))}
             </div>
@@ -222,8 +225,8 @@ function ResearchCard({ sources = [], onOpen, onAdd }) {
             {rows.length === 0 ? (
                 <p className="px-3 py-4 text-[11px] leading-relaxed text-text-secondary">
                     {sources.length === 0
-                        ? 'No sources yet. Add the first one to start this book’s bibliography.'
-                        : `Nothing filed under ${FILTERS.find(([k]) => k === filter)[1]}.`}
+                        ? t('cards.no_sources')
+                        : t('cards.nothing_filed', { filter: t(FILTERS.find((f) => f.key === filter).tKey) })}
                 </p>
             ) : (
                 <ul className="pb-2">
@@ -249,7 +252,7 @@ function ResearchCard({ sources = [], onOpen, onAdd }) {
                                         <span className="block truncate text-[9.5px] text-text-secondary">
                                             {source.published || '—'}
                                             {source.verification !== 'verified' &&
-                                                ` · ${source.verification}`}
+                                                ` · ${{ verified: t('research.standing_verified'), disputed: t('research.standing_disputed'), unverified: t('research.standing_unverified') }[source.verification] ?? source.verification}`}
                                         </span>
                                     </span>
                                 </button>

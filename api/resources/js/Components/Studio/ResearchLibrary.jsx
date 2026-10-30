@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * The book's research library.
@@ -8,6 +9,7 @@ import { useEffect, useState } from 'react';
  * way as checked ones would undo the reason the distinction is stored.
  */
 export default function ResearchLibrary({ bookId, onChanged }) {
+    const { t } = useI18n();
     const [sources, setSources] = useState([]);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
@@ -37,8 +39,8 @@ export default function ResearchLibrary({ bookId, onChanged }) {
 
     const remove = async (source) => {
         const warning = source.citations_count
-            ? `${source.citations_count} claim(s) cite this source. Removing it marks them unsupported again. Continue?`
-            : 'Remove this source?';
+            ? t('research.remove_confirm_cited', { count: source.citations_count })
+            : t('research.remove_confirm');
 
         if (!confirm(warning)) return;
 
@@ -52,18 +54,17 @@ export default function ResearchLibrary({ bookId, onChanged }) {
             <header className="mb-6 flex items-baseline justify-between">
                 <div>
                     <h2 className="font-serif text-2xl font-bold text-text-primary">
-                        Research Library
+                        {t('side.research')}
                     </h2>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Sources for this book. A source must be verified before
-                        it can back a claim.
+                        {t('research.intro')}
                     </p>
                 </div>
                 <button
                     onClick={() => setAdding((v) => !v)}
                     className="rounded-md bg-brand-fill px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-primary-hover"
                 >
-                    {adding ? 'Cancel' : 'Add source'}
+                    {adding ? t('common.cancel') : t('research.add_source')}
                 </button>
             </header>
 
@@ -87,11 +88,10 @@ export default function ResearchLibrary({ bookId, onChanged }) {
             )}
 
             {loading ? (
-                <p className="text-sm text-text-secondary">Loading…</p>
+                <p className="text-sm text-text-secondary">{t('common.loading')}</p>
             ) : sources.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border-input p-6 text-center text-sm text-text-secondary">
-                    No sources yet. Add the first one to start building this
-                    book's bibliography.
+                    {t('research.empty')}
                 </p>
             ) : (
                 <ul className="space-y-2">
@@ -137,8 +137,7 @@ export default function ResearchLibrary({ bookId, onChanged }) {
 
                             <div className="mt-3 flex items-center gap-3 border-t border-border-default pt-2.5 text-xs">
                                 <span className="text-text-secondary">
-                                    {s.citations_count} citation
-                                    {s.citations_count === 1 ? '' : 's'}
+                                    {t('research.citations_count', { count: s.citations_count })}
                                 </span>
 
                                 <span className="ml-auto flex gap-3">
@@ -147,7 +146,7 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                                             onClick={() => verify(s, 'verified')}
                                             className="font-semibold text-status-success hover:text-status-success"
                                         >
-                                            Mark verified
+                                            {t('research.mark_verified')}
                                         </button>
                                     )}
                                     {s.verification !== 'disputed' && (
@@ -155,14 +154,14 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                                             onClick={() => verify(s, 'disputed')}
                                             className="font-semibold text-status-warning hover:text-status-warning"
                                         >
-                                            Dispute
+                                            {t('research.dispute')}
                                         </button>
                                     )}
                                     <button
                                         onClick={() => remove(s)}
                                         className="font-semibold text-text-secondary hover:text-status-danger"
                                     >
-                                        Remove
+                                        {t('research.remove')}
                                     </button>
                                 </span>
                             </div>
@@ -175,6 +174,7 @@ export default function ResearchLibrary({ bookId, onChanged }) {
 }
 
 function Standing({ value }) {
+    const { t } = useI18n();
     const style = {
         verified: 'bg-status-success-bg text-status-success',
         disputed: 'bg-status-danger-bg text-status-danger',
@@ -185,12 +185,13 @@ function Standing({ value }) {
         <span
             className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${style}`}
         >
-            {value}
+            {{ verified: t('research.standing_verified'), disputed: t('research.standing_disputed'), unverified: t('research.standing_unverified') }[value] ?? value}
         </span>
     );
 }
 
 function AddSource({ bookId, onAdded, onError }) {
+    const { t } = useI18n();
     const [form, setForm] = useState({
         kind: 'journal_article',
         title: '',
@@ -231,7 +232,7 @@ function AddSource({ bookId, onAdded, onError }) {
         } catch (err) {
             onError(
                 err.response?.data?.message ??
-                    'That source could not be saved. Check the fields and try again.',
+                    t('research.save_failed'),
             );
         } finally {
             setSaving(false);
@@ -244,59 +245,59 @@ function AddSource({ bookId, onAdded, onError }) {
             className="mb-6 grid grid-cols-2 gap-3 rounded-lg border border-border-default bg-bg-subtle p-4"
         >
             <label className="col-span-2 text-xs font-semibold text-text-secondary">
-                Title
+                {t('research.field_title')}
                 <input {...field('title')} required />
             </label>
 
             <label className="text-xs font-semibold text-text-secondary">
-                Kind
+                {t('research.field_kind')}
                 <select {...field('kind')}>
-                    <option value="book">Book</option>
-                    <option value="journal_article">Journal article</option>
-                    <option value="website">Website</option>
-                    <option value="report">Report</option>
-                    <option value="interview">Interview</option>
-                    <option value="other">Other</option>
+                    <option value="book">{t('research.kind_book')}</option>
+                    <option value="journal_article">{t('research.kind_journal_article')}</option>
+                    <option value="website">{t('research.kind_website')}</option>
+                    <option value="report">{t('research.kind_report')}</option>
+                    <option value="interview">{t('research.kind_interview')}</option>
+                    <option value="other">{t('research.kind_other')}</option>
                 </select>
             </label>
 
             <label className="text-xs font-semibold text-text-secondary">
-                Authors
+                {t('research.field_authors')}
                 <input {...field('authors')} placeholder="Smith, J.; Lee, K." />
             </label>
 
             <label className="text-xs font-semibold text-text-secondary">
-                Publisher
+                {t('research.field_publisher')}
                 <input {...field('publisher')} />
             </label>
 
             <label className="text-xs font-semibold text-text-secondary">
-                Published
+                {t('research.field_published')}
                 <input {...field('published')} placeholder="2019" />
             </label>
 
             {form.kind === 'book' ? (
                 <label className="text-xs font-semibold text-text-secondary">
-                    Edition
+                    {t('research.field_edition')}
                     <input {...field('edition')} placeholder="2" />
                 </label>
             ) : (
                 <>
                     <label className="col-span-2 text-xs font-semibold text-text-secondary">
-                        {form.kind === 'journal_article' ? 'Journal' : 'Website or series'}
+                        {form.kind === 'journal_article' ? t('research.field_journal') : t('research.field_container')}
                         <input {...field('container')} />
                     </label>
                     <div className="col-span-2 grid grid-cols-3 gap-3">
                         <label className="text-xs font-semibold text-text-secondary">
-                            Volume
+                            {t('research.field_volume')}
                             <input {...field('volume')} />
                         </label>
                         <label className="text-xs font-semibold text-text-secondary">
-                            Issue
+                            {t('research.field_issue')}
                             <input {...field('issue')} />
                         </label>
                         <label className="text-xs font-semibold text-text-secondary">
-                            Pages
+                            {t('research.field_pages')}
                             <input {...field('pages')} placeholder="12–34" />
                         </label>
                     </div>
@@ -314,7 +315,7 @@ function AddSource({ bookId, onAdded, onError }) {
             </label>
 
             <label className="col-span-2 text-xs font-semibold text-text-secondary">
-                Notes
+                {t('research.field_notes')}
                 <textarea {...field('notes')} rows={2} />
             </label>
 
@@ -323,10 +324,10 @@ function AddSource({ bookId, onAdded, onError }) {
                     disabled={saving}
                     className="rounded-md bg-bg-inverse px-4 py-1.5 text-sm font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
                 >
-                    {saving ? 'Saving…' : 'Add to library'}
+                    {saving ? t('editor.save_saving') : t('research.add_to_library')}
                 </button>
                 <p className="text-xs text-text-secondary">
-                    New sources start unverified.
+                    {t('research.starts_unverified')}
                 </p>
             </div>
         </form>

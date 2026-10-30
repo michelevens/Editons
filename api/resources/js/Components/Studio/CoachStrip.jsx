@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useI18n } from '@/i18n';
 import Icon from './Icon';
 
 /**
@@ -18,6 +19,7 @@ import Icon from './Icon';
  * coach that always has something becomes something to dismiss.
  */
 export default function CoachStrip({ notes = [], onDismiss }) {
+    const { t } = useI18n();
     const [open, setOpen] = useState(false);
 
     if (notes.length === 0) return null;
@@ -39,7 +41,7 @@ export default function CoachStrip({ notes = [], onDismiss }) {
                     <span className="font-medium text-text-primary">{notes[0].note}</span>
                     {notes.length > 1 && (
                         <span className="ml-1.5">
-                            and {notes.length - 1} more
+                            {t('coach.and_more', { count: notes.length - 1 })}
                         </span>
                     )}
                 </button>
@@ -47,7 +49,7 @@ export default function CoachStrip({ notes = [], onDismiss }) {
                 <button
                     data-a="coach:dismiss"
                     onClick={onDismiss}
-                    aria-label="Dismiss"
+                    aria-label={t('common.dismiss')}
                     className="shrink-0 text-text-secondary transition hover:text-text-primary"
                 >
                     <Icon name="x" size={14} />
@@ -68,8 +70,7 @@ export default function CoachStrip({ notes = [], onDismiss }) {
                     ))}
 
                     <li className="pt-0.5 text-[10.5px] leading-relaxed text-text-secondary">
-                        Counted from this chapter and the ones around it. Nothing here
-                        reads your prose — the editors do that, when you ask them to.
+                        {t('coach.footnote')}
                     </li>
                 </ul>
             )}
