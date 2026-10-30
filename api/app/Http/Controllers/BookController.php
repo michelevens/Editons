@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Editorial\EditorialAgent;
+use App\Editorial\Style\Typography;
 use App\Journey\BookType;
 use App\Journey\Scaffolder;
 use App\Mail\NotificationSettings;
@@ -13,6 +14,7 @@ use App\Platform\House\House;
 use App\Platform\Trust\MasterData;
 use App\Publishing\Anatomy;
 use App\Publishing\BookPart;
+use App\Publishing\Exporter;
 use App\Research\Bibliography;
 use App\Shelf\Shelf;
 use App\Shelf\ShelfPage;
@@ -250,6 +252,13 @@ class BookController extends Controller
                 // The Autosave switch in Book Settings was saved and never
                 // read; the editor needs it to honour it.
                 'autosave' => (bool) ($book->settings()['autosave'] ?? true),
+                // The editor writes in the book's language: the browser's
+                // spell-check follows it, and the typography rules (ADR —
+                // Book language and typography) correct as the author types
+                // only when they turned that on.
+                'language_code' => Exporter::languageCode($book->language),
+                'spellcheck' => (bool) ($book->settings()['spellcheck'] ?? true),
+                'typography' => Typography::resolve($book),
             ],
             // The panel renders whatever agents exist, so adding one is a
             // single enum case rather than an edit in two languages.
@@ -340,6 +349,16 @@ class BookController extends Controller
             'genres' => MasterData::with('genres', $book->genre),
             'languages' => MasterData::with('languages', $book->language),
             'citation_styles' => MasterData::citationOptions($book->settings()['citation_style'] ?? null),
+            // Language and typography (ADR — Book language and typography):
+            // the rules with the language's defaults, and the paragraph and
+            // heading settings, which live in the interior design and are
+            // shown here only to link there.
+            'typography' => Typography::resolve($book),
+            'interior' => [
+                'paragraph' => $book->layout()['text']['paragraph'],
+                'label' => $book->layout()['opener']['label'],
+                'numbering' => $book->layout()['numbering'],
+            ],
             // Archiving the last active book would leave the author with an
             // empty shelf and nowhere to go, so the screen needs to know.
             'can_archive' => $book->user->books()->where('status', '!=', 'archived')->count() > 1,
@@ -364,6 +383,8 @@ class BookController extends Controller
             'settings.inline_ai' => ['boolean'],
             'settings.review_on_save' => ['boolean'],
             'settings.citation_style' => ['string', 'in:'.implode(',', Bibliography::STYLES)],
+            'settings.spellcheck' => ['boolean'],
+            ...Typography::validationRules(),
 
             // Publishing metadata, printed by the generated pages. Every
             // field optional: an empty one prints nothing.
@@ -407,6 +428,13 @@ class BookController extends Controller
         // Merge rather than replace: the form may send one toggle, and
         // overwriting the column would silently reset the others.
         if (isset($data['settings'])) {
+            // Typography is a group of its own, merged key by key the same way.
+            if (isset($data['settings']['typography'])) {
+                $data['settings']['typography'] = Typography::normalise(
+                    array_merge($book->settings()['typography'] ?? [], $data['settings']['typography']),
+                );
+            }
+
             $data['settings'] = array_merge($book->settings(), $data['settings']);
         }
 
