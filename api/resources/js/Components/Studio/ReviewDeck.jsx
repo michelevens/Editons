@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import { useI18n } from '../../i18n';
 import { isTyping, matches, savePrefs, shortcutLabel, usePrefs } from '../../shortcuts';
 
 /**
@@ -21,6 +22,7 @@ const SWIPE = 90;
 const UNDO_MS = 6000;
 
 export default function ReviewDeck({ findings, agents = [], onResolve, onReopen, onShowInText, onClose }) {
+    const { t } = useI18n();
     const open = findings.filter((f) => f.status === 'open');
     const [index, setIndex] = useState(0);
     const [last, setLast] = useState(null); // {finding, action}
@@ -103,15 +105,15 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
     const onTouchStart = (event) => {
         if (swipe === 'off') return;
 
-        const t = event.touches[0];
-        start.current = { x: t.clientX, y: t.clientY, horizontal: null };
+        const touch = event.touches[0];
+        start.current = { x: touch.clientX, y: touch.clientY, horizontal: null };
     };
     const onTouchMove = (event) => {
         if (!start.current) return;
 
-        const t = event.touches[0];
-        const x = t.clientX - start.current.x;
-        const y = t.clientY - start.current.y;
+        const touch = event.touches[0];
+        const x = touch.clientX - start.current.x;
+        const y = touch.clientY - start.current.y;
 
         if (start.current.horizontal === null && (Math.abs(x) > 8 || Math.abs(y) > 8)) {
             start.current.horizontal = Math.abs(x) > Math.abs(y);
@@ -152,23 +154,23 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                     onClick={onClose}
                     className="tap -ml-1 flex items-center gap-1 rounded-control px-1 text-[12px] font-medium text-brand-primary hover:underline"
                 >
-                    <Icon name="left" size={14} /> All agents
+                    <Icon name="left" size={14} /> {t('ai.all_agents')}
                 </button>
                 <label className="ml-auto flex items-center gap-1 text-[11.5px] text-text-secondary">
-                    Swipes
+                    {t('review.swipes')}
                     <select
                         data-a="review:swipe"
                         value={swipe}
                         onChange={(event) => savePrefs({ reviewDeck: { swipe: event.target.value } }).catch(() => {})}
                         className="rounded-control border border-border-default bg-bg-surface py-0.5 pl-1.5 pr-6 text-[11.5px] text-text-body"
                     >
-                        <option value="normal">Right applies</option>
-                        <option value="swapped">Left applies</option>
-                        <option value="off">Off (buttons only)</option>
+                        <option value="normal">{t('review.swipe_right')}</option>
+                        <option value="swapped">{t('review.swipe_left')}</option>
+                        <option value="off">{t('review.swipe_off')}</option>
                     </select>
                 </label>
                 <span className="text-[12px] tabular-nums text-text-secondary" aria-live="polite">
-                    {open.length === 0 ? 'All done' : `${index + 1} of ${open.length}`}
+                    {open.length === 0 ? t('review.all_done') : t('review.position', { n: index + 1, total: open.length })}
                 </span>
             </div>
 
@@ -184,9 +186,9 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
             {!finding ? (
                 <div className="grid flex-1 place-items-center py-10 text-center">
                     <div>
-                        <p className="text-[15px] font-semibold text-text-primary">Nothing left to review</p>
+                        <p className="text-[15px] font-semibold text-text-primary">{t('review.nothing_left')}</p>
                         <p className="mt-1 text-[12.5px] text-text-secondary">
-                            Every finding on this chapter has been decided.
+                            {t('review.all_decided')}
                         </p>
                     </div>
                 </div>
@@ -221,7 +223,7 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                         />
                         {agent?.label ?? finding.agent}
                         {finding.simulated && (
-                            <span className="ml-auto rounded-badge bg-bg-subtle px-1.5 py-0.5 text-[9.5px]">Sample</span>
+                            <span className="ml-auto rounded-badge bg-bg-subtle px-1.5 py-0.5 text-[9.5px]">{t('ai.sample')}</span>
                         )}
                     </p>
 
@@ -240,7 +242,7 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                             </p>
                             {finding.suggestion && (
                                 <p className="mt-2 border-t border-border-divider pt-2 text-text-primary">
-                                    <span className="sr-only">Suggested: </span>
+                                    <span className="sr-only">{t('review.suggested')} </span>
                                     {finding.suggestion}
                                 </p>
                             )}
@@ -249,7 +251,7 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
 
                     {finding.stale && (
                         <p className="mt-2 rounded bg-status-warning-bg px-2 py-1 text-[11px] font-semibold text-status-warning">
-                            The text this refers to has changed since the review ran.
+                            {t('ai.stale')}
                         </p>
                     )}
 
@@ -259,19 +261,28 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                             onClick={() => onShowInText(finding)}
                             className="mt-2 text-[12px] font-semibold text-brand-primary hover:underline"
                         >
-                            Show in text
+                            {t('ai.show_in_text')}
                         </button>
                     )}
 
                     {swipe !== 'off' && (
                         <p className="mt-3 text-[11px] text-text-secondary pointer-fine:hidden" data-a="review:swipe-hint">
-                            Swipe {finding.suggestion ? `${applySide > 0 ? 'right' : 'left'} to apply, ` : ''}
-                            {applySide > 0 ? 'left' : 'right'} to dismiss.
+                            {finding.suggestion
+                                ? applySide > 0
+                                    ? t('review.swipe_hint_right_apply')
+                                    : t('review.swipe_hint_left_apply')
+                                : applySide > 0
+                                  ? t('review.swipe_hint_left_dismiss')
+                                  : t('review.swipe_hint_right_dismiss')}
                         </p>
                     )}
                     <p className="mt-3 text-[11px] text-text-secondary pointer-coarse:hidden">
-                        Keys: {shortcutLabel('deck.apply')} applies, {shortcutLabel('deck.dismiss')} dismisses,{' '}
-                        {shortcutLabel('deck.previous')} {shortcutLabel('deck.next')} move.
+                        {t('review.keys_hint', {
+                            apply: shortcutLabel('deck.apply'),
+                            dismiss: shortcutLabel('deck.dismiss'),
+                            previous: shortcutLabel('deck.previous'),
+                            next: shortcutLabel('deck.next'),
+                        })}
                     </p>
                 </article>
             )}
@@ -281,7 +292,7 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                     <button
                         data-a="review:prev"
                         onClick={() => step(-1)}
-                        aria-label="Previous finding"
+                        aria-label={t('review.previous')}
                         disabled={open.length < 2}
                         className="grid h-11 w-11 place-items-center rounded-control border border-border-default text-text-secondary disabled:opacity-40"
                     >
@@ -293,21 +304,21 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                         disabled={busy}
                         className="h-11 rounded-control border border-border-default text-[13.5px] font-semibold text-text-primary disabled:opacity-50"
                     >
-                        Dismiss
+                        {t('ai.dismiss')}
                     </button>
                     <button
                         data-a="review:apply"
                         onClick={() => decide('accepted')}
                         disabled={busy || !finding.suggestion}
-                        title={finding.suggestion ? undefined : 'This finding flags a problem without offering wording'}
+                        title={finding.suggestion ? undefined : t('review.no_wording')}
                         className="h-11 rounded-control bg-status-success-fill text-[13.5px] font-semibold text-white disabled:bg-bg-subtle disabled:text-text-secondary"
                     >
-                        Apply fix
+                        {t('ai.apply_fix')}
                     </button>
                     <button
                         data-a="review:next"
                         onClick={() => step(1)}
-                        aria-label="Next finding"
+                        aria-label={t('review.next')}
                         disabled={open.length < 2}
                         className="grid h-11 w-11 place-items-center rounded-control border border-border-default text-text-secondary disabled:opacity-40"
                     >
@@ -322,14 +333,14 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                     data-a="review:undo-bar"
                     className="sticky bottom-0 mt-3 flex items-center gap-3 rounded-control bg-bg-sidebar px-3.5 py-2.5 text-[13px] text-white shadow-popover"
                 >
-                    <span className="flex-1">{last.action === 'accepted' ? 'Fix applied.' : 'Dismissed.'}</span>
+                    <span className="flex-1">{last.action === 'accepted' ? t('review.fix_applied') : t('review.dismissed')}</span>
                     <button
                         data-a="review:undo"
                         onClick={undo}
                         disabled={busy}
                         className="tap font-semibold text-brand-primary-subtle underline-offset-2 hover:underline"
                     >
-                        Undo
+                        {t('ai.undo')}
                     </button>
                 </div>
             )}

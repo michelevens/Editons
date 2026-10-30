@@ -60,6 +60,7 @@ export default function AIEditorPanel({
     // unless told otherwise.
     visibleTabs = null,
 }) {
+    const { t } = useI18n();
     const [chosen, setTab] = useState(tabRequest?.tab ?? 'AI Editor');
 
     useEffect(() => {
@@ -93,44 +94,44 @@ export default function AIEditorPanel({
     const open = findings.filter((f) => f.status === 'open');
 
     const tabs = [
-        { key: 'AI Editor', id: 'editor', ready: true },
-        { key: 'Comments', id: 'comments', ready: true, count: commentCount + changes.length },
-        { key: 'Research', id: 'research', ready: true },
-        { key: 'Checks', id: 'checks', ready: true },
-    ].filter((t) => !visibleTabs || visibleTabs[t.id] !== false);
+        { key: 'AI Editor', tKey: 'tab.ai', id: 'editor', ready: true },
+        { key: 'Comments', tKey: 'tab.comments', id: 'comments', ready: true, count: commentCount + changes.length },
+        { key: 'Research', tKey: 'tab.research', id: 'research', ready: true },
+        { key: 'Checks', tKey: 'ai.tab_checks', id: 'checks', ready: true },
+    ].filter((item) => !visibleTabs || visibleTabs[item.id] !== false);
 
     // A hidden tab is never the one shown: the first kept one stands in.
-    const tab = tabs.some((t) => t.key === chosen) ? chosen : (tabs[0]?.key ?? 'AI Editor');
+    const tab = tabs.some((item) => item.key === chosen) ? chosen : (tabs[0]?.key ?? 'AI Editor');
 
     return (
         <aside className="flex min-h-0 w-full flex-col overflow-hidden rounded-panel border border-border-default bg-bg-surface">
             <div className="flex shrink-0 border-b border-border-default" role="tablist">
-                {tabs.map((t) => {
-                    const isActive = tab === t.key;
+                {tabs.map((item) => {
+                    const isActive = tab === item.key;
 
                     return (
                         <button
-                            key={t.key}
+                            key={item.key}
                             role="tab"
                             aria-selected={isActive}
-                            data-a={`ai:tab:${t.key}`}
+                            data-a={`ai:tab:${item.key}`}
                             onClick={() => {
-                                setTab(t.key);
+                                setTab(item.key);
                                 setOpenAgent(null);
                                 setReviewing(false);
                             }}
-                            title={t.ready ? undefined : 'Not built yet'}
+                            title={item.ready ? undefined : t('common.not_built')}
                             className={`relative flex-1 py-[13px] text-[12.5px] transition ${
                                 isActive
                                     ? 'font-semibold text-brand-primary'
-                                    : t.ready
+                                    : item.ready
                                       ? 'text-text-secondary hover:text-text-primary'
                                       : 'text-text-secondary'
                             }`}
                         >
-                            {t.key}
-                            {t.count > 0 && ` (${t.count})`}
-                            {!t.ready && (
+                            {t(item.tKey)}
+                            {item.count > 0 && ` (${item.count})`}
+                            {!item.ready && (
                                 <span className="ml-0.5 align-super text-[8px]">•</span>
                             )}
                             {isActive && (
@@ -169,7 +170,7 @@ export default function AIEditorPanel({
                                         onClick={() => setReviewing(true)}
                                         className="flex h-[42px] w-full items-center justify-center gap-2 rounded-control border border-brand-primary/40 bg-brand-primary-subtle text-[13px] font-semibold text-brand-primary transition hover:border-brand-primary"
                                     >
-                                        Review one by one ({open.length})
+                                        {t('ai.review_one_by_one', { count: open.length })}
                                         <Icon name="right" size={14} />
                                     </button>
                                 </div>
@@ -229,28 +230,29 @@ function AgentList({
     directing,
     direction,
 }) {
+    const { t } = useI18n();
     // The mockup's four tiles, each counted from real findings.
     const tiles = [
         {
-            label: 'Claims to verify',
+            label: t('ai.tile_claims'),
             value: open.filter((f) => f.agent === 'fact_checker').length,
             icon: 'shieldDot',
             tint: 'bg-status-danger-bg text-status-danger',
         },
         {
-            label: 'Style suggestions',
+            label: t('ai.tile_style'),
             value: open.filter((f) => f.agent === 'line' || f.agent === 'copy').length,
             icon: 'info',
             tint: 'bg-status-info-bg text-status-info',
         },
         {
-            label: 'Potential repetition',
+            label: t('ai.tile_repetition'),
             value: open.filter((f) => f.agent === 'consistency').length,
             icon: 'hex',
             tint: 'bg-status-warning-bg text-status-warning',
         },
         {
-            label: 'Critical issues',
+            label: t('ai.tile_critical'),
             value: open.filter((f) => f.severity === 'critical').length,
             icon: 'eye',
             tint: 'bg-status-success-bg text-status-success',
@@ -283,7 +285,7 @@ function AgentList({
                 ) : (
                     <>
                         <Icon name="heart" size={16} />
-                        Review this chapter
+                        {t('ai.review_chapter')}
                     </>
                 )}
             </button>
@@ -292,30 +294,30 @@ function AgentList({
                 data-a="ai:direct"
                 onClick={onDirect}
                 disabled={Boolean(reviewProgress) || directing}
-                title="Structure, pacing and balance across every chapter"
+                title={t('ai.review_book_title')}
                 className="mt-2 flex h-[34px] w-full items-center justify-center gap-2 rounded-control border border-border-default text-[12.5px] font-semibold text-text-secondary transition hover:border-brand-primary/40 hover:text-text-primary disabled:opacity-60"
             >
                 {directing ? (
                     <>
                         <Spinner dark />
-                        Reading the whole book…
+                        {t('ai.reading_book')}
                     </>
                 ) : (
-                    'Review the whole book'
+                    t('ai.review_book')
                 )}
             </button>
 
             {direction && (
                 <div className="mt-3 rounded-tile border border-border-default bg-bg-surface p-3">
                     <p className="text-[12px] font-semibold text-text-primary">
-                        The whole book
+                        {t('ai.whole_book')}
                     </p>
 
                     {direction.findings.length === 0 ? (
                         <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
                             {direction.enough_to_review
-                                ? 'Nothing structural to raise. Shape, pacing and balance all read evenly.'
-                                : 'Not enough written yet to say anything about the book’s shape. Three chapters with words in them is the point this becomes useful.'}
+                                ? t('ai.direction_none')
+                                : t('ai.direction_too_short')}
                         </p>
                     ) : (
                         <ul className="mt-1.5 divide-y divide-border-divider">
@@ -337,15 +339,14 @@ function AgentList({
                     )}
 
                     <p className="mt-2 text-[10.5px] leading-relaxed text-text-secondary">
-                        Read from every chapter’s shape, not its prose. Free — judging the
-                        writing itself is what the agents above are for.
+                        {t('ai.direction_note')}
                     </p>
                 </div>
             )}
 
             <div className="mb-2.5 mt-4 flex items-baseline justify-between">
                 <h3 className="text-[14px] font-semibold text-text-primary">
-                    Editorial Overview
+                    {t('ai.editorial_overview')}
                 </h3>
             </div>
 
@@ -373,7 +374,7 @@ function AgentList({
             </div>
 
             <div className="mb-1 mt-4 flex items-baseline justify-between">
-                <h3 className="text-[14px] font-semibold text-text-primary">AI Agents</h3>
+                <h3 className="text-[14px] font-semibold text-text-primary">{t('ai.agents')}</h3>
             </div>
 
             <ul>
@@ -412,7 +413,7 @@ function AgentList({
                                     </p>
                                     <p className="truncate text-[11.5px] text-text-secondary">
                                         {mine.length > 0
-                                            ? `${mine.length} open finding${mine.length === 1 ? '' : 's'}.`
+                                            ? t('ai.agent_open_findings', { count: mine.length })
                                             : agent.description}
                                     </p>
                                 </button>
@@ -421,10 +422,10 @@ function AgentList({
                                     data-a={`ai:run:${agent.value}`}
                                     onClick={() => onRunAgent(agent.value)}
                                     disabled={busy}
-                                    title={`Run ${agent.label}`}
+                                    title={t('ai.run_agent', { agent: agent.label })}
                                     className="shrink-0 rounded px-1.5 py-1 text-[11px] font-semibold text-brand-primary transition hover:bg-brand-primary-subtle disabled:opacity-50"
                                 >
-                                    {busy ? <Spinner dark /> : 'Run'}
+                                    {busy ? <Spinner dark /> : t('ai.run')}
                                 </button>
 
                                 {mine.length > 0 ? (
@@ -459,6 +460,7 @@ function AgentList({
  * template findings for an AI's reading. Free, so the credits are named too.
  */
 function SampleNotice() {
+    const { t } = useI18n();
     const simulated = usePage().props.editorial?.simulated;
 
     if (!simulated) return null;
@@ -468,15 +470,13 @@ function SampleNotice() {
             data-a="ai:sample-notice"
             className="mt-3.5 rounded-tile border border-dashed border-border-default p-2.5 text-[10.5px] leading-relaxed text-text-secondary"
         >
-            <b className="text-text-primary">Sample output.</b> Reviews here run
-            automated checks, not an AI model: long sentences, passive voice,
-            filler, unsourced figures, mixed spelling. They cannot assess an
-            argument or verify a fact, and they use no credits.
+            <b className="text-text-primary">{t('ai.sample_output')}</b> {t('ai.sample_notice')}
         </p>
     );
 }
 
 function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
+    const { t } = useI18n();
     const open = findings.filter((f) => f.status === 'open');
     const resolved = findings.length - open.length;
 
@@ -487,22 +487,21 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                 onClick={onBack}
                 className="mb-3 flex items-center gap-1 text-[11.5px] font-medium text-brand-primary hover:underline"
             >
-                <Icon name="left" size={14} /> All agents
+                <Icon name="left" size={14} /> {t('ai.all_agents')}
             </button>
 
             <h3 className="text-[14px] font-semibold text-text-primary">
-                {agent?.label ?? 'Agent'}
+                {agent?.label ?? t('ai.agent')}
             </h3>
             <p className="mt-0.5 text-[11.5px] text-text-secondary">
-                {open.length} open · {resolved} resolved
+                {t('ai.open_resolved', { open: open.length, resolved })}
             </p>
 
             <SampleNotice />
 
             {open.length === 0 ? (
                 <p className="mt-4 rounded-tile bg-status-success-bg px-3 py-2.5 text-[11.5px] text-status-success">
-                    Nothing open from this agent. Run it again after editing to
-                    re-check.
+                    {t('ai.agent_nothing_open')}
                 </p>
             ) : (
                 <ul className="mt-3 space-y-2">
@@ -526,10 +525,10 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                 </p>
                                 {finding.simulated && (
                                     <span
-                                        title="From automated checks, not an AI model"
+                                        title={t('ai.sample_title')}
                                         className="ml-auto shrink-0 rounded-badge bg-bg-subtle px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-text-secondary"
                                     >
-                                        Sample
+                                        {t('ai.sample')}
                                     </span>
                                 )}
                             </div>
@@ -548,8 +547,7 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
 
                             {finding.stale && (
                                 <p className="mt-1.5 rounded bg-status-warning-bg px-1.5 py-1 text-[10.5px] font-semibold text-status-warning">
-                                    The text this refers to has changed since the
-                                    review ran.
+                                    {t('ai.stale')}
                                 </p>
                             )}
 
@@ -560,7 +558,7 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                         onClick={() => onShowInText?.(finding)}
                                         className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                                     >
-                                        Show in text
+                                        {t('ai.show_in_text')}
                                     </button>
                                 )}
                                 {finding.suggestion && (
@@ -569,7 +567,7 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                         onClick={() => onResolve(finding, 'accepted')}
                                         className="text-[11.5px] font-semibold text-status-success hover:underline"
                                     >
-                                        Apply
+                                        {t('ai.apply')}
                                     </button>
                                 )}
                                 <button
@@ -577,7 +575,7 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                     onClick={() => onResolve(finding, 'dismissed')}
                                     className="text-[11.5px] font-medium text-text-secondary hover:text-text-primary"
                                 >
-                                    Resolve
+                                    {t('ai.resolve')}
                                 </button>
                             </div>
                         </li>
@@ -691,6 +689,8 @@ function ChecksTab({ findings, versions, changes = [], onRestore }) {
 }
 
 function EmptyTab({ title, what, milestone }) {
+    const { t } = useI18n();
+
     return (
         <div className="grid h-full place-items-center p-8 text-center">
             <div className="max-w-[280px]">
@@ -699,7 +699,7 @@ function EmptyTab({ title, what, milestone }) {
                     {what}
                 </p>
                 <p className="mt-3 inline-block rounded-badge bg-bg-subtle px-2.5 py-1 text-[11px] font-semibold text-text-secondary">
-                    Arrives in {milestone}
+                    {t('ai.arrives_in', { milestone })}
                 </p>
             </div>
         </div>

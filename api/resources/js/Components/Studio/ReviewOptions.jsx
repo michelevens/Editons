@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { currentLocale, formatNumber as formatAmount, t as tr, useI18n } from '../../i18n';
 
 /**
  * Run a review with options (ADR — Style guides and review options): one
@@ -17,21 +18,29 @@ const control =
     'w-full min-w-0 rounded-control border border-border-input bg-bg-surface px-2 py-1.5 text-[12.5px] text-text-body focus:border-brand-primary focus:ring-0';
 
 const SENSITIVITY = [
-    ['light', 'Light', 'Clear errors only'],
-    ['standard', 'Standard', 'As before'],
-    ['thorough', 'Thorough', 'Suggestions too'],
+    { key: 'light', tKey: 'review.sensitivity_light', hintKey: 'review.sensitivity_light_hint' },
+    { key: 'standard', tKey: 'review.sensitivity_standard', hintKey: 'review.sensitivity_standard_hint' },
+    { key: 'thorough', tKey: 'review.sensitivity_thorough', hintKey: 'review.sensitivity_thorough_hint' },
 ];
 
 const MAX_FOCUS = 500;
 
-function money(usd) {
-    if (usd === null || usd === undefined) return 'cost unknown';
-    if (usd === 0) return '$0';
+/** Dollars as before in English ("$0.12"); the language's own currency layout otherwise. */
+function dollars(usd, digits) {
+    if (currentLocale() === 'en') return `$${usd.toFixed(digits)}`;
 
-    return usd < 0.01 ? '< $0.01' : `$${usd.toFixed(2)}`;
+    return formatAmount(usd, undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function money(usd) {
+    if (usd === null || usd === undefined) return tr('review.cost_unknown');
+    if (usd === 0) return dollars(0, 0);
+
+    return usd < 0.01 ? `< ${dollars(0.01, 2)}` : dollars(usd, 2);
 }
 
 export default function ReviewOptions({ bookId, agents, sections, currentSectionId = null, selection = null, refresh = 0, onDone, onNotify }) {
+    const { t, formatNumber } = useI18n();
     const runnable = agents ?? [];
     const firstId = sections[0]?.id ?? null;
     const [agent, setAgent] = useState(runnable.find((a) => a.value === 'copy')?.value ?? runnable[0]?.value ?? '');
@@ -79,7 +88,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                 if (mine === ticket.current) {
                     setEstimate(null);
                     const errors = error.response?.data?.errors;
-                    setEstimateError(errors ? Object.values(errors).flat().join(' ') : 'No estimate for this review.');
+                    setEstimateError(errors ? Object.values(errors).flat().join(' ') : t('review.no_estimate'));
                 }
             }
         }, 350);
@@ -114,7 +123,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
 
                 if (!['queued', 'running'].includes(data.run.status)) {
                     const why = data.run.stop_reason ? ` ${data.run.stop_reason}` : '';
-                    onNotify?.(`Review ${data.run.status}: ${data.run.done} of ${data.run.total} sections, ${data.run.findings} finding${data.run.findings === 1 ? '' : 's'}.${why}`);
+                    onNotify?.(`${t('review.run_status', { status: data.run.status })} ${t('review.run_done', { done: data.run.done, total: data.run.total, count: data.run.findings })}${why}`);
                 }
             } catch {
                 // Try again on the next tick.
@@ -129,9 +138,9 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
             const { data } = await window.axios.post(`/editorial-runs/${queuedId}/cancel`);
             setQueued(data.run);
             onDone?.(data);
-            onNotify?.('Review cancelled. Sections already reviewed keep their findings.');
+            onNotify?.(t('review.cancelled'));
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That run could not be cancelled.');
+            onNotify?.(error.response?.data?.message ?? t('review.cancel_failed'));
         }
     };
 
@@ -144,13 +153,13 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
             if (status === 202) {
                 seen.current = -1;
                 setQueued(data.run);
-                onNotify?.(`Review queued: ${data.run.total} sections.`);
+                onNotify?.(t('review.queued', { total: data.run.total }));
 
                 return;
             }
 
-            const failed = data.failed ? ` ${data.failed} could not finish.` : '';
-            onNotify?.(`${data.reviews.length} chapter${data.reviews.length === 1 ? '' : 's'} reviewed: ${data.findings} finding${data.findings === 1 ? '' : 's'}.${failed}`);
+            const failed = data.failed ? ` ${t('review.could_not_finish', { count: data.failed })}` : '';
+            onNotify?.(`${t('review.reviewed', { count: data.reviews.length, findings: data.findings })}${failed}`);
             onDone?.(data);
         } catch (error) {
             if (error.response?.status === 409 && error.response.data?.run) {
@@ -158,10 +167,10 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                 onNotify?.(error.response.data.message);
             } else if (error.response?.status === 409 && error.response.data?.needs_approval) {
                 setEstimate(error.response.data.estimate);
-                onNotify?.('Approve the estimate to run a review of the whole book.');
+                onNotify?.(t('review.approve_first'));
             } else {
                 const errors = error.response?.data?.errors;
-                onNotify?.(errors ? Object.values(errors).flat().join(' ') : (error.response?.data?.message ?? 'That review could not be run.'));
+                onNotify?.(errors ? Object.values(errors).flat().join(' ') : (error.response?.data?.message ?? t('review.run_failed')));
             }
         } finally {
             setRunning(false);
@@ -169,21 +178,21 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
     };
 
     const scopes = [
-        hasSelection && ['selection', 'Selection'],
-        ['chapter', 'Chapter'],
-        ['range', 'Chapters'],
-        ['book', 'Whole book'],
+        hasSelection && ['selection', t('review.scope_selection')],
+        ['chapter', t('review.scope_chapter')],
+        ['range', t('review.scope_range')],
+        ['book', t('review.scope_book')],
     ].filter(Boolean);
 
     const blocked = !estimate || running || queuedActive || !estimate.affordable || !estimate.within_cap || (estimate.needs_approval && !approved);
 
     return (
         <section className="mb-5 rounded-panel border border-border-default bg-bg-surface p-4" data-a="review-options">
-            <h3 className="mb-3 text-[13.5px] font-semibold text-text-primary">Run a review</h3>
+            <h3 className="mb-3 text-[13.5px] font-semibold text-text-primary">{t('review.run_a_review')}</h3>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block text-[11.5px] text-text-secondary">
-                    Agent
+                    {t('review.agent')}
                     <select data-a="review-options:agent" value={agent} onChange={(e) => setAgent(e.target.value)} className={`${control} mt-1`}>
                         {runnable.map((a) => (
                             <option key={a.value} value={a.value}>
@@ -194,7 +203,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                 </label>
 
                 <fieldset className="min-w-0">
-                    <legend className="text-[11.5px] text-text-secondary">Scope</legend>
+                    <legend className="text-[11.5px] text-text-secondary">{t('review.scope')}</legend>
                     <div className="mt-1 flex flex-wrap gap-1.5" role="radiogroup">
                         {scopes.map(([key, label]) => (
                             <button
@@ -216,7 +225,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
 
                 {scope === 'chapter' && (
                     <label className="block text-[11.5px] text-text-secondary sm:col-span-2">
-                        Chapter
+                        {t('review.chapter')}
                         <select data-a="review-options:chapter" value={sectionId ?? ''} onChange={(e) => setSectionId(Number(e.target.value))} className={`${control} mt-1`}>
                             {sections.map((s) => (
                                 <option key={s.id} value={s.id}>
@@ -230,7 +239,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                 {scope === 'range' && (
                     <>
                         <label className="block text-[11.5px] text-text-secondary">
-                            From
+                            {t('review.from')}
                             <select data-a="review-options:from" value={fromId ?? ''} onChange={(e) => setFromId(Number(e.target.value))} className={`${control} mt-1`}>
                                 {sections.map((s) => (
                                     <option key={s.id} value={s.id}>
@@ -240,7 +249,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                             </select>
                         </label>
                         <label className="block text-[11.5px] text-text-secondary">
-                            To
+                            {t('review.to')}
                             <select data-a="review-options:to" value={toId ?? ''} onChange={(e) => setToId(Number(e.target.value))} className={`${control} mt-1`}>
                                 {sections.map((s) => (
                                     <option key={s.id} value={s.id}>
@@ -259,9 +268,9 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                 )}
 
                 <fieldset className="min-w-0 sm:col-span-2">
-                    <legend className="text-[11.5px] text-text-secondary">Sensitivity</legend>
+                    <legend className="text-[11.5px] text-text-secondary">{t('review.sensitivity')}</legend>
                     <div className="mt-1 grid grid-cols-3 gap-1.5" role="radiogroup">
-                        {SENSITIVITY.map(([key, label, hint]) => (
+                        {SENSITIVITY.map(({ key, tKey, hintKey }) => (
                             <button
                                 key={key}
                                 type="button"
@@ -273,21 +282,21 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                                     sensitivity === key ? 'border-brand-primary bg-brand-primary-subtle' : 'border-border-default hover:border-border-input'
                                 }`}
                             >
-                                <span className="block text-[12.5px] font-semibold text-text-primary">{label}</span>
-                                <span className="block text-[11px] text-text-secondary">{hint}</span>
+                                <span className="block text-[12.5px] font-semibold text-text-primary">{t(tKey)}</span>
+                                <span className="block text-[11px] text-text-secondary">{t(hintKey)}</span>
                             </button>
                         ))}
                     </div>
                 </fieldset>
 
                 <label className="block text-[11.5px] text-text-secondary sm:col-span-2">
-                    Focus notes for the editor (optional, {focus.length}/{MAX_FOCUS})
+                    {t('review.focus_label', { length: focus.length, max: MAX_FOCUS })}
                     <textarea
                         data-a="review-options:focus"
                         rows={2}
                         maxLength={MAX_FOCUS}
                         value={focus}
-                        placeholder="e.g. Check dialogue punctuation and the spelling of place names."
+                        placeholder={t('review.focus_placeholder')}
                         onChange={(e) => setFocus(e.target.value)}
                         className={`${control} mt-1`}
                     />
@@ -299,13 +308,20 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                     {estimateError
                         ? estimateError
                         : !estimate
-                          ? 'Estimating…'
+                          ? t('review.estimating')
                           : estimate.simulated
-                            ? `${estimate.reviewable} of ${estimate.sections} chapter${estimate.sections === 1 ? '' : 's'} to review · sample output, no credits`
-                            : `${estimate.reviewable} of ${estimate.sections} chapter${estimate.sections === 1 ? '' : 's'} · about ${(estimate.input_tokens + estimate.output_tokens).toLocaleString()} tokens · ${money(estimate.usd)} · ${estimate.credits} credits (you have ${estimate.balance})`}
-                    {estimate?.style_guide && <span className="ml-1">· with the style guide</span>}
-                    {estimate && !estimate.affordable && <span className="ml-1 text-status-danger">· not enough credits</span>}
-                    {estimate && !estimate.within_cap && <span className="ml-1 text-status-danger">· over this month’s AI limit</span>}
+                            ? t('review.estimate_sample', { reviewable: estimate.reviewable, count: estimate.sections })
+                            : t('review.estimate', {
+                                  reviewable: estimate.reviewable,
+                                  count: estimate.sections,
+                                  tokens: formatNumber(estimate.input_tokens + estimate.output_tokens),
+                                  cost: money(estimate.usd),
+                                  credits: estimate.credits,
+                                  balance: estimate.balance,
+                              })}
+                    {estimate?.style_guide && <span className="ml-1">· {t('review.with_style_guide')}</span>}
+                    {estimate && !estimate.affordable && <span className="ml-1 text-status-danger">· {t('review.not_enough_credits')}</span>}
+                    {estimate && !estimate.within_cap && <span className="ml-1 text-status-danger">· {t('review.over_cap')}</span>}
                 </p>
                 <button
                     type="button"
@@ -314,7 +330,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                     onClick={run}
                     className="rounded-control bg-brand-fill px-3.5 py-2 text-[12.5px] font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-50"
                 >
-                    {running ? 'Reviewing…' : 'Run review'}
+                    {running ? t('review.reviewing') : t('review.run')}
                 </button>
             </div>
 
@@ -322,17 +338,17 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
                 <div className="mt-3 rounded-tile border border-border-default bg-bg-subtle px-3 py-2 text-[12px] text-text-body" data-a="review-options:progress" aria-live="polite">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="min-w-0 flex-1" data-a="review-options:progress:text">
-                            {queuedActive ? (queued.status === 'queued' ? 'Waiting for the worker… ' : 'Reviewing… ') : `Review ${queued.status}: `}
-                            {queued.done} of {queued.total} sections · {queued.findings} finding{queued.findings === 1 ? '' : 's'}
-                            {queued.credits_spent > 0 && ` · ${queued.credits_spent} credits`}
+                            {queuedActive ? (queued.status === 'queued' ? t('review.waiting') : t('review.reviewing')) : t('review.run_status', { status: queued.status })}{' '}
+                            {t('review.progress', { done: queued.done, total: queued.total, count: queued.findings })}
+                            {queued.credits_spent > 0 && ` · ${t('review.credits_spent', { count: queued.credits_spent })}`}
                             {queued.cost_usd > 0 && ` · ${money(queued.cost_usd)}`}
                         </span>
                         {queuedActive ? (
                             <button type="button" data-a="review-options:cancel" onClick={cancel} className="font-semibold text-status-danger hover:underline">
-                                Cancel
+                                {t('common.cancel')}
                             </button>
                         ) : (
-                            <button type="button" aria-label="Close" onClick={() => setQueued(null)} className="text-text-secondary hover:text-text-primary">
+                            <button type="button" aria-label={t('common.close')} onClick={() => setQueued(null)} className="text-text-secondary hover:text-text-primary">
                                 ×
                             </button>
                         )}
@@ -347,7 +363,7 @@ export default function ReviewOptions({ bookId, agents, sections, currentSection
             {estimate?.needs_approval && (
                 <label className="mt-2 flex items-start gap-2 rounded-tile border border-status-warning/40 bg-status-warning-tile px-3 py-2 text-[12px] text-text-body" data-a="review-options:approval">
                     <input type="checkbox" data-a="review-options:approve" checked={approved} onChange={(e) => setApproved(e.target.checked)} className="mt-0.5" />
-                    I approve this whole-book review: {money(estimate.usd)} and {estimate.credits} credits.
+                    {t('review.approve', { cost: money(estimate.usd), credits: estimate.credits })}
                 </label>
             )}
         </section>
