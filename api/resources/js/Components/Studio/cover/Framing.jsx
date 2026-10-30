@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { t, useI18n } from '../../../i18n';
 
 /**
  * Where the artwork sits in its frame: a focal point and a zoom.
@@ -21,7 +22,9 @@ export function frame(w, h, frameW, frameH, { x, y, zoom }) {
     };
 }
 
-export default function Framing({ image, framing, frameWidth, frameHeight, onChange, label = 'Artwork position', prefix = 'cover:framing' }) {
+export default function Framing({ image, framing, frameWidth, frameHeight, onChange, label: given, prefix = 'cover:framing' }) {
+    useI18n();
+    const label = given ?? t('cover.artwork_position');
     const [size, setSize] = useState(null);
     const box = useRef(null);
     const dragging = useRef(false);
@@ -44,8 +47,8 @@ export default function Framing({ image, framing, frameWidth, frameHeight, onCha
                     ref={box}
                     role="slider"
                     tabIndex={0}
-                    aria-label={`${label}: focal point`}
-                    aria-valuetext={`${Math.round(framing.x * 100)}% across, ${Math.round(framing.y * 100)}% down`}
+                    aria-label={t('cover.focal_point', { label })}
+                    aria-valuetext={t('cover.focal_value', { x: Math.round(framing.x * 100), y: Math.round(framing.y * 100) })}
                     data-a={`${prefix}:picker`}
                     onPointerDown={(event) => {
                         dragging.current = true;
@@ -93,7 +96,7 @@ export default function Framing({ image, framing, frameWidth, frameHeight, onCha
                 <div className="min-w-[140px] flex-1 space-y-2">
                     <label className="block">
                         <span className="mb-0.5 flex justify-between text-[11.5px] font-medium text-text-secondary">
-                            <span>Zoom</span>
+                            <span>{t('cover.zoom')}</span>
                             <span>{Number(framing.zoom).toFixed(2)}×</span>
                         </span>
                         <input
@@ -107,14 +110,14 @@ export default function Framing({ image, framing, frameWidth, frameHeight, onCha
                             className="w-full accent-brand-primary"
                         />
                     </label>
-                    <p className="text-[11px] leading-snug text-text-secondary">Click or drag on the picture to choose what stays in view.</p>
+                    <p className="text-[11px] leading-snug text-text-secondary">{t('cover.framing_help')}</p>
                     <button
                         type="button"
                         data-a={`${prefix}:centre`}
                         onClick={() => onChange({ x: 0.5, y: 0.5, zoom: 1 })}
                         className="rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-medium text-text-body hover:border-brand-primary/40"
                     >
-                        Centre, no zoom
+                        {t('cover.centre_no_zoom')}
                     </button>
                 </div>
             </div>

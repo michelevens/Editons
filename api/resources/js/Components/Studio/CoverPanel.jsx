@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { t, useI18n } from '../../i18n';
 import Icon from './Icon';
-import BackgroundEditor from './cover/BackgroundEditor';
+import BackgroundEditor, { scopeName } from './cover/BackgroundEditor';
 import CoverTemplateCard from './cover/CoverTemplateCard';
 import Framing from './cover/Framing';
 import LayerEditor from './cover/LayerEditor';
@@ -23,10 +24,10 @@ import WrapEditor from './cover/WrapEditor';
  */
 
 const VIEWS = [
-    ['front', 'Front'],
-    ['back', 'Back'],
-    ['spine', 'Spine'],
-    ['wrap', 'Full wrap'],
+    { key: 'front', tKey: 'cover.view_front' },
+    { key: 'back', tKey: 'cover.view_back' },
+    { key: 'spine', tKey: 'cover.view_spine' },
+    { key: 'wrap', tKey: 'cover.view_wrap' },
 ];
 
 /** Cover fields whose text a bound layer shows, mirrored into cover.texts. */
@@ -44,6 +45,7 @@ function overlay(cover, changes) {
 }
 
 export default function CoverPanel({ bookId, onNotify }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [busy, setBusy] = useState(false);
     const [view, setView] = useState('front');
@@ -97,7 +99,7 @@ export default function CoverPanel({ bookId, onNotify }) {
             }
         } catch (error) {
             notify.current?.(
-                error.response?.data?.message ?? 'That change was not saved.',
+                error.response?.data?.message ?? t('cover.change_not_saved'),
             );
             load();
         }
@@ -141,7 +143,7 @@ export default function CoverPanel({ bookId, onNotify }) {
 
                 return response.data.image;
             } catch (error) {
-                notify.current?.(error.response?.data?.errors?.image?.[0] ?? error.response?.data?.message ?? 'That picture could not be used. Use a PNG or JPEG under 12 MB.');
+                notify.current?.(error.response?.data?.errors?.image?.[0] ?? error.response?.data?.message ?? t('cover.picture_failed'));
 
                 return null;
             }
@@ -159,14 +161,14 @@ export default function CoverPanel({ bookId, onNotify }) {
             setData(response.data);
             setEpoch((e) => e + 1);
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'The text could not be made editable.');
+            onNotify?.(error.response?.data?.message ?? t('cover.customise_failed'));
         } finally {
             setBusy(false);
         }
     };
 
     const resetToLayout = async () => {
-        if (!window.confirm('Go back to the layout? Your text boxes, their positions and styles will be replaced by the layout.')) {
+        if (!window.confirm(t('cover.confirm_reset_layout'))) {
             return;
         }
 
@@ -205,7 +207,7 @@ export default function CoverPanel({ bookId, onNotify }) {
             // inventing one that might disagree with it.
             onNotify?.(
                 error.response?.data?.errors?.artwork?.[0]
-                    ?? 'That image could not be used. Try a JPEG, PNG or WebP under 12 MB.',
+                    ?? t('cover.artwork_failed'),
             );
         } finally {
             setBusy(false);
@@ -230,7 +232,7 @@ export default function CoverPanel({ bookId, onNotify }) {
             onNotify?.(
                 error.response?.data?.errors?.credits?.[0]
                     ?? error.response?.data?.message
-                    ?? 'That did not work. Nothing was charged.',
+                    ?? t('cover.ai_failed'),
             );
         } finally {
             setThinking(null);
@@ -261,7 +263,7 @@ export default function CoverPanel({ bookId, onNotify }) {
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { cover, palettes, layouts } = data;
@@ -275,14 +277,14 @@ export default function CoverPanel({ bookId, onNotify }) {
     return (
         <div className="flex h-full min-h-0 flex-col">
             <header className="border-b border-border-default px-4 py-3">
-                <h2 className="text-[15px] font-semibold text-text-primary">Cover Studio</h2>
+                <h2 className="text-[15px] font-semibold text-text-primary">{t('cover.studio')}</h2>
                 <p className="text-[11.5px] text-text-secondary">
                     {view === 'front'
-                        ? 'Stores want 1600 × 2560 pixels or larger.'
-                        : 'The printed cover: back, spine and front on one sheet, at the print service’s size.'}
+                        ? t('cover.front_size')
+                        : t('cover.wrap_intro')}
                 </p>
-                <div role="tablist" aria-label="Cover part" className="mt-2 flex flex-wrap gap-1">
-                    {VIEWS.map(([key, name]) => (
+                <div role="tablist" aria-label={t('cover.part')} className="mt-2 flex flex-wrap gap-1">
+                    {VIEWS.map(({ key, tKey }) => (
                         <button
                             key={key}
                             type="button"
@@ -298,7 +300,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                                 view === key ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary' : 'border-border-input text-text-body hover:border-brand-primary/40'
                             }`}
                         >
-                            {name}
+                            {t(tKey)}
                         </button>
                     ))}
                 </div>
@@ -344,7 +346,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                             <section className="flex flex-col items-center gap-3 rounded-tile border border-border-default bg-bg-subtle p-4">
                                 <SteadyImage
                                     src={cover.image}
-                                    alt={`Cover of ${cover.title ?? 'the book'}`}
+                                    alt={t('cover.alt', { title: cover.title ?? t('cover.the_book') })}
                                     data-a="cover:preview"
                                     width={250}
                                     height={400}
@@ -357,17 +359,15 @@ export default function CoverPanel({ bookId, onNotify }) {
                                     className="inline-flex items-center gap-1.5 rounded-control border border-border-input bg-bg-surface px-3 py-1.5 text-[12px] font-medium text-text-body transition hover:border-brand-primary/40"
                                 >
                                     <Icon name="exp" size={13} strokeWidth={2} />
-                                    Download cover (1600 × 2560 JPEG)
+                                    {t('cover.download')}
                                 </a>
                             </section>
 
                             <div className="min-w-0 space-y-4">
                                 <section className="rounded-tile border border-brand-primary/30 bg-brand-primary-subtle p-3.5">
-                                    <h3 className="text-[13px] font-semibold text-text-primary">Place the text yourself</h3>
+                                    <h3 className="text-[13px] font-semibold text-text-primary">{t('cover.place_title')}</h3>
                                     <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
-                                        The layout fits the title for you, so it moves as the text changes. Customise
-                                        the text to drag each line where you want it, and choose its typeface, size,
-                                        colour and spacing. It stays where you put it.
+                                        {t('cover.place_body')}
                                     </p>
                                     <button
                                         type="button"
@@ -376,14 +376,14 @@ export default function CoverPanel({ bookId, onNotify }) {
                                         disabled={busy}
                                         className="mt-2.5 rounded-control bg-brand-fill px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                                     >
-                                        Customise text
+                                        {t('cover.customise')}
                                     </button>
                                 </section>
 
                                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
-                                    <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">Text</h3>
+                                    <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">{t('cover.text')}</h3>
 
-                                    <Field label="Title">
+                                    <Field label={t('cover.field_title')}>
                                         <input
                                             value={cover.title ?? ''}
                                             data-a="cover:title"
@@ -392,7 +392,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                                         />
                                     </Field>
 
-                                    <Field label="Subtitle">
+                                    <Field label={t('cover.field_subtitle')}>
                                         <input
                                             value={cover.subtitle ?? ''}
                                             data-a="cover:subtitle"
@@ -401,7 +401,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                                         />
                                     </Field>
 
-                                    <Field label="Author">
+                                    <Field label={t('cover.field_author')}>
                                         <input
                                             value={cover.author ?? ''}
                                             data-a="cover:author"
@@ -410,23 +410,23 @@ export default function CoverPanel({ bookId, onNotify }) {
                                         />
                                     </Field>
 
-                                    <Field label="Typeface">
+                                    <Field label={t('cover.typeface')}>
                                         <select
                                             value={cover.font}
                                             data-a="cover:font"
                                             onChange={(event) => save({ font: event.target.value }, { immediate: true })}
                                             className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
                                         >
-                                            <option value="serif">Serif</option>
-                                            <option value="sans">Sans</option>
+                                            <option value="serif">{t('cover.font_serif')}</option>
+                                            <option value="sans">{t('cover.font_sans')}</option>
                                         </select>
                                     </Field>
                                 </section>
 
                                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
-                                    <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">Layout</h3>
+                                    <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">{t('cover.layout')}</h3>
 
-                                    <div role="group" aria-label="Layout" className="flex flex-wrap gap-2">
+                                    <div role="group" aria-label={t('cover.layout')} className="flex flex-wrap gap-2">
                                         {layouts.map((layout) => (
                                             <button
                                                 key={layout.key}
@@ -451,7 +451,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                         <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                             <h3 className="mb-2.5 text-[13px] font-semibold text-text-primary">
-                                {layered ? 'Background' : 'Artwork'}
+                                {layered ? t('cover.background') : t('cover.artwork')}
                             </h3>
 
                             {/* Any colour or gradient, for the front, the back,
@@ -470,17 +470,16 @@ export default function CoverPanel({ bookId, onNotify }) {
                                 onUpload={uploadPicture}
                             />
                             {bgScope === 'front' && cover.artwork && (
-                                <p className="mt-2 text-[11px] text-text-secondary">The uploaded artwork covers the front; its background shows once the artwork is removed.</p>
+                                <p className="mt-2 text-[11px] text-text-secondary">{t('cover.artwork_covers_front')}</p>
                             )}
                             {bgScope === 'wrap' && backgrounds.wrap?.kind === 'image' && (
-                                <p className="mt-2 text-[11px] text-text-secondary">Frame the picture, and check its resolution, in Full wrap.</p>
+                                <p className="mt-2 text-[11px] text-text-secondary">{t('cover.frame_in_wrap')}</p>
                             )}
 
                             {cover.artwork && (
                                 <>
                                     <p className="mt-2.5 rounded bg-status-info-bg px-2 py-1.5 text-[11px] text-status-info">
-                                        Your uploaded artwork is in use. Remove it to go back to a
-                                        colour scheme.
+                                        {t('cover.artwork_in_use')}
                                     </p>
 
                                     {/* Darkens the picture under the type, so the title
@@ -502,7 +501,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                                     {(!layered || ['classic', 'bold'].includes(cover.layout)) && (
                                         <label className="mt-3 block">
                                             <span className="mb-1 flex justify-between text-[11.5px] font-medium text-text-secondary">
-                                                <span>Darken behind the text</span>
+                                                <span>{t('cover.darken')}</span>
                                                 <span>{cover.shade}%</span>
                                             </span>
                                             <input
@@ -527,7 +526,7 @@ export default function CoverPanel({ bookId, onNotify }) {
                                 >
                                     <span className="inline-flex items-center gap-1.5">
                                         <Icon name="image" size={13} strokeWidth={2} />
-                                        {busy ? 'Working…' : 'Upload artwork'}
+                                        {busy ? t('cover.working') : t('cover.upload_artwork')}
                                     </span>
                                 </label>
 
@@ -549,13 +548,13 @@ export default function CoverPanel({ bookId, onNotify }) {
                                         disabled={busy}
                                         className="rounded-control border border-border-input px-2.5 py-1.5 text-[12px] font-medium text-text-body transition hover:border-status-danger/40 disabled:opacity-50"
                                     >
-                                        Remove artwork
+                                        {t('cover.remove_artwork')}
                                     </button>
                                 )}
                             </div>
 
                             <p className="mt-2 text-[11px] text-text-secondary">
-                                JPEG, PNG or WebP, up to 12 MB.
+                                {t('cover.artwork_types')}
                             </p>
                         </section>
 
@@ -576,10 +575,13 @@ export default function CoverPanel({ bookId, onNotify }) {
     );
 }
 
-const SOURCE_NAMES = {
-    title: 'Title', subtitle: 'Subtitle', author: 'Author', series: 'Series', number: 'Series number', edition: 'Edition',
-    tagline: 'Tagline', description: 'Back-cover copy', publisher: 'Publisher', price: 'Price', category: 'Category', isbn: 'ISBN', custom: 'Text',
-};
+function sourceName(source) {
+    return {
+        title: t('cover.field_title'), subtitle: t('cover.field_subtitle'), author: t('cover.field_author'), series: t('cover.source_series'),
+        number: t('cover.source_number'), edition: t('cover.source_edition'), tagline: t('cover.source_tagline'), description: t('cover.source_description'),
+        publisher: t('cover.source_publisher'), price: t('cover.source_price'), category: t('cover.source_category'), isbn: t('cover.source_isbn'), custom: t('cover.text'),
+    }[source] ?? t('cover.text');
+}
 
 /**
  * Each text layer's contrast with what is under it (CoverContrast), asked
@@ -587,6 +589,7 @@ const SOURCE_NAMES = {
  * large type, 4.5:1 otherwise), and a warning below it.
  */
 function ContrastList({ bookId, savedAt, epoch, view }) {
+    useI18n();
     const [rows, setRows] = useState(null);
 
     useEffect(() => {
@@ -618,9 +621,9 @@ function ContrastList({ bookId, savedAt, epoch, view }) {
     return (
         <details className="rounded-tile border border-border-default bg-bg-surface px-3 py-2" data-a="cover:contrast" open={failing > 0}>
             <summary className="cursor-pointer text-[12px] font-semibold text-text-primary">
-                Text contrast{' '}
+                {t('cover.contrast')}{' '}
                 <span className={failing ? 'text-status-warning' : 'text-status-success'} data-a="cover:contrast:summary">
-                    {failing ? `${failing} layer${failing === 1 ? '' : 's'} below the minimum` : 'every layer passes'}
+                    {failing ? t('cover.contrast_failing', { count: failing }) : t('cover.contrast_ok')}
                 </span>
             </summary>
             <ul className="mt-1.5 space-y-1">
@@ -632,13 +635,15 @@ function ContrastList({ bookId, savedAt, epoch, view }) {
                         className={`flex flex-wrap items-baseline gap-x-2 rounded-control px-2 py-1 text-[11.5px] ${row.ok ? 'text-text-body' : 'bg-status-warning-bg text-status-warning'}`}
                     >
                         <span className="font-semibold">
-                            {panels.length > 1 && <span className="capitalize">{row.panel}: </span>}
-                            {SOURCE_NAMES[row.source] ?? 'Text'}
+                            {panels.length > 1 && <span className="capitalize">{t('cover.panel_prefix', { panel: scopeName(row.panel) })}</span>}
+                            {sourceName(row.source)}
                         </span>
                         <span className="tabular-nums">{row.ratio.toFixed(1)}:1</span>
                         <span className="text-text-secondary">
-                            {row.ok ? '✓ ' : 'below '}
-                            {row.needed}:1 for {row.large ? 'large' : 'small'} text ({row.points} pt){row.approximate ? ' · over a picture, approximate' : ''}
+                            {row.ok
+                                ? t('cover.contrast_pass', { needed: row.needed, size: row.large ? 'large' : 'small', points: row.points })
+                                : t('cover.contrast_below', { needed: row.needed, size: row.large ? 'large' : 'small', points: row.points })}
+                            {row.approximate ? t('cover.contrast_approximate') : ''}
                         </span>
                     </li>
                 ))}
@@ -678,15 +683,15 @@ function SteadyImage({ src, ...rest }) {
  * such, because stores ask and the author should not have to remember.
  */
 function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPaint }) {
+    useI18n();
     const { ai, concepts, palettes, cover } = data;
 
     if (!ai.concepts_available && !ai.artwork_available) {
         return (
             <section className="rounded-tile border border-dashed border-border-input bg-bg-surface p-3.5">
-                <h3 className="text-[13px] font-semibold text-text-primary">AI cover designer</h3>
+                <h3 className="text-[13px] font-semibold text-text-primary">{t('cover.ai_title')}</h3>
                 <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
-                    Not switched on yet. When it is, it will propose three designs for this
-                    book and paint artwork for the one you choose.
+                    {t('cover.ai_off')}
                 </p>
             </section>
         );
@@ -695,7 +700,7 @@ function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPain
     return (
         <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-[13px] font-semibold text-text-primary">AI cover designer</h3>
+                <h3 className="text-[13px] font-semibold text-text-primary">{t('cover.ai_title')}</h3>
 
                 {ai.concepts_available && (
                     <button
@@ -705,8 +710,10 @@ function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPain
                         className="rounded-control bg-brand-fill px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
                         {thinking === 'concepts'
-                            ? 'Designing…'
-                            : `${concepts ? 'New' : 'Suggest'} concepts · ${ai.concepts_cost} credits`}
+                            ? t('cover.ai_designing')
+                            : concepts
+                              ? t('cover.ai_new_concepts', { credits: ai.concepts_cost })
+                              : t('cover.ai_suggest_concepts', { credits: ai.concepts_cost })}
                     </button>
                 )}
             </div>
@@ -749,7 +756,7 @@ function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPain
                                     disabled={thinking !== null}
                                     className="self-start rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-50"
                                 >
-                                    Use this
+                                    {t('cover.ai_use')}
                                 </button>
                             </li>
                         );
@@ -761,14 +768,14 @@ function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPain
                 <div className="mt-3">
                     <label className="block">
                         <span className="mb-1 block text-[11.5px] font-medium text-text-secondary">
-                            Picture to paint. No lettering: the title is set in real type.
+                            {t('cover.ai_brief_label')}
                         </span>
                         <textarea
                             rows={3}
                             value={brief}
                             data-a="cover:ai:brief"
                             onChange={(event) => onBrief(event.target.value)}
-                            placeholder="A calm harbour at dawn, seen from above, muted blues and warm light…"
+                            placeholder={t('cover.ai_brief_placeholder')}
                             className="w-full resize-y rounded-control border border-border-input px-2 py-1.5 text-[12px] leading-relaxed focus:border-brand-primary focus:ring-0"
                         />
                     </label>
@@ -779,16 +786,14 @@ function AiDesigner({ data, brief, onBrief, thinking, onPropose, onApply, onPain
                         disabled={thinking !== null || brief.trim().length < 10}
                         className="mt-1.5 rounded-control border border-brand-primary px-3 py-1.5 text-[12px] font-semibold text-brand-primary transition hover:bg-brand-primary-subtle disabled:opacity-50"
                     >
-                        {thinking === 'paint' ? 'Painting… (up to a minute)' : `Paint artwork · ${ai.artwork_cost} credits`}
+                        {thinking === 'paint' ? t('cover.ai_painting') : t('cover.ai_paint', { credits: ai.artwork_cost })}
                     </button>
                 </div>
             )}
 
             {cover.artwork_source?.type === 'ai' && (
                 <p className="mt-2.5 text-[11px] leading-relaxed text-text-secondary">
-                    The current artwork was made with AI ({cover.artwork_source.model}). Some
-                    stores ask you to disclose that, and AI images have limited copyright
-                    protection.
+                    {t('cover.ai_made', { model: cover.artwork_source.model })}
                 </p>
             )}
         </section>
