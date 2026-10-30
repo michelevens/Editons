@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useI18n } from '../../i18n';
 import Icon from './Icon';
 
 /**
@@ -11,6 +12,11 @@ import Icon from './Icon';
  * its own, so it cannot drift from the stores' published figures.
  */
 export default function PrintKit({ bookId, book, refreshKey, save, generate, busy, rendering, locked = false, onNotify }) {
+    const { t, locale, formatNumber, formatMoney } = useI18n();
+    // English keeps the figures exactly as they always read; other
+    // languages get their own decimal comma and currency layout.
+    const inches = (n, digits = 3) => (locale === 'en' ? n.toFixed(digits) : formatNumber(n, { minimumFractionDigits: digits, maximumFractionDigits: digits }));
+    const usd = (n) => (locale === 'en' ? `$${n.toFixed(2)}` : formatMoney(Math.round(n * 100), 'USD'));
     const [kit, setKit] = useState(null);
     const [service, setService] = useState('kdp');
     const [wrapService, setWrapService] = useState('kdp');
@@ -80,7 +86,7 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
             setKit(response.data);
             setCalc(response.data.calculator);
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That print setting was not saved.');
+            onNotify?.(error.response?.data?.message ?? t('printkit.setting_not_saved'));
         }
     };
 
@@ -93,9 +99,9 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
             form.append('back', file);
             const response = await window.axios.post(`/books/${bookId}/print-kit/back`, form);
             setKit(response.data);
-            onNotify?.('Back cover added.');
+            onNotify?.(t('printkit.back_added'));
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That image could not be used.');
+            onNotify?.(error.response?.data?.message ?? t('printkit.image_unusable'));
         } finally {
             setUploading(false);
         }
@@ -106,14 +112,14 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
             const response = await window.axios.delete(`/books/${bookId}/print-kit/back`);
             setKit(response.data);
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'The back cover could not be removed.');
+            onNotify?.(error.response?.data?.message ?? t('printkit.back_not_removed'));
         }
     };
 
     if (!kit) {
         return (
             <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
-                <p className="text-[11.5px] text-text-secondary">Loading the print kit…</p>
+                <p className="text-[11.5px] text-text-secondary">{t('printkit.loading')}</p>
             </section>
         );
     }
@@ -135,37 +141,35 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
             className="space-y-4 rounded-tile border border-border-default bg-bg-surface p-3.5"
         >
             <div>
-                <h3 className="text-[13px] font-semibold text-text-primary">Print &amp; price</h3>
+                <h3 className="text-[13px] font-semibold text-text-primary">{t('printkit.title')}</h3>
                 <p className="mt-0.5 text-[11px] leading-snug text-text-secondary">
-                    Print-on-demand files and checks for each service, and what each store pays.
-                    Figures are as published by each service on {kit.checked} — check them at
-                    the store before you set a price.
+                    {t('printkit.intro', { date: kit.checked })}
                 </p>
             </div>
 
             {/* Print settings */}
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <Select
-                    label="Interior"
+                    label={t('printkit.interior')}
                     value={kit.print.ink}
                     data="kit:ink"
                     onChange={(value) => updatePrint({ ink: value })}
-                    options={{ bw: 'Black & white', standard_color: 'Standard colour', premium_color: 'Premium colour' }}
+                    options={{ bw: t('printkit.ink_bw'), standard_color: t('printkit.ink_standard'), premium_color: t('printkit.ink_premium') }}
                 />
                 <Select
-                    label="Paper"
+                    label={t('printkit.paper')}
                     value={kit.print.paper}
                     data="kit:paper"
                     disabled={kit.print.ink !== 'bw'}
                     onChange={(value) => updatePrint({ paper: value })}
-                    options={{ white: 'White', cream: 'Cream' }}
+                    options={{ white: t('printkit.paper_white'), cream: t('printkit.paper_cream') }}
                 />
                 <Select
-                    label="Cover finish"
+                    label={t('printkit.finish')}
                     value={kit.print.finish}
                     data="kit:finish"
                     onChange={(value) => updatePrint({ finish: value })}
-                    options={{ matte: 'Matte', glossy: 'Glossy' }}
+                    options={{ matte: t('printkit.finish_matte'), glossy: t('printkit.finish_glossy') }}
                 />
             </div>
 
@@ -173,11 +177,11 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                 edge suits one book, a chosen colour suits a series. */}
             <div className="flex flex-wrap items-end gap-2.5">
                 <Select
-                    label="Spine and back colour"
+                    label={t('printkit.spine_colour')}
                     value={kit.print.spine_color ? 'custom' : 'auto'}
                     data="kit:spine-mode"
                     onChange={(value) => updatePrint({ spine_color: value === 'auto' ? null : kit.print.spine_color || '#06243e' })}
-                    options={{ auto: 'Match the front cover', custom: 'Choose a colour' }}
+                    options={{ auto: t('printkit.spine_match'), custom: t('printkit.spine_choose') }}
                 />
                 {kit.print.spine_color && (
                     <label className="flex items-center gap-2 pb-1 text-[12.5px] text-text-body">
@@ -187,23 +191,23 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                             data-a="kit:spine-color"
                             onChange={(event) => updatePrint({ spine_color: event.target.value })}
                             className="h-9 w-12 cursor-pointer rounded-control border border-border-input bg-transparent p-0.5"
-                            aria-label="Spine and back colour"
+                            aria-label={t('printkit.spine_colour')}
                         />
                         {kit.print.spine_color}
                     </label>
                 )}
             </div>
             <p data-a="kit:pages" className="text-[11.5px] text-text-body">
-                {kit.trim} · {kit.margins} margins ·{' '}
+                {t('printkit.trim_margins', { trim: kit.trim, margins: kit.margins })}{' '}
                 {pages.exact
-                    ? `${pages.pages} pages (typeset ${pages.at})`
-                    : `about ${pages.pages} pages (estimated — generate the print interior for the exact count)`}
-                . Trim and margins are set in Design.
+                    ? t('printkit.pages_exact', { count: pages.pages, at: pages.at })
+                    : t('printkit.pages_estimated', { count: pages.pages })}
+                {t('printkit.set_in_design')}
             </p>
 
             {/* Print checks */}
             <div>
-                <div role="tablist" aria-label="Print service" className="mb-2 flex flex-wrap gap-1.5">
+                <div role="tablist" aria-label={t('printkit.print_service')} className="mb-2 flex flex-wrap gap-1.5">
                     {kit.checks.map((item) => (
                         <button
                             key={item.service}
@@ -248,36 +252,36 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
 
             {/* Cover wrap */}
             <div className="border-t border-border-default pt-3">
-                <h4 className="text-[12.5px] font-semibold text-text-primary">Print cover</h4>
+                <h4 className="text-[12.5px] font-semibold text-text-primary">{t('printkit.print_cover')}</h4>
                 <p className="mb-2 text-[11px] leading-snug text-text-secondary">
-                    Back, spine and front on one sheet with bleed, sized from the page count and paper.
+                    {t('printkit.print_cover_intro')}
                 </p>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                     <Select
-                        label="Service"
+                        label={t('printkit.service')}
                         value={wrapService}
                         data="kit:cover:service"
                         onChange={setWrapService}
                         options={Object.fromEntries(kit.services.map((item) => [item.service, item.label]))}
                     />
                     <Select
-                        label="Paper"
+                        label={t('printkit.paper')}
                         value={wrapPaper}
                         data="kit:cover:paper"
                         disabled={kit.print.ink !== 'bw' || wrap.papers.length === 1}
                         onChange={setPaper}
-                        options={Object.fromEntries(wrap.papers.map((item) => [item, item === 'white' ? 'White' : 'Cream']))}
+                        options={Object.fromEntries(wrap.papers.map((item) => [item, item === 'white' ? t('printkit.paper_white') : t('printkit.paper_cream')]))}
                     />
                     {needsSpine && (
                         <label className="block">
                             <span className="mb-1 block text-[11.5px] font-medium text-text-secondary">
-                                Spine width (in)
+                                {t('printkit.spine_width')}
                             </span>
                             <input
                                 value={spine}
                                 inputMode="decimal"
                                 data-a="kit:cover:spine"
-                                placeholder="From its template"
+                                placeholder={t('printkit.from_template')}
                                 onChange={(event) => setSpine(event.target.value)}
                                 className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
                             />
@@ -286,24 +290,27 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                 </div>
                 {needsSpine && (
                     <p className="mt-1 text-[11px] leading-snug text-text-secondary">
-                        {wrap.label} gives spine widths only through its cover template generator.
-                        Enter the width it gives you for {pages.pages} pages.
+                        {t('printkit.spine_from_generator', { service: wrap.label, count: pages.pages })}
                     </p>
                 )}
                 {wrap.size && (
                     <p data-a="kit:cover:size" className="mt-1.5 text-[11.5px] text-text-body">
-                        {wrap.size.width.toFixed(3)} × {wrap.size.height.toFixed(3)} in · spine{' '}
-                        {wrap.size.spine.toFixed(3)} in · bleed {wrap.size.bleed} in ·{' '}
+                        {t('printkit.wrap_size', {
+                            width: inches(wrap.size.width),
+                            height: inches(wrap.size.height),
+                            spine: inches(wrap.size.spine),
+                            bleed: locale === 'en' ? wrap.size.bleed : formatNumber(wrap.size.bleed),
+                        })}{' '}
                         {wrap.size.spine_text
-                            ? 'spine text'
-                            : `no spine text below ${wrap.spine_text_min_pages} pages`}
+                            ? t('printkit.spine_text')
+                            : t('printkit.no_spine_text', { count: wrap.spine_text_min_pages })}
                     </p>
                 )}
                 {previewUrl && (
                     <img
                         src={previewUrl}
                         data-a="kit:cover:preview"
-                        alt={`Print cover preview for ${wrap.label}: back, spine and front`}
+                        alt={t('printkit.preview_alt', { service: wrap.label })}
                         className="mt-2 w-full max-w-[640px] rounded-control border border-border-default"
                     />
                 )}
@@ -312,17 +319,17 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                         type="button"
                         data-a="kit:cover:make"
                         disabled={locked || !spineOk || busy === 'format:cover_wrap' || rendering('cover_wrap')}
-                        title={locked ? 'Your plan does not include PDF files.' : undefined}
+                        title={locked ? t('printkit.plan_no_pdf') : undefined}
                         onClick={() => generate('cover_wrap', options)}
                         className="inline-flex items-center gap-1.5 rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
                         <Icon name="cover" size={13} strokeWidth={2} />
                         {busy === 'format:cover_wrap' || rendering('cover_wrap')
-                            ? 'Making the cover…'
-                            : `Make the ${wrap.label} cover (PDF)`}
+                            ? t('printkit.making_cover')
+                            : t('printkit.make_cover', { service: wrap.label })}
                     </button>
                     <label className="inline-flex cursor-pointer items-center rounded-control border border-border-input px-2.5 py-1.5 text-[11.5px] font-medium text-text-body focus-within:ring-2 focus-within:ring-brand-primary hover:border-brand-primary/40">
-                        {uploading ? 'Uploading…' : kit.back.uploaded ? 'Replace back cover' : 'Upload a back cover'}
+                        {uploading ? t('printkit.uploading') : kit.back.uploaded ? t('printkit.replace_back') : t('printkit.upload_back')}
                         <input
                             type="file"
                             accept="image/jpeg,image/png"
@@ -338,40 +345,39 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                             onClick={removeBack}
                             className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                         >
-                            Use the designed back
+                            {t('printkit.use_designed_back')}
                         </button>
                     )}
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-text-secondary">
                     {kit.back.uploaded
-                        ? 'The back uses your uploaded image.'
+                        ? t('printkit.back_uploaded')
                         : kit.back.has_copy
-                          ? 'The back is designed from your description, with a blank box for the barcode.'
-                          : 'The book has no description, so the back carries only the title.'}{' '}
-                    Place the back and the spine yourself in Cover Studio (Back, Spine and Full wrap).
-                    The cover appears in Export history when it is ready.
+                          ? t('printkit.back_designed')
+                          : t('printkit.back_title_only')}{' '}
+                    {t('printkit.back_place')}
                 </p>
             </div>
 
             {/* Prices and royalties */}
             <div className="border-t border-border-default pt-3">
-                <h4 className="text-[12.5px] font-semibold text-text-primary">Prices &amp; royalties</h4>
+                <h4 className="text-[12.5px] font-semibold text-text-primary">{t('printkit.prices')}</h4>
                 <div className="mt-2 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                     <PriceInput
-                        label="eBook list price (USD)"
+                        label={t('printkit.ebook_price')}
                         value={book.list_price}
                         data="kit:price:ebook"
                         onChange={(value) => save({ list_price: value || null })}
                     />
                     <PriceInput
-                        label="Paperback list price (USD)"
+                        label={t('printkit.paperback_price')}
                         value={book.print_price}
                         data="kit:price:print"
                         onChange={(value) => save({ print_price: value || null })}
                     />
                     <label className="block">
                         <span className="mb-1 block text-[11.5px] font-medium text-text-secondary">
-                            IngramSpark discount
+                            {t('printkit.ingram_discount')}
                         </span>
                         <select
                             value={discount}
@@ -381,7 +387,7 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                         >
                             {[0.4, 0.45, 0.5, 0.55].map((value) => (
                                 <option key={value} value={String(value)}>
-                                    {Math.round(value * 100)}%
+                                    {t('printkit.percent', { n: Math.round(value * 100) })}
                                 </option>
                             ))}
                         </select>
@@ -396,19 +402,21 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                                     <span className="text-[12.5px] font-medium text-text-primary">{row.label}</span>
                                     <span className="text-[12.5px] tabular-nums text-text-primary">
                                         {row.royalty !== null && row.royalty !== undefined
-                                            ? `$${row.royalty.toFixed(2)} a copy`
+                                            ? t('printkit.royalty_a_copy', { amount: usd(row.royalty) })
                                             : row.wholesale !== null && row.wholesale !== undefined
-                                              ? `$${row.wholesale.toFixed(2)} before print cost`
-                                              : 'set a price'}
-                                        {row.rate ? ` · ${Math.round(row.rate * 100)}%` : ''}
+                                              ? t('printkit.before_print_cost', { amount: usd(row.wholesale) })
+                                              : t('printkit.set_a_price')}
+                                        {row.rate ? t('printkit.rate', { n: Math.round(row.rate * 100) }) : ''}
                                     </span>
                                 </div>
                                 {row.print_cost !== null && row.print_cost !== undefined && (
                                     <p className="text-[11px] text-text-body">
-                                        Print cost ${row.print_cost.toFixed(2)} · lowest list price $
-                                        {row.minimum_price?.toFixed(2)}
+                                        {t('printkit.print_cost', {
+                                            cost: usd(row.print_cost),
+                                            minimum: row.minimum_price != null ? usd(row.minimum_price) : '$',
+                                        })}
                                         {row.expanded_royalty !== null &&
-                                            ` · Expanded Distribution $${row.expanded_royalty.toFixed(2)}`}
+                                            t('printkit.expanded', { amount: usd(row.expanded_royalty) })}
                                     </p>
                                 )}
                                 {row.problem && (
@@ -422,7 +430,7 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                                         rel="noopener noreferrer"
                                         className="text-brand-primary hover:underline"
                                     >
-                                        Source
+                                        {t('printkit.source')}
                                     </a>
                                 </p>
                             </li>
@@ -430,14 +438,13 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                     </ul>
                 )}
                 <p className="mt-1 text-[10.5px] leading-snug text-text-secondary">
-                    As published by each service, read {kit.checked}. US stores, US dollars, before tax —
-                    check before you set a price.
+                    {t('printkit.figures_note', { date: kit.checked })}
                 </p>
             </div>
 
             {/* Ebook stores */}
             <div className="border-t border-border-default pt-3">
-                <h4 className="mb-1.5 text-[12.5px] font-semibold text-text-primary">eBook stores</h4>
+                <h4 className="mb-1.5 text-[12.5px] font-semibold text-text-primary">{t('printkit.ebook_stores')}</h4>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     {kit.stores.map((store) => (
                         <div key={store.channel} data-a={`kit:store:${store.channel}`} data-status={store.status}>
@@ -454,7 +461,7 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
                                         </li>
                                     ))}
                                 {store.items.every((item) => item.status === 'pass') && (
-                                    <li className="text-[11px] text-text-secondary">Everything this store asks for is here.</li>
+                                    <li className="text-[11px] text-text-secondary">{t('printkit.store_complete')}</li>
                                 )}
                             </ul>
                         </div>
@@ -466,18 +473,20 @@ export default function PrintKit({ bookId, book, refreshKey, save, generate, bus
 }
 
 const STATUS = {
-    pass: ['bg-status-success', 'Passes'],
-    warn: ['bg-status-warning', 'Check'],
-    fail: ['bg-status-danger', 'Fails'],
+    pass: ['bg-status-success', 'printkit.status_pass'],
+    warn: ['bg-status-warning', 'printkit.status_warn'],
+    fail: ['bg-status-danger', 'printkit.status_fail'],
 };
 
 function Dot({ status }) {
-    const [colour, label] = STATUS[status] ?? STATUS.warn;
+    const { t } = useI18n();
+    const [colour, key] = STATUS[status] ?? STATUS.warn;
+    const label = t(key);
 
     return (
         <span className="mt-[3px] inline-flex shrink-0" title={label}>
             <span className={`h-2 w-2 rounded-full ${colour}`} aria-hidden="true" />
-            <span className="sr-only">{label}:</span>
+            <span className="sr-only">{t('printkit.status_sr', { label })}</span>
         </span>
     );
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useI18n } from '../../i18n';
 
 /**
  * The Amazon KDP guided page: KDP's three pages (Details, Content, Rights &
@@ -39,14 +40,18 @@ const TONE = {
 
 const MARK = { ok: '✓', warn: '!', fail: '✕' };
 
+// What a screen reader hears for the mark.
+const STATUS_LABEL = { ok: 'kdp.status_ok', warn: 'kdp.status_warn', fail: 'kdp.status_fail' };
+
 function Field({ field, onFix, editor, id }) {
+    const { t, locale, formatMoney } = useI18n();
     const values = Array.isArray(field.value) ? field.value : field.value != null ? [field.value] : [];
     const multi = Array.isArray(field.value) && field.key === 'keywords';
 
     return (
         <div className="grid grid-cols-1 gap-1 px-3 py-2.5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-3" data-a={`kdp:field:${field.key}`}>
             <dt className="flex items-start gap-1.5 text-[12px] font-medium text-text-secondary">
-                <span className={`${TONE[field.status] ?? ''} w-3 shrink-0 font-bold`} aria-label={field.status}>
+                <span className={`${TONE[field.status] ?? ''} w-3 shrink-0 font-bold`} aria-label={STATUS_LABEL[field.status] ? t(STATUS_LABEL[field.status]) : field.status}>
                     {MARK[field.status] ?? ''}
                 </span>
                 <span>{field.label}</span>
@@ -60,7 +65,7 @@ function Field({ field, onFix, editor, id }) {
                             <li key={`${value}-${i}`} className="flex items-center gap-2">
                                 <span className="w-4 text-right text-[11px] tabular-nums text-text-secondary">{i + 1}</span>
                                 <code className="min-w-0 flex-1 break-words rounded bg-bg-subtle px-1.5 py-0.5 text-[12.5px] text-text-primary">{value}</code>
-                                <CopyButton text={value} label={`Copy keyword ${i + 1}`} />
+                                <CopyButton text={value} label={t('kdp.copy_keyword', { n: i + 1 })} />
                             </li>
                         ))}
                     </ol>
@@ -78,11 +83,11 @@ function Field({ field, onFix, editor, id }) {
                             {field.extra && (
                                 <p className="mt-0.5 text-[12px] text-text-body">
                                     {field.extra.label}: <span className="font-semibold">{field.extra.value}</span>{' '}
-                                    <CopyButton text={field.extra.value} label={`Copy ${field.extra.label}`} small />
+                                    <CopyButton text={field.extra.value} label={t('kdp.copy_named', { label: field.extra.label })} small />
                                 </p>
                             )}
                         </div>
-                        {field.copy && <CopyButton text={values.join('\n')} label={`Copy ${field.label}`} />}
+                        {field.copy && <CopyButton text={values.join('\n')} label={t('kdp.copy_named', { label: field.label })} />}
                     </div>
                 )}
 
@@ -92,13 +97,13 @@ function Field({ field, onFix, editor, id }) {
                         data-a={`kdp:download:${field.key}`}
                         className="mt-1 inline-block text-[12px] font-semibold text-brand-primary hover:underline"
                     >
-                        Download
+                        {t('kdp.download')}
                     </a>
                 )}
 
                 {field.royalty != null && (
                     <p className="mt-0.5 text-[12px] text-text-body">
-                        Royalty about <span className="font-semibold">${Number(field.royalty).toFixed(2)}</span> a copy
+                        {t('kdp.royalty_about')} <span className="font-semibold">{locale === 'en' ? `$${Number(field.royalty).toFixed(2)}` : formatMoney(Math.round(Number(field.royalty) * 100), 'USD')}</span> {t('kdp.royalty_a_copy')}
                     </p>
                 )}
 
@@ -112,7 +117,7 @@ function Field({ field, onFix, editor, id }) {
                     )}
                     {field.source && (
                         <a href={field.source} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-text-secondary underline hover:text-text-primary">
-                            KDP help
+                            {t('kdp.help')}
                         </a>
                     )}
                 </div>
@@ -125,6 +130,7 @@ function Field({ field, onFix, editor, id }) {
 
 /** Copy one value to the clipboard, saying so for a screen reader too. */
 export function CopyButton({ text, label, small = false }) {
+    const { t } = useI18n();
     const [done, setDone] = useState(false);
 
     const copy = async () => {
@@ -145,7 +151,7 @@ export function CopyButton({ text, label, small = false }) {
             aria-label={label}
             className={`shrink-0 rounded-control border border-border-input font-medium text-text-body transition hover:border-brand-primary/40 ${small ? 'px-1.5 py-0 text-[10.5px]' : 'px-2 py-0.5 text-[11.5px]'}`}
         >
-            <span aria-live="polite">{done ? 'Copied' : 'Copy'}</span>
+            <span aria-live="polite">{done ? t('kdp.copied') : t('kdp.copy')}</span>
         </button>
     );
 }
