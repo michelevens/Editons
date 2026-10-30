@@ -6,6 +6,7 @@ import { goTo } from '@/Components/Studio/navigation';
 import StudioSidebar from '@/Components/Studio/StudioSidebar';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * Book Settings: the book's identity, the autosave preference, and archive.
@@ -24,6 +25,7 @@ export default function Settings({
     copyright_preview: copyrightPreview,
 }) {
     const { auth } = usePage().props;
+    const { t } = useI18n();
 
     const open = (key) => goTo(book.id, key);
     const [menu, setMenu] = useState(false);
@@ -31,7 +33,7 @@ export default function Settings({
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title={`${book.title} — Settings`} />
+            <Head title={t('settings.head', { title: book.title })} />
 
             <AppHeader
                 active="writing"
@@ -64,7 +66,7 @@ export default function Settings({
                     <div className="mx-auto max-w-[760px] px-4 py-6 sm:px-8 sm:py-9">
                         <header className="mb-7">
                             <h1 className="font-display text-[28px] font-extrabold tracking-[-0.03em] text-text-primary">
-                                Book Settings
+                                {t('settings.title')}
                             </h1>
                             <p className="mt-1.5 text-[14px] text-text-secondary">
                                 {book.title}
@@ -86,6 +88,7 @@ export default function Settings({
 }
 
 function DetailsForm({ book, genres, languages }) {
+    const { t } = useI18n();
     const [saved, setSaved] = useState(false);
 
     const { data, setData, patch, processing, errors } = useForm({
@@ -115,12 +118,12 @@ function DetailsForm({ book, genres, languages }) {
             onSubmit={submit}
             className="rounded-panel border border-border-default bg-bg-surface p-6"
         >
-            <h2 className="text-[15px] font-semibold text-text-primary">Details</h2>
+            <h2 className="text-[15px] font-semibold text-text-primary">{t('settings.details')}</h2>
 
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field
                     id="title"
-                    label="Title"
+                    label={t('settings.field_title')}
                     value={data.title}
                     error={errors.title}
                     required
@@ -129,7 +132,7 @@ function DetailsForm({ book, genres, languages }) {
                 />
                 <Field
                     id="subtitle"
-                    label="Subtitle"
+                    label={t('settings.subtitle')}
                     value={data.subtitle}
                     error={errors.subtitle}
                     className="sm:col-span-2"
@@ -137,33 +140,33 @@ function DetailsForm({ book, genres, languages }) {
                 />
                 <Field
                     id="author_name"
-                    label="Author name"
+                    label={t('profile.author_name')}
                     value={data.author_name}
                     error={errors.author_name}
-                    hint="As it should appear on the cover."
+                    hint={t('settings.author_hint')}
                     onChange={(value) => setData('author_name', value)}
                 />
                 <Select
                     id="genre"
-                    label="Genre"
+                    label={t('settings.genre')}
                     value={data.genre}
                     options={genres}
                     onChange={(value) => setData('genre', value)}
                 />
                 <Select
                     id="language"
-                    label="Language"
+                    label={t('language.label')}
                     value={data.language}
                     options={languages}
                     onChange={(value) => setData('language', value)}
                 />
                 <Field
                     id="target_words"
-                    label="Word target"
+                    label={t('settings.word_target')}
                     type="number"
                     value={data.target_words}
                     error={errors.target_words}
-                    placeholder="e.g. 80000"
+                    placeholder={t('settings.word_target_placeholder')}
                     onChange={(value) => setData('target_words', value)}
                 />
             </div>
@@ -171,7 +174,7 @@ function DetailsForm({ book, genres, languages }) {
             <div className="mt-5 flex items-center justify-end gap-3">
                 {saved && (
                     <span className="text-[12.5px] font-medium text-status-success">
-                        Saved
+                        {t('editor.save_saved')}
                     </span>
                 )}
                 <button
@@ -179,7 +182,7 @@ function DetailsForm({ book, genres, languages }) {
                     data-a="settings:save"
                     className="h-[38px] rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:opacity-60"
                 >
-                    {processing ? 'Saving…' : 'Save changes'}
+                    {processing ? t('editor.save_saving') : t('profile.save_changes')}
                 </button>
             </div>
         </form>
@@ -195,6 +198,7 @@ function DetailsForm({ book, genres, languages }) {
  * against their checksum and never generated.
  */
 function PublicationForm({ book, copyrightPreview }) {
+    const { t } = useI18n();
     const [saved, setSaved] = useState(false);
     const publication = book.publication ?? {};
 
@@ -252,39 +256,38 @@ function PublicationForm({ book, copyrightPreview }) {
             className="mt-5 rounded-panel border border-border-default bg-bg-surface p-6"
             data-a="settings:publication"
         >
-            <h2 className="text-[15px] font-semibold text-text-primary">Publishing details</h2>
+            <h2 className="text-[15px] font-semibold text-text-primary">{t('settings.publishing')}</h2>
             <p className="mt-1 text-[12.5px] leading-relaxed text-text-secondary">
-                Printed on the title, copyright and series pages. Leave a field empty and
-                nothing is printed for it.
+                {t('settings.publishing_intro')}
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field
                     id="publisher"
-                    label="Publisher"
+                    label={t('settings.publisher')}
                     value={data.publication.publisher}
                     error={error('publisher')}
                     onChange={(v) => set('publisher', v)}
                 />
                 <Field
                     id="imprint"
-                    label="Imprint"
+                    label={t('settings.imprint')}
                     value={data.publication.imprint}
                     error={error('imprint')}
-                    hint="If the book appears under an imprint of the publisher."
+                    hint={t('settings.imprint_hint')}
                     onChange={(v) => set('imprint', v)}
                 />
                 <Field
                     id="place"
-                    label="Place of publication"
+                    label={t('settings.place')}
                     value={data.publication.place}
                     error={error('place')}
-                    placeholder="e.g. Port-au-Prince"
+                    placeholder={t('settings.place_placeholder')}
                     onChange={(v) => set('place', v)}
                 />
                 <label>
                     <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                        Country of publication
+                        {t('settings.country')}
                     </span>
                     <select
                         id="country"
@@ -293,15 +296,15 @@ function PublicationForm({ book, copyrightPreview }) {
                         onChange={(event) => set('country', event.target.value)}
                         className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
                     >
-                        <option value="">Not set</option>
-                        {Object.entries(COUNTRIES).map(([code, name]) => (
+                        <option value="">{t('settings.not_set')}</option>
+                        {COUNTRIES.map(({ code, tKey }) => (
                             <option key={code} value={code}>
-                                {name}
+                                {t(tKey)}
                             </option>
                         ))}
                     </select>
                     <span className="mt-1 block text-[11.5px] text-text-secondary">
-                        Which ISBN agency and legal deposit rules apply.
+                        {t('settings.country_hint')}
                     </span>
                     {error('country') && (
                         <span role="alert" className="mt-1 block text-[11.5px] font-medium text-status-danger">
@@ -311,23 +314,23 @@ function PublicationForm({ book, copyrightPreview }) {
                 </label>
                 <Field
                     id="edition_statement"
-                    label="Edition"
+                    label={t('settings.edition')}
                     value={data.publication.edition_statement}
                     error={error('edition_statement')}
-                    placeholder="e.g. Première édition, 2026"
+                    placeholder={t('settings.edition_placeholder')}
                     onChange={(v) => set('edition_statement', v)}
                 />
                 <Field
                     id="series_name"
-                    label="Series"
+                    label={t('shelf.col_series')}
                     value={data.series_name}
                     error={errors.series_name}
-                    hint="Your books with the same series name are listed on the series page."
+                    hint={t('settings.series_hint')}
                     onChange={(v) => setData('series_name', v)}
                 />
                 <Field
                     id="series_number"
-                    label="Number in series"
+                    label={t('settings.series_number')}
                     type="number"
                     min="1"
                     value={data.series_number}
@@ -336,29 +339,29 @@ function PublicationForm({ book, copyrightPreview }) {
                 />
                 <Field
                     id="copyright_holder"
-                    label="Copyright holder"
+                    label={t('settings.copyright_holder')}
                     value={data.publication.copyright_holder}
                     error={error('copyright_holder')}
                     placeholder={defaultHolder}
                     hint={
                         defaultHolder
-                            ? `Leave empty to use ${defaultHolder}.`
-                            : 'Set an author name or a publisher, or name the holder here.'
+                            ? t('settings.holder_default', { name: defaultHolder })
+                            : t('settings.holder_none')
                     }
                     onChange={(v) => set('copyright_holder', v)}
                 />
                 <Field
                     id="copyright_year"
-                    label="Copyright year"
+                    label={t('settings.copyright_year')}
                     type="number"
                     value={data.publication.copyright_year}
                     error={error('copyright_year')}
-                    placeholder="e.g. 2026"
+                    placeholder={t('settings.year_placeholder')}
                     onChange={(v) => set('copyright_year', v)}
                 />
                 <Field
                     id="isbn_print"
-                    label="ISBN — print"
+                    label={t('settings.isbn_print')}
                     value={data.publication.isbn_print}
                     error={error('isbn_print')}
                     placeholder="978-…"
@@ -367,7 +370,7 @@ function PublicationForm({ book, copyrightPreview }) {
                 />
                 <Field
                     id="isbn_epub"
-                    label="ISBN — EPUB"
+                    label={t('settings.isbn_epub')}
                     value={data.publication.isbn_epub}
                     error={error('isbn_epub')}
                     placeholder="978-…"
@@ -376,7 +379,7 @@ function PublicationForm({ book, copyrightPreview }) {
                 />
                 <Field
                     id="isbn_pdf"
-                    label="ISBN — PDF"
+                    label={t('settings.isbn_pdf')}
                     value={data.publication.isbn_pdf}
                     error={error('isbn_pdf')}
                     placeholder="978-…"
@@ -385,32 +388,32 @@ function PublicationForm({ book, copyrightPreview }) {
                 />
                 <Field
                     id="printing"
-                    label="Printing line"
+                    label={t('settings.printing')}
                     value={data.publication.printing}
                     error={error('printing')}
-                    placeholder="e.g. Achevé d’imprimer en Haïti"
+                    placeholder={t('settings.printing_placeholder')}
                     onChange={(v) => set('printing', v)}
                 />
                 <Field
                     id="legal_deposit"
-                    label="Legal deposit"
+                    label={t('settings.legal_deposit')}
                     value={data.publication.legal_deposit}
                     error={error('legal_deposit')}
                     className="sm:col-span-2"
-                    placeholder="e.g. Dépôt légal : …, Bibliothèque nationale d’Haïti"
+                    placeholder={t('settings.legal_deposit_placeholder')}
                     onChange={(v) => set('legal_deposit', v)}
                 />
                 <TextArea
                     id="rights_statement"
-                    label="Rights statement"
+                    label={t('settings.rights')}
                     value={data.publication.rights_statement}
                     error={error('rights_statement')}
-                    hint="Leave empty for “All rights reserved.” in the book’s language, or enter a licence."
+                    hint={t('settings.rights_hint')}
                     onChange={(v) => set('rights_statement', v)}
                 />
                 <TextArea
                     id="disclaimer"
-                    label="Notice or disclaimer"
+                    label={t('settings.disclaimer')}
                     value={data.publication.disclaimer}
                     error={error('disclaimer')}
                     onChange={(v) => set('disclaimer', v)}
@@ -418,33 +421,32 @@ function PublicationForm({ book, copyrightPreview }) {
             </div>
 
             <fieldset className="mt-5">
-                <legend className="text-[12.5px] font-semibold text-text-primary">Credits</legend>
+                <legend className="text-[12.5px] font-semibold text-text-primary">{t('settings.credits')}</legend>
                 <p className="text-[11.5px] text-text-secondary">
-                    e.g. Cover design, Editing, Illustrations — one line each on the copyright
-                    page.
+                    {t('settings.credits_hint')}
                 </p>
                 <ul className="mt-2 space-y-2">
                     {data.publication.credits.map((credit, index) => (
                         <li key={index} className="flex gap-2">
                             <input
                                 value={credit.role}
-                                aria-label={`Credit ${index + 1}: role`}
-                                placeholder="Role"
+                                aria-label={t('settings.credit_role_label', { n: index + 1 })}
+                                placeholder={t('settings.role')}
                                 data-a={`settings:credit:${index}:role`}
                                 onChange={(event) => setCredit(index, 'role', event.target.value)}
                                 className="h-[36px] w-2/5 rounded-control border border-border-input px-3 text-[13px] focus:border-brand-primary focus:ring-0"
                             />
                             <input
                                 value={credit.name}
-                                aria-label={`Credit ${index + 1}: name`}
-                                placeholder="Name"
+                                aria-label={t('settings.credit_name_label', { n: index + 1 })}
+                                placeholder={t('settings.name')}
                                 data-a={`settings:credit:${index}:name`}
                                 onChange={(event) => setCredit(index, 'name', event.target.value)}
                                 className="h-[36px] flex-1 rounded-control border border-border-input px-3 text-[13px] focus:border-brand-primary focus:ring-0"
                             />
                             <button
                                 type="button"
-                                aria-label={`Remove credit ${index + 1}`}
+                                aria-label={t('settings.remove_credit', { n: index + 1 })}
                                 onClick={() =>
                                     set(
                                         'credits',
@@ -466,7 +468,7 @@ function PublicationForm({ book, copyrightPreview }) {
                     }
                     className="mt-2 text-[12.5px] font-medium text-brand-primary hover:underline"
                 >
-                    Add a credit
+                    {t('settings.add_credit')}
                 </button>
             </fieldset>
 
@@ -475,7 +477,7 @@ function PublicationForm({ book, copyrightPreview }) {
                 data-a="settings:copyright-preview"
             >
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
-                    Copyright page, as saved
+                    {t('settings.copyright_preview')}
                 </p>
                 {copyrightPreview?.length ? (
                     <div className="mt-1.5 space-y-1 font-serif text-[12.5px] text-text-body">
@@ -485,22 +487,21 @@ function PublicationForm({ book, copyrightPreview }) {
                     </div>
                 ) : (
                     <p className="mt-1 text-[12.5px] text-text-secondary">
-                        Nothing to print yet: add an author name, a publisher or a copyright
-                        holder.
+                        {t('settings.copyright_empty')}
                     </p>
                 )}
             </div>
 
             <div className="mt-5 flex items-center justify-end gap-3">
                 {saved && (
-                    <span className="text-[12.5px] font-medium text-status-success">Saved</span>
+                    <span className="text-[12.5px] font-medium text-status-success">{t('editor.save_saved')}</span>
                 )}
                 <button
                     disabled={processing}
                     data-a="settings:publication:save"
                     className="h-[38px] rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(79,70,229,0.7)] transition hover:bg-brand-primary-hover disabled:opacity-60"
                 >
-                    {processing ? 'Saving…' : 'Save publishing details'}
+                    {processing ? t('editor.save_saving') : t('settings.save_publishing')}
                 </button>
             </div>
         </form>
@@ -544,6 +545,7 @@ function TextArea({ id, label, value, error, hint, onChange }) {
  * needs confirming reads as broken, and these are preferences, not a form.
  */
 function WritingPreferences({ book, citationStyles }) {
+    const { t } = useI18n();
     const [settings, setSettings] = useState(book.settings);
     const [busy, setBusy] = useState(null);
 
@@ -588,8 +590,8 @@ function WritingPreferences({ book, citationStyles }) {
     const rows = [
         {
             key: 'autosave',
-            title: 'Autosave',
-            detail: 'Save changes as you type. Turn off to save manually with Ctrl/Cmd+S.',
+            title: t('settings.autosave'),
+            detail: t('settings.autosave_detail'),
         },
         // Inline AI suggestions and Review on save were listed here, saved,
         // and read by nothing. They return when the editor does them.
@@ -597,7 +599,7 @@ function WritingPreferences({ book, citationStyles }) {
 
     return (
         <section className="mt-5 rounded-panel border border-border-default bg-bg-surface p-6">
-            <h2 className="text-[15px] font-semibold text-text-primary">Writing</h2>
+            <h2 className="text-[15px] font-semibold text-text-primary">{t('settings.writing')}</h2>
 
             <ul className="mt-2 divide-y divide-border-divider">
                 {rows.map((row) => (
@@ -638,17 +640,16 @@ function WritingPreferences({ book, citationStyles }) {
                 <li className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
                     <div className="min-w-0">
                         <p className="text-[13.5px] font-medium text-text-primary">
-                            Citation style
+                            {t('settings.citation_style')}
                         </p>
                         <p className="mt-0.5 text-[12.5px] leading-relaxed text-text-secondary">
-                            Used for the bibliography and in-text citations. Your
-                            university or publisher usually decides this.
+                            {t('settings.citation_detail')}
                         </p>
                     </div>
 
                     <select
                         value={settings.citation_style}
-                        aria-label="Citation style"
+                        aria-label={t('settings.citation_style')}
                         data-a="settings:citation-style"
                         disabled={busy === 'citation_style'}
                         onChange={(event) => chooseStyle(event.target.value)}
@@ -667,6 +668,7 @@ function WritingPreferences({ book, citationStyles }) {
 }
 
 function ArchiveBox({ book, canArchive }) {
+    const { t } = useI18n();
     const [confirming, setConfirming] = useState(false);
     const archived = book.status === 'archived';
 
@@ -676,12 +678,12 @@ function ArchiveBox({ book, canArchive }) {
     return (
         <section className="mt-5 rounded-panel border border-status-danger/25 bg-status-danger-bg/40 p-6">
             <h2 className="text-[15px] font-semibold text-text-primary">
-                {archived ? 'Restore this book' : 'Archive this book'}
+                {archived ? t('settings.restore_title') : t('settings.archive_title')}
             </h2>
             <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">
                 {archived
-                    ? 'This book is archived and hidden from your active shelf. Nothing has been deleted.'
-                    : 'Archived books leave your active shelf. Nothing is deleted, and you can restore it from My Books at any time.'}
+                    ? t('settings.archived_detail')
+                    : t('settings.archive_detail')}
             </p>
 
             {archived ? (
@@ -690,32 +692,31 @@ function ArchiveBox({ book, canArchive }) {
                     onClick={() => setStatus('draft')}
                     className="mt-4 h-[36px] rounded-control bg-bg-inverse px-4 text-[13px] font-semibold text-text-inverse transition hover:opacity-90"
                 >
-                    Restore to drafts
+                    {t('settings.restore_drafts')}
                 </button>
             ) : !canArchive ? (
                 <p className="mt-4 flex items-center gap-2 text-[12.5px] text-text-secondary">
                     <Icon name="info" size={15} />
-                    This is your only active book. Create another before
-                    archiving it.
+                    {t('settings.only_book')}
                 </p>
             ) : confirming ? (
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     <span className="text-[13px] font-medium text-status-danger">
-                        Archive “{book.title}”?
+                        {t('settings.archive_confirm', { title: book.title })}
                     </span>
                     <button
                         data-a="settings:archive:cancel"
                         onClick={() => setConfirming(false)}
                         className="h-[34px] rounded-control border border-border-input bg-bg-surface px-3.5 text-[13px] font-medium text-text-body"
                     >
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                     <button
                         data-a="settings:archive:confirm"
                         onClick={() => setStatus('archived')}
                         className="h-[34px] rounded-control bg-status-danger-fill px-3.5 text-[13px] font-semibold text-white transition hover:opacity-90"
                     >
-                        Archive book
+                        {t('settings.archive_book')}
                     </button>
                 </div>
             ) : (
@@ -724,7 +725,7 @@ function ArchiveBox({ book, canArchive }) {
                     onClick={() => setConfirming(true)}
                     className="mt-4 h-[36px] rounded-control border border-status-danger/40 bg-bg-surface px-4 text-[13px] font-semibold text-status-danger transition hover:bg-status-danger-bg"
                 >
-                    Archive this book
+                    {t('settings.archive_title')}
                 </button>
             )}
         </section>
@@ -732,19 +733,19 @@ function ArchiveBox({ book, canArchive }) {
 }
 
 /** Countries of publication offered; the server takes any ISO 3166 code. */
-const COUNTRIES = {
-    HT: 'Haiti',
-    US: 'United States',
-    CA: 'Canada',
-    FR: 'France',
-    BE: 'Belgium',
-    CH: 'Switzerland',
-    GB: 'United Kingdom',
-    DO: 'Dominican Republic',
-    ES: 'Spain',
-    DE: 'Germany',
-    PT: 'Portugal',
-};
+const COUNTRIES = [
+    { code: 'HT', tKey: 'settings.country_ht' },
+    { code: 'US', tKey: 'settings.country_us' },
+    { code: 'CA', tKey: 'settings.country_ca' },
+    { code: 'FR', tKey: 'settings.country_fr' },
+    { code: 'BE', tKey: 'settings.country_be' },
+    { code: 'CH', tKey: 'settings.country_ch' },
+    { code: 'GB', tKey: 'settings.country_gb' },
+    { code: 'DO', tKey: 'settings.country_do' },
+    { code: 'ES', tKey: 'settings.country_es' },
+    { code: 'DE', tKey: 'settings.country_de' },
+    { code: 'PT', tKey: 'settings.country_pt' },
+];
 
 function Field({ id, label, type = 'text', value, error, hint, className = '', onChange, ...rest }) {
     return (

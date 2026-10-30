@@ -5,8 +5,10 @@ import TextInput from '@/Components/TextInput';
 import { Transition } from '@headlessui/react';
 import { useForm } from '@inertiajs/react';
 import { useRef } from 'react';
+import { useI18n } from '@/i18n';
 
 export default function UpdatePasswordForm({ className = '' }) {
+    const { t } = useI18n();
     const passwordInput = useRef();
     const currentPasswordInput = useRef();
 
@@ -52,7 +54,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                 <div>
                     <InputLabel
                         htmlFor="current_password"
-                        value="Current Password"
+                        value={t('profile.current_password')}
                     />
 
                     <TextInput
@@ -74,7 +76,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="password" value="New Password" />
+                    <InputLabel htmlFor="password" value={t('profile.new_password')} />
 
                     <TextInput
                         id="password"
@@ -92,7 +94,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                 <div>
                     <InputLabel
                         htmlFor="password_confirmation"
-                        value="Confirm Password"
+                        value={t('profile.confirm_password')}
                     />
 
                     <TextInput
@@ -113,7 +115,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                    <PrimaryButton disabled={processing}>{t('profile.save')}</PrimaryButton>
 
                     <Transition
                         show={recentlySuccessful}
@@ -123,7 +125,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         leaveTo="opacity-0"
                     >
                         <p className="text-[12.5px] text-status-success">
-                            Saved.
+                            {t('profile.saved')}
                         </p>
                     </Transition>
                 </div>

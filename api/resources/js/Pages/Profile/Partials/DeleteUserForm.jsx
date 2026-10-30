@@ -6,8 +6,10 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import { useForm } from '@inertiajs/react';
 import { useRef, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 export default function DeleteUserForm({ className = '' }) {
+    const { t } = useI18n();
     const [confirmingUserDeletion, setConfirmingUserDeletion] = useState(false);
     const passwordInput = useRef();
 
@@ -50,26 +52,23 @@ export default function DeleteUserForm({ className = '' }) {
         // of the manuscripts rather than "resources and data".
         <section className={className}>
             <DangerButton onClick={confirmUserDeletion} data-a="profile:delete">
-                Delete my account
+                {t('profile.delete_my_account')}
             </DangerButton>
 
-            <Modal show={confirmingUserDeletion} onClose={closeModal} label="Delete your account">
+            <Modal show={confirmingUserDeletion} onClose={closeModal} label={t('profile.delete_modal_label')}>
                 <form onSubmit={deleteUser} className="p-6">
                     <h2 className="text-lg font-medium text-text-primary">
-                        Are you sure you want to delete your account?
+                        {t('profile.delete_confirm_title')}
                     </h2>
 
                     <p className="mt-1 text-sm text-text-secondary">
-                        Once your account is deleted, all of its resources and
-                        data will be permanently deleted. Please enter your
-                        password to confirm you would like to permanently delete
-                        your account.
+                        {t('profile.delete_confirm_body')}
                     </p>
 
                     <div className="mt-6">
                         <InputLabel
                             htmlFor="password"
-                            value="Password"
+                            value={t('signin.password')}
                             className="sr-only"
                         />
 
@@ -84,7 +83,7 @@ export default function DeleteUserForm({ className = '' }) {
                             }
                             className="mt-1 block w-3/4"
                             isFocused
-                            placeholder="Password"
+                            placeholder={t('signin.password')}
                         />
 
                         <InputError
@@ -95,11 +94,11 @@ export default function DeleteUserForm({ className = '' }) {
 
                     <div className="mt-6 flex justify-end">
                         <SecondaryButton onClick={closeModal}>
-                            Cancel
+                            {t('common.cancel')}
                         </SecondaryButton>
 
                         <DangerButton className="ms-3" disabled={processing}>
-                            Delete Account
+                            {t('profile.delete_account_button')}
                         </DangerButton>
                     </div>
                 </form>

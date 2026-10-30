@@ -2,6 +2,7 @@ import Icon from '@/Components/Studio/Icon';
 import { goTo } from '@/Components/Studio/navigation';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * The Guided Journey: the third interface.
@@ -21,6 +22,7 @@ import { useEffect, useState } from 'react';
  */
 export default function Guided({ book, journey: initial }) {
     const { auth } = usePage().props;
+    const { t, formatNumber } = useI18n();
 
     const [journey, setJourney] = useState(initial);
 
@@ -54,7 +56,7 @@ export default function Guided({ book, journey: initial }) {
             setJourney(data);
             return data;
         } catch (error) {
-            say(error.response?.data?.message ?? 'That did not work.');
+            say(error.response?.data?.message ?? t('guided.failed'));
             return null;
         } finally {
             setBusy(null);
@@ -88,7 +90,7 @@ export default function Guided({ book, journey: initial }) {
 
     return (
         <div className="min-h-screen bg-bg-app font-ui text-text-body">
-            <Head title={`${book.title} — Journey`} />
+            <Head title={t('guided.head', { title: book.title })} />
 
             <header className="border-b border-border-divider bg-bg-surface">
                 <div className="mx-auto flex h-[58px] max-w-[880px] items-center gap-3 px-6">
@@ -112,7 +114,7 @@ export default function Guided({ book, journey: initial }) {
                         onClick={() => router.get(route('books.edit', book.id))}
                         className="shrink-0 text-[12.5px] font-semibold text-brand-primary hover:underline"
                     >
-                        Open the studio
+                        {t('guided.open_studio')}
                     </button>
                 </div>
             </header>
@@ -128,7 +130,7 @@ export default function Guided({ book, journey: initial }) {
                 {next ? (
                     <section className="rounded-panel border border-brand-primary/25 bg-brand-primary/[0.04] p-6">
                         <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-brand-primary">
-                            Next
+                            {t('guided.next')}
                         </p>
                         <h1 className="mt-2 font-display text-[26px] font-extrabold leading-tight tracking-[-0.025em] text-text-primary">
                             {next.label}
@@ -151,12 +153,12 @@ export default function Guided({ book, journey: initial }) {
                                         );
 
                                         if (data) {
-                                            say(`Named ${data.renamed} chapters. Change any of them.`);
+                                            say(t('guided.named', { n: data.renamed }));
                                         }
                                     }}
                                     className="h-[42px] rounded-control bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                                 >
-                                    {busy === 'outline' ? 'Naming…' : 'Name the chapters'}
+                                    {busy === 'outline' ? t('guided.naming') : t('guided.name_chapters')}
                                 </button>
                             ) : next.stage === 'create' ? (
                                 <button
@@ -164,7 +166,7 @@ export default function Guided({ book, journey: initial }) {
                                     onClick={() => router.get(route('books.edit', book.id))}
                                     className="h-[42px] rounded-control bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
                                 >
-                                    Open the manuscript
+                                    {t('guided.open_manuscript')}
                                 </button>
                             ) : (
                                 <button
@@ -172,7 +174,7 @@ export default function Guided({ book, journey: initial }) {
                                     onClick={() => openStage(next.stage)}
                                     className="h-[42px] rounded-control bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover"
                                 >
-                                    Go there
+                                    {t('guided.go_there')}
                                 </button>
                             )}
                         </div>
@@ -180,11 +182,10 @@ export default function Guided({ book, journey: initial }) {
                 ) : (
                     <section className="rounded-panel border border-border-default bg-bg-surface p-6">
                         <h1 className="font-display text-[24px] font-extrabold tracking-[-0.025em] text-text-primary">
-                            Nothing is waiting on you
+                            {t('guided.nothing_waiting')}
                         </h1>
                         <p className="mt-1.5 text-[14px] text-text-secondary">
-                            Every stage has work behind it. Keep writing, or open the studio
-                            for the parts this screen does not cover.
+                            {t('guided.nothing_waiting_detail')}
                         </p>
                     </section>
                 )}
@@ -199,11 +200,10 @@ export default function Guided({ book, journey: initial }) {
                 {journey.coaching.length > 0 && (
                     <section className="mt-6 rounded-panel border border-border-default bg-bg-surface p-5">
                         <h2 className="text-[15px] font-semibold text-text-primary">
-                            What I notice
+                            {t('guided.notice')}
                         </h2>
                         <p className="mt-0.5 text-[11.5px] text-text-secondary">
-                            From the manuscript as it stands. Nothing here reads your prose —
-                            the editorial agents do that, when you ask them to.
+                            {t('guided.notice_detail')}
                         </p>
 
                         <ul className="mt-3.5 divide-y divide-border-divider">
@@ -227,27 +227,26 @@ export default function Guided({ book, journey: initial }) {
 
                 {/* What exists, counted from the manuscript. */}
                 <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <Figure label="Words" value={progress.words.toLocaleString()} />
+                    <Figure label={t('shelf.col_words')} value={formatNumber(progress.words)} />
                     <Figure
-                        label="Chapters written"
-                        value={`${progress.written} of ${progress.chapters}`}
+                        label={t('guided.chapters_written')}
+                        value={t('guided.written_of', { written: progress.written, chapters: progress.chapters })}
                         sub={progress.chapters ? `${pct}%` : null}
                     />
                     <Figure
-                        label="Target"
-                        value={progress.target ? progress.target.toLocaleString() : '—'}
-                        sub={progress.target ? 'words' : 'not set'}
+                        label={t('guided.target')}
+                        value={progress.target ? formatNumber(progress.target) : '—'}
+                        sub={progress.target ? t('guided.words') : t('guided.not_set')}
                     />
                 </section>
 
                 {/* The six stages. Any of them, any time. */}
                 <section className="mt-9">
                     <h2 className="font-display text-[17px] font-bold tracking-[-0.015em] text-text-primary">
-                        The journey
+                        {t('guided.journey')}
                     </h2>
                     <p className="mt-1 text-[12.5px] text-text-secondary">
-                        Open any of these at any point. Nothing is locked, and going back to
-                        an earlier one costs you nothing.
+                        {t('guided.journey_detail')}
                     </p>
 
                     <ol className="mt-4 space-y-2">
@@ -285,7 +284,7 @@ export default function Guided({ book, journey: initial }) {
                                             </span>
                                             {stage.current && (
                                                 <span className="rounded-badge bg-brand-primary/10 px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.8px] text-brand-primary">
-                                                    Here
+                                                    {t('guided.here')}
                                                 </span>
                                             )}
                                         </span>
@@ -311,16 +310,15 @@ export default function Guided({ book, journey: initial }) {
                         onClick={() => router.get(route('books.edit', book.id))}
                         className="text-[12.5px] font-semibold text-brand-primary hover:underline"
                     >
-                        Open the full studio
+                        {t('quickstart.full_studio')}
                     </button>
                     <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
-                        Research, editorial agents, design and publishing. Same book — this
-                        screen is a narrower view of it, not a different copy.
+                        {t('guided.full_studio_detail')}
                     </p>
 
                     {auth?.user && (
                         <p className="mt-5 text-[11px] text-text-secondary">
-                            Signed in as {auth.user.email}
+                            {t('quickstart.signed_in_as', { email: auth.user.email })}
                         </p>
                     )}
                 </div>
@@ -360,6 +358,7 @@ function Figure({ label, value, sub }) {
  * are plainly optional.
  */
 function Idea({ book, journey, send, busy, say }) {
+    const { t } = useI18n();
     const [idea, setIdea] = useState(journey.idea);
     const [dirty, setDirty] = useState(false);
 
@@ -371,11 +370,10 @@ function Idea({ book, journey, send, busy, say }) {
     return (
         <section id="the-idea" className="mt-9">
             <h2 className="font-display text-[17px] font-bold tracking-[-0.015em] text-text-primary">
-                What the book is
+                {t('guided.idea')}
             </h2>
             <p className="mt-1 text-[12.5px] text-text-secondary">
-                The first one is what the chapter naming reads. The other two are worth
-                answering eventually and can wait.
+                {t('guided.idea_detail')}
             </p>
 
             {/*
@@ -390,21 +388,21 @@ function Idea({ book, journey, send, busy, say }) {
                 <Field
                     name="premise"
                     label={journey.questions.premise}
-                    hint="A sentence is enough."
+                    hint={t('guided.sentence_enough')}
                     value={idea.premise ?? ''}
                     onChange={set('premise')}
                 />
                 <Field
                     name="audience"
                     label={journey.questions.audience}
-                    hint="Optional."
+                    hint={t('guided.optional')}
                     value={idea.audience ?? ''}
                     onChange={set('audience')}
                 />
                 <Field
                     name="promise"
                     label={journey.questions.promise}
-                    hint="Optional."
+                    hint={t('guided.optional')}
                     value={idea.promise ?? ''}
                     onChange={set('promise')}
                 />
@@ -419,12 +417,12 @@ function Idea({ book, journey, send, busy, say }) {
                     if (data) {
                         setIdea(data.idea);
                         setDirty(false);
-                        say('Saved.');
+                        say(t('profile.saved'));
                     }
                 }}
                 className="mt-4 h-[40px] rounded-control bg-brand-fill px-5 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
             >
-                {busy === 'idea' ? 'Saving…' : 'Save'}
+                {busy === 'idea' ? t('editor.save_saving') : t('profile.save')}
             </button>
         </section>
     );
@@ -454,13 +452,15 @@ function Field({ name, label, hint, value, onChange }) {
  * chapter one is often not the answer in chapter nine.
  */
 function Assistance({ book, journey, send, busy }) {
+    const { t } = useI18n();
+
     return (
         <section className="mt-9">
             <h2 className="font-display text-[17px] font-bold tracking-[-0.015em] text-text-primary">
-                How much help
+                {t('guided.help')}
             </h2>
             <p className="mt-1 text-[12.5px] text-text-secondary">
-                Change this whenever. It never touches what you have written.
+                {t('guided.help_detail')}
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
@@ -508,6 +508,7 @@ function Assistance({ book, journey, send, busy }) {
  * list in a notes app, and clutter for everybody else.
  */
 function ImportOutline({ book, send, busy, say }) {
+    const { t } = useI18n();
     const [open, setOpen] = useState(false);
     const [text, setText] = useState('');
 
@@ -519,11 +520,10 @@ function ImportOutline({ book, send, busy, say }) {
                     onClick={() => setOpen(true)}
                     className="text-[12.5px] font-semibold text-brand-primary hover:underline"
                 >
-                    I already have an outline
+                    {t('guided.have_outline')}
                 </button>
                 <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
-                    Paste a list of chapter titles and it becomes the binder. Indented lines
-                    become chapters under a part.
+                    {t('guided.have_outline_detail')}
                 </p>
             </section>
         );
@@ -532,12 +532,10 @@ function ImportOutline({ book, send, busy, say }) {
     return (
         <section className="mt-9">
             <h2 className="font-display text-[17px] font-bold tracking-[-0.015em] text-text-primary">
-                Paste your outline
+                {t('guided.paste_outline')}
             </h2>
             <p className="mt-1 text-[12.5px] leading-relaxed text-text-secondary">
-                One title per line. Numbering is stripped — the binder keeps the order.
-                Indent a line to put it under the one above. Chapters you have already
-                written words into are left alone.
+                {t('guided.paste_outline_detail')}
             </p>
 
             <textarea
@@ -545,7 +543,7 @@ function ImportOutline({ book, send, busy, say }) {
                 rows={8}
                 value={text}
                 autoFocus
-                placeholder={'Why it matters\nThe groundwork\nWhat goes wrong'}
+                placeholder={t('guided.outline_placeholder')}
                 onChange={(event) => setText(event.target.value)}
                 className="mt-3 w-full resize-y rounded-control border border-border-input px-3.5 py-2.5 font-mono text-[13px] leading-relaxed placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
             />
@@ -565,12 +563,12 @@ function ImportOutline({ book, send, busy, say }) {
                         if (data) {
                             setText('');
                             setOpen(false);
-                            say(`${data.created} sections created.`);
+                            say(t('guided.sections_created', { n: data.created }));
                         }
                     }}
                     className="h-[40px] rounded-control bg-brand-fill px-5 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
-                    {busy === 'import' ? 'Importing…' : 'Import'}
+                    {busy === 'import' ? t('guided.importing') : t('guided.import')}
                 </button>
 
                 <button
@@ -578,7 +576,7 @@ function ImportOutline({ book, send, busy, say }) {
                     onClick={() => setOpen(false)}
                     className="h-[40px] rounded-control border border-border-default px-4 text-[13.5px] font-semibold text-text-secondary transition hover:border-border-input"
                 >
-                    Cancel
+                    {t('common.cancel')}
                 </button>
             </div>
         </section>

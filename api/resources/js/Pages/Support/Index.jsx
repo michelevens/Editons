@@ -3,6 +3,7 @@ import MobileNav from '@/Components/Studio/MobileNav';
 import { lastClientError } from '@/errorReporter';
 import StatusLabel from '@/Components/Support/StatusLabel';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { useI18n } from '@/i18n';
 
 /**
  * Help: write to Écrivain support, and the requests already sent.
@@ -13,6 +14,7 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
  */
 export default function SupportIndex({ tickets, books, book_id: bookId }) {
     const { auth } = usePage().props;
+    const { t } = useI18n();
     const lastError = lastClientError();
     const from = typeof document !== 'undefined' && document.referrer ? safePath(document.referrer) : null;
 
@@ -34,18 +36,18 @@ export default function SupportIndex({ tickets, books, book_id: bookId }) {
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title="Help" />
+            <Head title={t('menu.support')} />
             <AppHeader active="books" user={auth?.user} account={auth?.account} />
 
             <main id="main" className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto max-w-[760px] px-4 py-7 sm:px-8 sm:py-9">
-                    <h1 className="font-display text-[28px] font-extrabold tracking-[-0.03em] text-text-primary">Help</h1>
-                    <p className="mt-1 text-[13px] text-text-secondary">Write to Ecrivain support. The answer arrives here, in your inbox and by email.</p>
+                    <h1 className="font-display text-[28px] font-extrabold tracking-[-0.03em] text-text-primary">{t('menu.support')}</h1>
+                    <p className="mt-1 text-[13px] text-text-secondary">{t('support.intro')}</p>
 
                     <form onSubmit={submit} className="mt-5 space-y-3 rounded-panel border border-border-default bg-bg-surface p-4 sm:p-5" data-a="support:form">
                         <div>
                             <label htmlFor="support-subject" className="text-[13px] font-medium text-text-primary">
-                                What is it about?
+                                {t('support.subject_label')}
                             </label>
                             <input
                                 id="support-subject"
@@ -62,7 +64,7 @@ export default function SupportIndex({ tickets, books, book_id: bookId }) {
 
                         <div>
                             <label htmlFor="support-body" className="text-[13px] font-medium text-text-primary">
-                                What happened, and what did you expect?
+                                {t('support.body_label')}
                             </label>
                             <textarea
                                 id="support-body"
@@ -81,7 +83,7 @@ export default function SupportIndex({ tickets, books, book_id: bookId }) {
                         {books.length > 0 && (
                             <div>
                                 <label htmlFor="support-book" className="text-[13px] font-medium text-text-primary">
-                                    Which book? (optional)
+                                    {t('support.book_label')}
                                 </label>
                                 <select
                                     id="support-book"
@@ -90,7 +92,7 @@ export default function SupportIndex({ tickets, books, book_id: bookId }) {
                                     onChange={(event) => form.setData('book_id', event.target.value === '' ? '' : Number(event.target.value))}
                                     className="mt-1 w-full rounded-control border border-border-input bg-bg-surface px-3 py-2.5 text-[15px] text-text-primary"
                                 >
-                                    <option value="">Not about one book</option>
+                                    <option value="">{t('support.no_book')}</option>
                                     {books.map((book) => (
                                         <option key={book.id} value={book.id}>
                                             {book.title}
@@ -101,8 +103,10 @@ export default function SupportIndex({ tickets, books, book_id: bookId }) {
                         )}
 
                         <p className="text-[12px] text-text-muted">
-                            Sent with it: your plan, browser and screen size{from ? ', the page you came from' : ''}
-                            {lastError ? `, and the last error this browser saw (“${lastError.slice(0, 80)}”)` : ''}. Support reads your words, not your manuscript.
+                            {t('support.sent_with', {
+                                page: from ? t('support.sent_page') : '',
+                                error: lastError ? t('support.sent_error', { error: lastError.slice(0, 80) }) : '',
+                            })}
                         </p>
 
                         <button
@@ -111,19 +115,19 @@ export default function SupportIndex({ tickets, books, book_id: bookId }) {
                             disabled={form.processing}
                             className="tap inline-flex min-h-[44px] items-center justify-center rounded-button bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                         >
-                            Send to support
+                            {t('support.send')}
                         </button>
                     </form>
 
                     {tickets.length > 0 && (
                         <section className="mt-7">
-                            <h2 className="text-[15px] font-bold text-text-primary">Your requests</h2>
+                            <h2 className="text-[15px] font-bold text-text-primary">{t('support.your_requests')}</h2>
                             <ul className="mt-2 divide-y divide-border-divider rounded-panel border border-border-default bg-bg-surface" data-a="support:tickets">
-                                {tickets.map((t) => (
-                                    <li key={t.id}>
-                                        <Link href={route('support.show', t.id)} className="flex min-h-[52px] items-center gap-3 px-4 py-2 text-[14px] hover:bg-bg-subtle">
-                                            <span className="min-w-0 flex-1 truncate text-text-primary">{t.subject}</span>
-                                            <StatusLabel status={t.status} />
+                                {tickets.map((ticket) => (
+                                    <li key={ticket.id}>
+                                        <Link href={route('support.show', ticket.id)} className="flex min-h-[52px] items-center gap-3 px-4 py-2 text-[14px] hover:bg-bg-subtle">
+                                            <span className="min-w-0 flex-1 truncate text-text-primary">{ticket.subject}</span>
+                                            <StatusLabel status={ticket.status} />
                                         </Link>
                                     </li>
                                 ))}
