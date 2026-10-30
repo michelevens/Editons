@@ -7,8 +7,10 @@ use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\Comment;
 use App\Models\ManuscriptSection;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Comments on the manuscript.
@@ -91,18 +93,73 @@ class CommentController extends Controller
             'status' => ['required', 'in:'.implode(',', Comment::STATUSES)],
         ]);
 
-        $resolving = $data['status'] === 'resolved';
+        $this->setStatus($comment, $data['status'], $request->user());
+
+        return response()->json($this->payload($comment->section->book));
+    }
+
+    /**
+     * Resolve or reopen many threads at once — the filtered list's "Resolve
+     * all". Each thread gets exactly the check and the record a single
+     * resolve gets: whoever can change the book, or whoever raised that
+     * thread. Threads this person may not close are skipped and counted, not
+     * a reason to refuse the rest; an id from another book refuses the lot.
+     */
+    public function bulkStatus(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('view', $book);
+
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer'],
+            'status' => ['required', 'in:'.implode(',', Comment::STATUSES)],
+        ]);
+
+        $ids = array_values(array_unique($data['ids']));
+        $threads = Comment::whereIn('id', $ids)
+            ->whereIn('manuscript_section_id', $book->sections()->select('id'))
+            ->get();
+
+        abort_if($threads->count() !== count($ids), 422, 'Some of those comments are not on this book.');
+
+        $user = $request->user();
+        $canEdit = $user->can('update', $book);
+        $changed = 0;
+        $skipped = 0;
+
+        DB::transaction(function () use ($threads, $data, $user, $canEdit, &$changed, &$skipped) {
+            foreach ($threads as $thread) {
+                if ($thread->isReply() || ! ($canEdit || $thread->user_id === $user->id)) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                // Already there: leave who resolved it, and when, alone.
+                if ($thread->status === $data['status']) {
+                    continue;
+                }
+
+                $this->setStatus($thread, $data['status'], $user);
+                $changed++;
+            }
+        });
+
+        return response()->json($this->payload($book) + ['changed' => $changed, 'skipped' => $skipped]);
+    }
+
+    private function setStatus(Comment $comment, string $status, User $user): void
+    {
+        $resolving = $status === 'resolved';
 
         // forceFill rather than widening $fillable: who resolved a thread and
         // when is decided by the server, and a client should never be able to
         // claim either.
         $comment->forceFill([
-            'status' => $data['status'],
-            'resolved_by' => $resolving ? $request->user()->id : null,
+            'status' => $status,
+            'resolved_by' => $resolving ? $user->id : null,
             'resolved_at' => $resolving ? now() : null,
         ])->save();
-
-        return response()->json($this->payload($comment->section->book));
     }
 
     public function destroy(Request $request, Comment $comment): JsonResponse
@@ -135,9 +192,18 @@ class CommentController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
+        // For the filters: whether a thread @mentions the viewer (in it or
+        // any reply), and whether the viewer may resolve it — the same rule
+        // resolve() enforces, so the bulk button never offers what the
+        // server will refuse.
+        $me = auth()->user();
+        $roster = $me ? Notify::mentionable($book) : collect();
+        $canEdit = $me?->can('update', $book) ?? false;
+        $mentionsMe = fn (Comment $c) => $me !== null && collect(Notify::mentionedIn($c->body, $roster))->contains('id', $me->id);
+
         return [
             'threads' => $threads
-                ->map(function (Comment $thread) use ($sections) {
+                ->map(function (Comment $thread) use ($sections, $mentionsMe, $canEdit, $me) {
                     $section = $sections[$thread->manuscript_section_id];
 
                     return [
@@ -145,9 +211,12 @@ class CommentController extends Controller
                         'section_id' => $section->id,
                         'section_title' => $section->title,
                         'author_name' => $thread->author_name,
+                        'user_id' => $thread->user_id,
                         'body' => $thread->body,
                         'excerpt' => $thread->excerpt,
                         'status' => $thread->status,
+                        'mentions_me' => $mentionsMe($thread) || $thread->replies->contains($mentionsMe),
+                        'can_resolve' => $canEdit || ($me !== null && $thread->user_id === $me->id),
                         'created_at' => $thread->created_at->diffForHumans(),
                         // Computed, never stored: the manuscript moves after a
                         // comment is made, and a thread pointing at deleted

@@ -46,6 +46,7 @@ use App\Http\Controllers\PublishFlowController;
 use App\Http\Controllers\PublishingController;
 use App\Http\Controllers\ReferencesController;
 use App\Http\Controllers\ResearchController;
+use App\Http\Controllers\ResearchImportController;
 use App\Http\Controllers\RightsController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\SellerPartnersController;
@@ -265,6 +266,22 @@ Route::middleware('auth')->group(function () {
         ->name('research.verify');
     Route::delete('/sources/{source}', [ResearchController::class, 'destroy'])
         ->name('research.destroy');
+    Route::patch('/sources/{source}', [ResearchController::class, 'organise'])
+        ->name('research.organise');
+
+    // Import and export (BibTeX, RIS, a DOI via Crossref). Imports arrive
+    // unverified; see ResearchImportController.
+    Route::post('/books/{book}/sources/import/preview', [ResearchImportController::class, 'preview'])
+        ->middleware('throttle:30,1')
+        ->name('research.import.preview');
+    Route::post('/books/{book}/sources/import', [ResearchImportController::class, 'import'])
+        ->middleware('throttle:30,1')
+        ->name('research.import');
+    Route::post('/books/{book}/sources/doi', [ResearchImportController::class, 'lookup'])
+        ->middleware('throttle:30,1')
+        ->name('research.doi');
+    Route::get('/books/{book}/sources/export.bib', [ResearchImportController::class, 'export'])
+        ->name('research.export');
 
     Route::get('/sections/{section}/citations', [ResearchController::class, 'citations'])
         ->name('citations.index');
@@ -431,6 +448,8 @@ Route::middleware('auth')->group(function () {
         ->name('comments.store');
     Route::patch('/comments/{comment}', [CommentController::class, 'resolve'])
         ->name('comments.resolve');
+    Route::post('/books/{book}/comments/status', [CommentController::class, 'bulkStatus'])
+        ->name('comments.bulk-status');
     Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])
         ->name('comments.destroy');
 });

@@ -3983,6 +3983,95 @@ complete), `tests/Browser/i18n.spec.js` (French, Kreyòl and back to English
 on the shelf, editor and publish screens at 1440 and 390 px, no horizontal
 overflow, no console errors).
 
+## ADR-0054 — Research library organisation and import; comment filters
+
+**Status:** accepted (2026-10-30). Number assigned at merge.
+
+**Context.** Flexibility audit R3 and R4. The research library was a plain
+list (add, verify, delete); there was no search, no tags or folders, no
+sort, and no way in from a reference manager. Comments filtered only by
+open, resolved or all, with no way to narrow by person or chapter or to
+close a reviewed batch.
+
+**Decisions.**
+
+- *Organisation.* `research_sources` gains `tags` (jsonb list, at most 12,
+  40 characters each, de-duplicated case-insensitively), `collection` (one
+  shelf, 80 characters) and `origin` (null = typed in, `bibtex`, `ris`,
+  `crossref`). Migration `2026_11_09_130000_add_organisation_to_research_sources`.
+  Sources stay book-scoped, so tags and collections are too; there is no
+  tag table. `PATCH /sources/{source}` files a source (update permission)
+  and never touches the verification, which keeps its own endpoint.
+- *Search, filter, sort on the server.* `GET /books/{book}/sources` takes
+  `q` (title, authors, notes, URL, DOI, container; `ilike`, wildcards
+  escaped), `verification`, `kind`, `tag`, `collection`, `sort` (`title`
+  default, `author`, `year`, `added`, `standing`) and returns `facets`
+  (counts per standing, kind, tag, collection) for the whole library.
+  With no parameters the list is exactly what it was (everything, by
+  title); `facets` is an added key.
+- *Import is preview-then-import, from the file both times.* `POST
+  …/sources/import/preview` parses and flags duplicates; `POST
+  …/sources/import` takes the same file plus the ticked indices
+  (`only[]`) and an optional collection. The server re-parses rather than
+  trusting rows posted back, so `origin` is a fact, not a claim. Parsers
+  are hand-written (`App\Research\Import\BibTex`, `Ris`, `Latex`): only
+  strings out, no @include, no evaluation, at most 500 entries, files at
+  most 1 MB, NUL bytes refused, Windows-1252 converted. BibTeX handles
+  both delimiters, nested braces, `@string` and month macros, `#`
+  concatenation, `@comment`/`@preamble`, LaTeX accents (→ NFC), corporate
+  authors in braces, `and others`. RIS handles repeated and wrapped tags,
+  SP/EP ranges, and reads SN as an ISBN only on books.
+- *Everything imported is untrusted.* `Entry::clean()` decodes entities and
+  strips tags and control characters, cuts each field to its column, keeps
+  a URL only if it is http(s) and a DOI only if it looks like one. Imported
+  and looked-up sources are created **unverified**, whatever the file says
+  (an `x-editons-verification` field is exported but never read back).
+- *De-duplication.* Same normalised DOI, or same address (scheme, `www.`
+  and trailing slash ignored), or same folded title — unless both records
+  carry different DOIs. Applied against the library and within the file.
+- *DOI lookup.* `App\Research\Doi\DoiLookup` (bound to
+  `CrossrefDoiLookup` with `#[Bind]`, no provider edit). Crossref's public
+  works API, keyless, with a mailto User-Agent; only the DOI leaves the
+  server. `POST …/sources/doi` returns a filled form, unsaved; the author
+  reviews and adds it (`origin = crossref`). Tests bind
+  `Tests\Support\FakeDoiLookup` and call `Http::preventStrayRequests()`.
+- *Export.* `GET …/sources/export.bib`: UTF-8 BibTeX, TeX specials escaped,
+  institutions braced, tags as `keywords`; round-trips through the importer.
+- *Comment filters.* The comments payload adds `user_id`, `mentions_me`
+  (the thread or any reply @mentions the viewer, by the same matcher the
+  mention emails use: `Notify::mentionedIn`, split out of `mentioned()`)
+  and `can_resolve`. The panel filters by author, chapter and "mentions me"
+  on top of open/resolved, each with counts of what choosing it would show.
+- *Bulk resolve / reopen.* `POST /books/{book}/comments/status {ids,
+  status}`. Each thread gets the single-resolve check (can update the book,
+  or raised it) and the same record (`resolved_by`, `resolved_at`; cleared
+  on reopen); threads already in that state keep their record. Threads the
+  viewer may not close, and replies, are skipped and counted; an id from
+  another book refuses the whole request. The panel offers it only for the
+  threads it shows that the viewer may resolve, behind a confirmation.
+
+**Defaults unchanged.** An unfiltered library and the open-comments tab
+list what they did before; filter rows appear only when there is something
+to filter.
+
+**Not done.** Zotero/Mendeley live sync, CSL-JSON import, DataCite lookup,
+a tag rename/merge screen, and sorting on author surnames rather than the
+stored string.
+
+**Tests.** `tests/Feature/ResearchImportTest.php` (BibTeX and RIS
+fixtures with French and Kreyòl titles, LaTeX accents, braces, multiple and
+corporate authors; markup and script URLs dropped; length limits; dedupe
+rules; preview saves nothing; import unverified and de-duplicated across
+formats; tenant isolation, binary, oversize and empty files;
+Windows-1252; Crossref fake incl. outage; Crossref mapping; export
+round-trip and escaping), `tests/Feature/ResearchLibraryOrganiseTest.php`
+(unchanged default, search, filters, sorts, tags/collection cleaning,
+verification untouched, tenant isolation, reviewer read-only),
+`tests/Feature/CommentFiltersTest.php` (mentions in threads and replies,
+can_resolve, bulk resolve and reopen record who and when, reviewer limited
+to own threads, no re-stamping, other-book ids, replies, strangers),
+`tests/Browser/research.spec.js` (1440 and 390 px).
+
 ## ADR-0051 — Book language and typography
 
 **Status:** accepted (2026-10-30). Number assigned at merge.

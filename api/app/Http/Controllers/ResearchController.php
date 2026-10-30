@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\Citation;
 use App\Models\ManuscriptSection;
 use App\Models\ResearchSource;
+use App\Research\Import\Entry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,12 +21,86 @@ use Illuminate\Support\Facades\DB;
  */
 class ResearchController extends Controller
 {
-    /** Everything in a book's library. */
-    public function index(Book $book): JsonResponse
+    /** Sort key => the order it means. Title is the default, as before. */
+    public const SORTS = ['title', 'author', 'year', 'added', 'standing'];
+
+    /**
+     * A book's library: everything by default, or what a search, filter or
+     * sort asks for (q, verification, kind, tag, collection, sort), with the
+     * facets — counts per standing, kind, tag and collection — the filter
+     * bar needs. The facets always count the whole library, so a chip never
+     * says 0 just because another filter is on.
+     */
+    public function index(Request $request, Book $book): JsonResponse
     {
         $this->authorize('view', $book);
 
-        return response()->json(['sources' => $this->sourcesFor($book)]);
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:200'],
+            'verification' => ['nullable', 'in:'.implode(',', ResearchSource::VERIFICATIONS)],
+            'kind' => ['nullable', 'in:'.implode(',', ResearchSource::KINDS)],
+            'tag' => ['nullable', 'string', 'max:40'],
+            'collection' => ['nullable', 'string', 'max:80'],
+            'sort' => ['nullable', 'in:'.implode(',', self::SORTS)],
+        ]);
+
+        return response()->json([
+            'sources' => self::sourcesFor($book, $filters),
+            'facets' => self::facets($book),
+        ]);
+    }
+
+    /**
+     * Tags and collection: how the author files a source. Deliberately not
+     * the verification, which keeps its own recorded endpoint.
+     */
+    public function organise(Request $request, ResearchSource $source): JsonResponse
+    {
+        $this->authorize('update', $source->book);
+
+        $data = $request->validate([
+            'tags' => ['sometimes', 'array', 'max:'.ResearchSource::MAX_TAGS],
+            'tags.*' => ['nullable', 'string', 'max:40'],
+            'collection' => ['sometimes', 'nullable', 'string', 'max:80'],
+        ]);
+
+        if (array_key_exists('tags', $data)) {
+            $source->tags = self::cleanTags($data['tags']);
+        }
+
+        if (array_key_exists('collection', $data)) {
+            $collection = Entry::text((string) $data['collection']);
+            $source->collection = $collection === '' ? null : $collection;
+        }
+
+        $source->save();
+
+        return response()->json([
+            'sources' => self::sourcesFor($source->book),
+            'facets' => self::facets($source->book),
+        ]);
+    }
+
+    /**
+     * Plain text, no duplicates (case-insensitively), the first spelling kept.
+     *
+     * @param  array<int, mixed>  $tags
+     * @return list<string>
+     */
+    public static function cleanTags(array $tags): array
+    {
+        $out = [];
+
+        foreach ($tags as $tag) {
+            $tag = mb_substr(Entry::text((string) $tag), 0, 40);
+            $key = mb_strtolower($tag);
+
+            if ($tag !== '' && ! isset($out[$key])) {
+                $out[$key] = $tag;
+            }
+        }
+
+        return array_slice(array_values($out), 0, ResearchSource::MAX_TAGS);
     }
 
     public function store(Request $request, Book $book): JsonResponse
@@ -47,14 +122,28 @@ class ResearchController extends Controller
             'doi' => ['nullable', 'string', 'max:255'],
             'isbn' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'tags' => ['sometimes', 'array', 'max:'.ResearchSource::MAX_TAGS],
+            'tags.*' => ['nullable', 'string', 'max:40'],
+            'collection' => ['nullable', 'string', 'max:80'],
+            // Set when the form was filled from a DOI lookup. Provenance
+            // only — it never touches verification.
+            'origin' => ['nullable', 'in:crossref'],
         ]);
+
+        $origin = $data['origin'] ?? null;
+        unset($data['origin']);
+
+        if (isset($data['tags'])) {
+            $data['tags'] = self::cleanTags($data['tags']);
+        }
 
         // Ownership from the route model and the session, never from input.
         $source = $book->sources()->create($data);
         $source->added_by = $request->user()->id;
+        $source->origin = $origin;
         $source->save();
 
-        return response()->json(['sources' => $this->sourcesFor($book)], 201);
+        return response()->json(['sources' => self::sourcesFor($book)], 201);
     }
 
     /**
@@ -76,7 +165,7 @@ class ResearchController extends Controller
         $source->verified_at = now();
         $source->save();
 
-        return response()->json(['sources' => $this->sourcesFor($source->book)]);
+        return response()->json(['sources' => self::sourcesFor($source->book)]);
     }
 
     public function destroy(ResearchSource $source): JsonResponse
@@ -102,7 +191,7 @@ class ResearchController extends Controller
             $source->delete();
         });
 
-        return response()->json(['sources' => $this->sourcesFor($book->refresh())]);
+        return response()->json(['sources' => self::sourcesFor($book->refresh())]);
     }
 
     // --- Citations --------------------------------------------------------
@@ -158,12 +247,44 @@ class ResearchController extends Controller
         return response()->json(['citations' => $this->citationsFor($section)]);
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function sourcesFor(Book $book): array
+    /**
+     * @param  array<string, string|null>  $filters
+     * @return array<int, array<string, mixed>>
+     */
+    public static function sourcesFor(Book $book, array $filters = []): array
     {
-        return $book->sources()
-            ->withCount('citations')
-            ->orderBy('title')
+        $query = $book->sources()->withCount('citations');
+
+        if (($q = trim((string) ($filters['q'] ?? ''))) !== '') {
+            $like = '%'.addcslashes($q, '%_\\').'%';
+            $query->where(fn ($w) => $w
+                ->where('title', 'ilike', $like)
+                ->orWhere('authors', 'ilike', $like)
+                ->orWhere('notes', 'ilike', $like)
+                ->orWhere('url', 'ilike', $like)
+                ->orWhere('doi', 'ilike', $like)
+                ->orWhere('container', 'ilike', $like));
+        }
+
+        foreach (['verification', 'kind', 'collection'] as $column) {
+            if (! empty($filters[$column])) {
+                $query->where($column, $filters[$column]);
+            }
+        }
+
+        if (! empty($filters['tag'])) {
+            $query->whereJsonContains('tags', $filters['tag']);
+        }
+
+        match ($filters['sort'] ?? 'title') {
+            'author' => $query->orderByRaw('authors IS NULL, lower(authors)')->orderBy('title'),
+            'year' => $query->orderByRaw('published IS NULL, published DESC')->orderBy('title'),
+            'added' => $query->orderByDesc('created_at')->orderByDesc('id'),
+            'standing' => $query->orderByRaw("CASE verification WHEN 'unverified' THEN 0 WHEN 'disputed' THEN 1 ELSE 2 END")->orderBy('title'),
+            default => $query->orderBy('title'),
+        };
+
+        return $query
             ->get()
             ->map(fn (ResearchSource $s) => [
                 'id' => $s->id,
@@ -185,8 +306,28 @@ class ResearchController extends Controller
                 'verification' => $s->verification,
                 'usable_as_evidence' => $s->isUsableAsEvidence(),
                 'citations_count' => $s->citations_count,
+                'tags' => $s->tags ?? [],
+                'collection' => $s->collection,
+                'origin' => $s->origin,
             ])
             ->all();
+    }
+
+    /** @return array<string, mixed> counts over the whole library */
+    public static function facets(Book $book): array
+    {
+        $rows = $book->sources()->get(['verification', 'kind', 'tags', 'collection']);
+
+        $tags = $rows->flatMap(fn (ResearchSource $s) => $s->tags ?? [])->countBy();
+        $collections = $rows->pluck('collection')->filter()->countBy();
+
+        return [
+            'total' => $rows->count(),
+            'verification' => (object) $rows->countBy('verification')->all(),
+            'kind' => (object) $rows->countBy('kind')->all(),
+            'tags' => $tags->sortKeys()->map(fn ($n, $name) => ['name' => $name, 'count' => $n])->values()->all(),
+            'collections' => $collections->sortKeys()->map(fn ($n, $name) => ['name' => $name, 'count' => $n])->values()->all(),
+        ];
     }
 
     /** @return array<int, array<string, mixed>> */

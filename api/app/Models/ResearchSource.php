@@ -26,12 +26,17 @@ class ResearchSource extends Model
     protected $fillable = [
         'kind', 'title', 'authors', 'publisher', 'published',
         'container', 'volume', 'issue', 'pages', 'edition',
-        'url', 'doi', 'isbn', 'notes',
+        'url', 'doi', 'isbn', 'notes', 'tags', 'collection',
     ];
+
+    /** Where an entry came from; null is typed in by hand. Server-set only. */
+    public const ORIGINS = ['bibtex', 'ris', 'crossref'];
+
+    public const MAX_TAGS = 12;
 
     protected function casts(): array
     {
-        return ['verified_at' => 'datetime'];
+        return ['verified_at' => 'datetime', 'tags' => 'array'];
     }
 
     public function book(): BelongsTo

@@ -43,6 +43,7 @@ use App\Models\User;
 use App\Platform\House\House;
 use App\Platform\Ops\MailLogger;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -406,12 +407,38 @@ final class Notify
             return [];
         }
 
-        $people = collect([$book->user])
+        return self::mentionedIn($comment->body, self::mentionable($book));
+    }
+
+    /**
+     * The people a comment on this book can @mention: the owner and its
+     * active members.
+     *
+     * @return Collection<int, User>
+     */
+    public static function mentionable(Book $book): Collection
+    {
+        return collect([$book->user])
             ->merge(User::whereIn('id', $book->members()->where('status', 'active')->whereNotNull('user_id')->pluck('user_id'))->get())
             ->filter()
-            ->unique('id');
+            ->unique('id')
+            ->values();
+    }
 
-        $body = mb_strtolower($comment->body);
+    /**
+     * Which of $people a text @mentions. Split from mentioned() so a list of
+     * threads can be checked against one roster without a query per thread.
+     *
+     * @param  Collection<int, User>  $people
+     * @return list<User>
+     */
+    public static function mentionedIn(string $text, Collection $people): array
+    {
+        if (! str_contains($text, '@')) {
+            return [];
+        }
+
+        $body = mb_strtolower($text);
         $firstNames = $people->countBy(fn (User $u) => mb_strtolower(explode(' ', trim($u->name))[0]));
 
         return $people->filter(function (User $user) use ($body, $firstNames) {
