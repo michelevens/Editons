@@ -3117,5 +3117,12 @@
     "comments.bulk_resolve": "Résoudre les {count} affichés",
     "comments.bulk_reopen": "Rouvrir les {count} affichés",
     "comments.bulk_resolve_confirm": "Résoudre {count} fils de discussion ?",
-    "comments.bulk_reopen_confirm": "Rouvrir {count} fils de discussion ?"
+    "comments.bulk_reopen_confirm": "Rouvrir {count} fils de discussion ?",
+    "team.also_invite_to": "Les inviter aussi à",
+    "team.also_help": "Cochez vos autres livres si besoin. La personne n’aura accès qu’aux livres choisis, chacun avec le rôle ci-dessus.",
+    "team.select_all": "Tout sélectionner",
+    "team.select_none": "Tout désélectionner",
+    "team.books_selected": "Livres dans cette invitation : {count}",
+    "team.invited_to": "Invitation envoyée pour {count} :",
+    "team.skipped_book": "« {title} » ignoré : {reason}"
 }

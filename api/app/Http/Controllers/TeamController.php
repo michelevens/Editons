@@ -8,6 +8,7 @@ use App\Models\BookMember;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -26,6 +27,15 @@ class TeamController extends Controller
         return response()->json($this->payload($book));
     }
 
+    /**
+     * Invite someone to this book, and to any of the owner's other books
+     * chosen alongside it (`also`).
+     *
+     * Each book is its own membership with its own role, seat count and
+     * accept link: an invitation never reaches a book that was not chosen.
+     * A book that cannot take the invitation (already on it, no seat) is
+     * skipped and reported; only when none can is the request refused.
+     */
     public function invite(Request $request, Book $book): JsonResponse
     {
         $this->authorize('manage', $book);
@@ -33,10 +43,48 @@ class TeamController extends Controller
         $data = $request->validate([
             'email' => ['required', 'email', 'max:255'],
             'role' => ['required', 'in:'.implode(',', BookMember::ROLES)],
+            'also' => ['sometimes', 'array', 'max:200'],
+            'also.*' => ['integer', 'distinct'],
         ]);
 
         $email = mb_strtolower(trim($data['email']));
 
+        $also = array_values(array_diff($data['also'] ?? [], [$book->id]));
+        $others = Book::whereIn('id', $also)->orderBy('title')->get();
+
+        abort_if($others->count() !== count($also), 404);
+
+        foreach ($others as $other) {
+            $this->authorize('manage', $other);
+        }
+
+        $targets = $others->prepend($book);
+        $invited = [];
+        $skipped = [];
+
+        foreach ($targets as $target) {
+            try {
+                $this->inviteTo($request, $target, $email, $data['role']);
+                $invited[] = ['id' => $target->id, 'title' => $target->title];
+            } catch (ValidationException $refused) {
+                // One book alone keeps the old behaviour: the reason, as an error.
+                if ($targets->count() === 1) {
+                    throw $refused;
+                }
+
+                $skipped[] = ['id' => $target->id, 'title' => $target->title, 'reason' => $refused->errors()['email'][0] ?? $refused->getMessage()];
+            }
+        }
+
+        if ($invited === []) {
+            throw ValidationException::withMessages(['email' => $skipped[0]['reason']]);
+        }
+
+        return response()->json($this->payload($book) + ['invited' => $invited, 'skipped' => $skipped], 201);
+    }
+
+    private function inviteTo(Request $request, Book $book, string $email, string $role): void
+    {
         // Inviting the owner is a no-op dressed as an action, and it would
         // create a membership row competing with books.user_id.
         if ($email === mb_strtolower($book->user->email)) {
@@ -61,7 +109,7 @@ class TeamController extends Controller
 
         $member->fill([
             'email' => $email,
-            'role' => $data['role'],
+            'role' => $role,
             'invited_by' => $request->user()->id,
             // A revoked member being re-invited starts clean rather than
             // inheriting whatever they had before.
@@ -75,8 +123,6 @@ class TeamController extends Controller
         // that lands in spam should not leave the author with no way to
         // send it themselves.
         Notify::bookInvitation($member->fresh(['book.user', 'inviter', 'user']));
-
-        return response()->json($this->payload($book), 201);
     }
 
     public function update(Request $request, BookMember $member): JsonResponse
@@ -190,6 +236,20 @@ class TeamController extends Controller
             // the mailer goes nowhere, in which case the screen must not
             // claim an email went out. The link is returned either way.
             'delivery' => in_array(config('mail.default'), ['log', 'array'], true) ? 'manual' : 'email',
+            // The owner's other books, to invite the same person to several
+            // at once. Only for whoever manages the team: a member must not
+            // learn what else the owner is writing.
+            'other_books' => Gate::allows('manage', $book)
+                ? $book->user->books()
+                    ->whereKeyNot($book->id)
+                    ->where('status', '!=', 'archived')
+                    ->orderBy('title')
+                    ->get(['id', 'title', 'user_id'])
+                    ->filter(fn (Book $other) => Gate::allows('manage', $other))
+                    ->map(fn (Book $other) => ['id' => $other->id, 'title' => $other->title])
+                    ->values()
+                    ->all()
+                : [],
         ];
     }
 }

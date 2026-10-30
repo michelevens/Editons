@@ -117,6 +117,59 @@ it('holds the platform owner to no seat limit, whatever the plan', function () {
     $this->actingAs($support)->postJson("/books/{$theirs->id}/members", ['email' => 'b@example.com', 'role' => 'viewer'])->assertStatus(422);
 });
 
+it('invites one person to several chosen books, and to no others', function () {
+    $owner = User::factory()->create(['plan' => 'studio']);
+    [$first, $second, $third, $left] = Book::factory()->for($owner)->count(4)->create();
+    $guest = User::factory()->create(['email' => 'guest@example.com']);
+
+    $this->actingAs($owner)->postJson("/books/{$first->id}/members", [
+        'email' => 'guest@example.com', 'role' => 'editor', 'also' => [$second->id, $third->id],
+    ])->assertCreated()->assertJsonCount(3, 'invited')->assertJsonCount(0, 'skipped');
+
+    foreach ([$first, $second, $third] as $book) {
+        $member = $book->members()->where('email', 'guest@example.com')->sole();
+        expect($member->role)->toBe('editor')->and($member->status)->toBe('invited');
+        $member->forceFill(['status' => 'active', 'accepted_at' => now()])->save();
+    }
+
+    expect($left->members()->count())->toBe(0);
+    $this->actingAs($guest)->get("/books/{$second->id}/overview")->assertOk();
+    $this->actingAs($guest)->get("/books/{$left->id}/overview")->assertForbidden();
+});
+
+it('skips a chosen book the person is already on, and invites the rest', function () {
+    $owner = User::factory()->create(['plan' => 'studio']);
+    [$first, $second] = Book::factory()->for($owner)->count(2)->create();
+
+    $this->actingAs($owner)->postJson("/books/{$second->id}/members", ['email' => 'g@example.com', 'role' => 'viewer'])->assertCreated();
+
+    $this->actingAs($owner)->postJson("/books/{$first->id}/members", [
+        'email' => 'g@example.com', 'role' => 'viewer', 'also' => [$second->id],
+    ])->assertCreated()->assertJsonPath('invited.0.id', $first->id)->assertJsonPath('skipped.0.id', $second->id);
+});
+
+it('refuses to invite anyone to a book the inviter does not own', function () {
+    $owner = User::factory()->create(['plan' => 'studio']);
+    $mine = Book::factory()->for($owner)->create();
+    $theirs = Book::factory()->create();
+
+    $this->actingAs($owner)->postJson("/books/{$mine->id}/members", [
+        'email' => 'g@example.com', 'role' => 'editor', 'also' => [$theirs->id],
+    ])->assertForbidden();
+
+    expect($mine->members()->count())->toBe(0)->and($theirs->members()->count())->toBe(0);
+});
+
+it('lists the owner\'s other books to the owner only, never to a member', function () {
+    $owner = User::factory()->create(['plan' => 'studio']);
+    [$book, $other] = Book::factory()->for($owner)->count(2)->create();
+    $member = User::factory()->create();
+    $book->members()->create(['email' => $member->email, 'user_id' => $member->id, 'role' => 'editor', 'status' => 'active']);
+
+    $this->actingAs($owner)->getJson("/books/{$book->id}/members")->assertJsonPath('other_books.0.id', $other->id);
+    $this->actingAs($member)->getJson("/books/{$book->id}/members")->assertJsonCount(0, 'other_books');
+});
+
 it('counts seats per manuscript, not across the owner\'s books', function () {
     $owner = User::factory()->create(['plan' => 'free']); // 2 seats: owner + one
     [$first, $second] = Book::factory()->for($owner)->count(2)->create();

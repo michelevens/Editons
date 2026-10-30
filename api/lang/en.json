@@ -2928,5 +2928,12 @@
     "comments.bulk_resolve": "Resolve {count} shown",
     "comments.bulk_reopen": "Reopen {count} shown",
     "comments.bulk_resolve_confirm": "Resolve {count} threads?",
-    "comments.bulk_reopen_confirm": "Reopen {count} threads?"
+    "comments.bulk_reopen_confirm": "Reopen {count} threads?",
+    "team.also_invite_to": "Also invite them to",
+    "team.also_help": "Tick any of your other books. They get access only to the books you choose, each with the role above.",
+    "team.select_all": "Select all",
+    "team.select_none": "Clear selection",
+    "team.books_selected": "Books in this invitation: {count}",
+    "team.invited_to": "Invited to {count}:",
+    "team.skipped_book": "Skipped “{title}”: {reason}"
 }

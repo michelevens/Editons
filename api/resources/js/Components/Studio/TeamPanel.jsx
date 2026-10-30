@@ -28,6 +28,8 @@ export default function TeamPanel({ bookId }) {
     const [busy, setBusy] = useState(false);
     const [copied, setCopied] = useState(null);
     const [removing, setRemoving] = useState(null);
+    const [also, setAlso] = useState([]);
+    const [outcome, setOutcome] = useState(null);
 
     const load = useCallback(async () => {
         const response = await window.axios.get(`/books/${bookId}/members`);
@@ -42,15 +44,21 @@ export default function TeamPanel({ bookId }) {
         event.preventDefault();
         setBusy(true);
         setError(null);
+        setOutcome(null);
 
         try {
             const response = await window.axios.post(`/books/${bookId}/members`, {
                 email,
                 role,
+                also,
             });
 
             setData(response.data);
             setEmail('');
+            setAlso([]);
+            if (also.length > 0) {
+                setOutcome({ invited: response.data.invited ?? [], skipped: response.data.skipped ?? [] });
+            }
         } catch (failure) {
             setError(
                 failure.response?.data?.errors?.email?.[0] ??
@@ -96,7 +104,10 @@ export default function TeamPanel({ bookId }) {
     }
 
     const full =
-        data.seats.limit !== null && data.seats.used >= data.seats.limit;
+        data.seats.limit !== null && data.seats.used >= data.seats.limit && also.length === 0;
+    const otherBooks = data.other_books ?? [];
+    const toggleBook = (id) =>
+        setAlso((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
 
     return (
         <div className="mx-auto max-w-[840px] p-4 sm:p-8">
@@ -162,6 +173,60 @@ export default function TeamPanel({ bookId }) {
                         {busy ? t('team.inviting') : t('team.send_invite')}
                     </button>
                 </div>
+
+                {otherBooks.length > 0 && (
+                    <fieldset className="mt-4" data-a="team:books">
+                        <legend className="text-[12.5px] font-semibold text-text-primary">
+                            {t('team.also_invite_to')}
+                        </legend>
+                        <p className="mt-0.5 text-[11.5px] text-text-secondary">{t('team.also_help')}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                data-a="team:books-all"
+                                onClick={() =>
+                                    setAlso(also.length === otherBooks.length ? [] : otherBooks.map((b) => b.id))
+                                }
+                                className="h-[28px] rounded-control border border-border-input px-2.5 text-[12px] font-medium text-text-secondary hover:border-brand-primary"
+                            >
+                                {also.length === otherBooks.length ? t('team.select_none') : t('team.select_all')}
+                            </button>
+                        </div>
+                        <ul className="mt-2 max-h-[220px] space-y-1 overflow-y-auto rounded-control border border-border-divider p-2">
+                            {otherBooks.map((book) => (
+                                <li key={book.id}>
+                                    <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[13px] text-text-primary hover:bg-bg-subtle">
+                                        <input
+                                            type="checkbox"
+                                            checked={also.includes(book.id)}
+                                            data-a={`team:book-${book.id}`}
+                                            onChange={() => toggleBook(book.id)}
+                                            className="rounded border-border-input text-brand-primary focus:ring-0"
+                                        />
+                                        <span className="truncate">{book.title}</span>
+                                    </label>
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="mt-1.5 text-[11.5px] text-text-secondary">
+                            {t('team.books_selected', { count: also.length + 1 })}
+                        </p>
+                    </fieldset>
+                )}
+
+                {outcome && (
+                    <div role="status" data-a="team:outcome" className="mt-2.5 text-[12.5px]">
+                        <p className="font-medium text-status-success">
+                            {t('team.invited_to', { count: outcome.invited.length })}{' '}
+                            {outcome.invited.map((b) => b.title).join(' · ')}
+                        </p>
+                        {outcome.skipped.map((b) => (
+                            <p key={b.id} className="text-status-warning">
+                                {t('team.skipped_book', { title: b.title, reason: b.reason })}
+                            </p>
+                        ))}
+                    </div>
+                )}
 
                 {error && (
                     <p role="alert" className="mt-2.5 text-[12.5px] font-medium text-status-danger">

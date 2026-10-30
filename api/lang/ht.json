@@ -3117,5 +3117,12 @@
     "comments.bulk_resolve": "Rezoud {count} ki parèt yo",
     "comments.bulk_reopen": "Relouvri {count} ki parèt yo",
     "comments.bulk_resolve_confirm": "Rezoud {count} diskisyon?",
-    "comments.bulk_reopen_confirm": "Relouvri {count} diskisyon?"
+    "comments.bulk_reopen_confirm": "Relouvri {count} diskisyon?",
+    "team.also_invite_to": "Envite yo tou nan",
+    "team.also_help": "Make lòt liv ou yo si ou vle. Moun nan ap gen aksè sèlman nan liv ou chwazi yo, chak ak wòl ki anlè a.",
+    "team.select_all": "Chwazi tout",
+    "team.select_none": "Retire tout",
+    "team.books_selected": "Liv nan envitasyon sa a: {count}",
+    "team.invited_to": "Envitasyon voye pou {count}:",
+    "team.skipped_book": "Nou sote “{title}”: {reason}"
 }
