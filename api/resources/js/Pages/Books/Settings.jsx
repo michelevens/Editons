@@ -6,6 +6,7 @@ import { goTo } from '@/Components/Studio/navigation';
 import StudioSidebar from '@/Components/Studio/StudioSidebar';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
+import LanguageTypography, { LanguageField } from '@/Components/Studio/LanguageTypography';
 import { useI18n } from '@/i18n';
 
 /**
@@ -23,6 +24,8 @@ export default function Settings({
     can_archive: canArchive,
     anatomy,
     copyright_preview: copyrightPreview,
+    typography,
+    interior,
 }) {
     const { auth } = usePage().props;
     const { t } = useI18n();
@@ -77,6 +80,7 @@ export default function Settings({
                         <PublicationForm book={book} copyrightPreview={copyrightPreview} />
                         <BookPartsPanel bookId={book.id} initial={anatomy} />
                         <WritingPreferences book={book} citationStyles={citationStyles} />
+                        <LanguageTypography book={book} typography={typography} interior={interior} />
                         <ArchiveBox book={book} canArchive={canArchive} />
                     </div>
                 </main>
@@ -153,11 +157,10 @@ function DetailsForm({ book, genres, languages }) {
                     options={genres}
                     onChange={(value) => setData('genre', value)}
                 />
-                <Select
-                    id="language"
-                    label={t('language.label')}
+                <LanguageField
                     value={data.language}
-                    options={languages}
+                    languages={languages}
+                    error={errors.language}
                     onChange={(value) => setData('language', value)}
                 />
                 <Field
@@ -557,7 +560,9 @@ function WritingPreferences({ book, citationStyles }) {
 
         router.patch(
             route('books.update', book.id),
-            { settings: next },
+            // The one toggle: sending the whole object would write back a
+            // stale copy of settings saved elsewhere on the page.
+            { settings: { [key]: next[key] } },
             {
                 preserveScroll: true,
                 preserveState: true,

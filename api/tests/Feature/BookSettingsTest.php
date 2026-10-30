@@ -1,5 +1,6 @@
 <?php
 
+use App\Editorial\Style\Typography;
 use App\Models\Book;
 use App\Models\User;
 
@@ -13,6 +14,8 @@ it('applies defaults for settings a book has never saved', function () {
         'inline_ai' => true,
         'review_on_save' => false,
         'citation_style' => 'APA',
+        'spellcheck' => true,
+        'typography' => Typography::DEFAULTS,
     ]);
 });
 
@@ -34,6 +37,8 @@ it('merges a partial settings update instead of replacing it', function () {
         'inline_ai' => false,
         'review_on_save' => true,
         'citation_style' => 'APA',
+        'spellcheck' => true,
+        'typography' => Typography::DEFAULTS,
     ]);
 });
 
