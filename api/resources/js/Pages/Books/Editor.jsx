@@ -328,7 +328,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             notify(
                 refusal?.agent?.[0]
                     ?? refusal?.credits?.[0]
-                    ?? 'That review could not be run.',
+                    ?? t('review.run_failed'),
             );
         } finally {
             setRunning(null);
@@ -351,7 +351,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
         for (const [index, agent] of agents.entries()) {
             setReviewProgress({
-                label: `Reviewing ${section.title}… ${index + 1}/${agents.length}`,
+                label: t('ai.reviewing_progress', { title: section.title, n: index + 1, total: agents.length }),
             });
 
             try {
@@ -370,7 +370,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 notify(
                     refusal?.agent?.[0]
                         ?? refusal?.credits?.[0]
-                        ?? `${agent.label} could not finish. The rest still ran.`,
+                        ?? t('ai.agent_could_not_finish', { agent: agent.label }),
                 );
             }
         }
@@ -383,8 +383,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         // is the one that reads the book.
         notify(
             open === 0
-                ? `Nothing open on ${section.title}.`
-                : `${section.title}: ${open} open finding${open === 1 ? '' : 's'}.`,
+                ? t('ai.chapter_nothing_open', { title: section.title })
+                : t('ai.chapter_open_findings', { title: section.title, count: open }),
         );
     };
 
@@ -411,9 +411,9 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             notify(
                 status === 'accepted'
                     ? res.data.applied
-                        ? 'Fix applied to the chapter.'
-                        : 'Finding marked as handled.'
-                    : 'Finding dismissed.',
+                        ? t('ai.fix_applied_chapter')
+                        : t('ai.finding_handled')
+                    : t('ai.finding_dismissed'),
             );
 
             return true;
@@ -422,7 +422,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             // changed. Saying so beats letting the finding vanish.
             notify(
                 failure.response?.data?.message ??
-                    'That could not be applied.',
+                    t('ai.could_not_apply'),
             );
 
             if (failure.response?.data?.findings) {

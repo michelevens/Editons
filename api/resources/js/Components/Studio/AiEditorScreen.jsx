@@ -1,6 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from './Icon';
+import { useI18n } from '../../i18n';
 import ReviewOptions from './ReviewOptions';
 import StyleGuideCard from './StyleGuideCard';
 
@@ -19,16 +20,16 @@ import StyleGuideCard from './StyleGuideCard';
  */
 
 const SEVERITY = {
-    critical: { dot: 'bg-status-danger', label: 'Critical' },
-    warning: { dot: 'bg-status-warning', label: 'Warning' },
-    suggestion: { dot: 'bg-status-info', label: 'Suggestion' },
+    critical: { dot: 'bg-status-danger', tKey: 'ai.severity_critical' },
+    warning: { dot: 'bg-status-warning', tKey: 'ai.severity_warning' },
+    suggestion: { dot: 'bg-status-info', tKey: 'ai.severity_suggestion' },
 };
 
 const SORTS = [
-    ['severity', 'Severity'],
-    ['chapter', 'Chapter order'],
-    ['agent', 'Agent'],
-    ['newest', 'Newest'],
+    { key: 'severity', tKey: 'ai.sort_severity' },
+    { key: 'chapter', tKey: 'ai.sort_chapter' },
+    { key: 'agent', tKey: 'ai.sort_agent' },
+    { key: 'newest', tKey: 'ai.sort_newest' },
 ];
 
 const chip = (on) =>
@@ -42,6 +43,7 @@ const control =
 const row = 'mb-3 no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0';
 
 export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent = null, currentSectionId = null, selection = null }) {
+    const { t } = useI18n();
     // Heuristics rather than a model: said so above the findings.
     const simulated = usePage().props.editorial?.simulated;
 
@@ -86,7 +88,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
         } catch (error) {
             // A refusal (the text moved, so the fix no longer applies) was
             // silent: the button just stopped spinning.
-            onNotify?.(error.response?.data?.message ?? 'That finding could not be updated.');
+            onNotify?.(error.response?.data?.message ?? t('ai.finding_update_failed'));
             await load();
         } finally {
             setBusy(null);
@@ -98,7 +100,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
 
         try {
             await window.axios.patch(`/findings/${finding.id}/reopen`).catch((error) =>
-                onNotify?.(error.response?.data?.message ?? 'That finding could not be reopened.'),
+                onNotify?.(error.response?.data?.message ?? t('ai.finding_reopen_failed')),
             );
             await load();
         } finally {
@@ -112,14 +114,18 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
         try {
             const { data: result } = await window.axios.post(`/books/${bookId}/findings/bulk`, { ids: picked, action, confirmed: true });
             const skipped = result.skipped.length
-                ? ` ${result.skipped.length} could not be ${action === 'accept' ? 'applied' : 'dismissed'}: ${result.skipped[0].message}`
+                ? ` ${action === 'accept'
+                    ? t('ai.bulk_skipped_applied', { count: result.skipped.length, message: result.skipped[0].message })
+                    : t('ai.bulk_skipped_dismissed', { count: result.skipped.length, message: result.skipped[0].message })}`
                 : '';
-            onNotify?.(`${result.done} finding${result.done === 1 ? '' : 's'} ${action === 'accept' ? 'accepted' : 'dismissed'}.${skipped}`);
+            onNotify?.(`${action === 'accept'
+                ? t('ai.bulk_accepted', { count: result.done })
+                : t('ai.bulk_dismissed', { count: result.done })}${skipped}`);
             setPicked([]);
             setConfirming(null);
             await load();
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That did not work.');
+            onNotify?.(error.response?.data?.message ?? t('ai.did_not_work'));
         } finally {
             setBusy(null);
         }
@@ -133,12 +139,12 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
             const { data: result } = await window.axios.post(`/findings/${finding.id}/never-flag`, { mode });
             setUndo({
                 ...result,
-                label: mode === 'word' ? `“${result.value}” won’t be flagged again in this book` : `“${finding.title}” is turned off for this book`,
+                label: mode === 'word' ? t('ai.never_word_done', { word: result.value }) : t('ai.never_rule_done', { title: finding.title }),
             });
             setStyleKey((k) => k + 1);
             await load();
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That did not work.');
+            onNotify?.(error.response?.data?.message ?? t('ai.did_not_work'));
         } finally {
             setBusy(null);
         }
@@ -153,21 +159,21 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
             setStyleKey((k) => k + 1);
             await load();
         } catch (error) {
-            onNotify?.(error.response?.data?.message ?? 'That could not be undone.');
+            onNotify?.(error.response?.data?.message ?? t('ai.undo_failed'));
         }
     };
 
     const openShown = useMemo(() => (data?.findings ?? []).filter((f) => f.status === 'open'), [data]);
 
     if (!data) {
-        return <p className="p-8 text-center text-[13px] text-text-secondary">Loading…</p>;
+        return <p className="p-8 text-center text-[13px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const statusTabs = [
-        { key: 'open', label: 'Open', count: data.counts.open },
-        { key: 'accepted', label: 'Applied', count: data.counts.accepted },
-        { key: 'dismissed', label: 'Dismissed', count: data.counts.dismissed },
-        { key: 'all', label: 'All', count: data.counts.all },
+        { key: 'open', label: t('ai.status_open'), count: data.counts.open },
+        { key: 'accepted', label: t('ai.status_applied'), count: data.counts.accepted },
+        { key: 'dismissed', label: t('ai.status_dismissed'), count: data.counts.dismissed },
+        { key: 'all', label: t('ai.status_all'), count: data.counts.all },
     ];
 
     const pickedFindings = openShown.filter((f) => picked.includes(f.id));
@@ -177,23 +183,25 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
     return (
         <div className="mx-auto max-w-[1040px] p-4 sm:p-8">
             <header className="mb-6">
-                <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">AI Editor</h2>
+                <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">{t('tab.ai')}</h2>
                 <p className="mt-1.5 text-[14px] text-text-secondary">
                     {data.counts.open === 0
-                        ? 'Nothing open across the book.'
-                        : `${data.counts.open} open across the book${data.counts.critical ? `, ${data.counts.critical} critical` : ''}.`}
+                        ? t('ai.screen_nothing_open')
+                        : data.counts.critical
+                          ? t('ai.screen_open_critical', { open: data.counts.open, critical: data.counts.critical })
+                          : t('ai.screen_open', { open: data.counts.open })}
                 </p>
                 {simulated && (
                     <p
                         data-a="ai-screen:sample-notice"
                         className="mt-3 rounded-tile border border-dashed border-border-default px-3 py-2 text-[12px] leading-relaxed text-text-secondary"
                     >
-                        <b className="text-text-primary">Sample output.</b> Reviews here run automated checks, not an AI model, and use no credits.
+                        <b className="text-text-primary">{t('ai.sample_output')}</b> {t('ai.screen_sample_notice')}
                     </p>
                 )}
             </header>
 
-            <StyleGuideCard key={styleKey} bookId={bookId} onNotify={onNotify} onChanged={() => setStyleTick((t) => t + 1)} />
+            <StyleGuideCard key={styleKey} bookId={bookId} onNotify={onNotify} onChanged={() => setStyleTick((n) => n + 1)} />
 
             <ReviewOptions
                 bookId={bookId}
@@ -214,12 +222,12 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                 >
                     <span className="min-w-0 flex-1">
                         {undo.label}
-                        {undo.dismissed > 0 && ` · ${undo.dismissed} dismissed`}
+                        {undo.dismissed > 0 && ` · ${t('ai.n_dismissed', { count: undo.dismissed })}`}
                     </span>
                     <button type="button" data-a="ai-screen:undo:button" onClick={undoNeverFlag} className="font-semibold text-brand-primary hover:underline">
-                        Undo
+                        {t('ai.undo')}
                     </button>
-                    <button type="button" aria-label="Close" onClick={() => setUndo(null)} className="text-text-secondary hover:text-text-primary">
+                    <button type="button" aria-label={t('common.close')} onClick={() => setUndo(null)} className="text-text-secondary hover:text-text-primary">
                         ×
                     </button>
                 </div>
@@ -243,7 +251,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
 
             <div className={row}>
                 <button data-a="ai-screen:agent:all" onClick={() => setFilter('agent', null)} className={chip(filters.agent === null)}>
-                    Every agent
+                    {t('ai.every_agent')}
                 </button>
 
                 {data.agents.map((a) => (
@@ -256,12 +264,12 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
 
             <div className={row}>
                 <button data-a="ai-screen:severity:all" onClick={() => setFilter('severity', null)} className={chip(filters.severity === null)}>
-                    Every severity
+                    {t('ai.every_severity')}
                 </button>
                 {Object.entries(SEVERITY).map(([key, s]) => (
                     <button key={key} data-a={`ai-screen:severity:${key}`} onClick={() => setFilter('severity', key)} className={chip(filters.severity === key)}>
                         <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${s.dot}`} />
-                        {s.label}
+                        {t(s.tKey)}
                         {data.counts.severity?.[key] > 0 && <span className="ml-1.5 font-semibold">{data.counts.severity[key]}</span>}
                     </button>
                 ))}
@@ -269,14 +277,14 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
 
             <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <label className="flex min-w-0 flex-col text-[11.5px] text-text-secondary">
-                    Chapter
+                    {t('ai.filter_chapter')}
                     <select
                         data-a="ai-screen:section"
                         value={filters.section ?? ''}
                         onChange={(e) => setFilter('section', e.target.value ? Number(e.target.value) : null)}
                         className={`${control} mt-1`}
                     >
-                        <option value="">Every chapter</option>
+                        <option value="">{t('ai.every_chapter')}</option>
                         {(data.sections ?? []).map((s) => (
                             <option key={s.id} value={s.id}>
                                 {s.title}
@@ -286,9 +294,9 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                     </select>
                 </label>
                 <label className="flex min-w-0 flex-col text-[11.5px] text-text-secondary">
-                    Rule
+                    {t('ai.filter_rule')}
                     <select data-a="ai-screen:rule" value={filters.rule ?? ''} onChange={(e) => setFilter('rule', e.target.value || null)} className={`${control} mt-1`}>
-                        <option value="">Every rule</option>
+                        <option value="">{t('ai.every_rule')}</option>
                         {(data.rules ?? []).map((r) => (
                             <option key={r.rule} value={r.rule}>
                                 {r.rule} ({r.open})
@@ -297,11 +305,11 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                     </select>
                 </label>
                 <label className="flex min-w-0 flex-col text-[11.5px] text-text-secondary">
-                    Sort
+                    {t('ai.filter_sort')}
                     <select data-a="ai-screen:sort" value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)} className={`${control} mt-1`}>
-                        {SORTS.map(([key, label]) => (
-                            <option key={key} value={key}>
-                                {label}
+                        {SORTS.map((sort) => (
+                            <option key={sort.key} value={sort.key}>
+                                {t(sort.tKey)}
                             </option>
                         ))}
                     </select>
@@ -320,31 +328,31 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                             checked={allPicked}
                             onChange={(e) => setPicked(e.target.checked ? openShown.map((f) => f.id) : [])}
                         />
-                        {picked.length ? `${picked.length} selected` : `Select all ${openShown.length} shown`}
+                        {picked.length ? t('ai.n_selected', { count: picked.length }) : t('ai.select_all_shown', { count: openShown.length })}
                     </label>
                     {picked.length > 0 && !confirming && (
                         <>
                             {withFix > 0 && (
                                 <button type="button" data-a="ai-screen:bulk:accept" onClick={() => setConfirming('accept')} className="font-semibold text-status-success hover:underline">
-                                    Accept {picked.length}
+                                    {t('ai.accept_n', { count: picked.length })}
                                 </button>
                             )}
                             <button type="button" data-a="ai-screen:bulk:dismiss" onClick={() => setConfirming('dismiss')} className="font-semibold text-text-secondary hover:text-text-primary">
-                                Dismiss {picked.length}
+                                {t('ai.dismiss_n', { count: picked.length })}
                             </button>
                         </>
                     )}
                     {confirming && (
                         <div
                             role="alertdialog"
-                            aria-label="Confirm"
+                            aria-label={t('ai.confirm')}
                             data-a="ai-screen:confirm"
                             className="flex w-full flex-wrap items-center gap-2 border-t border-border-default pt-2 sm:w-auto sm:border-0 sm:pt-0"
                         >
                             <span className="text-text-body">
                                 {confirming === 'accept'
-                                    ? `Accept ${picked.length}? ${withFix} fix${withFix === 1 ? '' : 'es'} will be applied to the text, each as its own version you can undo.`
-                                    : `Dismiss ${picked.length} finding${picked.length === 1 ? '' : 's'}?`}
+                                    ? t('ai.confirm_accept', { count: picked.length, fixes: withFix })
+                                    : t('ai.confirm_dismiss', { count: picked.length })}
                             </span>
                             <button
                                 type="button"
@@ -353,10 +361,10 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                 onClick={() => bulk(confirming)}
                                 className="rounded-control bg-brand-fill px-2.5 py-1 text-[12px] font-semibold text-white disabled:opacity-50"
                             >
-                                {confirming === 'accept' ? 'Accept' : 'Dismiss'}
+                                {confirming === 'accept' ? t('ai.accept') : t('ai.dismiss')}
                             </button>
                             <button type="button" data-a="ai-screen:confirm:no" onClick={() => setConfirming(null)} className="rounded-control border border-border-input px-2.5 py-1 text-[12px] text-text-body">
-                                Cancel
+                                {t('common.cancel')}
                             </button>
                         </div>
                     )}
@@ -365,7 +373,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
 
             {data.findings.length === 0 ? (
                 <p className="rounded-panel border border-dashed border-border-default p-10 text-center text-[13.5px] text-text-secondary">
-                    {filters.status === 'open' ? 'Nothing open here. Run a review above, or an agent from a chapter.' : 'Nothing to show under this filter.'}
+                    {filters.status === 'open' ? t('ai.screen_empty_open') : t('ai.screen_empty_filter')}
                 </p>
             ) : (
                 <ul className="space-y-2" data-a="ai-screen:list">
@@ -375,7 +383,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                 {finding.status === 'open' && (
                                     <input
                                         type="checkbox"
-                                        aria-label={`Select “${finding.title}”`}
+                                        aria-label={t('ai.select_finding', { title: finding.title })}
                                         data-a={`ai-screen:pick:${finding.id}`}
                                         checked={picked.includes(finding.id)}
                                         onChange={(e) => setPicked((ids) => (e.target.checked ? [...ids, finding.id] : ids.filter((id) => id !== finding.id)))}
@@ -395,7 +403,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                             {finding.section_title}
                                         </button>
                                         <span className="text-[11px] uppercase tracking-wide text-text-secondary">
-                                            {finding.source === 'style_check' ? 'Style guide check' : finding.agent_label}
+                                            {finding.source === 'style_check' ? t('ai.style_guide_check') : finding.agent_label}
                                         </span>
                                     </div>
 
@@ -417,7 +425,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                         onClick={() => resolve(finding, 'accepted')}
                                                         className="text-[12.5px] font-semibold text-status-success hover:underline disabled:opacity-50"
                                                     >
-                                                        Apply fix
+                                                        {t('ai.apply_fix')}
                                                     </button>
                                                 )}
                                                 <button
@@ -426,7 +434,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                     onClick={() => resolve(finding, 'dismissed')}
                                                     className="text-[12.5px] font-medium text-text-secondary hover:text-text-primary disabled:opacity-50"
                                                 >
-                                                    Dismiss
+                                                    {t('ai.dismiss')}
                                                 </button>
                                                 {(finding.term || finding.rule) && (
                                                     <span className="relative">
@@ -437,7 +445,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                             onClick={() => setMenu(menu === finding.id ? null : finding.id)}
                                                             className="text-[12.5px] font-medium text-text-secondary hover:text-text-primary"
                                                         >
-                                                            Never flag this…
+                                                            {t('ai.never_flag')}
                                                         </button>
                                                         {menu === finding.id && (
                                                             <span
@@ -451,7 +459,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                                         onClick={() => neverFlag(finding, 'word')}
                                                                         className="px-3 py-1.5 text-left text-[12.5px] text-text-body hover:bg-bg-subtle"
                                                                     >
-                                                                        Never flag “{finding.term}” in this book
+                                                                        {t('ai.never_flag_word', { word: finding.term })}
                                                                     </button>
                                                                 )}
                                                                 {finding.rule && (
@@ -461,7 +469,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                                         onClick={() => neverFlag(finding, 'rule')}
                                                                         className="px-3 py-1.5 text-left text-[12.5px] text-text-body hover:bg-bg-subtle"
                                                                     >
-                                                                        Turn off this rule for this book
+                                                                        {t('ai.never_flag_rule')}
                                                                     </button>
                                                                 )}
                                                             </span>
@@ -471,7 +479,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                             </>
                                         ) : (
                                             <>
-                                                <span className="text-[12px] text-text-secondary">{finding.status === 'accepted' ? 'Applied' : 'Dismissed'}</span>
+                                                <span className="text-[12px] text-text-secondary">{finding.status === 'accepted' ? t('ai.status_applied') : t('ai.status_dismissed')}</span>
                                                 <button
                                                     data-a={`ai-screen:reopen:${finding.id}`}
                                                     disabled={busy === finding.id}
@@ -480,7 +488,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                 >
                                                     {/* An applied fix is taken back out of
                                                         the text before it reopens. */}
-                                                    {finding.status === 'accepted' && finding.suggestion ? 'Undo fix' : 'Reopen'}
+                                                    {finding.status === 'accepted' && finding.suggestion ? t('ai.undo_fix') : t('ai.reopen')}
                                                 </button>
                                             </>
                                         )}

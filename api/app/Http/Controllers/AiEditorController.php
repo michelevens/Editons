@@ -114,7 +114,7 @@ class AiEditorController extends Controller
                 ->map(fn (EditorialFinding $finding) => [
                     'id' => $finding->id,
                     'agent' => $finding->agent->value,
-                    'agent_label' => $finding->agent->label(),
+                    'agent_label' => $finding->agent->displayLabel(),
                     'severity' => $finding->severity,
                     'title' => $finding->title,
                     'detail' => $finding->detail,
@@ -159,7 +159,7 @@ class AiEditorController extends Controller
 
         foreach ($findings as $finding) {
             if ($finding->status !== 'open') {
-                $skipped[] = ['id' => $finding->id, 'message' => 'Already decided.'];
+                $skipped[] = ['id' => $finding->id, 'message' => __('Already decided.')];
 
                 continue;
             }

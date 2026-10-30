@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * Characters, terms and their agreed spellings — plus the cross-chapter scan
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
  * otherwise read "no issues" as "no inconsistencies exist".
  */
 export default function ConsistencyPanel({ bookId, onOpenSection }) {
+    const { t } = useI18n();
     const [terms, setTerms] = useState([]);
     const [issues, setIssues] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,7 +32,7 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
     }, [bookId]);
 
     const remove = async (term) => {
-        if (!confirm(`Remove "${term.canonical}" from the vocabulary?`)) return;
+        if (!confirm(t('consistency.remove_confirm', { name: term.canonical }))) return;
         const res = await window.axios.delete(`/terms/${term.id}`);
         setTerms(res.data.terms);
         setIssues(res.data.issues);
@@ -41,18 +43,17 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
             <header className="mb-6 flex items-baseline justify-between">
                 <div>
                     <h2 className="font-serif text-2xl font-bold text-text-primary">
-                        Characters &amp; Terms
+                        {t('side.terms')}
                     </h2>
                     <p className="mt-1 text-sm text-text-secondary">
-                        The spellings that are correct for this book, and
-                        anywhere the manuscript disagrees with them.
+                        {t('consistency.intro')}
                     </p>
                 </div>
                 <button
                     onClick={() => setAdding((v) => !v)}
                     className="rounded-md bg-brand-fill px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-primary-hover"
                 >
-                    {adding ? 'Cancel' : 'Add term'}
+                    {adding ? t('common.cancel') : t('consistency.add_term')}
                 </button>
             </header>
 
@@ -69,22 +70,18 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
 
             <section className="mb-8">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
-                    Inconsistencies across the book
+                    {t('consistency.inconsistencies')}
                 </h3>
 
                 {loading ? (
-                    <p className="text-sm text-text-secondary">Scanning…</p>
+                    <p className="text-sm text-text-secondary">{t('consistency.scanning')}</p>
                 ) : terms.length === 0 ? (
                     <p className="rounded-lg border border-dashed border-border-input p-6 text-center text-sm leading-relaxed text-text-secondary">
-                        Nothing to check yet. This scan compares the manuscript
-                        against terms you declare — it does not guess which
-                        spelling is canonical, because guessing would
-                        eventually "correct" a deliberate one.
+                        {t('consistency.empty')}
                     </p>
                 ) : issues.length === 0 ? (
                     <p className="rounded-lg border border-status-success/30 bg-status-success-bg p-4 text-sm text-status-success">
-                        No disagreements found for the {terms.length} term
-                        {terms.length === 1 ? '' : 's'} declared below.
+                        {t('consistency.no_disagreements', { count: terms.length })}
                     </p>
                 ) : (
                     <ul className="space-y-2">
@@ -95,13 +92,11 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
                             >
                                 <p className="text-sm text-status-warning">
                                     <span className="font-bold">
-                                        “{issue.variant}”
+                                        {t('consistency.quoted', { text: issue.variant })}
                                     </span>{' '}
-                                    appears {issue.total} time
-                                    {issue.total === 1 ? '' : 's'}, but this
-                                    book uses{' '}
+                                    {t('consistency.issue_appears', { count: issue.total })}{' '}
                                     <span className="font-bold">
-                                        “{issue.canonical}”
+                                        {t('consistency.quoted', { text: issue.canonical })}
                                     </span>
                                     .
                                 </p>
@@ -135,34 +130,40 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
 
             <section>
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
-                    Declared vocabulary
+                    {t('consistency.declared')}
                 </h3>
 
                 {terms.length === 0 ? (
-                    <p className="text-sm text-text-secondary">Nothing declared yet.</p>
+                    <p className="text-sm text-text-secondary">{t('consistency.nothing_declared')}</p>
                 ) : (
                     <ul className="divide-y divide-border-divider rounded-lg border border-border-default bg-bg-surface">
-                        {terms.map((t) => (
+                        {terms.map((term) => (
                             <li
-                                key={t.id}
+                                key={term.id}
                                 className="flex items-center gap-3 px-4 py-2.5"
                             >
                                 <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wide text-text-secondary">
-                                    {t.kind}
+                                    {{
+                                        character: t('consistency.badge_character'),
+                                        place: t('consistency.badge_place'),
+                                        term: t('consistency.badge_term'),
+                                        organization: t('consistency.badge_organization'),
+                                        other: t('consistency.badge_other'),
+                                    }[term.kind] ?? term.kind}
                                 </span>
                                 <span className="font-semibold text-text-primary">
-                                    {t.canonical}
+                                    {term.canonical}
                                 </span>
-                                {t.variants?.length > 0 && (
+                                {term.variants?.length > 0 && (
                                     <span className="text-sm text-text-secondary">
-                                        not: {t.variants.join(', ')}
+                                        {t('consistency.not_variants', { variants: term.variants.join(', ') })}
                                     </span>
                                 )}
                                 <button
-                                    onClick={() => remove(t)}
+                                    onClick={() => remove(term)}
                                     className="ml-auto text-xs font-semibold text-text-secondary hover:text-status-danger"
                                 >
-                                    Remove
+                                    {t('consistency.remove')}
                                 </button>
                             </li>
                         ))}
@@ -174,6 +175,7 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
 }
 
 function AddTerm({ bookId, onAdded }) {
+    const { t } = useI18n();
     const [kind, setKind] = useState('character');
     const [canonical, setCanonical] = useState('');
     const [variants, setVariants] = useState('');
@@ -206,22 +208,22 @@ function AddTerm({ bookId, onAdded }) {
             className="mb-6 grid grid-cols-3 gap-3 rounded-lg border border-border-default bg-bg-subtle p-4"
         >
             <label className="text-xs font-semibold text-text-secondary">
-                Kind
+                {t('consistency.kind_label')}
                 <select
                     value={kind}
                     onChange={(e) => setKind(e.target.value)}
                     className="w-full rounded-md border-border-input text-sm focus:border-brand-primary focus:ring-brand-primary"
                 >
-                    <option value="character">Character</option>
-                    <option value="place">Place</option>
-                    <option value="term">Term</option>
-                    <option value="organization">Organization</option>
-                    <option value="other">Other</option>
+                    <option value="character">{t('consistency.kind_character')}</option>
+                    <option value="place">{t('consistency.kind_place')}</option>
+                    <option value="term">{t('consistency.kind_term')}</option>
+                    <option value="organization">{t('consistency.kind_organization')}</option>
+                    <option value="other">{t('consistency.kind_other')}</option>
                 </select>
             </label>
 
             <label className="text-xs font-semibold text-text-secondary">
-                Correct spelling
+                {t('consistency.correct_spelling')}
                 <input
                     value={canonical}
                     onChange={(e) => setCanonical(e.target.value)}
@@ -231,7 +233,7 @@ function AddTerm({ bookId, onAdded }) {
             </label>
 
             <label className="text-xs font-semibold text-text-secondary">
-                Flag these instead
+                {t('consistency.flag_these')}
                 <input
                     value={variants}
                     onChange={(e) => setVariants(e.target.value)}
@@ -241,7 +243,7 @@ function AddTerm({ bookId, onAdded }) {
             </label>
 
             <label className="col-span-3 text-xs font-semibold text-text-secondary">
-                Note
+                {t('consistency.note')}
                 <input
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
@@ -254,7 +256,7 @@ function AddTerm({ bookId, onAdded }) {
                     disabled={saving}
                     className="rounded-md bg-bg-inverse px-4 py-1.5 text-sm font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
                 >
-                    {saving ? 'Saving…' : 'Add term'}
+                    {saving ? t('editor.save_saving') : t('consistency.add_term')}
                 </button>
             </div>
         </form>

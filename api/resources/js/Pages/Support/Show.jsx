@@ -2,10 +2,12 @@ import AppHeader from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
 import StatusLabel from '@/Components/Support/StatusLabel';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { useI18n } from '@/i18n';
 
 /** One support request: the conversation with Ecrivain support, and a reply box. */
 export default function SupportShow({ ticket }) {
     const { auth } = usePage().props;
+    const { t, formatDate } = useI18n();
     const form = useForm({ body: '' });
 
     const submit = (event) => {
@@ -21,19 +23,19 @@ export default function SupportShow({ ticket }) {
             <main id="main" className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto max-w-[760px] px-4 py-7 sm:px-8 sm:py-9">
                     <Link href={route('support.index')} className="text-[13px] text-brand-primary hover:underline">
-                        ← Help
+                        {t('support.back')}
                     </Link>
                     <div className="mt-2 flex flex-wrap items-start gap-2">
                         <h1 className="min-w-0 flex-1 break-words font-display text-[24px] font-extrabold tracking-[-0.02em] text-text-primary">{ticket.subject}</h1>
                         <StatusLabel status={ticket.status} />
                     </div>
-                    {ticket.book && <p className="mt-1 text-[13px] text-text-secondary">About “{ticket.book.title}”</p>}
+                    {ticket.book && <p className="mt-1 text-[13px] text-text-secondary">{t('support.about_book', { title: ticket.book.title })}</p>}
 
                     <ol className="mt-5 space-y-3" data-a="support:messages">
                         {ticket.messages.map((m) => (
                             <li key={m.id} className={`rounded-panel border px-4 py-3 text-[14px] ${m.from_staff ? 'border-brand-primary/30 bg-brand-primary-subtle' : 'border-border-default bg-bg-surface'}`}>
                                 <p className="text-[12px] text-text-secondary">
-                                    <span className="font-semibold text-text-primary">{m.author}</span> · {new Date(m.at).toLocaleString()}
+                                    <span className="font-semibold text-text-primary">{m.author}</span> · {formatDate(m.at, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' })}
                                 </p>
                                 <p className="mt-1 whitespace-pre-wrap break-words">{m.body}</p>
                             </li>
@@ -42,7 +44,7 @@ export default function SupportShow({ ticket }) {
 
                     <form onSubmit={submit} className="mt-5 rounded-panel border border-border-default bg-bg-surface p-4">
                         <label htmlFor="support-reply" className="text-[13px] font-medium text-text-primary">
-                            {ticket.status === 'closed' ? 'Write again (this reopens it)' : 'Reply'}
+                            {ticket.status === 'closed' ? t('support.write_again') : t('support.reply')}
                         </label>
                         <textarea
                             id="support-reply"
@@ -61,7 +63,7 @@ export default function SupportShow({ ticket }) {
                             disabled={form.processing || !form.data.body.trim()}
                             className="tap mt-2 inline-flex min-h-[44px] items-center justify-center rounded-button bg-brand-fill px-5 text-[14px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                         >
-                            Send
+                            {t('support.send_reply')}
                         </button>
                     </form>
                 </div>

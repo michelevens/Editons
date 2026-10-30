@@ -82,7 +82,7 @@ class JoinController extends Controller
         ]);
 
         if (User::whereRaw('lower(email) = ?', [$invitation->email])->exists()) {
-            throw ValidationException::withMessages(['email' => 'This address already has an account. Sign in to accept the invitation.']);
+            throw ValidationException::withMessages(['email' => __('This address already has an account. Sign in to accept the invitation.')]);
         }
 
         // One transaction: the account, the acceptance and its perks stand
@@ -109,7 +109,7 @@ class JoinController extends Controller
         LoginHistory::record($user, 'registration', $request);
 
         return redirect(route('dashboard', absolute: false))
-            ->with('platform_notice', 'Welcome to '.config('mail.ecrivain.brand').'. Your invitation is accepted.');
+            ->with('platform_notice', __('Welcome to :brand. Your invitation is accepted.', ['brand' => config('mail.ecrivain.brand')]));
     }
 
     /** Signed in already, with the invited address: accept with this account. */
@@ -118,13 +118,13 @@ class JoinController extends Controller
         $invitation = $this->live($token);
 
         if (Invitations::normalizeEmail($request->user()->email) !== $invitation->email) {
-            throw ValidationException::withMessages(['email' => 'This invitation was sent to a different email address.']);
+            throw ValidationException::withMessages(['email' => __('This invitation was sent to a different email address.')]);
         }
 
         $this->invitations->accept($invitation, $request->user(), newAccount: false);
 
         return redirect(route('dashboard', absolute: false))
-            ->with('platform_notice', 'Invitation accepted.');
+            ->with('platform_notice', __('Invitation accepted.'));
     }
 
     /** "Don't invite me again." */
@@ -144,7 +144,7 @@ class JoinController extends Controller
         $invitation = AuthorInvitation::findByToken($token);
 
         if (! $invitation || ! $invitation->isLive()) {
-            throw ValidationException::withMessages(['email' => 'This invitation is no longer valid.']);
+            throw ValidationException::withMessages(['email' => __('This invitation is no longer valid.')]);
         }
 
         return $invitation;

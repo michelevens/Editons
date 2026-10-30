@@ -5,6 +5,7 @@ import { ThemeSwitch } from '@/Components/Studio/UserMenu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import DeleteUserForm from './Partials/DeleteUserForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
+import { useI18n } from '@/i18n';
 
 /**
  * The author's profile.
@@ -27,10 +28,11 @@ export default function Edit({
     two_factor: twoFactor = null,
 }) {
     const { auth } = usePage().props;
+    const { t } = useI18n();
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-bg-app font-ui text-text-body">
-            <Head title="Your profile" />
+            <Head title={t('profile.title')} />
 
             <AppHeader
                 active="books"
@@ -41,10 +43,10 @@ export default function Edit({
             <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
                 <div className="mx-auto max-w-[820px] px-4 py-6 sm:px-8 sm:py-9">
                     <h1 className="font-display text-[30px] font-extrabold tracking-[-0.03em] text-text-primary">
-                        Your profile
+                        {t('profile.title')}
                     </h1>
                     <p className="mt-1 text-[13px] text-text-secondary">
-                        How your books are credited, and how you like to work
+                        {t('profile.subtitle')}
                     </p>
 
                     {status === 'profile-updated' && (
@@ -53,7 +55,7 @@ export default function Edit({
                             data-a="profile:saved"
                             className="mt-4 rounded-tile bg-status-success-bg px-3 py-2 text-[12.5px] text-status-success"
                         >
-                            Saved.
+                            {t('profile.saved')}
                         </p>
                     )}
 
@@ -67,8 +69,8 @@ export default function Edit({
                         <PlanCard plan={plan} />
 
                         <Box
-                            title="Appearance"
-                            detail="Light, dark, or whatever this device is set to. Saved to your account, so it follows you to other devices."
+                            title={t('profile.appearance')}
+                            detail={t('profile.appearance_detail')}
                         >
                             <ThemeSwitch className="max-w-[360px]" menu={false} />
                         </Box>
@@ -79,16 +81,16 @@ export default function Edit({
                         />
 
                         <Box
-                            title="Password"
-                            detail="Changing it signs out your other sessions."
+                            title={t('signin.password')}
+                            detail={t('profile.password_detail')}
                         >
                             <UpdatePasswordForm className="max-w-full" />
                         </Box>
 
                         {twoFactor && (
                             <Box
-                                title="Two-factor sign-in"
-                                detail="A code from an authenticator app as well as your password, so a stolen password is not enough."
+                                title={t('profile.two_factor')}
+                                detail={t('profile.two_factor_detail')}
                                 data-a="profile:two-factor"
                             >
                                 <TwoFactorPanel state={twoFactor} />
@@ -96,8 +98,8 @@ export default function Edit({
                         )}
 
                         <Box
-                            title="Delete your account"
-                            detail="Everything goes: every book, every version, every export. There is no undo, and no copy kept."
+                            title={t('profile.delete_modal_label')}
+                            detail={t('profile.delete_detail')}
                             danger
                         >
                             <DeleteUserForm className="max-w-full" />
@@ -113,6 +115,7 @@ export default function Edit({
 
 function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
     const { auth } = usePage().props;
+    const { t } = useI18n();
 
     const { data, setData, patch, processing, errors, recentlySuccessful } = useForm({
         name: auth.user.name ?? '',
@@ -132,11 +135,11 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
     return (
         <form onSubmit={submit} className="mt-6 space-y-4">
             <Box
-                title="How your books are credited"
-                detail="The author name goes on the cover, into the eBook's metadata and onto store listings. It is often not the name on your account — a pen name, or a name with your credentials after it."
+                title={t('profile.credited')}
+                detail={t('profile.credited_detail')}
             >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field label="Your name" error={errors.name}>
+                    <Field label={t('register.name')} error={errors.name}>
                         <input
                             value={data.name}
                             data-a="profile:name"
@@ -144,36 +147,36 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
                             onChange={(event) => setData('name', event.target.value)}
                             className={input(errors.name)}
                         />
-                        <Hint>What we call you in the application.</Hint>
+                        <Hint>{t('profile.your_name_hint')}</Hint>
                     </Field>
 
-                    <Field label="Author name" error={errors.author_name}>
+                    <Field label={t('profile.author_name')} error={errors.author_name}>
                         <input
                             value={data.author_name}
                             data-a="profile:author-name"
-                            placeholder={data.name || 'As it appears on the cover'}
+                            placeholder={data.name || t('profile.author_name_placeholder')}
                             onChange={(event) => setData('author_name', event.target.value)}
                             className={input(errors.author_name)}
                         />
-                        <Hint>Left blank, your own name is used.</Hint>
+                        <Hint>{t('profile.author_name_hint')}</Hint>
                     </Field>
                 </div>
 
-                <Field label="About you" error={errors.bio} className="mt-4">
+                <Field label={t('profile.about_you')} error={errors.bio} className="mt-4">
                     <textarea
                         value={data.bio}
                         rows={4}
                         data-a="profile:bio"
-                        placeholder="A short biography, in the third person. It appears on the About the Author page and on your book's listing."
+                        placeholder={t('profile.bio_placeholder')}
                         onChange={(event) => setData('bio', event.target.value)}
                         className={input(errors.bio)}
                     />
                     <Hint>
-                        {data.bio.length} characters. Two or three sentences is usual.
+                        {t('profile.bio_hint', { n: data.bio.length })}
                     </Hint>
                 </Field>
 
-                <Field label="Website" error={errors.website} className="mt-4">
+                <Field label={t('profile.website')} error={errors.website} className="mt-4">
                     <input
                         value={data.website}
                         type="url"
@@ -186,11 +189,11 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
             </Box>
 
             <Box
-                title="How you like to work"
-                detail="Defaults for the next book you start. Nothing here changes a book you have already written."
+                title={t('profile.work')}
+                detail={t('profile.work_detail')}
             >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field label="Usual kind of book" error={errors.default_book_type}>
+                    <Field label={t('profile.usual_kind')} error={errors.default_book_type}>
                         <select
                             value={data.default_book_type}
                             data-a="profile:default-type"
@@ -199,7 +202,7 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
                             }
                             className={input(errors.default_book_type)}
                         >
-                            <option value="">No default — ask me each time</option>
+                            <option value="">{t('profile.no_default_type')}</option>
                             {bookTypes.map((type) => (
                                 <option key={type.key} value={type.key}>
                                     {type.name}
@@ -208,29 +211,29 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
                         </select>
                     </Field>
 
-                    <Field label="Daily word goal" error={errors.daily_word_goal}>
+                    <Field label={t('profile.daily_goal')} error={errors.daily_word_goal}>
                         <input
                             value={data.daily_word_goal}
                             type="number"
                             min="50"
                             max="20000"
                             data-a="profile:word-goal"
-                            placeholder="None"
+                            placeholder={t('profile.none')}
                             onChange={(event) =>
                                 setData('daily_word_goal', event.target.value)
                             }
                             className={input(errors.daily_word_goal)}
                         />
-                        <Hint>A goal, not a quota. Nothing nags you about it.</Hint>
+                        <Hint>{t('profile.daily_goal_hint')}</Hint>
                     </Field>
                 </div>
             </Box>
 
             <Box
-                title="Account"
-                detail="Used for signing in, and for anything we need to tell you."
+                title={t('menu.account_label')}
+                detail={t('profile.account_detail')}
             >
-                <Field label="Email" error={errors.email}>
+                <Field label={t('profile.email')} error={errors.email}>
                     <input
                         value={data.email}
                         type="email"
@@ -243,14 +246,14 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
 
                 {mustVerifyEmail && auth.user.email_verified_at === null && (
                     <p className="mt-2 text-[11.5px] text-status-warning">
-                        This address is unverified.{' '}
+                        {t('profile.unverified')}{' '}
                         <Link
                             href={route('verification.send')}
                             method="post"
                             as="button"
                             className="font-semibold underline"
                         >
-                            Send the link again
+                            {t('profile.send_link_again')}
                         </Link>
                     </p>
                 )}
@@ -262,11 +265,11 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
                     disabled={processing}
                     className="h-[38px] rounded-control bg-brand-fill px-4 text-[13px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
-                    {processing ? 'Saving…' : 'Save changes'}
+                    {processing ? t('editor.save_saving') : t('profile.save_changes')}
                 </button>
 
                 {recentlySuccessful && (
-                    <span className="text-[12.5px] text-status-success">Saved.</span>
+                    <span className="text-[12.5px] text-status-success">{t('profile.saved')}</span>
                 )}
             </div>
         </form>
@@ -280,25 +283,26 @@ function AuthorForm({ author, bookTypes, mustVerifyEmail }) {
  * see what they are paying for and how much of it is left.
  */
 function PlanCard({ plan }) {
+    const { t, formatNumber } = useI18n();
     const pct = plan.monthly_credits
         ? Math.max(0, Math.min(100, Math.round((plan.credits / plan.monthly_credits) * 100)))
         : 0;
 
     return (
         <Box
-            title="Your plan"
-            detail={`${plan.name}${plan.price > 0 ? ` · $${plan.price} a month` : ' · free'}`}
+            title={t('profile.your_plan')}
+            detail={plan.price > 0 ? t('profile.plan_price', { name: plan.name, price: plan.price }) : t('profile.plan_free', { name: plan.name })}
         >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <p className="text-[11.5px] text-text-secondary">AI credits</p>
+                    <p className="text-[11.5px] text-text-secondary">{t('profile.ai_credits')}</p>
                     <p className="mt-0.5 flex items-baseline gap-1.5">
                         <b className="font-display text-[22px] font-extrabold tracking-[-0.02em] text-text-primary">
-                            {plan.credits.toLocaleString()}
+                            {formatNumber(plan.credits)}
                         </b>
                         {plan.monthly_credits > 0 && (
                             <span className="text-[12px] text-text-secondary">
-                                of {plan.monthly_credits.toLocaleString()} this month
+                                {t('profile.credits_of_month', { total: formatNumber(plan.monthly_credits) })}
                             </span>
                         )}
                     </p>
@@ -314,13 +318,13 @@ function PlanCard({ plan }) {
                 </div>
 
                 <div>
-                    <p className="text-[11.5px] text-text-secondary">Books</p>
+                    <p className="text-[11.5px] text-text-secondary">{t('profile.books')}</p>
                     <p className="mt-0.5 font-display text-[22px] font-extrabold tracking-[-0.02em] text-text-primary">
                         {plan.books}
                         <span className="ml-1.5 text-[12px] font-normal text-text-secondary">
                             {plan.book_limit === null
-                                ? 'of unlimited'
-                                : `of ${plan.book_limit}`}
+                                ? t('profile.of_unlimited')
+                                : t('profile.of_limit', { limit: plan.book_limit })}
                         </span>
                     </p>
                 </div>
@@ -332,7 +336,7 @@ function PlanCard({ plan }) {
                 onClick={() => router.get(route('billing.show'))}
                 className="mt-3 text-[12.5px] font-semibold text-brand-primary hover:underline"
             >
-                Plans &amp; billing
+                {t('menu.billing')}
             </button>
         </Box>
     );
@@ -347,6 +351,7 @@ function PlanCard({ plan }) {
  * server ignores those keys whatever this form sends.
  */
 function EmailPreferences({ categories, saved }) {
+    const { t } = useI18n();
     const { data, setData, setDefaults, patch, processing, isDirty, recentlySuccessful } = useForm({
         preferences: Object.fromEntries(
             categories.filter((c) => !c.mandatory).map((c) => [c.key, c.enabled]),
@@ -368,8 +373,8 @@ function EmailPreferences({ categories, saved }) {
     return (
         <form onSubmit={submit} id="email-preferences" className="scroll-mt-6">
             <Box
-                title="Email"
-                detail="Choose what we email you about. Security and billing emails always arrive, because they are how you hear that something needs you."
+                title={t('profile.email')}
+                detail={t('profile.email_detail')}
             >
                 <ul className="divide-y divide-border-divider rounded-tile border border-border-default">
                     {categories.map((category) => {
@@ -397,7 +402,7 @@ function EmailPreferences({ categories, saved }) {
 
                                 {category.mandatory ? (
                                     <span className="mt-0.5 shrink-0 rounded-badge bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-text-secondary">
-                                        Always on
+                                        {t('profile.always_on')}
                                     </span>
                                 ) : (
                                     <button
@@ -418,7 +423,7 @@ function EmailPreferences({ categories, saved }) {
                                         }`}
                                     >
                                         <span className="sr-only">
-                                            {on ? 'On' : 'Off'}
+                                            {on ? t('profile.on') : t('profile.off')}
                                         </span>
                                         <span
                                             aria-hidden="true"
@@ -439,11 +444,11 @@ function EmailPreferences({ categories, saved }) {
                         disabled={processing || !isDirty}
                         className="h-[34px] rounded-control bg-brand-fill px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                     >
-                        {processing ? 'Saving…' : 'Save email preferences'}
+                        {processing ? t('editor.save_saving') : t('profile.save_email_prefs')}
                     </button>
                     {(recentlySuccessful || (saved && !isDirty)) && (
                         <span role="status" className="text-[12.5px] text-status-success">
-                            Saved.
+                            {t('profile.saved')}
                         </span>
                     )}
                 </div>

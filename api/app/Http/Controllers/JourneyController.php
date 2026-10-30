@@ -196,7 +196,7 @@ class JourneyController extends Controller
             'questions' => $type?->questions() ?? BookType::NEUTRAL_QUESTIONS,
             'type' => $type?->toArray(),
             'book_types' => array_map(
-                fn (BookType $t) => ['key' => $t->key, 'name' => $t->name(), 'blurb' => $t->blurb()],
+                fn (BookType $t) => ['key' => $t->key, 'name' => $t->displayName(), 'blurb' => $t->displayBlurb()],
                 BookType::all(),
             ),
             'progress' => [

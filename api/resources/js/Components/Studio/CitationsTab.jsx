@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * Citations for the open chapter.
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
  * become true without the citation itself changing.
  */
 export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
+    const { t } = useI18n();
     const [citations, setCitations] = useState([]);
     const [sources, setSources] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -41,31 +43,31 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
         setCitations(res.data.citations);
     };
 
+    const standing = (value) => ({ verified: t('research.standing_verified'), disputed: t('research.standing_disputed'), unverified: t('research.standing_unverified') }[value] ?? value);
+
     const needsSource = citations.filter((c) => c.status === 'needs_source').length;
 
     if (loading) {
-        return <p className="p-3 text-[11px] text-text-secondary">Loading…</p>;
+        return <p className="p-3 text-[11px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     return (
         <div className="p-3">
             <div className="mb-3 flex items-center justify-between">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">
-                    Citations
+                    {t('citations.title')}
                 </p>
                 <button
                     onClick={() => setAdding((v) => !v)}
                     className="rounded bg-brand-fill px-2 py-1 text-[11px] font-bold text-white hover:bg-brand-primary-hover"
                 >
-                    {adding ? 'Cancel' : 'Add'}
+                    {adding ? t('common.cancel') : t('citations.add')}
                 </button>
             </div>
 
             {needsSource > 0 && (
                 <p className="mb-3 rounded bg-status-warning-bg px-2 py-1.5 text-[11px] font-semibold text-status-warning">
-                    {needsSource} claim{needsSource === 1 ? '' : 's'} in this
-                    chapter still {needsSource === 1 ? 'needs' : 'need'} a
-                    source.
+                    {t('citations.needs_source_count', { count: needsSource })}
                 </p>
             )}
 
@@ -83,8 +85,7 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
 
             {citations.length === 0 ? (
                 <p className="px-1 text-[11px] leading-relaxed text-text-secondary">
-                    No citations in this chapter yet. Add one to record what a
-                    claim rests on.
+                    {t('citations.empty')}
                 </p>
             ) : (
                 <ul className="space-y-2">
@@ -107,21 +108,21 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
                                 </p>
                             ) : (
                                 <p className="mt-1 text-[11px] italic text-text-secondary">
-                                    No source attached.
+                                    {t('citations.no_source')}
                                 </p>
                             )}
 
                             {c.rests_on_unverified_source && (
                                 <p className="mt-1.5 rounded bg-status-warning-bg px-1.5 py-1 text-[10px] font-semibold text-status-warning">
-                                    Marked supported, but its source is{' '}
-                                    {c.source?.verification}.
+                                    {t('citations.rests_on_unverified', {
+                                        standing: standing(c.source?.verification),
+                                    })}
                                 </p>
                             )}
 
                             {c.stale && (
                                 <p className="mt-1.5 rounded bg-bg-subtle px-1.5 py-1 text-[10px] font-semibold text-text-secondary">
-                                    The cited text has changed since this was
-                                    recorded.
+                                    {t('citations.stale')}
                                 </p>
                             )}
 
@@ -129,7 +130,7 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
                                 onClick={() => remove(c)}
                                 className="mt-1.5 text-[11px] font-semibold text-text-secondary hover:text-status-danger"
                             >
-                                Remove
+                                {t('citations.remove')}
                             </button>
                         </li>
                     ))}
@@ -140,17 +141,18 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
                 onClick={onManageLibrary}
                 className="mt-4 w-full rounded-lg border border-dashed border-border-input py-2 text-[11px] font-semibold text-text-secondary hover:border-border-input hover:text-text-primary"
             >
-                Open the research library
+                {t('citations.open_library')}
             </button>
         </div>
     );
 }
 
 function Status({ value }) {
+    const { t } = useI18n();
     const label = {
-        needs_source: 'Needs source',
-        supported: 'Supported',
-        contradicted: 'Contradicted',
+        needs_source: t('citations.status_needs_source'),
+        supported: t('citations.status_supported'),
+        contradicted: t('citations.status_contradicted'),
     }[value];
 
     const style = {
@@ -169,6 +171,7 @@ function Status({ value }) {
 }
 
 function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
+    const { t } = useI18n();
     const [claim, setClaim] = useState('');
     const [sourceId, setSourceId] = useState('');
     const [locator, setLocator] = useState('');
@@ -191,7 +194,7 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
             });
             onAdded(res.data.citations);
         } catch (err) {
-            setError(err.response?.data?.message ?? 'That citation could not be saved.');
+            setError(err.response?.data?.message ?? t('citations.save_failed'));
         } finally {
             setSaving(false);
         }
@@ -204,20 +207,19 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
                 onChange={(e) => setClaim(e.target.value)}
                 required
                 rows={2}
-                placeholder="The claim being made…"
+                placeholder={t('citations.claim_placeholder')}
                 className="w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
             />
 
             {sources.length === 0 ? (
                 <p className="mt-2 text-[11px] leading-relaxed text-text-secondary">
-                    The library is empty, so this will be recorded as needing a
-                    source.{' '}
+                    {t('citations.library_empty')}{' '}
                     <button
                         type="button"
                         onClick={onManageLibrary}
                         className="font-semibold text-brand-primary hover:underline"
                     >
-                        Add sources
+                        {t('citations.add_sources')}
                     </button>
                 </p>
             ) : (
@@ -226,12 +228,12 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
                     onChange={(e) => setSourceId(e.target.value)}
                     className="mt-2 w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
                 >
-                    <option value="">No source yet</option>
+                    <option value="">{t('citations.no_source_yet')}</option>
                     {sources.map((s) => (
                         <option key={s.id} value={s.id}>
                             {s.reference}
                             {s.verification !== 'verified'
-                                ? ` (${s.verification})`
+                                ? ` (${{ verified: t('research.standing_verified'), disputed: t('research.standing_disputed'), unverified: t('research.standing_unverified') }[s.verification] ?? s.verification})`
                                 : ''}
                         </option>
                     ))}
@@ -253,7 +255,7 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
                 disabled={saving}
                 className="mt-2 w-full rounded bg-bg-inverse py-1.5 text-[11px] font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
             >
-                {saving ? 'Saving…' : 'Record citation'}
+                {saving ? t('editor.save_saving') : t('citations.record')}
             </button>
         </form>
     );

@@ -87,7 +87,7 @@ class PartnerController extends Controller
             'links' => $links,
         ], $data['agreement_version']);
 
-        return redirect()->route('partners.dashboard')->with('platform_notice', 'Thank you. Your application is in the queue.');
+        return redirect()->route('partners.dashboard')->with('platform_notice', __('Thank you. Your application is in the queue.'));
     }
 
     public function dashboard(Request $request, Ledger $ledger, PartnerPages $pages, Program $program): Response|RedirectResponse
@@ -184,7 +184,7 @@ class PartnerController extends Controller
 
         $pages->update($partner, $data + ['shelf' => $data['shelf'] ?? []]);
 
-        return back()->with('platform_notice', 'Your page is saved.');
+        return back()->with('platform_notice', __('Your page is saved.'));
     }
 
     public function checkHandle(Request $request): JsonResponse
@@ -206,14 +206,14 @@ class PartnerController extends Controller
 
         $pages->uploadLogo($partner, $request->file('logo'));
 
-        return back()->with('platform_notice', 'Logo updated.');
+        return back()->with('platform_notice', __('Logo updated.'));
     }
 
     public function removeLogo(Request $request, PartnerPages $pages): RedirectResponse
     {
         $pages->removeLogo($this->own($request));
 
-        return back()->with('platform_notice', 'Logo removed.');
+        return back()->with('platform_notice', __('Logo removed.'));
     }
 
     public function updatePayoutDetails(Request $request): RedirectResponse
@@ -239,7 +239,7 @@ class PartnerController extends Controller
             'payout_details_updated_at' => now(),
         ])->save();
 
-        return back()->with('platform_notice', 'Payout details saved.');
+        return back()->with('platform_notice', __('Payout details saved.'));
     }
 
     // ── An author's invitation ──────────────────────────────────────────
@@ -272,7 +272,7 @@ class PartnerController extends Controller
 
         $invitations->accept($invitation, $request->user(), $data['agreement_version']);
 
-        return redirect()->route('partners.dashboard', ['tab' => 'page'])->with('platform_notice', 'You are a partner for these books. Set up your page.');
+        return redirect()->route('partners.dashboard', ['tab' => 'page'])->with('platform_notice', __('You are a partner for these books. Set up your page.'));
     }
 
     // ── Internals ───────────────────────────────────────────────────────

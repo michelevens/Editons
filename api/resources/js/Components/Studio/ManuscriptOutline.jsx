@@ -75,6 +75,7 @@ export default function ManuscriptOutline({
     showTools = true,
     showGoals = true,
 }) {
+    useI18n();
     const [query, setQuery] = useState('');
     const [collapsed, setCollapsed] = useState(() => new Set());
     const [partError, setPartError] = useState('');
@@ -137,13 +138,13 @@ export default function ManuscriptOutline({
         window.axios
             .patch(route('books.sections.order', bookId), { parent_id: parentId, ids })
             .then(() => {
-                setAnnouncement(`${node.title} moved to position ${toIndex + 1} of ${ids.length}.`);
+                setAnnouncement(tr('binder.moved_to', { title: node.title, position: toIndex + 1, total: ids.length }));
                 refocus.current = { key: focusKey ?? `outline:open:${node.id}`, id: node.id };
                 router.reload({ only: ['binder'], onFinish: () => setMoving(false) });
             })
             .catch((error) => {
                 setMoving(false);
-                setPartError(error?.response?.data?.message ?? 'The chapter was not moved.');
+                setPartError(error?.response?.data?.message ?? tr('binder.not_moved'));
             });
     };
 
@@ -252,7 +253,7 @@ export default function ManuscriptOutline({
             .patch(route('sections.part', id), { part: part || null })
             .then(() => router.reload({ only: ['binder'] }))
             .catch((error) =>
-                setPartError(error?.response?.data?.message ?? 'The book part was not saved.'),
+                setPartError(error?.response?.data?.message ?? tr('binder.part_not_saved')),
             );
     };
 
@@ -349,7 +350,7 @@ export default function ManuscriptOutline({
                     <div className={`flex shrink-0 items-center gap-2 px-3 py-3 ${showTools ? '' : 'hidden'}`}>
                         {reordering ? (
                             <p className="min-w-0 flex-1 text-[12px] leading-snug text-text-secondary">
-                                Drag a handle, or use ↑ ↓.
+                                {tr('binder.reorder_hint')}
                             </p>
                         ) : (
                             <div className="relative min-w-0 flex-1">
@@ -376,7 +377,7 @@ export default function ManuscriptOutline({
                                     setReordering((on) => !on);
                                 }}
                                 aria-pressed={reordering}
-                                title={reordering ? 'Done reordering' : 'Reorder chapters'}
+                                title={reordering ? tr('binder.done_reordering') : tr('binder.reorder')}
                                 className={`tap grid h-[27px] shrink-0 place-items-center rounded-control px-1.5 text-[12px] font-semibold transition ${
                                     reordering
                                         ? 'bg-brand-fill px-2.5 text-white hover:bg-brand-primary-hover'
@@ -384,11 +385,11 @@ export default function ManuscriptOutline({
                                 }`}
                             >
                                 {reordering ? (
-                                    'Done'
+                                    tr('binder.done')
                                 ) : (
                                     <>
                                         <Icon name="sort" size={15} />
-                                        <span className="sr-only">Reorder chapters</span>
+                                        <span className="sr-only">{tr('binder.reorder')}</span>
                                     </>
                                 )}
                             </button>
@@ -399,7 +400,7 @@ export default function ManuscriptOutline({
                                 data-a="outline:add"
                                 onClick={onAddChapter}
                                 disabled={adding}
-                                aria-label="Add chapter"
+                                aria-label={tr('binder.add_chapter')}
                                 className="grid h-[27px] w-[27px] shrink-0 place-items-center rounded-control bg-brand-fill text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
                             >
                                 <Icon name="plus" size={15} strokeWidth={2} />
@@ -410,8 +411,8 @@ export default function ManuscriptOutline({
                             <button
                                 data-a="outline:import"
                                 onClick={onImport}
-                                aria-label="Import chapters from a file"
-                                title="Import chapters (Markdown or Word)"
+                                aria-label={tr('binder.import_label')}
+                                title={tr('binder.import_title')}
                                 className="grid h-[27px] w-[27px] shrink-0 place-items-center rounded-control border border-border-input text-text-secondary transition hover:border-brand-primary hover:text-brand-primary"
                             >
                                 <Icon name="fDoc" size={15} />
@@ -434,12 +435,12 @@ export default function ManuscriptOutline({
                         <OutlineTable nodes={nodes} onSelect={onSelect} />
                     ) : (
                         <nav
-                            aria-label={reordering ? 'Chapters, reordering' : 'Chapters'}
+                            aria-label={reordering ? tr('binder.nav_reordering') : tr('binder.nav')}
                             className={`flex-1 overflow-y-auto pb-3 ${pointerDrag ? 'select-none' : ''}`}
                         >
                             {visible.length === 0 ? (
                                 <p className="px-4 py-6 text-center text-[11.5px] text-text-secondary">
-                                    No chapters match “{query}”.
+                                    {tr('binder.no_match', { query })}
                                 </p>
                             ) : (
                                 visible.map((node, index) => (
@@ -478,7 +479,7 @@ export default function ManuscriptOutline({
                     }
                     onRenamed={(title) => {
                         setActions(null);
-                        setAnnouncement(`Renamed to ${title}.`);
+                        setAnnouncement(tr('binder.renamed_to', { title }));
                         onRenamed?.(actions.node.id, title);
                         router.reload({ only: ['binder'] });
                     }}
@@ -487,7 +488,7 @@ export default function ManuscriptOutline({
                             ? () => {
                                   const { node } = actions;
                                   setActions(null);
-                                  setAnnouncement(`${node.title} deleted.`);
+                                  setAnnouncement(tr('binder.deleted', { title: node.title }));
                                   onDeleted(node.id);
                               }
                             : null
@@ -517,6 +518,7 @@ function TreeNode({
     onHandle,
     onActions,
 }) {
+    const { formatNumber } = useI18n();
     const isPart = node.type === 'part';
     const isActive = node.id === activeId;
     const isCollapsed = collapsed.has(node.id);
@@ -607,8 +609,8 @@ function TreeNode({
                 data-a={`outline:up:${node.id}`}
                 onClick={() => onMove(node, parentId, index - 1, `outline:up:${node.id}`)}
                 disabled={index === 0}
-                aria-label={`Move ${node.title} up`}
-                title="Move up (Alt+↑)"
+                aria-label={tr('binder.move_title_up', { title: node.title })}
+                title={tr('binder.move_up_title')}
                 className={`grid place-items-center rounded text-text-secondary hover:text-text-primary disabled:opacity-30 ${
                     reordering ? 'h-9 w-9 hover:bg-bg-subtle' : 'h-[20px] w-[18px]'
                 }`}
@@ -620,8 +622,8 @@ function TreeNode({
                 data-a={`outline:down:${node.id}`}
                 onClick={() => onMove(node, parentId, index + 1, `outline:down:${node.id}`)}
                 disabled={index === count - 1}
-                aria-label={`Move ${node.title} down`}
-                title="Move down (Alt+↓)"
+                aria-label={tr('binder.move_title_down', { title: node.title })}
+                title={tr('binder.move_down_title')}
                 className={`grid place-items-center rounded text-text-secondary hover:text-text-primary disabled:opacity-30 ${
                     reordering ? 'h-9 w-9 hover:bg-bg-subtle' : 'h-[20px] w-[18px]'
                 }`}
@@ -686,7 +688,7 @@ function TreeNode({
                                 onMove(node, parentId, index + 1, `outline:handle:${node.id}`);
                             }
                         }}
-                        aria-label={`Drag to reorder ${node.title} (or press ↑ ↓)`}
+                        aria-label={tr('binder.drag_label', { title: node.title })}
                         aria-keyshortcuts="ArrowUp ArrowDown"
                         style={{ touchAction: 'none' }}
                         className="grid h-9 w-8 shrink-0 cursor-grab place-items-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary active:cursor-grabbing"
@@ -700,7 +702,7 @@ function TreeNode({
                         data-a={`outline:toggle:${node.id}`}
                         onClick={() => onToggle(node.id)}
                         aria-expanded={!isCollapsed}
-                        aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${node.title}`}
+                        aria-label={isCollapsed ? tr('binder.expand', { title: node.title }) : tr('binder.collapse', { title: node.title })}
                         className="shrink-0 text-text-secondary transition hover:text-text-primary"
                     >
                         <Icon
@@ -768,7 +770,7 @@ function TreeNode({
 
                 {!isPart && node.word_count > 0 && !reordering && (
                     <span className="shrink-0 text-[10px] tabular-nums text-text-secondary group-focus-within:hidden group-hover:hidden">
-                        {node.word_count.toLocaleString()}
+                        {formatNumber(node.word_count)}
                     </span>
                 )}
 
@@ -780,8 +782,8 @@ function TreeNode({
                         data-a={`outline:more:${node.id}`}
                         onClick={openActions}
                         aria-haspopup="dialog"
-                        aria-label={`More actions for ${node.title}`}
-                        title="Rename, goal, move, delete"
+                        aria-label={tr('binder.more_actions', { title: node.title })}
+                        title={tr('binder.more_title')}
                         className="hidden h-[20px] w-[18px] shrink-0 place-items-center rounded text-text-secondary hover:text-text-primary group-focus-within:grid group-hover:grid"
                     >
                         <Icon name="more" size={14} strokeWidth={3} />
@@ -827,6 +829,7 @@ function TreeNode({
  * the database, not from here).
  */
 function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, onRenamed, onDeleted }) {
+    const { formatNumber } = useI18n();
     const [mode, setMode] = useState('menu');
     const [title, setTitle] = useState(node.title);
     const [busy, setBusy] = useState(false);
@@ -837,7 +840,7 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
 
         const next = title.trim();
         if (!next) {
-            setError('A chapter needs a title.');
+            setError(tr('binder.title_required'));
 
             return;
         }
@@ -849,7 +852,7 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
             await window.axios.patch(route('sections.update', node.id), { title: next });
             onRenamed(next);
         } catch (failure) {
-            setError(failure?.response?.data?.errors?.title?.[0] ?? failure?.response?.data?.message ?? 'The chapter was not renamed.');
+            setError(failure?.response?.data?.errors?.title?.[0] ?? failure?.response?.data?.message ?? tr('binder.not_renamed'));
             setBusy(false);
         }
     };
@@ -862,7 +865,7 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
             await window.axios.delete(route('sections.destroy', node.id));
             onDeleted();
         } catch (failure) {
-            setError(failure?.response?.data?.message ?? 'The chapter was not deleted.');
+            setError(failure?.response?.data?.message ?? tr('binder.not_deleted'));
             setBusy(false);
         }
     };
@@ -872,20 +875,20 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
 
     return (
         <Dialog
-            label={`${node.title}: actions`}
+            label={tr('binder.actions_label', { title: node.title })}
             onClose={onClose}
             data-a="outline:actions"
             className="w-[340px] max-w-full rounded-panel bg-bg-surface p-3 shadow-popover"
         >
             <div className="flex items-center justify-between gap-2 pb-2 pl-3">
                 <h2 className="min-w-0 truncate text-[13.5px] font-semibold text-text-primary">{node.title}</h2>
-                <CloseButton onClick={onClose} label="Close actions" />
+                <CloseButton onClick={onClose} label={tr('binder.close_actions')} />
             </div>
 
             {mode === 'rename' ? (
                 <form onSubmit={rename} className="space-y-2 px-3 pb-2">
                     <label htmlFor={`rename-${node.id}`} className="block text-[11.5px] text-text-secondary">
-                        Title
+                        {tr('binder.title')}
                     </label>
                     <input
                         id={`rename-${node.id}`}
@@ -898,7 +901,7 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
                     />
                     <div className="flex justify-end gap-2">
                         <button type="button" onClick={() => setMode('menu')} className="tap rounded-control px-3 py-1.5 text-[12.5px] text-text-secondary hover:text-text-primary">
-                            Cancel
+                            {tr('common.cancel')}
                         </button>
                         <button
                             type="submit"
@@ -906,19 +909,18 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
                             disabled={busy}
                             className="tap rounded-control bg-brand-fill px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-60"
                         >
-                            Rename
+                            {tr('binder.rename')}
                         </button>
                     </div>
                 </form>
             ) : mode === 'delete' ? (
                 <div className="space-y-3 px-3 pb-2">
                     <p className="text-[12.5px] leading-relaxed text-text-body">
-                        Delete “{node.title}” and its {(node.word_count ?? 0).toLocaleString()} words? It leaves the
-                        book and every export.
+                        {tr('binder.delete_confirm', { title: node.title, words: formatNumber(node.word_count ?? 0) })}
                     </p>
                     <div className="flex justify-end gap-2">
                         <button type="button" onClick={() => setMode('menu')} className="tap rounded-control px-3 py-1.5 text-[12.5px] text-text-secondary hover:text-text-primary">
-                            Keep it
+                            {tr('binder.keep')}
                         </button>
                         <button
                             type="button"
@@ -927,18 +929,18 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
                             disabled={busy}
                             className="tap rounded-control bg-status-danger-fill px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-60"
                         >
-                            Delete chapter
+                            {tr('binder.delete_chapter')}
                         </button>
                     </div>
                 </div>
             ) : (
-                <div role="group" aria-label="Actions" className="space-y-0.5">
+                <div role="group" aria-label={tr('binder.actions')} className="space-y-0.5">
                     <button type="button" data-a="outline:action:rename" className={item} onClick={() => setMode('rename')}>
-                        <Icon name="aLine" size={16} /> Rename
+                        <Icon name="aLine" size={16} /> {tr('binder.rename')}
                     </button>
                     {onSetGoal && (
                         <button type="button" data-a="outline:action:goal" className={item} onClick={onSetGoal}>
-                            <ProgressRing value={node.word_count} goal={node.word_goal} size={16} stroke={2} /> Set goal
+                            <ProgressRing value={node.word_count} goal={node.word_goal} size={16} stroke={2} /> {tr('binder.set_goal')}
                         </button>
                     )}
                     <button
@@ -948,7 +950,7 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
                         disabled={!canMove || index === 0}
                         onClick={() => onMove(index - 1)}
                     >
-                        <Icon name="chev" size={16} strokeWidth={2} className="rotate-180" /> Move up
+                        <Icon name="chev" size={16} strokeWidth={2} className="rotate-180" /> {tr('binder.move_up')}
                     </button>
                     <button
                         type="button"
@@ -957,7 +959,7 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
                         disabled={!canMove || index >= count - 1}
                         onClick={() => onMove(index + 1)}
                     >
-                        <Icon name="chev" size={16} strokeWidth={2} /> Move down
+                        <Icon name="chev" size={16} strokeWidth={2} /> {tr('binder.move_down')}
                     </button>
                     {onDeleted && (
                         <button
@@ -966,7 +968,7 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
                             className={`${item} text-status-danger`}
                             onClick={() => setMode('delete')}
                         >
-                            <Icon name="x" size={16} /> Delete
+                            <Icon name="x" size={16} /> {tr('binder.delete')}
                         </button>
                     )}
                 </div>
@@ -982,9 +984,9 @@ function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, o
 }
 
 const PART_GROUPS = [
-    ['front', 'Front matter'],
-    ['body', 'Text'],
-    ['back', 'Back matter'],
+    { group: 'front', tKey: 'binder.group_front' },
+    { group: 'body', tKey: 'binder.group_body' },
+    { group: 'back', tKey: 'binder.group_back' },
 ];
 
 /**
@@ -1007,9 +1009,9 @@ function PartSelect({ node, depth, options, onChange }) {
                 onChange={(event) => onChange(node.id, event.target.value)}
                 className="h-[24px] min-w-0 flex-1 rounded-control border border-border-input bg-bg-surface px-1.5 py-0 text-[11px] text-text-body focus:border-brand-primary focus:ring-0"
             >
-                <option value="">Not set</option>
-                {PART_GROUPS.map(([group, label]) => (
-                    <optgroup key={group} label={label}>
+                <option value="">{tr('binder.part_not_set')}</option>
+                {PART_GROUPS.map(({ group, tKey }) => (
+                    <optgroup key={group} label={tr(tKey)}>
                         {options
                             .filter((option) => option.group === group)
                             .map((option) => (
@@ -1026,6 +1028,7 @@ function PartSelect({ node, depth, options, onChange }) {
 
 /** Flat chapter table with live word counts. */
 function OutlineTable({ nodes, onSelect }) {
+    const { formatNumber } = useI18n();
     const rows = [];
 
     const walk = (list, part) =>
@@ -1042,7 +1045,7 @@ function OutlineTable({ nodes, onSelect }) {
     if (rows.length === 0) {
         return (
             <p className="px-4 py-6 text-center text-[11.5px] text-text-secondary">
-                No chapters yet.
+                {tr('binder.no_chapters')}
             </p>
         );
     }
@@ -1052,8 +1055,8 @@ function OutlineTable({ nodes, onSelect }) {
             <table className="w-full border-collapse">
                 <thead>
                     <tr className="text-left text-[10px] uppercase tracking-wide text-text-secondary">
-                        <th className="px-2 pb-1.5 font-medium">Chapter</th>
-                        <th className="px-2 pb-1.5 text-right font-medium">Words</th>
+                        <th className="px-2 pb-1.5 font-medium">{tr('binder.col_chapter')}</th>
+                        <th className="px-2 pb-1.5 text-right font-medium">{tr('binder.col_words')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1075,7 +1078,7 @@ function OutlineTable({ nodes, onSelect }) {
                                 )}
                             </td>
                             <td className="px-2 py-1.5 text-right text-[11px] tabular-nums text-text-secondary">
-                                {(row.word_count ?? 0).toLocaleString()}
+                                {formatNumber(row.word_count ?? 0)}
                             </td>
                         </tr>
                     ))}

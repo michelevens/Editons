@@ -140,7 +140,7 @@ class ResearchController extends Controller
         // Mirrors the database CHECK constraint so the author gets a usable
         // message instead of a 500 from a constraint violation.
         if ($data['status'] !== 'needs_source' && empty($data['research_source_id'])) {
-            abort(422, 'A supported or contradicted claim must name a source.');
+            abort(422, __('A supported or contradicted claim must name a source.'));
         }
 
         $section->citations()->create($data + ['created_by' => $request->user()->id]);

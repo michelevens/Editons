@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * Writing progress, from version history.
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
  * against it — an author who cut four thousand words did not write them.
  */
 export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }) {
+    const { t, formatNumber } = useI18n();
     const [data, setData] = useState(null);
 
     useEffect(() => {
@@ -24,7 +26,7 @@ export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }
     }, [bookId]);
 
     if (!data) {
-        return <p className="p-8 text-center text-[13px] text-text-secondary">Loading…</p>;
+        return <p className="p-8 text-center text-[13px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { totals } = data;
@@ -36,71 +38,69 @@ export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }
         <div className="mx-auto max-w-[1040px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
-                    Analytics
+                    {t('analytics.title')}
                 </h2>
                 <p className="mt-1.5 text-[14px] text-text-secondary">
-                    Counted from your saved versions — not estimated.
+                    {t('analytics.subtitle')}
                 </p>
             </header>
 
             <div className="grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
-                <Stat label="Words" value={totals.words.toLocaleString()} sub={`${totals.chapters} chapters`} />
+                <Stat label={t('analytics.words')} value={formatNumber(totals.words)} sub={t('analytics.chapters', { n: totals.chapters })} />
                 <Stat
-                    label="Progress"
+                    label={t('analytics.progress')}
                     value={pct === null ? '—' : `${pct}%`}
                     sub={
                         totals.target
-                            ? `of ${totals.target.toLocaleString()}`
-                            : 'no target set'
+                            ? t('analytics.of_target', { target: formatNumber(totals.target) })
+                            : t('analytics.no_target')
                     }
                 />
                 <Stat
-                    label="Findings resolved"
+                    label={t('analytics.findings_resolved')}
                     value={totals.findings_applied + totals.findings_dismissed}
-                    sub={`${totals.findings_applied} applied · ${totals.findings_dismissed} dismissed`}
+                    sub={t('analytics.applied_dismissed', { applied: totals.findings_applied, dismissed: totals.findings_dismissed })}
                 />
                 <Stat
-                    label="Still open"
+                    label={t('analytics.still_open')}
                     value={totals.findings_open}
                     tone={totals.findings_open > 0 ? 'warning' : undefined}
-                    sub={`${totals.versions} versions saved`}
+                    sub={t('analytics.versions_saved', { n: totals.versions })}
                 />
             </div>
 
             <section className="mt-5 rounded-panel border border-border-default bg-bg-surface p-5">
                 <h3 className="text-[15px] font-semibold text-text-primary">
-                    Words written per day
+                    {t('analytics.per_day')}
                 </h3>
                 <p className="mt-1 text-[12px] text-text-secondary">
-                    Net change per day across the last {data.days}. A day you cut
-                    more than you added reads negative, because it was.
+                    {t('analytics.per_day_hint', { days: data.days })}
                 </p>
 
                 <DailyChart days={data.daily} />
 
                 {!data.has_history && (
                     <p className="mt-3 rounded-control bg-status-warning-bg px-3 py-2 text-[11.5px] text-status-warning">
-                        This book has no saved version history yet, so there is
-                        nothing to chart. It fills in as you write.
+                        {t('analytics.no_history')}
                     </p>
                 )}
             </section>
 
             <div className="mt-5 grid grid-cols-1 gap-[18px] lg:grid-cols-2">
                 <Bars
-                    title="Words by chapter"
+                    title={t('analytics.words_by_chapter')}
                     rows={data.by_section.map((section) => ({
                         key: section.id,
                         label: section.title,
                         value: section.words,
                     }))}
                     onPick={onOpenSection}
-                    empty="No chapters yet."
-                    format={(value) => value.toLocaleString()}
+                    empty={t('analytics.no_chapters')}
+                    format={(value) => formatNumber(value)}
                 />
 
                 <Bars
-                    title="Open findings by agent"
+                    title={t('analytics.open_by_agent')}
                     rows={data.by_agent.map((agent) => ({
                         key: agent.value,
                         label: agent.label,
@@ -109,7 +109,7 @@ export default function AnalyticsPanel({ bookId, onOpenSection, onOpenFindings }
                     // Opens the AI Editor on that agent's findings; with no
                     // onPick the bars rendered permanently disabled.
                     onPick={onOpenFindings}
-                    empty="Nothing open."
+                    empty={t('analytics.nothing_open')}
                     tone="warning"
                     format={(value) => value}
                 />
@@ -144,6 +144,7 @@ function Stat({ label, value, sub, tone }) {
  * manuscript got shorter.
  */
 function DailyChart({ days }) {
+    const { t, formatNumber } = useI18n();
     const peak = Math.max(1, ...days.map((day) => Math.abs(day.words)));
     const hasNegative = days.some((day) => day.words < 0);
 
@@ -156,7 +157,7 @@ function DailyChart({ days }) {
                     return (
                         <div
                             key={day.date}
-                            title={`${day.label}: ${day.words >= 0 ? '+' : ''}${day.words.toLocaleString()} words`}
+                            title={t('analytics.day_words', { day: day.label, words: `${day.words >= 0 ? '+' : ''}${formatNumber(day.words)}` })}
                             className="flex min-w-0 flex-1 flex-col justify-end"
                             style={{ height: '100%' }}
                         >
@@ -190,7 +191,7 @@ function DailyChart({ days }) {
 
             <div className="mt-2 flex justify-between text-[10.5px] text-text-secondary">
                 <span>{days[0]?.label}</span>
-                <span>Today</span>
+                <span>{t('analytics.today')}</span>
             </div>
         </div>
     );

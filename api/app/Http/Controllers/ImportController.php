@@ -137,7 +137,7 @@ class ImportController extends Controller
             : (string) ($data['markdown'] ?? '');
 
         if ($markdown !== null && trim($markdown) === '') {
-            abort(422, 'Nothing to import.');
+            abort(422, __('Nothing to import.'));
         }
 
         // The manuscript is content, never instructions — the same rule the
@@ -158,7 +158,7 @@ class ImportController extends Controller
         }
 
         if (! config('publishing.docx_import')) {
-            throw ValidationException::withMessages(['file' => 'Importing Word documents is turned off.']);
+            throw ValidationException::withMessages(['file' => __('Importing Word documents is turned off.')]);
         }
 
         return $this->docx->import($book, (string) $file->getRealPath(), $userId, $this->titleFrom($file));
@@ -181,17 +181,17 @@ class ImportController extends Controller
     private function markdownFrom(UploadedFile $file): string
     {
         if ($file->getSize() > self::MARKDOWN_MAX_BYTES) {
-            throw ValidationException::withMessages(['file' => 'A Markdown file can be up to 10 MB.']);
+            throw ValidationException::withMessages(['file' => __('A Markdown file can be up to 10 MB.')]);
         }
 
         $text = (string) file_get_contents((string) $file->getRealPath());
 
         if (str_contains($text, "\0") || ! mb_check_encoding($text, 'UTF-8')) {
-            throw ValidationException::withMessages(['file' => 'That file is not Markdown text (UTF-8).']);
+            throw ValidationException::withMessages(['file' => __('That file is not Markdown text (UTF-8).')]);
         }
 
         if (trim($text) === '') {
-            throw ValidationException::withMessages(['file' => 'That file is empty.']);
+            throw ValidationException::withMessages(['file' => __('That file is empty.')]);
         }
 
         // A byte-order mark would end up in the first chapter's title.

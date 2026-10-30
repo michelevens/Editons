@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '@/i18n';
 
 /**
  * The credit balance, above the studio.
@@ -13,6 +14,7 @@ import { useCallback, useEffect, useState } from 'react';
  * strip updates with the spend rather than lagging a request behind it.
  */
 export default function CreditStrip({ balance }) {
+    const { t, formatNumber } = useI18n();
     const [summary, setSummary] = useState(null);
 
     const load = useCallback(async () => {
@@ -57,19 +59,23 @@ export default function CreditStrip({ balance }) {
             }`}
         >
             <span className={low ? 'font-semibold' : ''}>
-                <b className="text-text-primary">{credits.toLocaleString()}</b> credits
-                {monthly > 0 ? ` of ${monthly.toLocaleString()}` : ''} left
+                <b className="text-text-primary">{formatNumber(credits)}</b>{' '}
+                {monthly > 0
+                    ? t('credits.of_monthly_left', { monthly: formatNumber(monthly) })
+                    : t('credits.left')}
             </span>
 
             {simulated ? (
                 <span data-a="credits:sample" className="hidden sm:inline">
-                    Reviews here are sample output (automated checks, no AI) and
-                    use no credits
+                    {t('credits.sample')}
                 </span>
             ) : costs && (
                 <span className="hidden sm:inline">
-                    one editor {costs.agent_run} · specialist {costs.specialist_run} · whole
-                    book {costs.book_review}
+                    {t('credits.costs', {
+                        agent: costs.agent_run,
+                        specialist: costs.specialist_run,
+                        book: costs.book_review,
+                    })}
                 </span>
             )}
 
@@ -78,7 +84,7 @@ export default function CreditStrip({ balance }) {
                 onClick={() => router.get(route('billing.show'))}
                 className="ml-auto shrink-0 font-semibold text-brand-primary hover:underline"
             >
-                {low ? `Top up · ${planName}` : 'Plans & billing'}
+                {low ? t('credits.top_up', { plan: planName }) : t('credits.plans')}
             </button>
         </div>
     );

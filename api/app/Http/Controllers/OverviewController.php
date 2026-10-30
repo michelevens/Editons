@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Editorial\ConsistencyIndex;
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\Citation;
 use App\Models\EditorialFinding;
@@ -102,43 +103,45 @@ class OverviewController extends Controller
     private function checklist($book, $chapters, $findings, $citations): array
     {
         $written = $chapters->where('word_count', '>', 0);
+        $disagreements = count($this->consistency->scan($book));
+        $unverified = $book->sources()->where('verification', '!=', 'verified')->count();
 
         return [
             [
-                'label' => 'Draft every chapter',
+                'label' => Locales::t('overview.check_draft'),
                 'done' => $chapters->isNotEmpty() && $written->count() === $chapters->count(),
-                'detail' => "{$written->count()} of {$chapters->count()} have words",
+                'detail' => Locales::t('overview.check_draft_detail', ['written' => $written->count(), 'total' => $chapters->count()]),
                 'route' => 'manuscript',
             ],
             [
-                'label' => 'Clear critical findings',
+                'label' => Locales::t('overview.check_critical'),
                 'done' => $findings->where('severity', 'critical')->isEmpty(),
-                'detail' => $findings->where('severity', 'critical')->count().' critical open',
+                'detail' => Locales::t('overview.check_critical_detail', ['count' => $findings->where('severity', 'critical')->count()]),
                 'route' => 'ai',
             ],
             [
-                'label' => 'Source every claim',
+                'label' => Locales::t('overview.check_claims'),
                 'done' => $citations->where('status', 'needs_source')->isEmpty(),
-                'detail' => $citations->where('status', 'needs_source')->count().' awaiting a source',
+                'detail' => Locales::t('overview.check_claims_detail', ['count' => $citations->where('status', 'needs_source')->count()]),
                 'route' => 'research',
             ],
             [
-                'label' => 'Verify every source',
-                'done' => $book->sources()->where('verification', '!=', 'verified')->doesntExist(),
-                'detail' => $book->sources()->where('verification', '!=', 'verified')->count().' unverified',
+                'label' => Locales::t('overview.check_sources'),
+                'done' => $unverified === 0,
+                'detail' => Locales::t('overview.check_sources_detail', ['count' => $unverified]),
                 'route' => 'research',
             ],
             [
-                'label' => 'Settle the vocabulary',
-                'done' => count($this->consistency->scan($book)) === 0,
-                'detail' => count($this->consistency->scan($book)).' disagreements across chapters',
+                'label' => Locales::t('overview.check_vocabulary'),
+                'done' => $disagreements === 0,
+                'detail' => Locales::t('overview.check_vocabulary_detail', ['count' => $disagreements]),
                 'route' => 'terms',
             ],
             [
-                'label' => 'Approve every chapter',
+                'label' => Locales::t('overview.check_approve'),
                 'done' => $chapters->isNotEmpty()
                     && $chapters->where('status', 'approved')->count() === $chapters->count(),
-                'detail' => $chapters->where('status', 'approved')->count()." of {$chapters->count()} approved",
+                'detail' => Locales::t('overview.check_approve_detail', ['approved' => $chapters->where('status', 'approved')->count(), 'total' => $chapters->count()]),
                 'route' => 'workflow',
             ],
         ];
