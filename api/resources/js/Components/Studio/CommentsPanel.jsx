@@ -18,6 +18,11 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
     useI18n();
     const [data, setData] = useState(null);
     const [filter, setFilter] = useState('open');
+    // Narrowing filters on top of open/resolved (R4). Empty = everyone,
+    // every chapter, as before.
+    const [author, setAuthor] = useState('');
+    const [chapter, setChapter] = useState('');
+    const [mentionsMe, setMentionsMe] = useState(false);
     const [draft, setDraft] = useState('');
     const [replyTo, setReplyTo] = useState(null);
     const [replyBody, setReplyBody] = useState('');
@@ -92,6 +97,26 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
         take(response.data);
     };
 
+    /** Resolve or reopen every thread the filters show that this person may. */
+    const setStatusAll = async (targets, status) => {
+        const message = status === 'resolved'
+            ? t('comments.bulk_resolve_confirm', { count: targets.length })
+            : t('comments.bulk_reopen_confirm', { count: targets.length });
+
+        if (!confirm(message)) return;
+
+        setBusy(true);
+        try {
+            const response = await window.axios.post(`/books/${bookId}/comments/status`, {
+                ids: targets.map((thread) => thread.id),
+                status,
+            });
+            take(response.data);
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const remove = async (comment) => {
         const response = await window.axios.delete(`/comments/${comment.id}`);
         take(response.data);
@@ -101,9 +126,47 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
         return <p className="p-4 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
-    const threads = data.threads.filter((thread) =>
+    const byStatus = data.threads.filter((thread) =>
         filter === 'all' ? true : thread.status === filter,
     );
+
+    // Each dimension counts what the OTHER filters leave, so a number always
+    // says how many threads choosing it would show.
+    const authorKey = (thread) => String(thread.user_id ?? thread.author_name);
+    const pass = (thread, skip) =>
+        (skip === 'author' || !author || authorKey(thread) === author)
+        && (skip === 'chapter' || !chapter || String(thread.section_id) === chapter)
+        && (skip === 'mentions' || !mentionsMe || thread.mentions_me);
+
+    const threads = byStatus.filter((thread) => pass(thread));
+    const narrowed = author !== '' || chapter !== '' || mentionsMe;
+
+    const tally = (skip, keyOf, labelOf, chosen) => {
+        const rows = new Map();
+        byStatus.filter((thread) => pass(thread, skip)).forEach((thread) => {
+            const key = keyOf(thread);
+            const row = rows.get(key) ?? { key, label: labelOf(thread), count: 0 };
+            row.count += 1;
+            rows.set(key, row);
+        });
+
+        // A chosen value with no threads left stays listed, at 0, so the
+        // select never goes blank.
+        if (chosen && !rows.has(chosen)) {
+            const thread = data.threads.find((th) => keyOf(th) === chosen);
+            rows.set(chosen, { key: chosen, label: thread ? labelOf(thread) : chosen, count: 0 });
+        }
+
+        return [...rows.values()];
+    };
+
+    const authors = tally('author', authorKey, (th) => th.author_name, author)
+        .sort((a, b) => a.label.localeCompare(b.label));
+    const chapters = tally('chapter', (th) => String(th.section_id), (th) => th.section_title, chapter);
+    const mentionCount = byStatus.filter((thread) => pass(thread, 'mentions') && thread.mentions_me).length;
+
+    const resolvable = threads.filter((thread) => thread.status === 'open' && thread.can_resolve !== false);
+    const reopenable = threads.filter((thread) => thread.status === 'resolved' && thread.can_resolve !== false);
 
     return (
         <div className="p-3.5">
@@ -132,6 +195,89 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
                 ))}
             </div>
 
+            {data.threads.length > 0 && (
+                <div data-a="comments:filters" className="mb-3 flex flex-wrap items-center gap-1.5 text-[11.5px]">
+                    <select
+                        value={author}
+                        data-a="comments:filter:author"
+                        aria-label={t('comments.filter_author')}
+                        onChange={(event) => setAuthor(event.target.value)}
+                        className="min-w-0 max-w-full flex-1 basis-28 rounded-control border-border-input py-1 pl-2 pr-7 text-[11.5px] focus:border-brand-primary focus:ring-0"
+                    >
+                        <option value="">{t('comments.filter_anyone')}</option>
+                        {authors.map((a) => (
+                            <option key={a.key} value={a.key}>{a.label} ({a.count})</option>
+                        ))}
+                    </select>
+                    <select
+                        value={chapter}
+                        data-a="comments:filter:chapter"
+                        aria-label={t('comments.filter_chapter')}
+                        onChange={(event) => setChapter(event.target.value)}
+                        className="min-w-0 max-w-full flex-1 basis-28 rounded-control border-border-input py-1 pl-2 pr-7 text-[11.5px] focus:border-brand-primary focus:ring-0"
+                    >
+                        <option value="">{t('comments.filter_all_chapters')}</option>
+                        {chapters.map((c) => (
+                            <option key={c.key} value={c.key}>{c.label} ({c.count})</option>
+                        ))}
+                    </select>
+                    <button
+                        type="button"
+                        data-a="comments:filter:mentions"
+                        aria-pressed={mentionsMe}
+                        onClick={() => setMentionsMe((v) => !v)}
+                        className={`rounded-badge border px-2.5 py-1 font-medium transition max-sm:py-1.5 ${
+                            mentionsMe
+                                ? 'border-brand-fill bg-brand-fill text-white'
+                                : 'border-border-input text-text-secondary hover:text-text-primary'
+                        }`}
+                    >
+                        {t('comments.filter_mentions_me')} <span>{mentionCount}</span>
+                    </button>
+                    {narrowed && (
+                        <button
+                            type="button"
+                            data-a="comments:filter:clear"
+                            onClick={() => {
+                                setAuthor('');
+                                setChapter('');
+                                setMentionsMe(false);
+                            }}
+                            className="font-medium text-brand-primary hover:underline"
+                        >
+                            {t('comments.filter_clear')}
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {(resolvable.length > 1 || reopenable.length > 1) && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                    {resolvable.length > 1 && (
+                        <button
+                            type="button"
+                            disabled={busy}
+                            data-a="comments:bulk-resolve"
+                            onClick={() => setStatusAll(resolvable, 'resolved')}
+                            className="rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                        >
+                            {t('comments.bulk_resolve', { count: resolvable.length })}
+                        </button>
+                    )}
+                    {reopenable.length > 1 && (
+                        <button
+                            type="button"
+                            disabled={busy}
+                            data-a="comments:bulk-reopen"
+                            onClick={() => setStatusAll(reopenable, 'open')}
+                            className="rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                        >
+                            {t('comments.bulk_reopen', { count: reopenable.length })}
+                        </button>
+                    )}
+                </div>
+            )}
+
             <form onSubmit={post} className="mb-4">
                 <textarea
                     value={draft}
@@ -157,7 +303,7 @@ export default function CommentsPanel({ bookId, sectionId, onOpenSection, onChan
 
             {threads.length === 0 ? (
                 <p className="px-1 text-[11.5px] leading-relaxed text-text-secondary">
-                    {filter === 'open'
+                    {filter === 'open' && !narrowed
                         ? t('comments.none_open')
                         : t('comments.none_filter')}
                 </p>
