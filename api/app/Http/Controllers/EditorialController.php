@@ -163,7 +163,7 @@ class EditorialController extends Controller
         $estimate = $planner->estimate($plan, $user);
 
         if ($estimate['needs_approval'] && ! ($data['approved'] ?? false)) {
-            return response()->json(['message' => 'A whole-book review of this size needs your approval of the estimate first.', 'needs_approval' => true, 'estimate' => $estimate], 409);
+            return response()->json(['message' => __('A whole-book review of this size needs your approval of the estimate first.'), 'needs_approval' => true, 'estimate' => $estimate], 409);
         }
 
         $planner->enforce($estimate, (bool) ($data['approved'] ?? false));
@@ -207,7 +207,7 @@ class EditorialController extends Controller
     private function queue(Book $book, array $plan, array $estimate, $user): JsonResponse
     {
         if ($plan['scope'] === 'book' && ($active = EditorialRun::where('book_id', $book->id)->where('scope', 'book')->whereIn('status', EditorialRun::ACTIVE)->first())) {
-            return response()->json(['message' => 'A whole-book review of this book is already running.', 'run' => $active->progress()], 409);
+            return response()->json(['message' => __('A whole-book review of this book is already running.'), 'run' => $active->progress()], 409);
         }
 
         try {
@@ -226,7 +226,7 @@ class EditorialController extends Controller
             ]);
         } catch (UniqueConstraintViolationException) {
             // Two requests at once: the index holds the line.
-            return response()->json(['message' => 'A whole-book review of this book is already running.'], 409);
+            return response()->json(['message' => __('A whole-book review of this book is already running.')], 409);
         }
 
         RunEditorialReview::dispatch($run->id);

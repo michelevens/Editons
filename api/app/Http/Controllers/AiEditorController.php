@@ -159,7 +159,7 @@ class AiEditorController extends Controller
 
         foreach ($findings as $finding) {
             if ($finding->status !== 'open') {
-                $skipped[] = ['id' => $finding->id, 'message' => 'Already decided.'];
+                $skipped[] = ['id' => $finding->id, 'message' => __('Already decided.')];
 
                 continue;
             }

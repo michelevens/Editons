@@ -41,7 +41,7 @@ class TeamController extends Controller
         // create a membership row competing with books.user_id.
         if ($email === mb_strtolower($book->user->email)) {
             throw ValidationException::withMessages([
-                'email' => 'That is the account owner, who already has full access.',
+                'email' => __('That is the account owner, who already has full access.'),
             ]);
         }
 
@@ -50,8 +50,8 @@ class TeamController extends Controller
         if ($existing && $existing->status !== 'revoked') {
             throw ValidationException::withMessages([
                 'email' => $existing->status === 'active'
-                    ? 'That person is already on this book.'
-                    : 'They have already been invited. Resend the invitation instead.',
+                    ? __('That person is already on this book.')
+                    : __('They have already been invited. Resend the invitation instead.'),
             ]);
         }
 
@@ -141,7 +141,7 @@ class TeamController extends Controller
         // +1 for the owner, who holds a seat without a membership row.
         if ($taken + 1 >= $limit) {
             throw ValidationException::withMessages([
-                'email' => "The {$book->user->planLimits()['name']} plan includes {$limit} seats, and they are all taken.",
+                'email' => __('The :plan plan includes :limit seats, and they are all taken.', ['plan' => $book->user->planLimits()['name'], 'limit' => $limit]),
             ]);
         }
     }

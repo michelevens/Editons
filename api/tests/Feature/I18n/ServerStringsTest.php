@@ -89,3 +89,39 @@ it('lists the book types in French on the new-book form', function () {
 
     expect(collect($types)->firstWhere('key', 'fiction')['blurb'] ?? null)->toBe('Un roman ou une novella.');
 });
+
+it('translates every message the part-2 screens get from the server', function (string $locale) {
+    $controllers = [
+        'AiEditorController', 'EditorialController', 'ImportController', 'JoinController', 'PartnerController',
+        'ResearchController', 'SalesController', 'SellerPartnersController', 'SupportController', 'TeamController',
+    ];
+    $catalogue = rawCatalogue($locale);
+    $missing = [];
+
+    foreach ($controllers as $controller) {
+        preg_match_all("/__\\(\\s*'((?:[^'\\\\]|\\\\.)*)'/", file_get_contents(app_path("Http/Controllers/{$controller}.php")), $m);
+
+        foreach ($m[1] as $string) {
+            if (! isset($catalogue[str_replace("\\'", "'", $string)])) {
+                $missing[] = "{$controller}: {$string}";
+            }
+        }
+    }
+
+    expect($missing)->toBe([]);
+})->with(['fr', 'ht']);
+
+it('answers a team invitation in the inviter’s language', function (string $locale, string $message) {
+    $owner = User::factory()->create();
+    $owner->forceFill(['locale' => $locale])->save();
+    $book = Book::factory()->for($owner)->create();
+
+    $this->actingAs($owner)
+        ->postJson("/books/{$book->id}/members", ['email' => $owner->email, 'role' => 'editor'])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.email.0', $message);
+})->with([
+    'English' => ['en', 'That is the account owner, who already has full access.'],
+    'French' => ['fr', 'C’est le propriétaire du compte, qui a déjà un accès complet.'],
+    'Kreyòl' => ['ht', 'Sa se pwopriyetè kont lan, li gen tout aksè deja.'],
+]);

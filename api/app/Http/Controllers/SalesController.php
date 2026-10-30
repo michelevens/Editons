@@ -107,12 +107,10 @@ class SalesController extends Controller
             'reporting' => [
                 'connected' => false,
                 'message' => $live->isEmpty() && ($direct['product']['published'] ?? false)
-                    ? 'Your storefront is selling this book; its sales are real orders, shown below. '
-                        .'No other store has the book on sale yet.'
+                    ? __('Your storefront is selling this book; its sales are real orders, shown below. No other store has the book on sale yet.')
                     : ($live->isEmpty()
-                    ? 'No store has this book on sale yet. Sales and royalties appear here once one does.'
-                    : 'Sales reporting is not connected yet, so the figures below are not live. '
-                        .'Each store reports on its own schedule, usually monthly.'),
+                    ? __('No store has this book on sale yet. Sales and royalties appear here once one does.')
+                    : __('Sales reporting is not connected yet, so the figures below are not live. Each store reports on its own schedule, usually monthly.')),
             ],
         ]);
     }
@@ -250,7 +248,7 @@ class SalesController extends Controller
         $data = $request->validate(['timezone' => ['required', 'string', Rule::in(\DateTimeZone::listIdentifiers())]]);
         $request->user()->forceFill(['timezone' => $data['timezone']])->save();
 
-        return back()->with('platform_notice', 'Sales reports now use '.$data['timezone'].'.');
+        return back()->with('platform_notice', __('Sales reports now use :timezone.', ['timezone' => $data['timezone']]));
     }
 
     /**

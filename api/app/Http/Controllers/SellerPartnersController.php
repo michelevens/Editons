@@ -37,6 +37,6 @@ class SellerPartnersController extends Controller
 
         $invitations->invite($request->user(), $data['email']);
 
-        return back()->with('platform_notice', 'Invitation sent to '.mb_strtolower($data['email']).'.');
+        return back()->with('platform_notice', __('Invitation sent to :email.', ['email' => mb_strtolower($data['email'])]));
     }
 }

@@ -62,7 +62,7 @@ class SupportController extends Controller
             $request->userAgent(),
         );
 
-        return redirect()->route('support.show', $ticket)->with('platform_notice', 'Sent. Ecrivain support will reply here and by email.');
+        return redirect()->route('support.show', $ticket)->with('platform_notice', __('Sent. Ecrivain support will reply here and by email.'));
     }
 
     public function show(Request $request, SupportTicket $ticket): Response
@@ -95,7 +95,7 @@ class SupportController extends Controller
         $data = $request->validate(['body' => ['required', 'string', 'min:2', 'max:10000']]);
         $desk->authorReply($ticket, $request->user(), $data['body']);
 
-        return back()->with('platform_notice', 'Sent.');
+        return back()->with('platform_notice', __('Sent.'));
     }
 
     private function own(Request $request, SupportTicket $ticket): SupportTicket
