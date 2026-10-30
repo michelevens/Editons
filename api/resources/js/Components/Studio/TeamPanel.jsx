@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import Icon from './Icon';
+import { useI18n } from '@/i18n';
+
+/** A role's name; the value sent to the server stays the English word. */
+function roleLabel(t, role) {
+    if (role === 'editor') return t('team.role_editor');
+    if (role === 'reviewer') return t('team.role_reviewer');
+    if (role === 'viewer') return t('team.role_viewer');
+
+    return role;
+}
 
 /**
  * Who else is on this book.
@@ -10,6 +20,7 @@ import Icon from './Icon';
  * than imply an email went out.
  */
 export default function TeamPanel({ bookId }) {
+    const { t } = useI18n();
     const [data, setData] = useState(null);
     const [email, setEmail] = useState('');
     const [role, setRole] = useState('reviewer');
@@ -44,7 +55,7 @@ export default function TeamPanel({ bookId }) {
             setError(
                 failure.response?.data?.errors?.email?.[0] ??
                     failure.response?.data?.message ??
-                    'That invitation could not be sent.',
+                    t('team.invite_failed'),
             );
         } finally {
             setBusy(false);
@@ -76,12 +87,12 @@ export default function TeamPanel({ bookId }) {
             // Clipboard access is refused in plenty of ordinary situations.
             // Prompt is ugly but it always works, and the link is the whole
             // point of this screen.
-            window.prompt('Copy this invitation link:', member.invite_url);
+            window.prompt(t('team.copy_prompt'), member.invite_url);
         }
     };
 
     if (!data) {
-        return <p className="p-8 text-center text-[13px] text-text-secondary">Loading…</p>;
+        return <p className="p-8 text-center text-[13px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const full =
@@ -91,12 +102,12 @@ export default function TeamPanel({ bookId }) {
         <div className="mx-auto max-w-[840px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
-                    Team Members
+                    {t('team.title')}
                 </h2>
                 <p className="mt-1.5 text-[14px] text-text-secondary">
                     {data.seats.limit === null
-                        ? `${data.seats.used} on this book.`
-                        : `${data.seats.used} of ${data.seats.limit} seats used.`}
+                        ? t('team.seats_on_book', { used: data.seats.used })
+                        : t('team.seats_used', { used: data.seats.used, limit: data.seats.limit })}
                 </p>
             </header>
 
@@ -105,13 +116,13 @@ export default function TeamPanel({ bookId }) {
                 className="rounded-panel border border-border-default bg-bg-surface p-5"
             >
                 <h3 className="text-[15px] font-semibold text-text-primary">
-                    Invite someone
+                    {t('team.invite_someone')}
                 </h3>
 
                 <div className="mt-3.5 flex flex-wrap items-end gap-3">
                     <label className="min-w-[220px] flex-1">
                         <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                            Email
+                            {t('team.email')}
                         </span>
                         <input
                             type="email"
@@ -126,7 +137,7 @@ export default function TeamPanel({ bookId }) {
 
                     <label>
                         <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
-                            Role
+                            {t('team.role')}
                         </span>
                         <select
                             value={role}
@@ -136,7 +147,7 @@ export default function TeamPanel({ bookId }) {
                         >
                             {data.roles.map((option) => (
                                 <option key={option} value={option} className="capitalize">
-                                    {option}
+                                    {roleLabel(t, option)}
                                 </option>
                             ))}
                         </select>
@@ -145,10 +156,10 @@ export default function TeamPanel({ bookId }) {
                     <button
                         disabled={busy || full}
                         data-a="team:invite"
-                        title={full ? 'Every seat on this plan is taken.' : undefined}
+                        title={full ? t('team.seats_full') : undefined}
                         className="h-[38px] rounded-control bg-brand-fill px-4 text-[13.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        {busy ? 'Inviting…' : 'Send invite'}
+                        {busy ? t('team.inviting') : t('team.send_invite')}
                     </button>
                 </div>
 
@@ -167,8 +178,8 @@ export default function TeamPanel({ bookId }) {
                         <Icon name="info" size={14} />
                     </span>
                     {data.delivery === 'email'
-                        ? 'We email the invitation to them. Its link also appears below, in case you would rather send it yourself.'
-                        : 'Nothing is emailed from this server — no mail transport is configured. The invitation is recorded and its link appears below for you to send however you like.'}
+                        ? t('team.delivery_email')
+                        : t('team.delivery_manual')}
                 </p>
             </form>
 
@@ -185,7 +196,7 @@ export default function TeamPanel({ bookId }) {
                             </p>
                         </div>
                         <span className="rounded-badge bg-bg-inverse px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide text-text-inverse">
-                            Owner
+                            {t('team.owner')}
                         </span>
                     </li>
 
@@ -213,7 +224,7 @@ export default function TeamPanel({ bookId }) {
                                 >
                                     {data.roles.map((option) => (
                                         <option key={option} value={option} className="capitalize">
-                                            {option}
+                                            {roleLabel(t, option)}
                                         </option>
                                     ))}
                                 </select>
@@ -227,14 +238,14 @@ export default function TeamPanel({ bookId }) {
                                             onClick={() => setRemoving(null)}
                                             className="text-[12px] text-text-secondary"
                                         >
-                                            Cancel
+                                            {t('common.cancel')}
                                         </button>
                                         <button
                                             data-a={`team:remove:confirm:${member.id}`}
                                             onClick={() => remove(member)}
                                             className="rounded-control bg-status-danger-fill px-2.5 py-1 text-[12px] font-semibold text-white"
                                         >
-                                            Remove
+                                            {t('team.remove')}
                                         </button>
                                     </span>
                                 ) : (
@@ -243,7 +254,7 @@ export default function TeamPanel({ bookId }) {
                                         onClick={() => setRemoving(member.id)}
                                         className="text-[12px] text-text-secondary hover:text-status-danger"
                                     >
-                                        Remove
+                                        {t('team.remove')}
                                     </button>
                                 )}
                             </div>
@@ -257,23 +268,23 @@ export default function TeamPanel({ bookId }) {
                                                 onClick={() => copyLink(member)}
                                                 className="rounded-control bg-brand-primary-subtle px-2.5 py-1 text-[11.5px] font-semibold text-outline-active-text"
                                             >
-                                                {copied === member.id ? 'Copied' : 'Copy invite link'}
+                                                {copied === member.id ? t('team.copied') : t('team.copy_link')}
                                             </button>
                                             <span className="text-[11.5px] text-text-secondary">
-                                                sent {member.invited_at}
+                                                {t('team.sent', { when: member.invited_at })}
                                             </span>
                                         </>
                                     ) : (
                                         <>
                                             <span className="text-[11.5px] text-status-warning">
-                                                The link has expired.
+                                                {t('team.link_expired')}
                                             </span>
                                             <button
                                                 data-a={`team:resend:${member.id}`}
                                                 onClick={() => resend(member)}
                                                 className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                                             >
-                                                Issue a new one
+                                                {t('team.issue_new')}
                                             </button>
                                         </>
                                     )}
@@ -285,16 +296,13 @@ export default function TeamPanel({ bookId }) {
 
                 {data.members.length === 0 && (
                     <p className="px-5 py-6 text-center text-[13px] text-text-secondary">
-                        Nobody else yet. Invite a reader, an editor or a
-                        reviewer above.
+                        {t('team.nobody')}
                     </p>
                 )}
             </section>
 
             <p className="mt-4 text-[11.5px] leading-relaxed text-text-secondary">
-                Editors can change the manuscript. Reviewers and viewers can
-                read it. Only you can change settings, archive the book, or
-                manage this list.
+                {t('team.roles_help')}
             </p>
         </div>
     );
@@ -320,6 +328,7 @@ function Avatar({ name, owner = false }) {
 }
 
 function Status({ member }) {
+    const { t } = useI18n();
     const style =
         member.status === 'active'
             ? 'bg-status-success-bg text-status-success'
@@ -329,7 +338,7 @@ function Status({ member }) {
         <span
             className={`rounded-badge px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide ${style}`}
         >
-            {member.status === 'active' ? 'Active' : 'Invited'}
+            {member.status === 'active' ? t('team.status_active') : t('team.status_invited')}
         </span>
     );
 }

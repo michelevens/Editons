@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon';
+import { useI18n } from '@/i18n';
 
 /**
  * The review board: every chapter in one of four states.
@@ -11,13 +12,14 @@ import Icon from './Icon';
  */
 
 const COLUMNS = [
-    { key: 'draft', label: 'Draft', tint: 'bg-bg-subtle text-text-secondary' },
-    { key: 'review', label: 'In review', tint: 'bg-status-info-bg text-status-info' },
-    { key: 'revisions', label: 'Revisions', tint: 'bg-status-warning-bg text-status-warning' },
-    { key: 'approved', label: 'Approved', tint: 'bg-status-success-bg text-status-success' },
+    { key: 'draft', tKey: 'workflow.draft', tint: 'bg-bg-subtle text-text-secondary' },
+    { key: 'review', tKey: 'workflow.in_review', tint: 'bg-status-info-bg text-status-info' },
+    { key: 'revisions', tKey: 'workflow.revisions', tint: 'bg-status-warning-bg text-status-warning' },
+    { key: 'approved', tKey: 'workflow.approved', tint: 'bg-status-success-bg text-status-success' },
 ];
 
 export default function WorkflowBoard({ bookId, onOpenSection }) {
+    const { t, formatNumber } = useI18n();
     const [chapters, setChapters] = useState([]);
     const [loading, setLoading] = useState(true);
     const [moving, setMoving] = useState(null);
@@ -56,7 +58,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
 
     if (loading) {
         return (
-            <p className="p-8 text-center text-[13px] text-text-secondary">Loading…</p>
+            <p className="p-8 text-center text-[13px] text-text-secondary">{t('common.loading')}</p>
         );
     }
 
@@ -64,17 +66,16 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
         <div className="mx-auto max-w-[1040px] p-4 sm:p-8">
             <header className="mb-6">
                 <h2 className="font-display text-[24px] font-bold tracking-[-0.03em] text-text-primary">
-                    Review Workflow
+                    {t('workflow.title')}
                 </h2>
                 <p className="mt-1.5 text-[14px] text-text-secondary">
-                    Where each chapter stands. Moving a card here is what the
-                    Overview checklist counts.
+                    {t('workflow.subtitle')}
                 </p>
             </header>
 
             {chapters.length === 0 ? (
                 <p className="rounded-panel border border-dashed border-border-default p-8 text-center text-[13px] text-text-secondary">
-                    No chapters yet.
+                    {t('workflow.no_chapters')}
                 </p>
             ) : (
                 // On a phone the columns sit side by side and swipe, as a
@@ -93,7 +94,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                             >
                                 <header className="flex items-center justify-between border-b border-border-divider px-3.5 py-3">
                                     <span className="text-[13px] font-semibold text-text-primary">
-                                        {column.label}
+                                        {t(column.tKey)}
                                     </span>
                                     <span
                                         className={`rounded-badge px-2 py-0.5 text-[11px] font-semibold ${column.tint}`}
@@ -105,7 +106,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                                 <div className="space-y-2 p-2.5">
                                     {cards.length === 0 ? (
                                         <p className="px-1 py-3 text-center text-[11.5px] text-text-secondary">
-                                            Nothing here.
+                                            {t('workflow.nothing_here')}
                                         </p>
                                     ) : (
                                         cards.map((chapter) => (
@@ -122,8 +123,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                                                         {chapter.title}
                                                     </span>
                                                     <span className="mt-0.5 block text-[11px] text-text-secondary">
-                                                        {chapter.word_count.toLocaleString()}{' '}
-                                                        words · {chapter.updated_at}
+                                                        {t('workflow.card_meta', { words: formatNumber(chapter.word_count), updated: chapter.updated_at })}
                                                     </span>
                                                 </button>
 
@@ -135,7 +135,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                                                             columnIndex === 0 ||
                                                             moving === chapter.id
                                                         }
-                                                        aria-label="Move back"
+                                                        aria-label={t('workflow.move_back')}
                                                         className="tap grid place-items-center rounded p-1 text-text-secondary transition hover:bg-bg-subtle disabled:opacity-30"
                                                     >
                                                         <Icon name="left" size={14} />
@@ -148,7 +148,7 @@ export default function WorkflowBoard({ bookId, onOpenSection }) {
                                                             columnIndex === COLUMNS.length - 1 ||
                                                             moving === chapter.id
                                                         }
-                                                        aria-label="Move forward"
+                                                        aria-label={t('workflow.move_forward')}
                                                         className="tap grid place-items-center rounded p-1 text-text-secondary transition hover:bg-bg-subtle disabled:opacity-30"
                                                     >
                                                         <Icon name="right" size={14} />

@@ -1,7 +1,7 @@
 import { Pager } from '@/Components/Admin/Kit';
 import { Link, router } from '@inertiajs/react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { t, useI18n } from '@/i18n';
+import { formatDate, formatNumber, t, useI18n } from '@/i18n';
 
 /**
  * A shelf of books (ADR-0045 — Shelf views and bulk actions): the author's
@@ -53,6 +53,8 @@ const columnLabel = (c) => (COLUMN_KEYS[c] ? t(COLUMN_KEYS[c].tKey) : c);
 const sortLabel = (s) => (SORT_KEYS[s] ? t(SORT_KEYS[s].tKey) : s);
 
 const FORMAT_LABELS = { pdf: 'PDF', epub: 'EPUB', pdf_interior: 'Print interior', cover_wrap: 'Cover wrap' };
+const FORMAT_KEYS = { pdf_interior: { tKey: 'shelfbulk.format_pdf_interior' }, cover_wrap: { tKey: 'shelfbulk.format_cover_wrap' } };
+const formatLabel = (f) => (FORMAT_KEYS[f] ? t(FORMAT_KEYS[f].tKey) : FORMAT_LABELS[f] ?? f);
 
 const control =
     'h-[34px] rounded-control border border-border-input bg-bg-surface px-2.5 text-[12.5px] text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20';
@@ -358,6 +360,7 @@ function ColumnPicker({ shelf, state, go }) {
 
 /** Named views: apply, save the current one under a name, delete. */
 function SavedViews({ shelf, state, routeName }) {
+    const { t } = useI18n();
     const [saved, setSaved] = useState(shelf.saved);
     const [naming, setNaming] = useState(false);
     const [name, setName] = useState('');
@@ -384,12 +387,12 @@ function SavedViews({ shelf, state, routeName }) {
             setNaming(false);
             setName('');
         } catch (e) {
-            setError(e.response?.data?.message ?? 'That did not save.');
+            setError(e.response?.data?.message ?? t('shelfbulk.view_not_saved'));
         }
     };
 
     const remove = async () => {
-        if (!current || !window.confirm(`Delete the view “${current.name}”?`)) return;
+        if (!current || !window.confirm(t('shelfbulk.view_delete_confirm', { name: current.name }))) return;
         await window.axios.delete(route('shelf.views.destroy', current.id));
         setSaved((list) => list.filter((v) => v.id !== current.id));
     };
@@ -398,9 +401,9 @@ function SavedViews({ shelf, state, routeName }) {
         <div className="flex flex-wrap items-center gap-1.5">
             {saved.length > 0 && (
                 <label>
-                    <span className="sr-only">Saved views</span>
+                    <span className="sr-only">{t('shelfbulk.saved_views')}</span>
                     <select data-a="shelf:views" value={current?.id ?? ''} onChange={(e) => apply(e.target.value)} className={control}>
-                        <option value="">{current ? current.name : 'Saved views…'}</option>
+                        <option value="">{current ? current.name : t('shelfbulk.saved_views_pick')}</option>
                         {saved.map((v) => (
                             <option key={v.id} value={v.id}>{v.name}</option>
                         ))}
@@ -408,23 +411,23 @@ function SavedViews({ shelf, state, routeName }) {
                 </label>
             )}
             {current && (
-                <button type="button" data-a="shelf:views:delete" onClick={remove} className="px-1 text-[12px] text-text-secondary hover:text-status-danger" aria-label={`Delete the view ${current.name}`}>
-                    Delete view
+                <button type="button" data-a="shelf:views:delete" onClick={remove} className="px-1 text-[12px] text-text-secondary hover:text-status-danger" aria-label={t('shelfbulk.view_delete_label', { name: current.name })}>
+                    {t('shelfbulk.view_delete')}
                 </button>
             )}
             {naming ? (
                 <form onSubmit={save} className="flex items-center gap-1">
                     <label>
-                        <span className="sr-only">View name</span>
-                        <input autoFocus required maxLength={60} value={name} data-a="shelf:views:name" placeholder="Name this view" onChange={(e) => setName(e.target.value)} className={`${control} w-[150px]`} />
+                        <span className="sr-only">{t('shelfbulk.view_name')}</span>
+                        <input autoFocus required maxLength={60} value={name} data-a="shelf:views:name" placeholder={t('shelfbulk.view_name_placeholder')} onChange={(e) => setName(e.target.value)} className={`${control} w-[150px]`} />
                     </label>
-                    <button type="submit" data-a="shelf:views:save" className={chip}>Save</button>
-                    <button type="button" onClick={() => setNaming(false)} className="px-1 text-[12px] text-text-secondary">Cancel</button>
+                    <button type="submit" data-a="shelf:views:save" className={chip}>{t('shelfbulk.save')}</button>
+                    <button type="button" onClick={() => setNaming(false)} className="px-1 text-[12px] text-text-secondary">{t('common.cancel')}</button>
                     {error && <span role="alert" className="text-[11.5px] text-status-danger">{error}</span>}
                 </form>
             ) : (
                 <button type="button" data-a="shelf:views:new" onClick={() => setNaming(true)} className="px-1 text-[12px] font-medium text-brand-primary hover:underline">
-                    Save view…
+                    {t('shelfbulk.save_view')}
                 </button>
             )}
         </div>
@@ -432,7 +435,7 @@ function SavedViews({ shelf, state, routeName }) {
 }
 
 function when(iso) {
-    return iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+    return iso ? formatDate(iso, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 }
 
 /** One cell of the table, for a column. */
@@ -441,7 +444,7 @@ function Cell({ book, column }) {
 
     switch (column) {
         case 'words':
-            return (book.word_count ?? book.words ?? 0).toLocaleString();
+            return formatNumber(book.word_count ?? book.words ?? 0);
         case 'status':
             return <span className="rounded-badge bg-bg-subtle px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-text-secondary">{['draft', 'in_review', 'published', 'archived'].includes(book.status) ? t(`book.status_${book.status}`) : String(book.status).replace('_', ' ')}</span>;
         case 'series':
@@ -466,7 +469,7 @@ function Cell({ book, column }) {
                 <ul>
                     {files.map(([format, f]) => (
                         <li key={format} className="whitespace-nowrap" data-a={`shelf:export:${book.id}:${format}`}>
-                            <span className="text-text-secondary">{FORMAT_LABELS[format] ?? format}</span> {when(f.at)}{' '}
+                            <span className="text-text-secondary">{formatLabel(format)}</span> {when(f.at)}{' '}
                             {f.rendering ? (
                                 <span className="text-status-info">{t('shelf.rendering')}</span>
                             ) : f.fresh ? (
@@ -556,7 +559,7 @@ function ShelfTable({ books, columns, sections, grouped, groupCount, collapsed, 
                                             <Link href={linkFor(book)} className="block truncate text-[13.5px] font-semibold text-text-primary">{book.title}</Link>
                                             <p className="mt-0.5 flex flex-wrap gap-x-2 text-[11.5px] text-text-secondary">
                                                 {columns.filter((c) => !['isbns', 'exports'].includes(c)).map((c) => (
-                                                    <span key={c}><span className="sr-only">{COLUMN_LABELS[c]}: </span><Cell book={book} column={c} /></span>
+                                                    <span key={c}><span className="sr-only">{t('shelfbulk.column_prefix', { column: columnLabel(c) })}</span><Cell book={book} column={c} /></span>
                                                 ))}
                                             </p>
                                         </div>
@@ -580,6 +583,7 @@ const RESULT_TONE = { true: 'bg-status-success-bg text-status-success', false: '
  * skipped, and why.
  */
 function BulkBar({ shelf, selected, setSelected, houseStyles, coverTemplates, extra }) {
+    const { t } = useI18n();
     const [action, setAction] = useState(null);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
@@ -598,7 +602,7 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, coverTemplates, ex
                 router.reload({ preserveScroll: true });
             }
         } catch (e) {
-            setError(e.response?.data?.message ?? 'That did not work.');
+            setError(e.response?.data?.message ?? t('shelfbulk.failed'));
         } finally {
             setBusy(false);
         }
@@ -606,26 +610,26 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, coverTemplates, ex
 
     const csv = route('shelf.csv', { books: selected, ...(reason ? { reason } : {}) });
     const actions = [
-        ['archive', 'Archive'],
-        ['unarchive', 'Unarchive'],
-        ['series', 'Set series…'],
-        ['house_style', 'House style…'],
-        ['cover_template', 'Apply cover template…'],
-        ['regenerate', 'Regenerate stale…'],
-        ['prepare', 'Prepare for publishing'],
+        { key: 'archive', tKey: 'shelfbulk.archive' },
+        { key: 'unarchive', tKey: 'shelfbulk.unarchive' },
+        { key: 'series', tKey: 'shelfbulk.set_series' },
+        { key: 'house_style', tKey: 'shelfbulk.house_style_action' },
+        { key: 'cover_template', tKey: 'shelfbulk.cover_template_action' },
+        { key: 'regenerate', tKey: 'shelfbulk.regenerate_action' },
+        { key: 'prepare', tKey: 'shelfbulk.prepare' },
     ];
 
     return (
         <section
             data-a="books:prepare"
-            aria-label="Bulk actions"
+            aria-label={t('shelfbulk.bulk_actions')}
             className="sticky bottom-0 z-30 mt-5 -mx-4 border-t border-border-default bg-bg-surface/95 px-4 py-3 shadow-[0_-8px_24px_-16px_rgba(15,34,61,.35)] backdrop-blur sm:mx-0 sm:rounded-panel sm:border"
         >
             <div className="flex flex-wrap items-center gap-2" aria-live="polite">
                 <p className="mr-1 text-[12.5px] font-semibold text-text-primary" data-a="shelf:selected">
-                    {selected.length} selected
+                    {t('shelfbulk.selected', { count: selected.length })}
                 </p>
-                {actions.map(([key, label]) => (
+                {actions.map(({ key, tKey }) => (
                     <button
                         key={key}
                         type="button"
@@ -635,32 +639,32 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, coverTemplates, ex
                         onClick={() => setAction(action === key ? null : key)}
                         className={action === key ? primary : chip}
                     >
-                        {label}
+                        {t(tKey)}
                     </button>
                 ))}
                 <a href={csv} data-a="shelf:bulk:csv" className={chip} download>
-                    Metadata CSV
+                    {t('shelfbulk.metadata_csv')}
                 </a>
                 <button type="button" onClick={() => setSelected([])} className="ml-auto px-2 text-[12px] text-text-secondary hover:text-text-primary">
-                    Clear
+                    {t('shelf.clear')}
                 </button>
             </div>
 
             {needsReason && (
                 <label className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-text-body">
-                    <span>Reason (kept in the audit log, for house books)</span>
+                    <span>{t('shelfbulk.reason')}</span>
                     <input value={reason} data-a="shelf:bulk:reason" minLength={4} onChange={(e) => setReason(e.target.value)} className={`${control} min-w-0 flex-1`} />
                 </label>
             )}
 
             {action === 'archive' && (
-                <Confirm busy={busy} label={`Archive ${selected.length} book${selected.length === 1 ? '' : 's'}`} onConfirm={() => run('archive')} onCancel={() => setAction(null)}>
-                    Archived books leave the active shelf and stop counting toward your plan. Nothing is deleted; unarchive brings them back.
+                <Confirm busy={busy} label={t('shelfbulk.archive_n', { count: selected.length })} onConfirm={() => run('archive')} onCancel={() => setAction(null)}>
+                    {t('shelfbulk.archive_help')}
                 </Confirm>
             )}
             {action === 'unarchive' && (
-                <Confirm busy={busy} label={`Unarchive ${selected.length}`} onConfirm={() => run('unarchive')} onCancel={() => setAction(null)}>
-                    They go back to Drafts, while the plan has room.
+                <Confirm busy={busy} label={t('shelfbulk.unarchive_n', { count: selected.length })} onConfirm={() => run('unarchive')} onCancel={() => setAction(null)}>
+                    {t('shelfbulk.unarchive_help')}
                 </Confirm>
             )}
             {action === 'series' && <SeriesForm busy={busy} count={selected.length} onRun={(p) => run('series', p)} />}
@@ -668,8 +672,8 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, coverTemplates, ex
             {action === 'cover_template' && <CoverTemplateForm busy={busy} selected={selected} coverTemplates={coverTemplates} onRun={(p) => run('cover_template', p)} />}
             {action === 'regenerate' && <RegenerateForm busy={busy} formats={shelf.options.regenerate} onRun={(p) => run('regenerate', p)} />}
             {action === 'prepare' && (
-                <Confirm busy={busy} label="Prepare for publishing" dataA="books:prepare:run" onConfirm={() => run('prepare')} onCancel={() => setAction(null)}>
-                    Each book is checked, its stale files are regenerated, and you get one Google Play upload and one KDP checklist.
+                <Confirm busy={busy} label={t('shelfbulk.prepare')} dataA="books:prepare:run" onConfirm={() => run('prepare')} onCancel={() => setAction(null)}>
+                    {t('shelfbulk.prepare_help')}
                 </Confirm>
             )}
 
@@ -681,18 +685,20 @@ function BulkBar({ shelf, selected, setSelected, houseStyles, coverTemplates, ex
 }
 
 function Confirm({ children, label, onConfirm, onCancel, busy, dataA = 'shelf:bulk:confirm' }) {
+    const { t } = useI18n();
     return (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border-default pt-3">
             <p className="min-w-0 flex-1 text-[12px] text-text-secondary">{children}</p>
             <button type="button" data-a={dataA} disabled={busy} onClick={onConfirm} className={primary}>
-                {busy ? 'Working…' : label}
+                {busy ? t('shelfbulk.working') : label}
             </button>
-            <button type="button" onClick={onCancel} className="px-2 text-[12px] text-text-secondary">Cancel</button>
+            <button type="button" onClick={onCancel} className="px-2 text-[12px] text-text-secondary">{t('common.cancel')}</button>
         </div>
     );
 }
 
 function SeriesForm({ count, onRun, busy }) {
+    const { t } = useI18n();
     const [name, setName] = useState('');
     const [start, setStart] = useState(1);
 
@@ -706,23 +712,24 @@ function SeriesForm({ count, onRun, busy }) {
             }}
         >
             <label className="text-[12px] text-text-body">
-                Series name
+                {t('shelfbulk.series_name')}
                 <input value={name} data-a="shelf:series:name" maxLength={255} onChange={(e) => setName(e.target.value)} className={`${control} mt-1 block w-[220px] max-w-full`} />
             </label>
             <label className="text-[12px] text-text-body">
-                First number
+                {t('shelfbulk.first_number')}
                 <input type="number" min={1} max={9999} value={start} data-a="shelf:series:start" onChange={(e) => setStart(e.target.value)} className={`${control} mt-1 block w-[90px]`} />
             </label>
             <button type="submit" data-a="shelf:series:run" disabled={busy} className={primary}>
-                {name.trim() ? `Number ${count} in selection order` : 'Take out of any series'}
+                {name.trim() ? t('shelfbulk.number_in_order', { count }) : t('shelfbulk.no_series')}
             </button>
-            <p className="w-full text-[11px] text-text-secondary">Numbered in the order you ticked them. Print files made before become out of date.</p>
+            <p className="w-full text-[11px] text-text-secondary">{t('shelfbulk.series_help')}</p>
         </form>
     );
 }
 
 /** The account's house styles (HouseStyles), or the House catalog's given ones. */
 function HouseStyleForm({ houseStyles, onRun, busy }) {
+    const { t } = useI18n();
     const [styles, setStyles] = useState(houseStyles);
     const [styleId, setStyleId] = useState(houseStyles?.[0]?.id ?? '');
     const [follow, setFollow] = useState(true);
@@ -735,19 +742,19 @@ function HouseStyleForm({ houseStyles, onRun, busy }) {
         }).catch(() => setStyles([]));
     }, [houseStyles]);
 
-    if (!styles) return <p className="mt-3 text-[12px] text-text-secondary">Loading styles…</p>;
+    if (!styles) return <p className="mt-3 text-[12px] text-text-secondary">{t('shelfbulk.loading_styles')}</p>;
 
     if (styles.length === 0) {
         return (
             <p className="mt-3 text-[11.5px] text-text-secondary" data-a="books:house-style:none">
-                To give several books one design, save a house style from a book&rsquo;s Design &amp; Layout.
+                {t('shelfbulk.no_house_styles')}
             </p>
         );
     }
 
     return (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border-default pt-3" data-a="books:house-style">
-            <label className="text-[12.5px] font-medium text-text-body" htmlFor="shelf-house-style">House style</label>
+            <label className="text-[12.5px] font-medium text-text-body" htmlFor="shelf-house-style">{t('shelfbulk.house_style')}</label>
             <select id="shelf-house-style" value={styleId} data-a="books:house-style:pick" onChange={(e) => setStyleId(Number(e.target.value))} className={`${control} min-w-0 max-w-full`}>
                 {styles.map((style) => (
                     <option key={style.id} value={style.id}>{style.name}{style.summary ? ` — ${style.summary}` : ''}</option>
@@ -755,12 +762,12 @@ function HouseStyleForm({ houseStyles, onRun, busy }) {
             </select>
             <label className="flex items-center gap-1.5 text-[12px] text-text-body">
                 <input type="checkbox" checked={follow} data-a="books:house-style:follow" onChange={(e) => setFollow(e.target.checked)} />
-                Follow it
+                {t('shelfbulk.follow')}
             </label>
             <button type="button" data-a="books:house-style:apply" disabled={busy || !styleId} onClick={() => onRun({ house_style_id: styleId, follow })} className={primary}>
-                {busy ? 'Applying…' : 'Apply to selected'}
+                {busy ? t('shelfbulk.applying') : t('shelfbulk.apply_selected')}
             </button>
-            <p className="w-full text-[11px] text-text-secondary">Only the design changes; the text never does. Print files made before become out of date.</p>
+            <p className="w-full text-[11px] text-text-secondary">{t('shelfbulk.house_style_help')}</p>
         </div>
     );
 }
@@ -772,6 +779,7 @@ function HouseStyleForm({ houseStyles, onRun, busy }) {
  * finished cover are left as they are unless the artwork choice is made.
  */
 function CoverTemplateForm({ coverTemplates, selected, onRun, busy }) {
+    const { t } = useI18n();
     const [templates, setTemplates] = useState(coverTemplates);
     const [templateId, setTemplateId] = useState(coverTemplates?.[0]?.id ?? '');
     const [follow, setFollow] = useState(true);
@@ -791,12 +799,12 @@ function CoverTemplateForm({ coverTemplates, selected, onRun, busy }) {
     // A new choice of template or artwork needs a new preview.
     useEffect(() => setPreview(null), [templateId, artwork, selected]);
 
-    if (!templates) return <p className="mt-3 text-[12px] text-text-secondary">Loading templates…</p>;
+    if (!templates) return <p className="mt-3 text-[12px] text-text-secondary">{t('shelfbulk.loading_templates')}</p>;
 
     if (templates.length === 0) {
         return (
             <p className="mt-3 text-[11.5px] text-text-secondary" data-a="shelf:cover-template:none">
-                To give several books one cover design, save a cover template from a book&rsquo;s Cover Studio.
+                {t('shelfbulk.no_cover_templates')}
             </p>
         );
     }
@@ -808,7 +816,7 @@ function CoverTemplateForm({ coverTemplates, selected, onRun, busy }) {
             const { data } = await window.axios.post(route('cover-templates.preview', { template: templateId }), { books: selected.slice(0, 50), artwork: artwork || null });
             setPreview(data.books);
         } catch (e) {
-            setError(e.response?.data?.message ?? 'The preview could not be drawn.');
+            setError(e.response?.data?.message ?? t('shelfbulk.preview_failed'));
         } finally {
             setLoading(false);
         }
@@ -819,18 +827,18 @@ function CoverTemplateForm({ coverTemplates, selected, onRun, busy }) {
     return (
         <div className="mt-3 space-y-2 border-t border-border-default pt-3" data-a="shelf:cover-template">
             <div className="flex flex-wrap items-center gap-2">
-                <label className="text-[12.5px] font-medium text-text-body" htmlFor="shelf-cover-template">Cover template</label>
+                <label className="text-[12.5px] font-medium text-text-body" htmlFor="shelf-cover-template">{t('shelfbulk.cover_template')}</label>
                 <select id="shelf-cover-template" value={templateId} data-a="shelf:cover-template:pick" onChange={(e) => setTemplateId(Number(e.target.value))} className={`${control} min-w-0 max-w-full`}>
-                    {templates.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}{t.summary ? ` — ${t.summary}` : ''}</option>
+                    {templates.map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>{tpl.name}{tpl.summary ? ` — ${tpl.summary}` : ''}</option>
                     ))}
                 </select>
                 <label className="flex items-center gap-1.5 text-[12px] text-text-body">
                     <input type="checkbox" checked={follow} data-a="shelf:cover-template:follow" onChange={(e) => setFollow(e.target.checked)} />
-                    Follow it
+                    {t('shelfbulk.follow')}
                 </label>
                 <button type="button" data-a="shelf:cover-template:preview" disabled={loading || !templateId} onClick={look} className={chip}>
-                    {loading ? 'Drawing…' : 'Preview'}
+                    {loading ? t('shelfbulk.drawing') : t('shelfbulk.preview')}
                 </button>
                 <button
                     type="button"
@@ -839,39 +847,39 @@ function CoverTemplateForm({ coverTemplates, selected, onRun, busy }) {
                     onClick={() => onRun({ cover_template_id: templateId, follow, artwork: artwork || null })}
                     className={primary}
                 >
-                    {busy ? 'Applying…' : `Apply to ${selected.length}`}
+                    {busy ? t('shelfbulk.applying') : t('shelfbulk.apply_n', { count: selected.length })}
                 </button>
             </div>
             <fieldset className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-text-body" data-a="shelf:cover-template:artwork">
-                <legend className="mb-0.5 text-[11.5px] font-semibold text-text-secondary">Books with an uploaded finished front or back</legend>
-                {[['', 'Leave them as they are'], ['keep', 'Keep it as the background'], ['replace', 'Replace it with the template']].map(([key, label]) => (
+                <legend className="mb-0.5 text-[11.5px] font-semibold text-text-secondary">{t('shelfbulk.artwork_legend')}</legend>
+                {[{ key: '', tKey: 'shelfbulk.artwork_leave' }, { key: 'keep', tKey: 'shelfbulk.artwork_keep' }, { key: 'replace', tKey: 'shelfbulk.artwork_replace' }].map(({ key, tKey }) => (
                     <label key={key || 'none'} className="flex items-center gap-1.5">
                         <input type="radio" name="shelf-cover-artwork" value={key} checked={artwork === key} data-a={`shelf:cover-template:artwork:${key || 'none'}`} onChange={() => setArtwork(key)} />
-                        {label}
+                        {t(tKey)}
                     </label>
                 ))}
             </fieldset>
             <p className="text-[11px] text-text-secondary">
-                Only the cover design changes, never the manuscript: each book keeps its own title, author, series number, copy and ISBN. Preview first; cover files made before become out of date.
+                {t('shelfbulk.cover_template_help')}
             </p>
             {error && <p role="alert" className="text-[12px] text-status-danger">{error}</p>}
             {preview && (
                 <>
                     {waiting > 0 && (
                         <p className="rounded-control bg-status-warning-bg px-2.5 py-1.5 text-[11.5px] text-status-warning" data-a="shelf:cover-template:waiting">
-                            {waiting} book{waiting === 1 ? ' has' : 's have'} an uploaded finished cover and will be left as {waiting === 1 ? 'it is' : 'they are'} unless you choose to keep it as the background or replace it.
+                            {t('shelfbulk.waiting', { count: waiting })}
                         </p>
                     )}
                     <ul className="grid max-h-[340px] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-6" data-a="shelf:cover-template:previews">
                         {preview.map((b) => (
                             <li key={b.id} data-a={`shelf:cover-template:preview:${b.id}`} className="rounded-control border border-border-default p-1.5">
                                 {b.thumb ? (
-                                    <img src={b.thumb} alt={`${b.title} with the template`} className="aspect-[5/8] w-full rounded-[2px] object-cover" />
+                                    <img src={b.thumb} alt={t('shelfbulk.preview_alt', { title: b.title })} className="aspect-[5/8] w-full rounded-[2px] object-cover" />
                                 ) : (
-                                    <div className="flex aspect-[5/8] w-full items-center justify-center rounded-[2px] bg-bg-subtle text-[11px] text-text-secondary">{b.message || 'No preview'}</div>
+                                    <div className="flex aspect-[5/8] w-full items-center justify-center rounded-[2px] bg-bg-subtle text-[11px] text-text-secondary">{b.message || t('shelfbulk.no_preview')}</div>
                                 )}
                                 <p className="mt-1 line-clamp-2 text-[11.5px] font-semibold text-text-primary">{b.title ?? `#${b.id}`}</p>
-                                {b.needs_choice && <p className="text-[10.5px] text-status-warning">Uploaded cover: left as it is</p>}
+                                {b.needs_choice && <p className="text-[10.5px] text-status-warning">{t('shelfbulk.uploaded_left')}</p>}
                                 {b.flags?.map((f, i) => (
                                     <p key={i} className="text-[10.5px] leading-snug text-status-warning" data-a="shelf:cover-template:flag">{f}</p>
                                 ))}
@@ -885,52 +893,54 @@ function CoverTemplateForm({ coverTemplates, selected, onRun, busy }) {
 }
 
 function RegenerateForm({ formats, onRun, busy }) {
+    const { t } = useI18n();
     const [chosen, setChosen] = useState(['epub', 'pdf_interior']);
     const [missing, setMissing] = useState(false);
     const flip = (f) => setChosen((list) => (list.includes(f) ? list.filter((x) => x !== f) : [...list, f]));
 
     return (
         <fieldset className="mt-3 flex flex-wrap items-center gap-3 border-t border-border-default pt-3" data-a="shelf:regenerate">
-            <legend className="sr-only">Formats to regenerate</legend>
+            <legend className="sr-only">{t('shelfbulk.formats_legend')}</legend>
             {formats.map((f) => (
                 <label key={f} className="flex items-center gap-1.5 text-[12.5px] text-text-body">
                     <input type="checkbox" data-a={`shelf:regenerate:${f}`} checked={chosen.includes(f)} onChange={() => flip(f)} />
-                    {FORMAT_LABELS[f] ?? f}
+                    {formatLabel(f)}
                 </label>
             ))}
             <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                 <input type="checkbox" data-a="shelf:regenerate:missing" checked={missing} onChange={(e) => setMissing(e.target.checked)} />
-                Also make files never made
+                {t('shelfbulk.also_missing')}
             </label>
             <button type="button" data-a="shelf:regenerate:run" disabled={busy || chosen.length === 0} onClick={() => onRun({ formats: chosen, missing })} className={primary}>
-                {busy ? 'Queuing…' : 'Regenerate stale files'}
+                {busy ? t('shelfbulk.queuing') : t('shelfbulk.regenerate')}
             </button>
-            <p className="w-full text-[11px] text-text-secondary">Full book only. Up-to-date files are left alone; your plan decides which formats can be made.</p>
+            <p className="w-full text-[11px] text-text-secondary">{t('shelfbulk.regenerate_help')}</p>
         </fieldset>
     );
 }
 
 /** What was done and what was skipped, and for a regenerate its progress. */
 function Result({ result, onClose }) {
+    const { t } = useI18n();
     return (
         <div className="mt-3 border-t border-border-default pt-3" data-a="shelf:result">
             <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[12.5px] font-semibold text-text-primary" data-a="shelf:result:summary">
-                    {result.done} done · {result.skipped} skipped
+                    {t('shelfbulk.result_summary', { done: result.done, skipped: result.skipped })}
                 </p>
                 {result.links && (
                     <span className="flex flex-wrap gap-2" data-a="books:prepare:result">
-                        <a href={result.links.google_play} className={primary}>Google Play bulk upload (.zip)</a>
-                        <a href={result.links.kdp_checklist} target="_blank" rel="noopener noreferrer" className={chip}>KDP checklist</a>
+                        <a href={result.links.google_play} className={primary}>{t('shelfbulk.google_play_zip')}</a>
+                        <a href={result.links.kdp_checklist} target="_blank" rel="noopener noreferrer" className={chip}>{t('shelfbulk.kdp_checklist')}</a>
                     </span>
                 )}
-                <button type="button" onClick={onClose} className="ml-auto px-2 text-[12px] text-text-secondary">Dismiss</button>
+                <button type="button" onClick={onClose} className="ml-auto px-2 text-[12px] text-text-secondary">{t('common.dismiss')}</button>
             </div>
             {result.action === 'regenerate' && <Progress result={result} />}
             <ul className="mt-2 max-h-[220px] space-y-1 overflow-y-auto text-[12.5px]" data-a={result.action === 'house_style' ? 'books:house-style:result' : undefined}>
                 {result.rows.map((row) => (
                     <li key={row.id} data-a={`shelf:result:${row.id}`}>
-                        <span className={`mr-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${RESULT_TONE[row.ok]}`}>{row.ok ? 'Done' : 'Skipped'}</span>
+                        <span className={`mr-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${RESULT_TONE[row.ok]}`}>{row.ok ? t('shelfbulk.row_done') : t('shelfbulk.row_skipped')}</span>
                         <span className="font-semibold text-text-primary">{row.title ?? `#${row.id}`}</span> <span className="text-text-secondary">{row.message}</span>
                     </li>
                 ))}
@@ -941,6 +951,7 @@ function Result({ result, onClose }) {
 
 /** Polls where the queued files stand until none is rendering. */
 function Progress({ result }) {
+    const { t } = useI18n();
     const books = useMemo(() => result.rows.filter((r) => r.ok).map((r) => r.id), [result]);
     const formats = useMemo(() => [...new Set(result.rows.flatMap((r) => (r.files ?? []).filter((f) => ['queued', 'already'].includes(f.result)).map((f) => f.format)))], [result]);
     const [state, setState] = useState(null);
@@ -977,11 +988,11 @@ function Progress({ result }) {
 
     return (
         <div className="mt-2" data-a="shelf:progress">
-            <div className="h-[6px] overflow-hidden rounded-full bg-bg-subtle" role="progressbar" aria-valuemin={0} aria-valuemax={books.length} aria-valuenow={finished} aria-label="Files regenerated">
+            <div className="h-[6px] overflow-hidden rounded-full bg-bg-subtle" role="progressbar" aria-valuemin={0} aria-valuemax={books.length} aria-valuenow={finished} aria-label={t('shelfbulk.files_regenerated')}>
                 <div className="h-full rounded-full bg-brand-fill transition-[width]" style={{ width: `${Math.round((finished / books.length) * 100)}%` }} />
             </div>
             <p className="mt-1 text-[11px] text-text-secondary" data-a="shelf:progress:text">
-                {rendering === 0 ? `All ${books.length} book${books.length === 1 ? '' : 's'} finished.` : `${finished} of ${books.length} finished; ${rendering} rendering.`}
+                {rendering === 0 ? t('shelfbulk.all_finished', { count: books.length }) : t('shelfbulk.progress', { finished, total: books.length, rendering })}
             </p>
         </div>
     );
