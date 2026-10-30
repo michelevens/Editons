@@ -22,10 +22,13 @@ export default function Billing({
     checkout_available: checkoutAvailable,
 }) {
     const { auth } = usePage().props;
-    const { t, formatNumber } = useI18n();
+    const { t, formatNumber, locale } = useI18n();
     // Plan and pack prices are whole dollars (or dollars and cents) from the
-    // catalogue; shown as before, "$12" rather than "$12.00".
-    const usd = (dollars) => formatNumber(dollars, { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
+    // catalogue. English prints them exactly as before ("$12"); the other
+    // languages in their own conventions ("12 $US").
+    const usd = (dollars) => (locale === 'en'
+        ? `$${dollars}`
+        : formatNumber(dollars, { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }));
 
     const pct = current.monthly_credits
         ? Math.max(0, Math.min(100, Math.round((current.credits / current.monthly_credits) * 100)))
