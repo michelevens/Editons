@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { t, useI18n } from '../../i18n';
 import Icon from './Icon';
 
 /**
@@ -9,6 +10,7 @@ import Icon from './Icon';
  * "failed" teaches nobody what to do differently next time.
  */
 export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [drafts, setDrafts] = useState({});
     const [busy, setBusy] = useState(null);
@@ -42,7 +44,7 @@ export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) 
             setDrafts((current) => ({ ...current, [key]: undefined }));
         } catch (error) {
             onNotify?.(
-                error.response?.data?.message ?? 'That description could not be saved.',
+                error.response?.data?.message ?? t('a11y.not_saved'),
             );
         } finally {
             setBusy(null);
@@ -50,7 +52,7 @@ export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) 
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { checks, images } = data;
@@ -59,15 +61,15 @@ export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) 
     return (
         <div className="flex h-full min-h-0 flex-col">
             <header className="border-b border-border-default px-4 py-3">
-                <h2 className="text-[15px] font-semibold text-text-primary">Accessibility</h2>
+                <h2 className="text-[15px] font-semibold text-text-primary">{t('a11y.title')}</h2>
                 <p className="text-[11.5px] text-text-secondary">
-                    {passed} of {checks.length} checks pass
+                    {t('a11y.passing', { passed, total: checks.length })}
                 </p>
             </header>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
-                    <h3 className="mb-2 text-[13px] font-semibold text-text-primary">Checks</h3>
+                    <h3 className="mb-2 text-[13px] font-semibold text-text-primary">{t('a11y.checks')}</h3>
 
                     <ul>
                         {checks.map((check) => (
@@ -112,27 +114,23 @@ export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) 
                     </ul>
 
                     <p className="mt-3 rounded bg-bg-subtle px-2.5 py-2 text-[11px] leading-relaxed text-text-secondary">
-                        These are the structural problems that make an eBook hard to use with a
-                        screen reader, and the ones stores check. Passing them all is a good
-                        floor, not a guarantee that the book is accessible.
+                        {t('a11y.checks_note')}
                     </p>
                 </section>
 
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <h3 className="mb-1 text-[13px] font-semibold text-text-primary">
-                        Image descriptions
+                        {t('a11y.images')}
                     </h3>
 
                     {images.length === 0 ? (
                         <p className="text-[11.5px] text-text-secondary">
-                            No images in the manuscript. Any you add will appear here to be
-                            described.
+                            {t('a11y.no_images')}
                         </p>
                     ) : (
                         <>
                             <p className="mb-2.5 text-[11px] leading-relaxed text-text-secondary">
-                                Describe what the image shows, not that it is an image. Leave it
-                                empty only if it is decorative and carries no meaning.
+                                {t('a11y.describe_hint')}
                             </p>
 
                             <ul className="space-y-2.5">
@@ -163,7 +161,7 @@ export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) 
                                                 <input
                                                     value={draft}
                                                     data-a={`a11y:alt:${key}`}
-                                                    placeholder="Describe what this image shows"
+                                                    placeholder={t('a11y.describe_placeholder')}
                                                     onChange={(event) =>
                                                         setDrafts((current) => ({
                                                             ...current,
@@ -184,7 +182,7 @@ export default function AccessibilityPanel({ bookId, onOpenSection, onNotify }) 
                                                 onClick={() => describe(image)}
                                                 className="mt-[22px] shrink-0 self-start rounded-control border border-border-input px-2.5 py-1.5 text-[11.5px] font-medium text-text-body transition hover:border-brand-primary/40 disabled:opacity-40"
                                             >
-                                                {busy === key ? 'Saving…' : 'Save'}
+                                                {busy === key ? t('a11y.saving') : t('a11y.save')}
                                             </button>
                                         </li>
                                     );

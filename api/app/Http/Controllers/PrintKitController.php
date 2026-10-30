@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Publishing\CoverRenderer;
 use App\Publishing\CoverWrap;
@@ -122,7 +123,7 @@ class PrintKitController extends Controller
 
         if (! $size || $size[0] * $size[1] > CoverRenderer::MAX_PIXELS) {
             throw ValidationException::withMessages([
-                'back' => 'That image is too large to use. Use one under 40 megapixels.',
+                'back' => Locales::t('cover.back_too_large'),
             ]);
         }
 

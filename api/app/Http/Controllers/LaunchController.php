@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\I18n\Locales;
 use App\Models\AdvanceReader;
 use App\Models\Book;
 use Illuminate\Http\JsonResponse;
@@ -81,7 +82,7 @@ class LaunchController extends Controller
 
         if ($book->advanceReaders()->where('email', $data['email'])->exists()) {
             return response()->json([
-                'message' => 'That reader is already on the list.',
+                'message' => Locales::t('launch.reader_exists'),
             ], 422);
         }
 

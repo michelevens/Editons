@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t, useI18n } from '../../../i18n';
 import Framing from './Framing';
 
 /**
@@ -14,7 +15,10 @@ import Framing from './Framing';
  * shows no picker.
  */
 
-export const SCOPE_NAMES = { front: 'Front', back: 'Back', spine: 'Spine', wrap: 'Whole wrap' };
+/** A scope's name, in the interface language: front, back, spine, whole wrap. */
+export function scopeName(scope) {
+    return { front: t('cover.view_front'), back: t('cover.view_back'), spine: t('cover.view_spine'), wrap: t('cover.scope_wrap') }[scope] ?? scope;
+}
 
 /** The CSS for a background, for swatches and previews. */
 export function backgroundCss(bg) {
@@ -35,9 +39,9 @@ export function backgroundCss(bg) {
 }
 
 const KINDS = [
-    ['solid', 'Colour'],
-    ['linear', 'Linear'],
-    ['radial', 'Radial'],
+    { key: 'solid', tKey: 'cover.bg_solid' },
+    { key: 'linear', tKey: 'cover.bg_linear' },
+    { key: 'radial', tKey: 'cover.bg_radial' },
 ];
 
 const input = 'rounded-control border border-border-input bg-bg-surface px-2 py-1 text-[12px] focus:border-brand-primary focus:ring-0';
@@ -65,6 +69,7 @@ function convert(bg, kind) {
 }
 
 export default function BackgroundEditor({ scope, scopes = null, onScope, value, onChange, palettes = [], onPalette, paletteIndex = null, images = [], onUpload, sheet = null, prefix = 'cover:bg' }) {
+    useI18n();
     // Typed colours land on blur or a valid hex; sliders save as they move.
     const [draft, setDraft] = useState(value);
     useEffect(() => setDraft(value), [value]);
@@ -76,12 +81,12 @@ export default function BackgroundEditor({ scope, scopes = null, onScope, value,
 
     const setStop = (i, patch) => set({ ...draft, stops: draft.stops.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
 
-    const kinds = scope === 'wrap' ? [...KINDS, ['image', 'Picture']] : KINDS;
+    const kinds = scope === 'wrap' ? [...KINDS, { key: 'image', tKey: 'cover.bg_image' }] : KINDS;
 
     return (
         <div className="space-y-2.5" data-a={prefix}>
             {scopes && scopes.length > 1 && (
-                <div role="radiogroup" aria-label="Background of" className="flex flex-wrap gap-1">
+                <div role="radiogroup" aria-label={t('cover.bg_of')} className="flex flex-wrap gap-1">
                     {scopes.map((s) => (
                         <button
                             key={s}
@@ -92,14 +97,14 @@ export default function BackgroundEditor({ scope, scopes = null, onScope, value,
                             onClick={() => onScope(s)}
                             className={`min-h-[32px] rounded-control border px-2.5 text-[12px] ${scope === s ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary' : 'border-border-input text-text-body hover:border-brand-primary/40'}`}
                         >
-                            {SCOPE_NAMES[s]}
+                            {scopeName(s)}
                         </button>
                     ))}
                 </div>
             )}
 
             {palettes.length > 0 && (
-                <div role="group" aria-label="Quick picks" className="flex flex-wrap gap-2">
+                <div role="group" aria-label={t('cover.quick_picks')} className="flex flex-wrap gap-2">
                     {palettes.map((palette, index) => {
                         const pressed = scope === 'front' && !draft && paletteIndex === index;
 
@@ -121,8 +126,8 @@ export default function BackgroundEditor({ scope, scopes = null, onScope, value,
                 </div>
             )}
 
-            <div role="radiogroup" aria-label="Background kind" className="flex flex-wrap gap-1">
-                {kinds.map(([key, name]) => (
+            <div role="radiogroup" aria-label={t('cover.bg_kind')} className="flex flex-wrap gap-1">
+                {kinds.map(({ key, tKey }) => (
                     <button
                         key={key}
                         type="button"
@@ -139,12 +144,12 @@ export default function BackgroundEditor({ scope, scopes = null, onScope, value,
                         }}
                         className={`min-h-[30px] rounded-control border px-2.5 text-[11.5px] ${draft?.kind === key ? 'border-brand-primary bg-brand-primary-subtle text-brand-primary' : 'border-border-input text-text-body'}`}
                     >
-                        {name}
+                        {t(tKey)}
                     </button>
                 ))}
                 {draft && (
                     <button type="button" data-a={`${prefix}:remove`} onClick={() => set(null)} className="ml-auto px-2 text-[11.5px] font-semibold text-brand-primary hover:underline">
-                        {scope === 'front' ? 'Use a palette' : 'Remove'}
+                        {scope === 'front' ? t('cover.use_palette') : t('cover.remove')}
                     </button>
                 )}
             </div>
@@ -159,14 +164,14 @@ export default function BackgroundEditor({ scope, scopes = null, onScope, value,
                     />
                     <div className="min-w-0 flex-1 space-y-1.5">
                         {draft.kind === 'solid' ? (
-                            <ColorField label="Colour" value={draft.color} onChange={(color) => set({ ...draft, color })} dataA={`${prefix}:color`} />
+                            <ColorField label={t('cover.colour')} value={draft.color} onChange={(color) => set({ ...draft, color })} dataA={`${prefix}:color`} />
                         ) : (
                             <>
                                 {draft.stops.map((stop, i) => (
                                     <div key={i} className="flex flex-wrap items-center gap-1.5">
-                                        <ColorField label={`Colour ${i + 1}`} value={stop.color} onChange={(color) => setStop(i, { color })} dataA={`${prefix}:stop:${i}`} />
+                                        <ColorField label={t('cover.colour_n', { n: i + 1 })} value={stop.color} onChange={(color) => setStop(i, { color })} dataA={`${prefix}:stop:${i}`} />
                                         <label className="flex min-w-0 flex-1 items-center gap-1 text-[11px] text-text-secondary">
-                                            <span className="sr-only">Position of colour {i + 1}</span>
+                                            <span className="sr-only">{t('cover.colour_position', { n: i + 1 })}</span>
                                             <input
                                                 type="range"
                                                 min={0}
@@ -184,7 +189,7 @@ export default function BackgroundEditor({ scope, scopes = null, onScope, value,
                                             <span className="w-[30px] text-right tabular-nums">{Math.round(stop.at * 100)}%</span>
                                         </label>
                                         {draft.stops.length > 2 && (
-                                            <button type="button" aria-label={`Remove colour ${i + 1}`} onClick={() => set({ ...draft, stops: draft.stops.filter((_, j) => j !== i) })} className="px-1 text-[13px] text-text-secondary hover:text-status-danger">
+                                            <button type="button" aria-label={t('cover.colour_remove', { n: i + 1 })} onClick={() => set({ ...draft, stops: draft.stops.filter((_, j) => j !== i) })} className="px-1 text-[13px] text-text-secondary hover:text-status-danger">
                                                 ×
                                             </button>
                                         )}
@@ -202,15 +207,15 @@ export default function BackgroundEditor({ scope, scopes = null, onScope, value,
                                         }}
                                         className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                                     >
-                                        + Add a colour
+                                        {t('cover.colour_add')}
                                     </button>
                                 )}
                                 {draft.kind === 'linear' ? (
-                                    <Slider label="Angle" unit="°" min={0} max={360} value={draft.angle} onChange={(angle) => set({ ...draft, angle })} dataA={`${prefix}:angle`} />
+                                    <Slider label={t('cover.angle')} unit="°" min={0} max={360} value={draft.angle} onChange={(angle) => set({ ...draft, angle })} dataA={`${prefix}:angle`} />
                                 ) : (
                                     <>
-                                        <Slider label="Centre across" unit="%" min={0} max={100} value={Math.round(draft.x * 100)} onChange={(v) => set({ ...draft, x: v / 100 })} dataA={`${prefix}:x`} />
-                                        <Slider label="Centre down" unit="%" min={0} max={100} value={Math.round(draft.y * 100)} onChange={(v) => set({ ...draft, y: v / 100 })} dataA={`${prefix}:y`} />
+                                        <Slider label={t('cover.centre_across')} unit="%" min={0} max={100} value={Math.round(draft.x * 100)} onChange={(v) => set({ ...draft, x: v / 100 })} dataA={`${prefix}:x`} />
+                                        <Slider label={t('cover.centre_down')} unit="%" min={0} max={100} value={Math.round(draft.y * 100)} onChange={(v) => set({ ...draft, y: v / 100 })} dataA={`${prefix}:y`} />
                                     </>
                                 )}
                             </>
@@ -232,13 +237,14 @@ function WrapPicture({ draft, images, onUpload, sheet, onChange, prefix }) {
     return (
         <div className="space-y-2" data-a={`${prefix}:picture`}>
             <p className="text-[11px] leading-snug text-text-secondary">
-                One picture across the back, spine and front, bleed included. Print wants 300 dpi over the whole sheet
-                {sheet ? ` (at least ${Math.ceil(sheet.width_in * 300)} × ${Math.ceil(sheet.height_in * 300)} pixels here)` : ''}.
+                {sheet
+                    ? t('cover.wrap_picture_help_size', { width: Math.ceil(sheet.width_in * 300), height: Math.ceil(sheet.height_in * 300) })
+                    : t('cover.wrap_picture_help')}
             </p>
             <div className="flex flex-wrap items-center gap-2">
                 {images.length > 0 && (
                     <select value={draft.image ?? ''} data-a={`${prefix}:picture:pick`} onChange={(e) => onChange({ kind: 'image', image: e.target.value, x: draft.x ?? 0.5, y: draft.y ?? 0.5, zoom: draft.zoom ?? 1 })} className={input}>
-                        {!draft.image && <option value="">Choose a picture</option>}
+                        {!draft.image && <option value="">{t('cover.choose_picture')}</option>}
                         {images.map((i) => (
                             <option key={i.id} value={i.id}>
                                 {i.name} ({i.width} × {i.height})
@@ -247,7 +253,7 @@ function WrapPicture({ draft, images, onUpload, sheet, onChange, prefix }) {
                     </select>
                 )}
                 <label className="inline-flex cursor-pointer items-center rounded-control border border-border-input px-2.5 py-1 text-[11.5px] font-medium text-text-body focus-within:ring-2 focus-within:ring-brand-primary hover:border-brand-primary/40">
-                    Upload a picture
+                    {t('cover.upload_picture')}
                     <input
                         type="file"
                         accept="image/png,image/jpeg"
@@ -270,7 +276,7 @@ function WrapPicture({ draft, images, onUpload, sheet, onChange, prefix }) {
                     frameWidth={sheet.width}
                     frameHeight={sheet.height}
                     prefix={`${prefix}:framing`}
-                    label="Wrap picture position"
+                    label={t('cover.wrap_picture_position')}
                     onChange={(f) => onChange({ ...draft, ...f })}
                 />
             )}
@@ -286,7 +292,7 @@ function ColorField({ label, value, onChange, dataA }) {
         <span className="inline-flex items-center gap-1">
             <input type="color" aria-label={label} value={value} data-a={`${dataA}:picker`} onChange={(e) => onChange(e.target.value)} className="h-[28px] w-[34px] cursor-pointer rounded border border-border-input bg-transparent p-0" />
             <input
-                aria-label={`${label} (hex)`}
+                aria-label={t('cover.hex', { label })}
                 value={text}
                 data-a={dataA}
                 maxLength={7}

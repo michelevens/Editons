@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { t, useI18n } from '../../i18n';
 import Icon from './Icon';
 
 /**
@@ -10,6 +11,7 @@ import Icon from './Icon';
  * screen says so, because an author should know what they are about to send.
  */
 export default function MarketingPanel({ bookId, onNotify }) {
+    useI18n();
     const [data, setData] = useState(null);
     const [audience, setAudience] = useState('');
     const [busy, setBusy] = useState(false);
@@ -39,7 +41,7 @@ export default function MarketingPanel({ bookId, onNotify }) {
             onNotify?.(
                 error.response?.data?.errors?.credits?.[0]
                     ?? error.response?.data?.message
-                    ?? 'The kit could not be generated.',
+                    ?? t('marketing.not_generated'),
             );
         } finally {
             setBusy(false);
@@ -52,12 +54,12 @@ export default function MarketingPanel({ bookId, onNotify }) {
             setCopied(key);
             setTimeout(() => setCopied(null), 1600);
         } catch {
-            onNotify?.('Could not reach the clipboard. Select the text and copy it.');
+            onNotify?.(t('marketing.clipboard'));
         }
     };
 
     if (!data) {
-        return <p className="p-6 text-center text-[12px] text-text-secondary">Loading…</p>;
+        return <p className="p-6 text-center text-[12px] text-text-secondary">{t('common.loading')}</p>;
     }
 
     const { kit, cost, has_chapters: hasChapters } = data;
@@ -66,9 +68,9 @@ export default function MarketingPanel({ bookId, onNotify }) {
         <div className="flex h-full min-h-0 flex-col">
             <header className="flex flex-wrap items-center gap-3 border-b border-border-default px-4 py-3">
                 <div className="min-w-0">
-                    <h2 className="text-[15px] font-semibold text-text-primary">Marketing Kit</h2>
+                    <h2 className="text-[15px] font-semibold text-text-primary">{t('marketing.title')}</h2>
                     <p className="text-[11.5px] text-text-secondary">
-                        Launch copy built from your manuscript
+                        {t('marketing.subtitle')}
                     </p>
                 </div>
 
@@ -78,19 +80,19 @@ export default function MarketingPanel({ bookId, onNotify }) {
                     onClick={generate}
                     className="ml-auto rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
-                    {busy ? 'Building…' : `${kit ? 'Rebuild' : 'Build kit'} · ${cost} credits`}
+                    {busy ? t('marketing.building') : kit ? t('marketing.rebuild_cost', { cost }) : t('marketing.build_cost', { cost })}
                 </button>
             </header>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
                 <label className="block rounded-tile border border-border-default bg-bg-surface p-3.5">
                     <span className="mb-1 block text-[12px] font-medium text-text-primary">
-                        Who is this book for?
+                        {t('marketing.audience')}
                     </span>
                     <input
                         value={audience}
                         data-a="kit:audience"
-                        placeholder="Left blank, it is taken from your category"
+                        placeholder={t('marketing.audience_placeholder')}
                         onChange={(event) => setAudience(event.target.value)}
                         className="w-full rounded-control border border-border-input px-2 py-1.5 text-[12.5px] focus:border-brand-primary focus:ring-0"
                     />
@@ -98,15 +100,14 @@ export default function MarketingPanel({ bookId, onNotify }) {
 
                 {!hasChapters && (
                     <p className="rounded-tile bg-status-warning-bg px-3 py-2 text-[11.5px] text-status-warning">
-                        Write a chapter first. The copy is made from your own words, so there
-                        has to be something to work from.
+                        {t('marketing.no_chapters')}
                     </p>
                 )}
 
                 {kit ? (
                     <>
                         <Block
-                            title="Store description"
+                            title={t('marketing.description')}
                             dataA="kit:description"
                             copied={copied === 'description'}
                             onCopy={() => copy('description', kit.description)}
@@ -117,13 +118,13 @@ export default function MarketingPanel({ bookId, onNotify }) {
                         </Block>
 
                         <Block
-                            title="Launch email"
+                            title={t('marketing.email')}
                             dataA="kit:email"
                             copied={copied === 'email'}
                             onCopy={() => copy('email', `${kit.email.subject}\n\n${kit.email.body}`)}
                         >
                             <p className="text-[12px] text-text-primary">
-                                <b>Subject:</b> {kit.email.subject}
+                                <b>{t('marketing.subject')}</b> {kit.email.subject}
                             </p>
                             <p className="mt-1.5 whitespace-pre-wrap font-manuscript text-[13px] leading-relaxed text-text-body">
                                 {kit.email.body}
@@ -132,7 +133,7 @@ export default function MarketingPanel({ bookId, onNotify }) {
 
                         <section className="rounded-tile border border-border-default bg-bg-surface p-3.5">
                             <h3 className="mb-2 text-[13px] font-semibold text-text-primary">
-                                Short posts
+                                {t('marketing.posts')}
                             </h3>
 
                             <ul className="space-y-2">
@@ -146,14 +147,14 @@ export default function MarketingPanel({ bookId, onNotify }) {
                                         </p>
                                         <div className="mt-1.5 flex items-center gap-3">
                                             <span className="text-[10.5px] text-text-secondary">
-                                                {post.length} characters
+                                                {t('marketing.characters', { count: post.length })}
                                             </span>
                                             <button
                                                 data-a={`kit:copy-post:${index}`}
                                                 onClick={() => copy(`post:${index}`, post)}
                                                 className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                                             >
-                                                {copied === `post:${index}` ? 'Copied' : 'Copy'}
+                                                {copied === `post:${index}` ? t('marketing.copied') : t('marketing.copy')}
                                             </button>
                                         </div>
                                     </li>
@@ -162,9 +163,7 @@ export default function MarketingPanel({ bookId, onNotify }) {
                         </section>
 
                         <p className="rounded-tile bg-bg-subtle px-3 py-2.5 text-[11px] leading-relaxed text-text-secondary">
-                            Every line above is drawn from your own writing and rearranged —
-                            nothing here makes a claim your manuscript does not. Read it before
-                            you send it: it goes out under your name.
+                            {t('marketing.drawn_from_you')}
                         </p>
                     </>
                 ) : (
@@ -174,11 +173,10 @@ export default function MarketingPanel({ bookId, onNotify }) {
                                 <Icon name="mega" size={30} strokeWidth={1.5} />
                             </span>
                             <p className="mt-2 text-[13px] font-medium text-text-primary">
-                                Build your launch copy
+                                {t('marketing.empty_title')}
                             </p>
                             <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">
-                                A store description, a launch email and short posts, assembled
-                                from the chapters you have written.
+                                {t('marketing.empty_body')}
                             </p>
                         </div>
                     )
@@ -200,7 +198,7 @@ function Block({ title, children, onCopy, copied, dataA }) {
                     onClick={onCopy}
                     className="text-[11.5px] font-semibold text-brand-primary hover:underline"
                 >
-                    {copied ? 'Copied' : 'Copy'}
+                    {copied ? t('marketing.copied') : t('marketing.copy')}
                 </button>
             </div>
             {children}

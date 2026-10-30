@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Billing\Entitlements;
+use App\I18n\Locales;
 use App\Jobs\GenerateExport;
 use App\Mail\Notify;
 use App\Models\Book;
@@ -141,7 +142,7 @@ class PublishingController extends Controller
 
         if ($errors = $this->check->errors($book)) {
             return response()->json([
-                'message' => 'This book is not ready to submit.',
+                'message' => Locales::t('publish.not_ready'),
                 'errors' => $errors,
             ], 422);
         }
@@ -150,7 +151,7 @@ class PublishingController extends Controller
 
         if ($pending->isEmpty()) {
             return response()->json([
-                'message' => 'Every selected store is already ready to upload or submitted.',
+                'message' => Locales::t('publish.all_ready'),
                 'errors' => ['channels' => 'Nothing new to submit.'],
             ], 422);
         }
@@ -163,7 +164,7 @@ class PublishingController extends Controller
 
         return response()->json([
             ...$this->payload($book->fresh()),
-            'message' => 'Ready to upload. Écrivain does not send books to stores itself yet: upload the file at each store, then mark it submitted.',
+            'message' => Locales::t('publish.ready_to_upload'),
             'next_steps' => $pending->map(fn (BookChannel $channel) => $this->uploadSteps($channel->channel))->values()->all(),
         ]);
     }
@@ -334,7 +335,7 @@ class PublishingController extends Controller
                     GenerateExport::dispatch($rebuild->id);
                 }
 
-                abort(503, 'That file is being rebuilt. It will appear in your export history in a few minutes.');
+                abort(503, Locales::t('export.rebuilding'));
             }
 
             $export = $this->exporter->generate($book, $export->format, $user->id, $again);
@@ -428,7 +429,7 @@ class PublishingController extends Controller
         ]);
 
         if ($unknown = array_diff(array_keys($request->all()), ['ebook', 'print'])) {
-            throw ValidationException::withMessages([reset($unknown) => 'There is no matter set called "'.reset($unknown).'".']);
+            throw ValidationException::withMessages([reset($unknown) => Locales::t('export.no_matter_set', ['name' => reset($unknown)])]);
         }
 
         $meta = $book->meta ?? [];
@@ -453,7 +454,7 @@ class PublishingController extends Controller
             ->exists();
 
         if ($name === '' || $taken || in_array(mb_strtolower($name), array_map(fn ($key) => mb_strtolower(ExportOptions::presetName($key)), ExportOptions::PRESETS), true)) {
-            throw ValidationException::withMessages(['name' => $name === '' ? 'Name the profile.' : 'This book already has a profile called "'.$name.'".']);
+            throw ValidationException::withMessages(['name' => $name === '' ? Locales::t('export.profile_name') : Locales::t('export.profile_exists', ['name' => $name])]);
         }
 
         return $name;

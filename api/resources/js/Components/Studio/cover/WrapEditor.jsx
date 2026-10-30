@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LayerEditor from './LayerEditor';
-import BackgroundEditor from './BackgroundEditor';
+import { t, useI18n } from '../../../i18n';
+import BackgroundEditor, { scopeName } from './BackgroundEditor';
 import Framing from './Framing';
 import { backSurface, spineSurface } from './surfaces';
 
@@ -15,6 +16,7 @@ import { backSurface, spineSurface } from './surfaces';
  * surface (surfaces.jsx), saving through the panel's save().
  */
 export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload, images, onNotify, backgrounds = {}, onBackground, palettes = [] }) {
+    useI18n();
     const [wrap, setWrap] = useState(null);
     const [error, setError] = useState(null);
     const [choice, setChoice] = useState({ service: null, paper: null, spine: '' });
@@ -50,7 +52,7 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
             } catch (e) {
                 if (mine !== asked.current) return;
 
-                setError(e.response?.data?.message ?? 'The print cover could not be drawn.');
+                setError(e.response?.data?.message ?? t('cover.wrap_failed'));
                 setWrap((w) => (w ? { ...w, services: e.response?.data?.services ?? w.services } : null));
             }
         },
@@ -74,7 +76,7 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
 
     const onText = useCallback(
         (field, value) => {
-            setTyped((t) => ({ ...t, [field]: field === 'description' ? value : String(value ?? '').trim() }));
+            setTyped((was) => ({ ...was, [field]: field === 'description' ? value : String(value ?? '').trim() }));
             save({ [field]: value });
         },
         [save],
@@ -93,7 +95,7 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
                 await load(fresh);
             }
         } catch (e) {
-            onNotify?.(e.response?.data?.message ?? 'That did not work.');
+            onNotify?.(e.response?.data?.message ?? t('cover.failed'));
         } finally {
             setBusy(false);
         }
@@ -102,9 +104,7 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
     const customise = (panel) => run(() => window.axios.post(`/books/${bookId}/cover/${panel}-layers`, params));
 
     const reset = (panel) => {
-        const what = panel === 'back' ? 'the generated back (title, description, publisher)' : 'the generated spine';
-
-        if (!window.confirm(`Go back to ${what}? Your ${panel} layers will be removed.`)) return;
+        if (!window.confirm(panel === 'back' ? t('cover.confirm_reset_back') : t('cover.confirm_reset_spine'))) return;
 
         run(() => window.axios.delete(`/books/${bookId}/cover/${panel}-layers`, { params }));
     };
@@ -141,7 +141,7 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
     if (!wrap) {
         return (
             <p className="p-6 text-center text-[12px] text-text-secondary" data-a="cover:wrap-loading">
-                {error ?? 'Drawing the print cover…'}
+                {error ?? t('cover.wrap_drawing')}
             </p>
         );
     }
@@ -160,13 +160,13 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
                 <ul className="space-y-1" data-a="cover:warnings">
                     {warnings.map((w, i) => (
                         <li key={i} data-kind={w.kind} className="rounded-control bg-status-warning-bg px-2.5 py-1.5 text-[11.5px] leading-snug text-status-warning">
-                            {view === 'wrap' && <span className="font-semibold capitalize">{w.panel}: </span>}
+                            {view === 'wrap' && <span className="font-semibold capitalize">{t('cover.panel_prefix', { panel: scopeName(w.panel) })}</span>}
                             {w.message}
                             {/* The wrap background was placed on another sheet
                                 size: once checked, take this one. */}
                             {w.kind === 'refit' && (
                                 <button type="button" data-a="cover:wrap-refit" disabled={busy} onClick={() => run(() => window.axios.post(`/books/${bookId}/cover/wrap/refit`, params))} className="ml-2 font-semibold underline">
-                                    Looks right
+                                    {t('cover.wrap_refit')}
                                 </button>
                             )}
                         </li>
@@ -187,20 +187,20 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
                             onLayers={(doc) => save({ back_layers: doc })}
                             onText={onText}
                             onReset={() => reset('back')}
-                            resetLabel="Reset to generated back"
+                            resetLabel={t('cover.reset_back')}
                             onUpload={onUpload}
                             onNotify={onNotify}
                         />
                     ) : (
                         <Generated
-                            title="The back is generated"
-                            body="Your title, the description set at the largest size that fits, the publisher at the foot, and a white box for the barcode. Customise it to place each piece yourself, add pictures and your own text; from then on nothing re-fits as you type."
-                            action="Customise back"
+                            title={t('cover.back_generated')}
+                            body={t('cover.back_generated_body')}
+                            action={t('cover.customise_back')}
                             data-a="cover:customise-back"
                             busy={busy}
                             onAction={() => customise('back')}
                         >
-                            <PanelPicture src={wrap.preview} sheet={wrap.sheet} box={{ x: 0, y: 0, width: wrap.back.width, height: wrap.back.height }} label="The back cover as it prints" />
+                            <PanelPicture src={wrap.preview} sheet={wrap.sheet} box={{ x: 0, y: 0, width: wrap.back.width, height: wrap.back.height }} label={t('cover.back_as_printed')} />
                         </Generated>
                     )}
 
@@ -229,15 +229,15 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
                             onLayers={(doc) => save({ spine_layers: doc })}
                             onText={onText}
                             onReset={() => reset('spine')}
-                            resetLabel="Reset to generated spine"
+                            resetLabel={t('cover.reset_spine')}
                             onUpload={onUpload}
                             onNotify={onNotify}
                         />
                     ) : (
                         <Generated
-                            title="The spine is generated"
-                            body="The title, then the series, author and publisher, as large as the spine allows. Customise it to choose what it says, its size and typeface, and to add a logo."
-                            action="Customise spine"
+                            title={t('cover.spine_generated')}
+                            body={t('cover.spine_generated_body')}
+                            action={t('cover.customise_spine')}
                             data-a="cover:customise-spine"
                             busy={busy}
                             onAction={() => customise('spine')}
@@ -246,7 +246,7 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
                                 src={wrap.preview}
                                 sheet={wrap.sheet}
                                 box={{ x: wrap.spine.x - wrap.edge, y: 0, width: wrap.spine.height + 2 * wrap.edge, height: wrap.sheet.height }}
-                                label="The spine as it prints"
+                                label={t('cover.spine_as_printed')}
                                 className="h-[300px] w-auto"
                             />
                         </Generated>
@@ -262,10 +262,10 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
             {onBackground && (
                 <section className="rounded-tile border border-border-default bg-bg-surface p-3" data-a={`cover:wrap-background:${view}`}>
                     <h3 className="mb-2 text-[12.5px] font-semibold text-text-primary">
-                        {view === 'wrap' ? 'Background across the whole wrap' : `${view === 'back' ? 'Back' : 'Spine'} background`}
+                        {view === 'wrap' ? t('cover.bg_whole_wrap') : view === 'back' ? t('cover.bg_back') : t('cover.bg_spine')}
                     </h3>
                     {view !== 'wrap' && backgrounds.wrap && (
-                        <p className="mb-2 text-[11px] text-text-secondary">A background across the whole wrap is set; it is drawn instead of this one.</p>
+                        <p className="mb-2 text-[11px] text-text-secondary">{t('cover.bg_wrap_overrides')}</p>
                     )}
                     <BackgroundEditor
                         scope={view}
@@ -284,6 +284,7 @@ export default function WrapEditor({ bookId, data, view, save, savedAt, onUpload
 }
 
 function ServicePicker({ wrap, choice, onChoice, error }) {
+    useI18n();
     const g = wrap.geometry;
     const service = wrap.services.find((s) => s.service === (choice.service ?? g.service)) ?? wrap.services[0];
     const pages = wrap.pages;
@@ -292,7 +293,7 @@ function ServicePicker({ wrap, choice, onChoice, error }) {
         <div className="rounded-tile border border-border-default bg-bg-surface p-2.5">
             <div className="flex flex-wrap items-end gap-2">
                 <label className="block">
-                    <span className="mb-0.5 block text-[11px] font-medium text-text-secondary">Print service</span>
+                    <span className="mb-0.5 block text-[11px] font-medium text-text-secondary">{t('cover.print_service')}</span>
                     <select
                         value={service.service}
                         data-a="cover:wrap-service"
@@ -308,7 +309,7 @@ function ServicePicker({ wrap, choice, onChoice, error }) {
                 </label>
                 {service.papers.length > 1 && (
                     <label className="block">
-                        <span className="mb-0.5 block text-[11px] font-medium text-text-secondary">Paper</span>
+                        <span className="mb-0.5 block text-[11px] font-medium text-text-secondary">{t('cover.paper')}</span>
                         <select
                             value={choice.paper ?? g.paper}
                             data-a="cover:wrap-paper"
@@ -317,7 +318,7 @@ function ServicePicker({ wrap, choice, onChoice, error }) {
                         >
                             {service.papers.map((p) => (
                                 <option key={p} value={p}>
-                                    {p === 'white' ? 'White' : 'Cream'}
+                                    {p === 'white' ? t('cover.paper_white') : t('cover.paper_cream')}
                                 </option>
                             ))}
                         </select>
@@ -325,7 +326,7 @@ function ServicePicker({ wrap, choice, onChoice, error }) {
                 )}
                 {service.spine_entered && (
                     <label className="block">
-                        <span className="mb-0.5 block text-[11px] font-medium text-text-secondary">Spine width (in), from its template</span>
+                        <span className="mb-0.5 block text-[11px] font-medium text-text-secondary">{t('cover.spine_width')}</span>
                         <input
                             defaultValue={choice.spine}
                             inputMode="decimal"
@@ -337,8 +338,14 @@ function ServicePicker({ wrap, choice, onChoice, error }) {
                 )}
             </div>
             <p className="mt-1.5 text-[11px] leading-snug text-text-secondary" data-a="cover:wrap-size">
-                {g.width.toFixed(3)} × {g.height.toFixed(3)} in · spine {g.spine.toFixed(3)} in · bleed {g.bleed} in ·{' '}
-                {pages.exact ? `${g.pages} pages` : `about ${g.pages} pages (estimated)`} · {g.label}
+                {t('cover.wrap_size', {
+                    width: g.width.toFixed(3),
+                    height: g.height.toFixed(3),
+                    spine: g.spine.toFixed(3),
+                    bleed: g.bleed,
+                    pages: pages.exact ? t('cover.pages_exact', { count: g.pages }) : t('cover.pages_estimated', { count: g.pages }),
+                    label: g.label,
+                })}
             </p>
             {error && <p className="mt-1 text-[11.5px] text-status-danger">{error}</p>}
         </div>
@@ -376,13 +383,14 @@ function PanelPicture({ src, sheet, box, label, className = 'h-auto w-full max-w
 }
 
 function Direction({ spine, onChange, busy }) {
-    const names = { ttb: 'Top to bottom', btt: 'Bottom to top' };
-    const notes = { ttb: 'US and UK convention', btt: 'French convention' };
+    useI18n();
+    const names = { ttb: t('cover.spine_ttb'), btt: t('cover.spine_btt') };
+    const notes = { ttb: t('cover.spine_ttb_note'), btt: t('cover.spine_btt_note') };
 
     return (
         <fieldset className="rounded-tile border border-border-default bg-bg-surface p-2.5">
-            <legend className="px-1 text-[12px] font-semibold text-text-primary">Spine reads</legend>
-            <div role="radiogroup" aria-label="Spine direction" className="flex flex-wrap gap-1.5">
+            <legend className="px-1 text-[12px] font-semibold text-text-primary">{t('cover.spine_reads')}</legend>
+            <div role="radiogroup" aria-label={t('cover.spine_direction')} className="flex flex-wrap gap-1.5">
                 {['ttb', 'btt'].map((d) => (
                     <button
                         key={d}
@@ -403,41 +411,42 @@ function Direction({ spine, onChange, busy }) {
             </div>
             <p className="mt-1.5 text-[11px] leading-snug text-text-secondary" data-a="cover:spine-suggested">
                 {spine.chosen
-                    ? `Chosen for this book. Books in its language usually read ${names[spine.suggested].toLowerCase()}.`
-                    : `Not chosen yet: the spine reads top to bottom, as it always has. Books in this book's language usually read ${names[spine.suggested].toLowerCase()}; Customise spine starts from that.`}
+                    ? t('cover.spine_chosen', { direction: names[spine.suggested].toLowerCase() })
+                    : t('cover.spine_not_chosen', { direction: names[spine.suggested].toLowerCase() })}
             </p>
         </fieldset>
     );
 }
 
 function BackArtwork({ wrap, busy, onUpload, onRemove, onFraming }) {
+    useI18n();
     const fill = Boolean(wrap.back_framing);
     const framing = wrap.back_framing ?? { x: 0.5, y: 0.5, zoom: 1 };
 
     return (
         <section className="rounded-tile border border-border-default bg-bg-surface p-3" data-a="cover:back-artwork">
-            <h3 className="text-[12.5px] font-semibold text-text-primary">Finished back image</h3>
+            <h3 className="text-[12.5px] font-semibold text-text-primary">{t('cover.back_image')}</h3>
             <p className="mt-0.5 text-[11px] leading-snug text-text-secondary">
                 {wrap.back_artwork
-                    ? 'Your uploaded back is printed; any back layers sit on top of it. Leave the barcode area clear in the image.'
-                    : 'Optional: upload a finished back (PNG or JPEG) to print instead of the generated one.'}
+                    ? t('cover.back_image_in_use')
+                    : t('cover.back_image_help')}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
                 <label className="inline-flex cursor-pointer items-center rounded-control border border-border-input px-2.5 py-1.5 text-[11.5px] font-medium text-text-body focus-within:ring-2 focus-within:ring-brand-primary hover:border-brand-primary/40">
-                    {wrap.back_artwork ? 'Replace back image' : 'Upload back image'}
+                    {wrap.back_artwork ? t('cover.back_image_replace') : t('cover.back_image_upload')}
                     <input type="file" accept="image/jpeg,image/png" className="sr-only" disabled={busy} data-a="cover:back-upload" onChange={(event) => onUpload(event.target.files?.[0])} />
                 </label>
                 {wrap.back_artwork && (
                     <button type="button" onClick={onRemove} disabled={busy} data-a="cover:back-remove" className="text-[11.5px] font-semibold text-brand-primary hover:underline">
-                        Remove it
+                        {t('cover.remove_it')}
                     </button>
                 )}
             </div>
 
             {wrap.back_artwork && (
                 <div className="mt-3 space-y-2">
-                    <div role="radiogroup" aria-label="Fit the back image" className="flex gap-1.5">
-                        {[['whole', 'Whole image'], ['fill', 'Fill the back']].map(([key, name]) => (
+                    <div role="radiogroup" aria-label={t('cover.back_fit')} className="flex gap-1.5">
+                        {[['whole', t('cover.back_fit_whole')], ['fill', t('cover.back_fit_fill')]].map(([key, name]) => (
                             <button
                                 key={key}
                                 type="button"
@@ -458,7 +467,7 @@ function BackArtwork({ wrap, busy, onUpload, onRemove, onFraming }) {
                             frameWidth={wrap.back.width}
                             frameHeight={wrap.back.height}
                             prefix="cover:back-framing"
-                            label="Back image position"
+                            label={t('cover.back_image_position')}
                             onChange={(f) => onFraming({ fit: 'fill', ...f })}
                         />
                     )}
@@ -474,6 +483,7 @@ function BackArtwork({ wrap, busy, onUpload, onRemove, onFraming }) {
  * safe areas, the spine's margins and the barcode box.
  */
 function FullWrap({ wrap }) {
+    useI18n();
     const { sheet, back, spine, geometry: g } = wrap;
     const bleed = wrap.bleed;
     const edge = wrap.edge;
@@ -487,7 +497,7 @@ function FullWrap({ wrap }) {
 
     return (
         <figure className="space-y-2">
-            <svg viewBox={`0 0 ${sheet.width} ${sheet.height}`} className="h-auto w-full rounded-control border border-border-default" role="img" aria-label="The full print cover: back, spine and front" data-a="cover:wrap">
+            <svg viewBox={`0 0 ${sheet.width} ${sheet.height}`} className="h-auto w-full rounded-control border border-border-default" role="img" aria-label={t('cover.wrap_label')} data-a="cover:wrap">
                 <image href={wrap.preview} x={0} y={0} width={sheet.width} height={sheet.height} preserveAspectRatio="none" data-a="cover:wrap-image" />
 
                 {/* Bleed: printed, then trimmed off. */}
@@ -517,20 +527,20 @@ function FullWrap({ wrap }) {
                     <g data-a="cover:wrap-barcode">
                         <rect x={back.barcode.x} y={back.barcode.y} width={back.barcode.width} height={back.barcode.height} fill="none" stroke="#ef4444" strokeWidth={stroke * 1.5} />
                         <text x={back.barcode.x + back.barcode.width / 2} y={back.barcode.y + back.barcode.height / 2} fontSize={back.barcode.height / 5} textAnchor="middle" dominantBaseline="middle" fill="#b91c1c">
-                            Barcode
+                            {t('cover.barcode')}
                         </text>
                     </g>
                 )}
 
-                {label(back.width / 2, 'Back')}
-                {label(frontX + (sheet.width - frontX) / 2, 'Front')}
+                {label(back.width / 2, t('cover.view_back'))}
+                {label(frontX + (sheet.width - frontX) / 2, t('cover.view_front'))}
             </svg>
             <figcaption className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-secondary">
-                <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-400/40 align-middle" />Bleed (trimmed off)</span>
-                <span><span className="mr-1 inline-block h-0.5 w-3 bg-red-500 align-middle" />Trim</span>
-                <span><span className="mr-1 inline-block h-0.5 w-3 bg-violet-600 align-middle" />Spine folds</span>
-                <span><span className="mr-1 inline-block h-0.5 w-3 bg-cyan-400 align-middle" />Safe area</span>
-                <span>The picture is the print file's own render, at {g.label}'s size for this page count.</span>
+                <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-400/40 align-middle" />{t('cover.legend_bleed')}</span>
+                <span><span className="mr-1 inline-block h-0.5 w-3 bg-red-500 align-middle" />{t('cover.legend_trim')}</span>
+                <span><span className="mr-1 inline-block h-0.5 w-3 bg-violet-600 align-middle" />{t('cover.legend_folds')}</span>
+                <span><span className="mr-1 inline-block h-0.5 w-3 bg-cyan-400 align-middle" />{t('cover.legend_safe')}</span>
+                <span>{t('cover.wrap_render', { service: g.label })}</span>
             </figcaption>
         </figure>
     );

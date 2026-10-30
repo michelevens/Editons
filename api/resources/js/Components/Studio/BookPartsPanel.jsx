@@ -1,5 +1,6 @@
 import { router } from "@inertiajs/react";
 import { useId, useState } from "react";
+import { t, useI18n } from "../../i18n";
 
 /**
  * Book parts: the conventional parts of a book (The Chicago Manual of
@@ -12,44 +13,54 @@ import { useId, useState } from "react";
  */
 
 const GROUPS = [
-    { key: "front", label: "Front matter" },
-    { key: "body", label: "Text" },
-    { key: "back", label: "Back matter" },
-    { key: "cover", label: "Cover" },
+    { key: "front", label: "Front matter", tKey: 'parts.group_front' },
+    { key: "body", label: "Text", tKey: 'parts.group_body' },
+    { key: "back", label: "Back matter", tKey: 'parts.group_back' },
+    { key: "cover", label: "Cover", tKey: 'parts.group_cover' },
 ];
 
 const STATES = {
     present: {
         label: "Included",
+        tKey: 'parts.state_present',
         tone: "bg-status-success-bg text-status-success",
     },
     generated: {
         label: "Generated",
+        tKey: 'parts.state_generated',
         tone: "bg-brand-primary/10 text-brand-primary",
     },
-    empty: { label: "Empty", tone: "bg-status-warning-bg text-status-warning" },
+    empty: {
+        label: "Empty",
+        tKey: 'parts.state_empty',
+        tone: "bg-status-warning-bg text-status-warning",
+    },
     placeholder: {
         label: "Template not filled in",
+        tKey: 'parts.state_placeholder',
         tone: "bg-status-warning-bg text-status-warning",
     },
     missing: {
         label: "Not included",
+        tKey: 'parts.state_missing',
         tone: "bg-bg-subtle text-text-secondary",
     },
     unavailable: {
         label: "Nothing to generate",
+        tKey: 'parts.state_unavailable',
         tone: "bg-bg-subtle text-text-secondary",
     },
 };
 
 const PROFILES = {
-    fiction: "fiction",
-    nonfiction: "nonfiction",
-    educational: "educational and exam-preparation",
-    academic: "academic",
+    fiction: { tKey: 'parts.profile_fiction' },
+    nonfiction: { tKey: 'parts.profile_nonfiction' },
+    educational: { tKey: 'parts.profile_educational' },
+    academic: { tKey: 'parts.profile_academic' },
 };
 
 export default function BookPartsPanel({ bookId, initial }) {
+    useI18n();
     const [checklist, setChecklist] = useState(initial);
     const [busy, setBusy] = useState(null);
     const [message, setMessage] = useState("");
@@ -59,7 +70,7 @@ export default function BookPartsPanel({ bookId, initial }) {
 
     const fail = (error) =>
         setMessage(
-            error?.response?.data?.message ?? "That did not work. Try again.",
+            error?.response?.data?.message ?? t('parts.failed'),
         );
 
     const add = (row) => {
@@ -70,9 +81,7 @@ export default function BookPartsPanel({ bookId, initial }) {
             .post(route("books.parts.store", bookId), { part: row.key })
             .then(({ data }) => {
                 setChecklist(data.checklist);
-                setMessage(
-                    `Added “${data.section.title}”. Open it in the manuscript to write it.`,
-                );
+                setMessage(t('parts.added', { title: data.section.title }));
                 router.reload({ only: ["copyright_preview"] });
             })
             .catch(fail)
@@ -100,7 +109,7 @@ export default function BookPartsPanel({ bookId, initial }) {
             .then(({ data }) => {
                 setChecklist(data);
                 setPreview(null);
-                setMessage("The binder is now in the conventional order.");
+                setMessage(t('parts.reordered'));
             })
             .catch((error) => {
                 if (error?.response?.status === 409) {
@@ -137,15 +146,20 @@ export default function BookPartsPanel({ bookId, initial }) {
                         id={headingId}
                         className="text-[15px] font-semibold text-text-primary"
                     >
-                        Book parts
+                        {t('parts.title')}
                     </h2>
                     <p className="mt-1 max-w-[520px] text-[12.5px] leading-relaxed text-text-secondary">
-                        The parts of a book in their conventional order (Chicago
-                        Manual of Style). Recommended for a{" "}
-                        {PROFILES[checklist.profile] ?? checklist.profile} book:{" "}
-                        {checklist.missing_recommended === 0
-                            ? "all present."
-                            : `${checklist.missing_recommended} still to add.`}
+                        {t('parts.intro', {
+                            profile: PROFILES[checklist.profile]
+                                ? t(PROFILES[checklist.profile].tKey)
+                                : checklist.profile,
+                            status:
+                                checklist.missing_recommended === 0
+                                    ? t('parts.all_present')
+                                    : t('parts.still_to_add', {
+                                          count: checklist.missing_recommended,
+                                      }),
+                        })}
                     </p>
                 </div>
 
@@ -157,8 +171,8 @@ export default function BookPartsPanel({ bookId, initial }) {
                     className="h-[34px] shrink-0 rounded-control border border-border-input bg-bg-surface px-3.5 text-[13px] font-medium text-text-body transition hover:bg-bg-subtle disabled:opacity-60"
                 >
                     {checklist.in_order
-                        ? "Binder is in order"
-                        : "Put in conventional order…"}
+                        ? t('parts.in_order')
+                        : t('parts.put_in_order')}
                 </button>
             </div>
 
@@ -187,7 +201,7 @@ export default function BookPartsPanel({ bookId, initial }) {
                 return (
                     <div key={group.key} className="mt-4">
                         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
-                            {group.label}
+                            {t(group.tKey)}
                         </h3>
                         <ul className="mt-1 divide-y divide-border-divider">
                             {list.map((row) => (
@@ -212,18 +226,17 @@ export default function BookPartsPanel({ bookId, initial }) {
                 className="mt-4 text-[12.5px] font-medium text-brand-primary hover:underline"
             >
                 {showAll
-                    ? "Show only what this book uses"
-                    : "Show every conventional part"}
+                    ? t('parts.show_used')
+                    : t('parts.show_all')}
             </button>
 
             {checklist.unclassified.length > 0 && (
                 <div className="mt-4 rounded-control bg-bg-subtle px-3.5 py-3">
                     <p className="text-[12.5px] font-medium text-text-primary">
-                        Sections without a book part
+                        {t('parts.unclassified_title')}
                     </p>
                     <p className="mt-0.5 text-[12px] text-text-secondary">
-                        Name these in the manuscript binder (select the section,
-                        then choose its part) so they print in the right place.
+                        {t('parts.unclassified_hint')}
                     </p>
                     <ul className="mt-1.5 list-disc pl-5 text-[12.5px] text-text-body">
                         {checklist.unclassified.map((section) => (
@@ -263,15 +276,15 @@ function PartRow({ row, adding, disabled, onAdd }) {
                 <p className="mt-0.5 text-[11.5px] text-text-secondary">
                     {row.recommended && (
                         <span className="font-medium text-text-primary">
-                            Recommended
-                            {row.alternatives.length > 0 &&
-                                " (or another listed with it)"}
+                            {row.alternatives.length > 0
+                                ? t('parts.recommended_alt')
+                                : t('parts.recommended')}
                             {" · "}
                         </span>
                     )}
                     {row.source === "generated"
-                        ? "Made from the book’s details"
-                        : "Written by the author"}
+                        ? t('parts.source_generated')
+                        : t('parts.source_author')}
                 </p>
                 {row.issues.map((issue) => (
                     <p
@@ -287,7 +300,7 @@ function PartRow({ row, adding, disabled, onAdd }) {
                 <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${state.tone}`}
                 >
-                    {state.label}
+                    {t(state.tKey)}
                 </span>
                 {showAdd && (
                     <button
@@ -295,10 +308,10 @@ function PartRow({ row, adding, disabled, onAdd }) {
                         data-a={`parts:add:${row.key}`}
                         onClick={onAdd}
                         disabled={disabled}
-                        aria-label={`Add ${row.english}`}
+                        aria-label={t('parts.add_label', { name: row.english })}
                         className="h-[30px] rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
                     >
-                        {adding ? "Adding…" : "Add"}
+                        {adding ? t('parts.adding') : t('parts.add')}
                     </button>
                 )}
             </div>
@@ -320,19 +333,17 @@ function OrderPreview({ preview, busy, onApply, onCancel }) {
                 id={titleId}
                 className="text-[13.5px] font-semibold text-text-primary"
             >
-                Preview: conventional order
+                {t('parts.preview_title')}
             </h3>
 
             {preview.moves.length === 0 ? (
                 <p className="mt-1 text-[12.5px] text-text-secondary">
-                    Nothing needs to move.
+                    {t('parts.nothing_moves')}
                 </p>
             ) : (
                 <>
                     <p className="mt-1 text-[12.5px] text-text-secondary">
-                        {preview.moves.length} section
-                        {preview.moves.length === 1 ? "" : "s"} would move. Only
-                        the order changes; no text is touched.
+                        {t('parts.moves', { count: preview.moves.length })}
                     </p>
                     <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-[12.5px] text-text-body">
                         {preview.order.map((row) => (
@@ -340,7 +351,7 @@ function OrderPreview({ preview, busy, onApply, onCancel }) {
                                 {row.title}
                                 {row.from !== row.to && (
                                     <span className="ml-1.5 text-text-secondary">
-                                        (was {row.from})
+                                        {t('parts.was', { position: row.from })}
                                     </span>
                                 )}
                             </li>
@@ -356,7 +367,7 @@ function OrderPreview({ preview, busy, onApply, onCancel }) {
                     onClick={onCancel}
                     className="h-[32px] rounded-control border border-border-input bg-bg-surface px-3 text-[12.5px] font-medium text-text-body"
                 >
-                    Cancel
+                    {t('common.cancel')}
                 </button>
                 {preview.moves.length > 0 && (
                     <button
@@ -366,7 +377,7 @@ function OrderPreview({ preview, busy, onApply, onCancel }) {
                         disabled={busy}
                         className="h-[32px] rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-60"
                     >
-                        {busy ? "Reordering…" : "Reorder the binder"}
+                        {busy ? t('parts.reordering') : t('parts.reorder')}
                     </button>
                 )}
             </div>
