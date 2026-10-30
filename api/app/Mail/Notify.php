@@ -50,9 +50,11 @@ use Throwable;
  * The one way the application sends email.
  *
  * Every call site says what happened — Notify::exportReady($export) — and
- * this class decides who hears about it, checks their email preferences,
- * and hands the Mailable to the mailer (queued, unless the Mailable is one
- * of the two that must arrive immediately).
+ * this class decides who hears about it, checks their email preferences
+ * and notification settings (a digest, a muted book, quiet hours: the
+ * email is then held by HeldEmails, not sent), and hands the Mailable to
+ * the mailer (queued, unless the Mailable is one of the two that must
+ * arrive immediately).
  *
  * Sending never breaks the action that caused it. A comment is still saved
  * when the mail transport is down; the failure is reported, not thrown.
@@ -83,6 +85,34 @@ final class Notify
             return false;
         }
 
+        // Frequency, per-book mute and quiet hours (NotificationSettings).
+        // Only activity about books, and only for a recipient who is the
+        // account: security, billing and receipts always go at once.
+        if ($to instanceof User && EmailPreferences::isDigestible($mail->category())) {
+            if (NotificationSettings::isMuted($to, $mail->aboutBook())) {
+                return false;
+            }
+
+            $frequency = NotificationSettings::frequency($to, $mail->category());
+
+            $until = $frequency === 'instant' ? NotificationSettings::quietUntil($to) : null;
+            $mode = $frequency === 'instant' ? ($until ? 'quiet' : null) : $frequency;
+
+            if ($mode !== null && self::hold($to, $mail, $mode, $until)) {
+                return false;
+            }
+        }
+
+        return self::deliver($to, $mail, $account);
+    }
+
+    /**
+     * Hand one email to the mailer now, in the reader's language. Past
+     * every preference: Notify::send and HeldEmails (a digest, or an email
+     * whose quiet hours are over) have already decided it should go.
+     */
+    public static function deliver(User|string $to, EcrivainMail $mail, ?User $account = null): bool
+    {
         $address = $to instanceof User ? $to->email : $to;
 
         if (! filter_var($address, FILTER_VALIDATE_EMAIL)) {
@@ -118,6 +148,24 @@ final class Notify
 
             report($e);
             Log::warning('Email not sent', ['email' => $mail::slug(), 'error' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
+    /** Kept back, or false when holding failed (and the email goes now instead). */
+    private static function hold(User $to, EcrivainMail $mail, string $mode, ?CarbonInterface $until): bool
+    {
+        try {
+            HeldEmails::hold($to, $mail, $mode, $until);
+
+            return true;
+        } catch (Throwable $e) {
+            if (app()->runningUnitTests()) {
+                throw $e;
+            }
+
+            report($e);
 
             return false;
         }

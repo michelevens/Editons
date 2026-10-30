@@ -16,13 +16,14 @@ use Illuminate\Support\Facades\URL;
 
 beforeEach(fn () => Mail::fake());
 
-it('defaults every category to on except news, which is opt-in marketing', function () {
+it('defaults every category to on except news and the weekly progress digest, which are opt-in', function () {
     $user = User::factory()->create();
     $resolved = EmailPreferences::for($user);
 
-    expect($resolved['news'])->toBeFalse();
+    expect($resolved['news'])->toBeFalse()
+        ->and($resolved['digest'])->toBeFalse();
 
-    unset($resolved['news']);
+    unset($resolved['news'], $resolved['digest']);
     expect(array_unique(array_values($resolved)))->toBe([true]);
 });
 
@@ -90,7 +91,7 @@ it('shows the preferences on the profile page', function () {
 });
 
 it('unsubscribes from the digest with the signed footer link, signed out', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['email_preferences' => ['digest' => true]]);
     $url = (new WeeklyDigestMail($user, now()->subWeek(), now(), [
         'words' => 0, 'active_days' => 0, 'chapters_touched' => 0, 'open_findings' => 0, 'open_comments' => 0, 'books' => [],
     ]))->unsubscribeUrl();
@@ -102,7 +103,7 @@ it('unsubscribes from the digest with the signed footer link, signed out', funct
 });
 
 it('supports RFC 8058 one-click unsubscribe without a CSRF token', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['email_preferences' => ['digest' => true]]);
     $url = URL::signedRoute('email.unsubscribe', ['user' => $user->id, 'category' => 'digest']);
 
     $this->post($url)->assertNoContent();
@@ -111,8 +112,8 @@ it('supports RFC 8058 one-click unsubscribe without a CSRF token', function () {
 });
 
 it('refuses a tampered or unsigned unsubscribe link', function () {
-    $user = User::factory()->create();
-    $other = User::factory()->create();
+    $user = User::factory()->create(['email_preferences' => ['digest' => true]]);
+    $other = User::factory()->create(['email_preferences' => ['digest' => true]]);
     $url = URL::signedRoute('email.unsubscribe', ['user' => $user->id, 'category' => 'digest']);
 
     $this->get(str_replace("/{$user->id}/", "/{$other->id}/", $url))->assertForbidden();

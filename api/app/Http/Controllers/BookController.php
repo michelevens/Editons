@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Editorial\EditorialAgent;
 use App\Journey\BookType;
 use App\Journey\Scaffolder;
+use App\Mail\NotificationSettings;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
@@ -62,6 +63,9 @@ class BookController extends Controller
             $state['filter'] = 'all';
         }
 
+        // Per-book mute (NotificationSettings): the card's bell shows it.
+        $muted = NotificationSettings::mutedBooks($user);
+
         $page = $shelf->build($request, 'books', $state, fn (Book $b) => [
             'id' => $b->id,
             'title' => $b->title,
@@ -74,6 +78,7 @@ class BookController extends Controller
             'updated_at' => $b->updated_at->diffForHumans(),
             'cover' => $b->coverFor(),
             'house' => $b->user_id !== $user->id && $b->user?->isHouse(),
+            'muted' => in_array($b->id, $muted, true),
         ], fn ($query) => $query->withCount('sections')->with('user:id,account_kind'));
 
         return Inertia::render('Books/Index', $page + [

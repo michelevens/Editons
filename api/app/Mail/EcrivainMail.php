@@ -3,6 +3,13 @@
 namespace App\Mail;
 
 use App\Mail\Support\Letter;
+use App\Models\Book;
+use App\Models\BookChannel;
+use App\Models\BookExport;
+use App\Models\BookMember;
+use App\Models\Comment;
+use App\Models\EditorialReview;
+use App\Models\ManuscriptSection;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -63,6 +70,27 @@ abstract class EcrivainMail extends Mailable
     public function category(): string
     {
         return static::CATEGORY;
+    }
+
+    /**
+     * The book this email is about, when it is about one: what a per-book
+     * mute matches (App\Mail\NotificationSettings). Read from the models
+     * the activity emails carry, so a new one needs no override.
+     */
+    public function aboutBook(): ?Book
+    {
+        $model = match (true) {
+            isset($this->book) && $this->book instanceof Book => $this->book,
+            isset($this->comment) && $this->comment instanceof Comment => $this->comment->section?->book,
+            isset($this->review) && $this->review instanceof EditorialReview => $this->review->section?->book,
+            isset($this->section) && $this->section instanceof ManuscriptSection => $this->section->book,
+            isset($this->export) && $this->export instanceof BookExport => $this->export->book,
+            isset($this->channel) && $this->channel instanceof BookChannel => $this->channel->book,
+            isset($this->member) && $this->member instanceof BookMember => $this->member->book,
+            default => null,
+        };
+
+        return $model instanceof Book ? $model : null;
     }
 
     public function envelope(): Envelope

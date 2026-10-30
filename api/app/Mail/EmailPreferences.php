@@ -11,8 +11,9 @@ use App\Models\User;
  * — are always sent: a person cannot opt out of being told their password
  * changed or their card was declined, because the email is the control.
  * Everything else defaults to on, except a category marked 'default' =>
- * false (news: opt-in marketing), and can be switched from the profile
- * page, or off from the unsubscribe link in the footer of the email itself.
+ * false (news, and the weekly progress digest: opt-in), and can be
+ * switched from the profile page, or off from the unsubscribe link in the
+ * footer of the email itself.
  *
  * Stored as one JSON column of overrides rather than a column per category,
  * so adding a category is a constant here, not a migration; a key that is
@@ -21,7 +22,11 @@ use App\Models\User;
 final class EmailPreferences
 {
     /**
-     * category => [label, description, mandatory, marketing].
+     * category => [label, description, mandatory, marketing, digestible].
+     *
+     * `digestible` marks activity about a book: those can be sent instantly,
+     * gathered into a daily or weekly digest, kept for the inbox only, and
+     * muted per book (App\Mail\NotificationSettings).
      *
      * `marketing` marks mail that is not a direct consequence of something
      * the reader or a collaborator did. It is the only kind that carries an
@@ -51,24 +56,28 @@ final class EmailPreferences
             'description' => 'Invitations, replies and mentions in comments, and chapters assigned to you.',
             'mandatory' => false,
             'marketing' => false,
+            'digestible' => true,
         ],
         'writing' => [
             'label' => 'Editorial reviews',
             'description' => 'When an editorial review or a Book Director report is ready.',
             'mandatory' => false,
             'marketing' => false,
+            'digestible' => true,
         ],
         'publishing' => [
             'label' => 'Exports and publishing',
             'description' => 'Finished or failed exports, store submissions, and books going live.',
             'mandatory' => false,
             'marketing' => false,
+            'digestible' => true,
         ],
         'sales' => [
             'label' => 'Sales',
             'description' => 'A note each time somebody buys one of your books.',
             'mandatory' => false,
             'marketing' => false,
+            'digestible' => true,
         ],
         // Écrivain Partners: a first sale and the monthly statement. A
         // partner's approval, suspension and payouts go as account and
@@ -78,19 +87,24 @@ final class EmailPreferences
             'description' => 'Your first partner sale and a monthly statement of your commissions.',
             'mandatory' => false,
             'marketing' => false,
+            'digestible' => true,
         ],
+        // Opt-in since notification frequency (ADR — Notification
+        // frequency): sent on the day and at the hour the author picks
+        // (App\Mail\NotificationSettings), by `notifications:deliver`.
         'digest' => [
             'label' => 'Weekly progress',
-            'description' => 'A Monday summary of what you wrote last week.',
+            'description' => 'A summary of what you wrote last week, on the day and at the time you choose.',
             'mandatory' => false,
             'marketing' => true,
+            'default' => false,
         ],
         // The console's broadcasts (App\Growth). Off until the author turns
         // it on: announcements and offers are marketing in the strict sense,
-        // and authors in the EU and Canada must opt in to those. Tips and the
-        // digest are about the author's own work and stay on, each with the
-        // one-click unsubscribe; the console only sends to people for whom
-        // this resolves on.
+        // and authors in the EU and Canada must opt in to those. Tips are
+        // about the author's own work and stay on, with the one-click
+        // unsubscribe; the console only sends to people for whom this
+        // resolves on.
         'news' => [
             'label' => 'News from Écrivain',
             'description' => 'Occasional announcements: new features, events and offers.',
@@ -121,6 +135,17 @@ final class EmailPreferences
     public static function isMarketing(string $category): bool
     {
         return (bool) (self::CATEGORIES[$category]['marketing'] ?? false);
+    }
+
+    public static function isDigestible(string $category): bool
+    {
+        return (bool) (self::CATEGORIES[$category]['digestible'] ?? false);
+    }
+
+    /** @return list<string> */
+    public static function digestible(): array
+    {
+        return array_keys(array_filter(self::CATEGORIES, fn (array $c) => $c['digestible'] ?? false));
     }
 
     /**
@@ -182,6 +207,7 @@ final class EmailPreferences
                 'label' => __($category['label']),
                 'description' => __($category['description']),
                 'mandatory' => $category['mandatory'],
+                'digestible' => $category['digestible'] ?? false,
                 'enabled' => $resolved[$key],
             ],
             array_keys(self::CATEGORIES),

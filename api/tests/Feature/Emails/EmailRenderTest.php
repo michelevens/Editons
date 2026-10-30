@@ -25,6 +25,7 @@ dataset('emails', [
     'email-changed' => ['email-changed', 'email address was changed', 'amelie.old@example.com', 'mailto:support@ecrivain.ai'],
     'new-sign-in' => ['new-sign-in', 'New sign-in', 'Safari on macOS', '/profile'],
     'account-deleted' => ['account-deleted', 'account has been deleted', 'Your account is deleted', null],
+    'activity-digest' => ['activity-digest', 'Your daily digest: 3 updates', 'Jonas Pierre replied on', '/books'],
     'book-invitation' => ['book-invitation', 'Amélie Laurent invited you', 'Reviewers can read every chapter', '/invitations/Q2f8k1sN0aXb7LwPz4Rt9VcYe3HmJ6Ud'],
     'invitation-accepted' => ['invitation-accepted', 'Jonas Pierre accepted your invitation', 'Jonas Pierre joined your book', '/books/42/overview'],
     'comment-mention' => ['comment-mention', 'mentioned you', 'could you check the dates here?', '/books/42/edit?section=7'],
@@ -129,7 +130,7 @@ it('has a preview for every Mailable, and nothing extra', function () {
     $catalogued = collect(EmailCatalog::all())->pluck('class')->sort()->values()->all();
 
     expect($catalogued)->toBe($classes)
-        ->and(count($classes))->toBe(46);
+        ->and(count($classes))->toBe(47);
 });
 
 it('puts every email in a known preference category', function (string $slug) {

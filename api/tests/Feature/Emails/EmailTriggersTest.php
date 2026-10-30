@@ -281,8 +281,9 @@ it('warns once a month when a spend crosses the low-credit line', function () {
 
 // ── Weekly digest ───────────────────────────────────────────────────────
 
-it('sends the weekly digest to people who wrote, honouring preferences', function () {
+it('sends the weekly digest to people who opted in and wrote, honouring preferences', function () {
     [$owner, , , $section] = emailBook();
+    $owner->forceFill(['email_preferences' => ['digest' => true]])->save();
     $optedOut = User::factory()->create(['email_preferences' => ['digest' => false]]);
     $quiet = User::factory()->create();
     Book::factory()->for($quiet)->create();
@@ -312,7 +313,7 @@ it('sends the weekly digest to people who wrote, honouring preferences', functio
         && $mail->summary['active_days'] === 1);
 });
 
-// Switched on by the owner on 2026-10-28 (Mondays 8:00 New York time; see ScheduleTest).
-it('is scheduled weekly', function () {
-    $this->artisan('schedule:list')->expectsOutputToContain('emails:weekly-digest');
+// Sent per person by the hourly delivery run, only to people who opted in (see ScheduleTest).
+it('is scheduled through the hourly delivery run', function () {
+    $this->artisan('schedule:list')->expectsOutputToContain('notifications:deliver');
 });

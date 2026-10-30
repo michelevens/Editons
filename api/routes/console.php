@@ -68,10 +68,12 @@ Schedule::command('partners:statements')->monthlyOn(1, '09:30')->withoutOverlapp
 Schedule::command('lulu:poll')->everyThirtyMinutes()->withoutOverlapping();
 
 /*
- | The Monday writing digest ("Weekly progress" in email preferences). Built
- | with its command but never scheduled, so the preference did nothing
- | (flexibility audit, 2026-10-28). 8:00 New York time, not the server's UTC;
- | Notify skips people who switched it off, the command people with no books
- | and people who wrote nothing.
+ | Notification delivery (ADR — Notification frequency, channels, mutes and
+ | digests): emails held for quiet hours, daily and weekly digests, and the
+ | weekly progress summary, each at the hour (and day) the person chose in
+ | their own timezone — hence hourly, not one fixed time for everybody.
+ | The progress summary goes only to people who opted in; it was a fixed
+ | Monday 8:00 New York send to everybody until then.
+ | `emails:weekly-digest` remains for sending it by hand.
  */
-Schedule::command('emails:weekly-digest')->weeklyOn(1, '8:00')->timezone('America/New_York')->withoutOverlapping();
+Schedule::command('notifications:deliver')->hourly()->withoutOverlapping();

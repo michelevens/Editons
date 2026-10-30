@@ -11,7 +11,8 @@ use Illuminate\Console\Command;
 /**
  * Send last week's writing digest.
  *
- * Scheduled in routes/console.php: Mondays at 8:00 New York time.
+ * By hand. The schedule sends it per person, on their day at their hour,
+ * through `notifications:deliver` (HeldEmails::sendProgress).
  *
  * "Last week" is the previous Monday-to-Sunday. People who switched the
  * digest off are skipped by Notify; people with no books are skipped here;

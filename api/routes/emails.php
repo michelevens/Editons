@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BookMuteController;
 use App\Http\Controllers\EmailPreviewController;
 use App\Http\Controllers\EmailUnsubscribeController;
 use App\Http\Controllers\ProfileController;
@@ -14,6 +15,12 @@ use Illuminate\Support\Facades\Route;
 Route::patch('/profile/email-preferences', [ProfileController::class, 'updateEmailPreferences'])
     ->middleware('auth')
     ->name('profile.email-preferences');
+
+// Per-book mute (ADR — Notification frequency): the person's own, from the
+// shelf card or the profile.
+Route::put('/books/{book}/mute', [BookMuteController::class, 'update'])
+    ->middleware('auth')
+    ->name('books.mute');
 
 /*
  | The footer link and the List-Unsubscribe header.

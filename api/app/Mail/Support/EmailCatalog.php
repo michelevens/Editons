@@ -4,6 +4,7 @@ namespace App\Mail\Support;
 
 use App\Editorial\EditorialAgent;
 use App\Mail\Account\AccountDeletedMail;
+use App\Mail\Account\ActivityDigestMail;
 use App\Mail\Account\EmailChangedMail;
 use App\Mail\Account\NewSignInMail;
 use App\Mail\Account\PasswordChangedMail;
@@ -107,6 +108,13 @@ final class EmailCatalog
             [ListingRestoredMail::class, 'Account', 'Store listing restored', 'Wired: App\Platform\Trust\Moderation::restore',
                 fn (array $s) => new ListingRestoredMail($s['author'], $s['book']->title, 'The photographer confirmed the licence.')],
 
+            [ActivityDigestMail::class, 'Account', 'Daily or weekly digest', 'Scheduled: notifications:deliver, hourly, for people who chose a digest (App\Mail\HeldEmails)',
+                fn (array $s) => new ActivityDigestMail($s['author'], 'daily', [
+                    ['category' => 'collaboration', 'subject' => 'Jonas Pierre replied on “Chapter 3: The Market at Dawn”', 'url' => route('books.edit', ['book' => 42, 'section' => 7]), 'book' => $s['book']->title, 'at' => '2026-10-21T09:14:00Z'],
+                    ['category' => 'collaboration', 'subject' => 'Jonas Pierre mentioned you on “Chapter 4”', 'url' => route('books.edit', ['book' => 42, 'section' => 8]), 'book' => $s['book']->title, 'at' => '2026-10-21T11:02:00Z'],
+                    ['category' => 'publishing', 'subject' => 'Your EPUB is ready to download', 'url' => route('books.edit', ['book' => 42, 'pane' => 'export']), 'book' => $s['book']->title, 'at' => '2026-10-21T15:40:00Z'],
+                ])],
+
             // Collaboration
             [BookInvitationMail::class, 'Collaboration', 'Invitation to a book', 'Wired: TeamController::invite / resend',
                 fn (array $s) => new BookInvitationMail($s['member'])],
@@ -129,7 +137,7 @@ final class EmailCatalog
                     ['severity' => 'warning', 'title' => 'Two chapters open the same way', 'detail' => 'Chapters 3 and 8 both begin at dawn at the market. Consider changing one entry point.'],
                     ['severity' => 'suggestion', 'title' => 'The title promise lands late', 'detail' => 'The salt road itself first appears in chapter 7.'],
                 ])],
-            [WeeklyDigestMail::class, 'Writing & AI', 'Weekly writing digest', 'Command: php artisan emails:weekly-digest (not scheduled)',
+            [WeeklyDigestMail::class, 'Writing & AI', 'Weekly writing digest', 'Scheduled: notifications:deliver, hourly, for people who opted in (their day and hour)',
                 fn (array $s) => new WeeklyDigestMail($s['author'], Carbon::parse('2026-10-12'), Carbon::parse('2026-10-18'), [
                     'words' => 6240,
                     'active_days' => 5,

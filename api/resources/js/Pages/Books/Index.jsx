@@ -269,10 +269,27 @@ function BookCard({ book, selecting = false, selected = false, onToggle }) {
                         </>
                     )}
 
+                    {/* The person's own mute for this book (no emails, inbox
+                        items arrive read); listed and undone in the profile. */}
+                    <button
+                        type="button"
+                        data-a={`books:mute:${book.id}`}
+                        aria-pressed={Boolean(book.muted)}
+                        aria-label={t('notify.mute_label', { title: book.title })}
+                        onClick={() =>
+                            router.put(route('books.mute', book.id), { muted: !book.muted }, { preserveScroll: true })
+                        }
+                        className={`ml-auto text-[12px] hover:text-text-primary ${
+                            book.muted ? 'font-semibold text-status-warning' : 'text-text-secondary'
+                        }`}
+                    >
+                        {book.muted ? t('notify.muted_badge') : t('notify.mute')}
+                    </button>
+
                     <Link
                         href={route('books.settings', book.id)}
                         data-a={`books:settings:${book.id}`}
-                        className="ml-auto text-[12px] text-text-secondary hover:text-text-primary"
+                        className="text-[12px] text-text-secondary hover:text-text-primary"
                     >
                         {t('shelf.settings')}
                     </Link>

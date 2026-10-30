@@ -13,7 +13,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
  *
  * Built by App\Mail\Support\WeeklyProgress from version history — words
  * actually added, not keystrokes — and sent by `php artisan
- * emails:weekly-digest`. Not scheduled by default.
+ * notifications:deliver` (opted-in people, on their day and hour) or by
+ * hand with `php artisan emails:weekly-digest`.
  *
  * The one email that counts as marketing: it is not a consequence of
  * anything the reader just did, so it carries an unsubscribe link and a
