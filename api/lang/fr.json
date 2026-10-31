@@ -3124,5 +3124,17 @@
     "team.select_none": "Tout désélectionner",
     "team.books_selected": "Livres dans cette invitation : {count}",
     "team.invited_to": "Invitation envoyée pour {count} :",
-    "team.skipped_book": "« {title} » ignoré : {reason}"
+    "team.skipped_book": "« {title} » ignoré : {reason}",
+    "import.ai_written": "Ce texte a été écrit avec un outil d’IA",
+    "import.ai_written_hint": "La première version de chaque section est marquée comme brouillon d’IA ; la déclaration d’IA du livre en tient compte.",
+    "import.review": "Vérifier les sections",
+    "import.review_hint": "Choisissez la nature de chaque section. Ce que vous ne changez pas devient un chapitre.",
+    "import.review_none": "Ce fichier n’a aucune section à vérifier.",
+    "import.type_of": "Type de « {title} »",
+    "import.type_front_matter": "Pages liminaires",
+    "import.type_part": "Partie",
+    "import.type_chapter": "Chapitre",
+    "import.type_back_matter": "Pages de fin",
+    "Imported from “:file”, written with an AI tool": "Importé de « :file », écrit avec un outil d’IA",
+    "Imported from pasted text, written with an AI tool": "Importé d’un texte collé, écrit avec un outil d’IA"
 }

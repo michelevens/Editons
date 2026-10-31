@@ -319,6 +319,11 @@ Route::middleware('auth')->group(function () {
      */
     Route::get('/books/{book}/export.ecrivain', [ImportController::class, 'portableExport'])
         ->name('books.portable.export');
+    // The import dialog's "Review sections": what a Markdown file would
+    // become, nothing written (ADR — AI-written imports).
+    Route::post('/import/preview', [ImportController::class, 'preview'])
+        ->middleware('throttle:30,1')
+        ->name('import.preview');
     Route::post('/books/import', [ImportController::class, 'portableImport'])
         ->name('books.portable.import');
 });

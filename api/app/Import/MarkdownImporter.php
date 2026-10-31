@@ -71,7 +71,7 @@ class MarkdownImporter
      * Text before the first heading becomes a chapter too; dropping it would
      * be exactly the content loss this is supposed to demonstrate avoiding.
      */
-    public function import(Book $book, string $markdown, ?int $userId = null): ImportReport
+    public function import(Book $book, string $markdown, ?int $userId = null, ?ImportOptions $options = null): ImportReport
     {
         $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
 
@@ -89,9 +89,24 @@ class MarkdownImporter
         $this->chapters->append($book, array_map(fn ($chunk) => [
             'title' => $chunk['title'],
             'doc' => $this->toProseMirror($chunk['body'], $report),
-        ], $chunks), $userId, $report);
+        ], $chunks), $userId, $report, $options);
 
         return $report;
+    }
+
+    /**
+     * The section titles an import of $markdown would make, in order, and
+     * nothing written: the import preview, where the author can give each
+     * one a type (ADR — AI-written imports).
+     *
+     * @return list<string>
+     */
+    public function outline(string $markdown): array
+    {
+        $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+        $this->extractNotes($markdown);
+
+        return array_map(fn ($chunk) => mb_substr($chunk['title'], 0, 255), $this->splitIntoChapters($markdown));
     }
 
     /**
