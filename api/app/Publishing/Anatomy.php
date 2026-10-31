@@ -229,7 +229,11 @@ class Anatomy
 
         $fold = fn (?string $s) => mb_strtolower(trim(Str::ascii((string) $s)));
         $p = $book->publication();
-        $houses = array_filter([$p['imprint'] ?? null, $p['publisher'] ?? null, $book->series_name, config('app.name')]);
+        // Only a house the title page actually prints (imprint, publisher,
+        // series line) stands in for the author. The platform's own name is
+        // not one: a novel whose author signs "Écrivain", with no imprint,
+        // would otherwise have no name on its title page at all.
+        $houses = array_filter([$p['imprint'] ?? null, $p['publisher'] ?? null, $book->series_name]);
 
         foreach ($houses as $house) {
             if ($fold($house) === $fold($author) || str_starts_with($fold($house), $fold($author).' ')) {
