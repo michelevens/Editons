@@ -39,7 +39,12 @@ final class MasterData
         'genres' => [
             'label' => 'Genres',
             'where' => 'Book settings → Genre',
-            'default' => ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'],
+            // Children's to Education added after the book 733 walkthrough
+            // (ADR — Author walkthrough fixes): a middle-grade novel had
+            // only "Fiction". Appended, so existing values keep their place.
+            'default' => ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction',
+                "Children's", 'Middle grade', 'Young adult', 'Self-help', 'Business',
+                'Biography & memoir', 'Religion & spirituality', 'Education'],
             'max' => 120,
         ],
         'languages' => [
@@ -66,6 +71,15 @@ final class MasterData
                 'Education / Professional Development',
                 'Fiction / Literary',
                 'Biography & Autobiography / Personal Memoirs',
+                // The juvenile and general headings (ADR — Author walkthrough fixes).
+                'Juvenile Fiction / General',
+                'Juvenile Nonfiction / General',
+                'Young Adult Fiction / General',
+                'Self-Help / General',
+                'Business & Economics / General',
+                'Biography & Autobiography / General',
+                'Religion / General',
+                'Education / General',
             ],
             'max' => 255,
         ],

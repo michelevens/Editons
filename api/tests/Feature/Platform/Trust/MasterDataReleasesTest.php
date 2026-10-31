@@ -13,17 +13,21 @@ use Inertia\Testing\AssertableInertia as Assert;
  */
 
 it('starts every list as the constants it replaced', function () {
-    expect(MasterData::get('genres'))->toBe(['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'])
+    // The first five as they were; more genres appended after them (ADR — Author walkthrough fixes).
+    $genres = ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction', "Children's", 'Middle grade', 'Young adult',
+        'Self-help', 'Business', 'Biography & memoir', 'Religion & spirituality', 'Education'];
+
+    expect(MasterData::get('genres'))->toBe($genres)
         ->and(MasterData::get('languages'))->toBe(['English (US)', 'English (UK)', 'Spanish', 'French', 'Haitian Creole', 'German', 'Portuguese'])
         ->and(MasterData::get('translation_languages'))->toBe(['Spanish', 'French', 'Portuguese', 'German', 'Italian', 'Dutch'])
-        ->and(MasterData::get('store_categories'))->toHaveCount(8)
+        ->and(MasterData::get('store_categories'))->toHaveCount(16)
         ->and(MasterData::citationOptions())->toBe(Bibliography::options());
 
     $book = Book::factory()->create(['genre' => 'Memoir', 'language' => 'French']);
 
     $this->actingAs($book->user)->get("/books/{$book->id}/settings")
         ->assertInertia(fn (Assert $page) => $page
-            ->where('genres', ['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'])
+            ->where('genres', $genres)
             ->where('citation_styles', Bibliography::options()));
 });
 
