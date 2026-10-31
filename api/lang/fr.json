@@ -3223,5 +3223,14 @@
     "fric.find_replaced": "{count, plural, one {# remplacement effectué.} other {# remplacements effectués.}} Annulez avec Ctrl+Z.",
     "fric.find_replaced_book": "{count, plural, one {# remplacement} other {# remplacements}} dans {chapters, plural, one {# chapitre} other {# chapitres}}. Le texte précédent de chaque chapitre est dans son historique.",
     "fric.find_replace_failed": "Le remplacement n’a pas abouti. Rien n’a été modifié.",
-    "fric.find_confirm": "Remplacer {count, plural, one {# résultat} other {# résultats}} dans {chapters, plural, one {# chapitre} other {# chapitres}} ? Une version de chaque chapitre est enregistrée avant, pour pouvoir la restaurer depuis l’historique."
+    "fric.find_confirm": "Remplacer {count, plural, one {# résultat} other {# résultats}} dans {chapters, plural, one {# chapitre} other {# chapitres}} ? Une version de chaque chapitre est enregistrée avant, pour pouvoir la restaurer depuis l’historique.",
+    "fric.track": "Suivi des modifications",
+    "fric.tracking": "Suivi activé",
+    "fric.track_title": "Suivi des modifications : ce que vous tapez et supprimez est conservé comme une modification à accepter ou refuser. Ce n’est pas de l’IA.",
+    "fric.tracking_title": "Le suivi des modifications est activé. Cliquez pour modifier directement.",
+    "fric.tracking_notice": "Le suivi des modifications est activé : ce que vous tapez et supprimez est conservé comme une modification à accepter ou refuser.",
+    "fric.track_off": "Désactiver",
+    "fric.track_refused": "Les images, tableaux, graphiques et équations isolées ne peuvent pas être supprimés pendant le suivi des modifications. Désactivez le suivi pour en supprimer un.",
+    "fric.pending_words": "+{count, plural, one {# mot} other {# mots}} en attente",
+    "fric.changes_count": "{count, plural, one {modification} other {modifications}}"
 }

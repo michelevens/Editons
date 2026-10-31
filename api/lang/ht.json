@@ -3223,5 +3223,14 @@
     "fric.find_replaced": "{count, plural, other {Ranplase # fwa.}} Anile ak Ctrl+Z.",
     "fric.find_replaced_book": "{count, plural, other {Ranplase # fwa}} nan {chapters, plural, other {# chapit}}. Tèks anvan chak chapit la nan istwa li.",
     "fric.find_replace_failed": "Ranplasman an pa pase. Anyen pa chanje.",
-    "fric.find_confirm": "Ranplase {count, plural, other {# rezilta}} nan {chapters, plural, other {# chapit}}? Yo anrejistre yon vèsyon chak chapit anvan, pou ou ka retabli l nan istwa a."
+    "fric.find_confirm": "Ranplase {count, plural, other {# rezilta}} nan {chapters, plural, other {# chapit}}? Yo anrejistre yon vèsyon chak chapit anvan, pou ou ka retabli l nan istwa a.",
+    "fric.track": "Swiv chanjman yo",
+    "fric.tracking": "Swivi aktive",
+    "fric.track_title": "Swiv chanjman: sa ou tape ak sa ou efase rete kòm yon chanjman pou aksepte oswa refize. Se pa IA.",
+    "fric.tracking_title": "Swiv chanjman aktive. Klike pou modifye dirèkteman.",
+    "fric.tracking_notice": "Swiv chanjman aktive: sa ou tape ak sa ou efase rete kòm yon chanjman pou aksepte oswa refize.",
+    "fric.track_off": "Dezaktive",
+    "fric.track_refused": "Ou pa ka retire foto, tablo, grafik ak ekwasyon apa pandan swivi chanjman aktive. Dezaktive swivi a pou retire youn.",
+    "fric.pending_words": "+{count, plural, other {# mo}} ap tann",
+    "fric.changes_count": "{count, plural, other {chanjman}}"
 }

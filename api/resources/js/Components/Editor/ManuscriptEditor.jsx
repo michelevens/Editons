@@ -306,7 +306,7 @@ export default function ManuscriptEditor({
                 }),
                 // Tracked changes; switched on through its storage below.
                 Suggest.configure({
-                    onRefused: () => setNotice('Pictures, tables, charts and display equations cannot be removed while suggesting. Turn Suggest off to remove one.'),
+                    onRefused: () => setNotice(tr('fric.track_refused')),
                 }),
                 CommentAnchors,
                 // Find and replace highlights (FindReplace.js).
@@ -653,15 +653,19 @@ export default function ManuscriptEditor({
 
     // --- Review: suggest mode, its changes, comments on a selection -------
 
-    // Remembered per browser and per book, like typewriter scrolling: it is
-    // how this person is working on this book on this device (an editor
-    // suggesting on a client's manuscript, the author writing on their
-    // own), not a fact about the book every collaborator should inherit.
+    // Track changes ("Suggest" before; ADR — Author walkthrough fixes).
+    // Remembered per book for this browser session only: a new session
+    // starts with it off, because an author who left it on found a whole
+    // chapter turned into pending changes the next day. While it is on, a
+    // bar under the header says so, with a button to turn it off.
     const calloutCss = useCalloutCss(bookId);
     const suggestKey = `ecrivain:suggest:${bookId ?? 'book'}`;
     const [suggesting, setSuggesting] = useState(() => {
         try {
-            return window.localStorage.getItem(suggestKey) === '1';
+            // The old per-browser setting is forgotten, not carried over.
+            window.localStorage.removeItem(suggestKey);
+
+            return window.sessionStorage.getItem(suggestKey) === '1';
         } catch {
             return false;
         }
@@ -670,7 +674,7 @@ export default function ManuscriptEditor({
     const toggleSuggest = () => {
         setSuggesting((on) => {
             try {
-                window.localStorage.setItem(suggestKey, on ? '0' : '1');
+                window.sessionStorage.setItem(suggestKey, on ? '0' : '1');
             } catch {
                 // Private mode: the choice lasts for this page only.
             }
@@ -1035,6 +1039,9 @@ export default function ManuscriptEditor({
     const floatingBar = floating && !docked;
     const toolbarShown = showToolbar && (!floating || Boolean(bubble) || toolbarFocus);
     const readingMinutes = Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+    // Words waiting as tracked insertions: the count above is the accepted
+    // text only, so a chapter typed with Track changes on read "0 words".
+    const pendingWords = changes.reduce((sum, change) => sum + (change.inserted.match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)?.length ?? 0), 0);
 
     return (
         <div className="flex h-full flex-col">
@@ -1064,6 +1071,11 @@ export default function ManuscriptEditor({
                 </h2>
                 <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
                     {tr('book.words', { count: words, words: words.toLocaleString() })}
+                    {pendingWords > 0 && (
+                        <span data-a="editor:pending-words" className="ml-1 text-status-success">
+                            {tr('fric.pending_words', { count: pendingWords })}
+                        </span>
+                    )}
                 </span>
                 {/* The chapter's word goal: the ring fills as the
                     chapter grows, and opens the goals sheet. Without a goal
@@ -1104,7 +1116,7 @@ export default function ManuscriptEditor({
                         className="flex h-7 shrink-0 items-center gap-1 rounded-badge bg-status-success-bg px-2 text-[11.5px] font-semibold text-status-success max-md:h-9"
                     >
                         {changes.length}
-                        <span className="max-sm:sr-only">{changes.length === 1 ? 'change' : 'changes'}</span>
+                        <span className="max-sm:sr-only">{tr('fric.changes_count', { count: changes.length })}</span>
                     </button>
                 )}
                 {suggestAllowed && (
@@ -1113,13 +1125,13 @@ export default function ManuscriptEditor({
                     data-a="editor:suggest"
                     onClick={toggleSuggest}
                     aria-pressed={suggesting}
-                    title={suggesting ? tr('jfix.suggesting_title') : tr('jfix.suggest_title')}
+                    title={suggesting ? tr('fric.tracking_title') : tr('fric.track_title')}
                     className={`flex h-7 shrink-0 items-center gap-1 rounded-control px-1.5 text-[12px] font-semibold transition max-md:h-9 max-md:min-w-9 max-md:justify-center ${
                         suggesting ? 'bg-status-success-bg text-status-success' : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary'
                     }`}
                 >
                     <Icon name="aLine" size={15} />
-                    <span className="max-lg:sr-only">{suggesting ? tr('jfix.suggesting') : tr('jfix.suggest')}</span>
+                    <span className="max-lg:sr-only">{suggesting ? tr('fric.tracking') : tr('fric.track')}</span>
                 </button>
                 )}
                 {headerActions}
@@ -1151,13 +1163,23 @@ export default function ManuscriptEditor({
                     // only one in the chapter.
                     role={notice ? 'alert' : undefined}
                     data-a={notice ? 'editor:suggest-notice' : 'editor:suggesting'}
-                    className={`shrink-0 border-b px-3 py-1 text-[11.5px] sm:px-[21px] ${
+                    className={`flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-[12px] font-medium sm:px-[21px] ${
                         notice
                             ? 'border-status-warning/30 bg-status-warning-bg text-status-warning'
                             : 'border-status-success/20 bg-status-success-bg text-status-success'
                     }`}
                 >
-                    {notice ?? tr('jfix.suggesting_notice')}
+                    <span className="min-w-0 flex-1">{notice ?? tr('fric.tracking_notice')}</span>
+                    {!notice && (
+                        <button
+                            type="button"
+                            data-a="editor:suggest-off"
+                            onClick={toggleSuggest}
+                            className="shrink-0 rounded-control border border-status-success/40 bg-bg-surface px-2 py-0.5 text-[11.5px] font-semibold text-status-success hover:bg-bg-subtle"
+                        >
+                            {tr('fric.track_off')}
+                        </button>
+                    )}
                 </p>
             )}
 

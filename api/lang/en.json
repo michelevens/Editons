@@ -3032,5 +3032,14 @@
     "fric.find_replaced": "{count, plural, one {Replaced # match.} other {Replaced # matches.}} Undo with Ctrl+Z.",
     "fric.find_replaced_book": "{count, plural, one {Replaced # match} other {Replaced # matches}} in {chapters, plural, one {# chapter} other {# chapters}}. Each chapter’s previous text is in its History.",
     "fric.find_replace_failed": "The replace did not go through. Nothing was changed.",
-    "fric.find_confirm": "Replace {count, plural, one {# match} other {# matches}} in {chapters, plural, one {# chapter} other {# chapters}}? A version of each chapter is saved first, so you can restore it from History."
+    "fric.find_confirm": "Replace {count, plural, one {# match} other {# matches}} in {chapters, plural, one {# chapter} other {# chapters}}? A version of each chapter is saved first, so you can restore it from History.",
+    "fric.track": "Track changes",
+    "fric.tracking": "Tracking changes",
+    "fric.track_title": "Track changes: what you type and delete is kept as a change to accept or reject. Not AI.",
+    "fric.tracking_title": "Track changes is on. Click to edit directly.",
+    "fric.tracking_notice": "Track changes is on: what you type and delete is kept as a change to accept or reject.",
+    "fric.track_off": "Turn off",
+    "fric.track_refused": "Pictures, tables, charts and display equations cannot be removed while tracking changes. Turn Track changes off to remove one.",
+    "fric.pending_words": "+{count, plural, one {# word} other {# words}} pending",
+    "fric.changes_count": "{count, plural, one {change} other {changes}}"
 }
