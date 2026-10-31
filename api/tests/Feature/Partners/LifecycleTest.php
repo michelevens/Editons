@@ -193,6 +193,8 @@ it('forfeits a suspended partner’s balance, pending included, with a reason', 
 });
 
 it('sends a monthly statement only to partners with activity, once', function () {
+    // Mid-month: from the 29th-31st, "a month later" can skip next month.
+    $this->travelTo(now()->startOfMonth()->addDays(14));
     $active = partnerFor();
     partnerFor();
     partnerBuy(partnerProduct(), cookie: $active);

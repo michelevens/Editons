@@ -27,6 +27,31 @@ it('splits a manuscript into one section per heading', function () {
         ->and($book->sections()->orderBy('position')->pluck('title')->all())->toBe(['One', 'Two']);
 });
 
+it('keeps a chapter\'s ## headings inside it, as subheadings', function () {
+    [$book, $report] = importBook("# Chapitre 1\n\nOuverture.\n\n## Une partie\n\nTexte.\n\n## Une autre\n\nSuite.\n\n# Chapitre 2\n\nCorps.");
+
+    $first = $book->sections()->orderBy('position')->first();
+
+    expect($report->sections)->toBe(2)
+        ->and($book->sections()->orderBy('position')->pluck('title')->all())->toBe(['Chapitre 1', 'Chapitre 2'])
+        ->and(collect($first->content['content'])->where('type', 'heading')->pluck('content.0.text')->all())->toBe(['Une partie', 'Une autre'])
+        ->and($first->plainText())->toContain('Suite.');
+});
+
+it('splits ## chapters under a # part or a single # title', function () {
+    [$parts] = importBook("# Part One\n\n## Soil\n\nDirt.\n\n## Water\n\nRain.\n\n# Appendix\n\nTables.");
+    [$titled] = importBook("# My Book\n\nA blurb.\n\n## One\n\nA.\n\n## Two\n\nB.");
+
+    expect($parts->sections()->orderBy('position')->pluck('title')->all())->toBe(['Part One', 'Soil', 'Water', 'Appendix'])
+        ->and($titled->sections()->orderBy('position')->pluck('title')->all())->toBe(['My Book', 'One', 'Two']);
+});
+
+it('ignores # lines inside a fenced code block', function () {
+    [$book] = importBook("# One\n\nText.\n\n```\n# not a heading\n```\n\n# Two\n\nMore.");
+
+    expect($book->sections()->orderBy('position')->pluck('title')->all())->toBe(['One', 'Two']);
+});
+
 it('keeps text that appears before the first heading', function () {
     // Silently dropping this is the most likely way an importer loses a
     // manuscript's opening page.

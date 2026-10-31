@@ -115,6 +115,43 @@ class MarkdownImporter
     private function splitIntoChapters(string $markdown): array
     {
         $lines = explode("\n", $markdown);
+
+        // Which lines start a section. A `#` always does. A `##` does only
+        // under a `#` that is a container (a part, or a book title: no text of
+        // its own before its first `##`), or when the file has at most one `#`.
+        // A `#` chapter that opens with text keeps its `##` as subheadings —
+        // "one chapter per top-level heading", as the import dialog promises.
+        $levels = [];
+        $fenced = false;
+
+        foreach ($lines as $i => $line) {
+            if (preg_match('/^\s*```/', $line)) {
+                $fenced = ! $fenced;
+            } elseif (! $fenced && preg_match('/^(#{1,2})\s+\S/', $line, $m)) {
+                $levels[$i] = strlen($m[1]);
+            }
+        }
+
+        $splitAll = count(array_filter($levels, fn ($level) => $level === 1)) <= 1;
+        $breaks = [];
+        $container = true; // the current `#` has had no text of its own yet
+        $last = 0;         // level of the most recent heading
+
+        foreach ($lines as $i => $line) {
+            $level = $levels[$i] ?? 0;
+
+            if ($level === 1) {
+                $breaks[$i] = true;
+                $container = true;
+            } elseif ($level === 2 && ($splitAll || $container)) {
+                $breaks[$i] = true;
+            } elseif ($level === 0 && $last === 1 && trim($line) !== '') {
+                $container = false;
+            }
+
+            $last = $level ?: $last;
+        }
+
         $chapters = [];
         $title = null;
         $buffer = [];
@@ -135,10 +172,10 @@ class MarkdownImporter
             $buffer = [];
         };
 
-        foreach ($lines as $line) {
-            if (preg_match('/^(#{1,2})\s+(.*)$/', $line, $m)) {
+        foreach ($lines as $i => $line) {
+            if (isset($breaks[$i]) && preg_match('/^#{1,2}\s+(.*)$/', $line, $m)) {
                 $flush();
-                $title = trim($m[2]);
+                $title = trim($m[1]);
 
                 continue;
             }

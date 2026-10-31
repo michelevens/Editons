@@ -4329,7 +4329,7 @@ to own threads, no re-stamping, other-book ids, replies, strangers),
 `tests/Browser/research.spec.js` (1440 and 390 px).
 
 
-## ADR-00XX — Moving books between any accounts; AI-written imports
+## ADR-0055 — Moving books between any accounts; AI-written imports
 
 **Status:** accepted (2026-10-31). Number assigned at merge.
 
