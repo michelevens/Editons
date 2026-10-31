@@ -196,7 +196,7 @@ export default function AppHeader({
                     className="shrink-0"
                 />
                 <span className="whitespace-nowrap font-display text-[20px] font-bold tracking-[-0.01em] text-text-primary">
-                    Ecrivain
+                    Écrivain
                 </span>
             </Link>
 

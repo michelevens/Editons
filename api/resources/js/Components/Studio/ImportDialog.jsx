@@ -25,7 +25,43 @@ const isMarkdown = (file) => /\.(md|markdown|txt)$/i.test(file?.name ?? '');
 
 const MAX_MB = 25;
 
-export default function ImportDialog({ title, url, accept, hint, onClose, onDone, doneLabel }) {
+/**
+ * The text's language, by its commonest words: the same lists as the
+ * server's App\Import\LanguageGuess, so the dialog can show its guess for
+ * a Markdown file before anything is sent (ADR — Journey friction fixes).
+ */
+const LANGUAGE_WORDS = {
+    en: ['the', 'and', 'of', 'to', 'is', 'that', 'it', 'was', 'with', 'for', 'this', 'are', 'have', 'from', 'they', 'which', 'what', 'were', 'would', 'their'],
+    fr: ['le', 'les', 'des', 'est', 'une', 'du', 'que', 'qui', 'dans', 'pour', 'pas', 'sur', 'avec', 'au', 'sont', 'aux', 'cette', 'mais', 'nous', 'leur', 'été', 'être'],
+    ht: ['nan', 'yo', 'ki', 'pou', 'ak', 'gen', 'nou', 'yon', 'mwen', 'kote', 'konn', 'lè', 'paske', 'anpil', 'genyen', 'pral', 'menm', 'kounye', 'fè', 'bagay', 'moun', 'chak'],
+};
+
+export function guessLanguage(text) {
+    const counts = {};
+
+    for (const word of (text.slice(0, 60000).toLowerCase().match(/[\p{L}’']+/gu) ?? [])) {
+        counts[word] = (counts[word] ?? 0) + 1;
+    }
+
+    const scores = Object.entries(LANGUAGE_WORDS)
+        .map(([code, words]) => [code, words.reduce((sum, w) => sum + (counts[w] ?? 0), 0)])
+        .sort((a, b) => b[1] - a[1]);
+
+    const [[best, top], [, second]] = scores;
+
+    return top >= 12 && top >= second * 1.3 ? best : null;
+}
+
+/** Each language in its own name, as the language switch shows them. */
+const LANGUAGES = [
+    ['en', 'English'],
+    ['fr', 'Français'],
+    ['ht', 'Kreyòl ayisyen'],
+];
+
+const SECTION_TYPES = ['front_matter', 'part', 'chapter', 'back_matter'];
+
+export default function ImportDialog({ title, url, accept, hint, onClose, onDone, doneLabel, newBook = false }) {
     const { t, formatNumber } = useI18n();
     const [file, setFile] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -34,6 +70,10 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
     const [aiWritten, setAiWritten] = useState(false);
     // null: not reviewed (every section a chapter); a list once reviewed.
     const [sections, setSections] = useState(null);
+    // '' = for a new book, the server reads the text (else the account's
+    // language); for an existing book, keep its language.
+    const [language, setLanguage] = useState('');
+    const [guessed, setGuessed] = useState(null);
     const chooser = useRef(null);
     const done = useRef(null);
 
@@ -55,6 +95,21 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
         setError(null);
         setFile(chosen);
         setSections(null);
+        setGuessed(null);
+
+        // A text file's language is guessed here, so the choice shows it.
+        if (chosen && isMarkdown(chosen) && chosen.size <= MAX_MB * 1024 * 1024 && chosen.text) {
+            chosen
+                .slice(0, 200000)
+                .text()
+                .then((text) => {
+                    const code = guessLanguage(text);
+
+                    setGuessed(code);
+                    if (code && newBook) setLanguage(code);
+                })
+                .catch(() => {});
+        }
 
         // Said here rather than after a 25 MB upload fails.
         if (chosen && chosen.size > MAX_MB * 1024 * 1024) {
@@ -72,6 +127,7 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
             const form = new FormData();
             form.append('file', file);
             if (aiWritten) form.append('ai_written', '1');
+            if (language) form.append('language', language);
             (sections ?? []).forEach((section) => form.append('types[]', section.type));
             const response = await window.axios.post(url, form, { headers: { Accept: 'application/json' } });
 
@@ -156,6 +212,28 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
                         </span>
                     </label>
 
+                    <label className="mt-3 block text-[12.5px] text-text-primary">
+                        {t('jfix.import_language')}
+                        <select
+                            data-a="import:language"
+                            value={language}
+                            onChange={(event) => setLanguage(event.target.value)}
+                            className="mt-1 block h-[34px] w-full rounded-control border border-border-input bg-bg-surface px-2 text-[13px] text-text-primary"
+                        >
+                            <option value="">{newBook ? t('jfix.import_language_detect') : t('jfix.import_language_keep')}</option>
+                            {LANGUAGES.map(([code, name]) => (
+                                <option key={code} value={code}>
+                                    {name}
+                                </option>
+                            ))}
+                        </select>
+                        {guessed && (
+                            <span className="mt-1 block text-[12px] text-text-secondary" data-a="import:language-guess">
+                                {t('jfix.import_language_guessed', { language: LANGUAGES.find(([code]) => code === guessed)?.[1] ?? guessed })}
+                            </span>
+                        )}
+                    </label>
+
                     {sections && (
                         <div className="mt-3" data-a="import:sections">
                             <p className="text-[12.5px] text-text-secondary">
@@ -233,10 +311,19 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
                                 <strong>{result.book.title}</strong>:{' '}
                             </>
                         ) : null}
-                        {report.images > 0
-                            ? t('import.result_with_pictures', { count: report.sections, images: report.images })
-                            : t('import.result', { count: report.sections })}
+                        {Object.keys(report.types ?? {}).some((type) => type !== 'chapter')
+                            ? t('jfix.import_result_types', {
+                                  list: SECTION_TYPES.filter((type) => report.types[type])
+                                      .map((type) => t(`jfix.count_${type}`, { count: report.types[type] }))
+                                      .join(', '),
+                              })
+                            : report.images > 0
+                              ? t('import.result_with_pictures', { count: report.sections, images: report.images })
+                              : t('import.result', { count: report.sections })}
                     </p>
+                    {report.images > 0 && Object.keys(report.types ?? {}).some((type) => type !== 'chapter') && (
+                        <p className="mt-1 text-[12.5px] text-text-secondary">{t('jfix.import_pictures', { count: report.images })}</p>
+                    )}
 
                     {report.titles?.length > 0 && (
                         <ol className="mt-2 max-h-[160px] list-decimal overflow-y-auto rounded-control bg-bg-subtle py-2 pl-8 pr-3 text-[12.5px] text-text-body">

@@ -142,6 +142,7 @@ export default function ProductEditor({ bookId, onSaved }) {
                 <Field label="Price" error={errors.price}>
                     <input
                         data-a="store:price"
+                        aria-label={t('jfix.price_label')}
                         type="number"
                         min="0"
                         step="0.01"

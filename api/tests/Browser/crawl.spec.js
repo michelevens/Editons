@@ -1122,7 +1122,7 @@ test.describe('growth and brand', () => {
 
         const mark = page.locator('header img[src="/brand/symbol.svg"]');
         await expect(mark).toBeVisible();
-        await expect(page.getByText('Ecrivain', { exact: true })).toBeVisible();
+        await expect(page.getByText('Écrivain', { exact: true })).toBeVisible();
 
         // The asset must actually be served, not 404 behind an <img>.
         const response = await page.request.get('/brand/symbol.svg');

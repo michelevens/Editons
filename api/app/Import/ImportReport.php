@@ -22,6 +22,15 @@ class ImportReport
     /** @var int Pictures brought in with the text (DOCX). */
     public int $images = 0;
 
+    /**
+     * Sections made, by type (front_matter, part, chapter, back_matter):
+     * the report says "2 front matter, 1 part, 16 chapters" rather than
+     * calling all nineteen chapters (ADR — Journey friction fixes).
+     *
+     * @var array<string, int>
+     */
+    public array $types = [];
+
     public function skip(string $what): void
     {
         $this->skipped[$what] = ($this->skipped[$what] ?? 0) + 1;
@@ -34,6 +43,7 @@ class ImportReport
             'sections' => $this->sections,
             'titles' => $this->titles,
             'images' => $this->images,
+            'types' => $this->types,
             'skipped' => $this->skipped,
             'lossless' => $this->skipped === [],
         ];

@@ -72,6 +72,10 @@ class SalesController extends Controller
                 'live' => $live->count(),
                 'in_review' => $reviewing->count(),
                 'selected' => $channels->count(),
+                // The author's own storefront counts as on sale (ADR —
+                // Journey friction fixes): the header said "Not on sale yet"
+                // above a storefront taking orders.
+                'storefront' => (bool) $book->product?->isPublished(),
             ],
             'channels' => $channels
                 ->map(function (BookChannel $channel) use ($book, $price, $prices) {

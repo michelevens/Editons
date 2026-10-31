@@ -45,7 +45,9 @@ export function destination(key) {
  */
 export function goTo(bookId, key) {
     if (key === 'books' || !bookId) {
-        router.get(route('books.index'));
+        // A book screen asked for with no book: the shelf says why it
+        // opened instead of silently reloading (ADR — Journey friction fixes).
+        router.get(route('books.index'), key && key !== 'books' ? { nobook: key } : {});
 
         return;
     }

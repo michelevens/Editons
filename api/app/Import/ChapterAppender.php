@@ -65,6 +65,7 @@ class ChapterAppender
 
                 $report->sections++;
                 $report->titles[] = $section->title;
+                $report->types[$section->type] = ($report->types[$section->type] ?? 0) + 1;
             }
         });
 

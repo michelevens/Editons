@@ -5,6 +5,7 @@ namespace App\Publishing;
 use App\Models\Book;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
+use App\Research\BookReferences;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -446,6 +447,12 @@ class Anatomy
         }
 
         $flush(null);
+
+        // In an export, the cited sources close the book (BookReferences):
+        // a section that is never saved, read like any back matter.
+        if (ExportOptions::active($book) && ($references = BookReferences::section($book))) {
+            $pages[] = self::sectionPage($book, $references, 0, $language);
+        }
 
         return [
             'language' => $language,

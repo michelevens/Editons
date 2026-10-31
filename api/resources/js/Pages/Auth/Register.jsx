@@ -76,7 +76,9 @@ export default function Register({ offer = null, signups_open: signupsOpen = tru
                     <path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
                 </svg>
                 <p className="text-[12.5px] leading-relaxed text-outline-active-text">
-                    {t('register.free_plan', { credits: offer?.credits ?? 100 })}
+                    {offer?.books
+                        ? t('jfix.register_free_plan', { books: offer.books, credits: offer.credits ?? 100 })
+                        : t('register.free_plan', { credits: offer?.credits ?? 100 })}
                 </p>
             </div>
 

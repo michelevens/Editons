@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatNumber, t, useI18n } from '../../i18n';
 import ExportProfiles, { formatProblem, profileInput } from './ExportProfiles';
@@ -20,6 +21,11 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
     const [loadedAt, setLoadedAt] = useState(0);
     const [now, setNow] = useState(() => Date.now());
     const [busy, setBusy] = useState(null);
+    // Which listing fields the author has left, and whether Submit was
+    // tried: until then a field's problem is a to-do, not an error.
+    const [touched, setTouched] = useState({});
+    const [attempted, setAttempted] = useState(false);
+    const accountName = usePage().props.auth?.user?.name ?? '';
     // The export profile the next file is made with (ExportProfiles).
     const [choice, setChoice] = useState(null);
     // A reply that lands after the panel closed must not set state.
@@ -133,6 +139,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
     };
 
     const submit = async () => {
+        setAttempted(true);
         setBusy('submit');
 
         try {
@@ -211,8 +218,14 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
             ? { ...item.profile_options, preset: profiles.presets.some((p) => p.key === item.profile_options.preset) ? item.profile_options.preset : 'custom' }
             : undefined;
     // Shown from the start rather than only after a failed attempt: an
-    // author should be able to see what is left before trying.
+    // author should be able to see what is left before trying. Untouched,
+    // though, a field's problem reads as a to-do, not an error: a form
+    // that opens red tells a newcomer they have already failed (ADR —
+    // Journey friction fixes). Red once the field is left, or after Submit.
     const problem = (key) => blockers[key];
+    const shown = (key) => (touched[key] || attempted ? blockers[key] : null);
+    const todo = (key) => (touched[key] || attempted ? null : blockers[key]);
+    const touch = (key) => () => setTouched((current) => (current[key] ? current : { ...current, [key]: true }));
 
     const live = channels.filter((channel) => channel.status === 'live').length;
     const reviewing = channels.filter((channel) => channel.status === 'in_review').length;
@@ -308,45 +321,58 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                             {t('publish.listing')}
                         </h3>
 
-                        <Field label={t('publish.field_title')} error={problem('title')}>
+                        <Field label={t('publish.field_title')} error={shown('title')} todo={todo('title')} onBlur={touch('title')}>
                             <input
                                 value={book.title ?? ''}
                                 data-a="publish:title"
                                 onChange={(event) => save({ title: event.target.value })}
-                                className={inputClass(problem('title'))}
+                                className={inputClass(shown('title'))}
                             />
                         </Field>
 
-                        <Field label={t('publish.field_author')} error={problem('author_name')}>
+                        <Field label={t('publish.field_author')} error={shown('author_name')} todo={todo('author_name')} onBlur={touch('author_name')}>
                             <input
                                 value={book.author_name ?? ''}
                                 data-a="publish:author"
                                 placeholder={t('publish.author_placeholder')}
                                 onChange={(event) => save({ author_name: event.target.value })}
-                                className={inputClass(problem('author_name'))}
+                                className={inputClass(shown('author_name'))}
                             />
+                            {/* The account's name, offered rather than filled in:
+                                a book may be published under another name, or
+                                none (ADR — Journey friction fixes). */}
+                            {!book.author_name && accountName && (
+                                <button
+                                    type="button"
+                                    data-a="publish:author-suggest"
+                                    onClick={() => save({ author_name: accountName })}
+                                    className="mt-1 text-[11.5px] font-semibold text-brand-primary hover:underline"
+                                >
+                                    {t('jfix.use_account_name', { name: accountName })}
+                                </button>
+                            )}
                         </Field>
 
-                        <Field label={t('publish.field_description')} error={problem('description')}>
+                        <Field label={t('publish.field_description')} error={shown('description')} todo={todo('description')} onBlur={touch('description')}>
                             <textarea
                                 value={book.description ?? ''}
                                 rows={5}
                                 data-a="publish:description"
                                 placeholder={t('publish.description_placeholder')}
                                 onChange={(event) => save({ description: event.target.value })}
-                                className={inputClass(problem('description'))}
+                                className={inputClass(shown('description'))}
                             />
                             <span className="mt-0.5 block text-[10.5px] text-text-secondary">
                                 {t('publish.description_count', { count: (book.description ?? '').length })}
                             </span>
                         </Field>
 
-                        <Field label={t('publish.category')} error={problem('category')}>
+                        <Field label={t('publish.category')} error={shown('category')} todo={todo('category')} onBlur={touch('category')}>
                             <select
                                 value={book.category ?? ''}
                                 data-a="publish:category"
                                 onChange={(event) => save({ category: event.target.value })}
-                                className={inputClass(problem('category'))}
+                                className={inputClass(shown('category'))}
                             >
                                 <option value="">{t('publish.choose_category')}</option>
                                 {categories.map((category) => (
@@ -366,7 +392,7 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                         </Field>
 
                         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                            <Field label={t('publish.field_price')} error={problem('list_price')}>
+                            <Field label={t('publish.field_price')} error={shown('list_price')} todo={todo('list_price')} onBlur={touch('list_price')}>
                                 <input
                                     value={book.list_price ?? ''}
                                     inputMode="decimal"
@@ -374,17 +400,17 @@ export default function PublishPanel({ bookId, onNotify, onPreview }) {
                                     onChange={(event) =>
                                         save({ list_price: event.target.value || null })
                                     }
-                                    className={inputClass(problem('list_price'))}
+                                    className={inputClass(shown('list_price'))}
                                 />
                             </Field>
 
-                            <Field label="ISBN" error={problem('isbn')}>
+                            <Field label="ISBN" error={shown('isbn')} todo={todo('isbn')} onBlur={touch('isbn')}>
                                 <input
                                     value={book.isbn ?? ''}
                                     data-a="publish:isbn"
                                     placeholder="978…"
                                     onChange={(event) => save({ isbn: event.target.value || null })}
-                                    className={inputClass(problem('isbn'))}
+                                    className={inputClass(shown('isbn'))}
                                 />
                                 <span className="mt-0.5 block text-[10.5px] text-text-secondary">
                                     {t('publish.isbn_help')}
@@ -699,9 +725,9 @@ const inputClass = (error) =>
             : 'border-border-input focus:border-brand-primary'
     }`;
 
-function Field({ label, error, children }) {
+function Field({ label, error, todo = null, onBlur, children }) {
     return (
-        <label className="mb-2.5 block">
+        <label className="mb-2.5 block" onBlur={onBlur}>
             <span className="mb-1 block text-[11.5px] font-medium text-text-secondary">
                 {label}
             </span>
@@ -709,6 +735,11 @@ function Field({ label, error, children }) {
             {error && (
                 <span className="mt-0.5 block text-[11px] font-medium text-status-danger">
                     {error}
+                </span>
+            )}
+            {!error && todo && (
+                <span className="mt-0.5 block text-[11px] text-text-secondary" data-a="publish:todo">
+                    {todo}
                 </span>
             )}
         </label>

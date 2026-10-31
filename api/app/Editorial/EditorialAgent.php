@@ -2,7 +2,9 @@
 
 namespace App\Editorial;
 
+use App\Billing\Entitlements;
 use App\I18n\Locales;
+use App\Models\User;
 
 /**
  * The editorial agent catalogue.
@@ -134,12 +136,18 @@ enum EditorialAgent: string
      * change the book's type to reach it. The ones that matter for this book
      * are simply first, and marked so the panel can say why.
      *
+     * Given the person looking, each agent also says whether their plan
+     * includes it and, when not, which plan does (ADR — Journey friction
+     * fixes): the studio shows those locked and leaves them out of a full
+     * review, instead of firing requests the server will refuse.
+     *
      * @param  array<int, string>  $preferred
      * @return array<int, array<string, mixed>>
      */
-    public static function catalogue(array $preferred = []): array
+    public static function catalogue(array $preferred = [], ?User $for = null): array
     {
         $rank = array_flip($preferred);
+        $entitlements = $for ? app(Entitlements::class) : null;
 
         $agents = array_map(fn (self $a) => [
             'value' => $a->value,
@@ -149,7 +157,10 @@ enum EditorialAgent: string
             'minimum_tier' => $a->minimumTier(),
             'cost' => config("billing.costs.{$a->costLabel()}"),
             'suited' => isset($rank[$a->value]),
-        ], self::cases());
+        ] + ($entitlements ? [
+            'included' => $included = $entitlements->canRunAgent($for, $a),
+            'unlocks' => $included ? null : $entitlements->unlockingPlanName($a),
+        ] : []), self::cases());
 
         // Stable within each group: preferred agents in the order the type
         // named them, then everything else in the enum's order. usort is not

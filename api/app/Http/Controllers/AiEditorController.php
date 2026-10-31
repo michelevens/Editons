@@ -90,7 +90,7 @@ class AiEditorController extends Controller
         $open = $all->where('status', 'open');
 
         return response()->json([
-            'agents' => collect(EditorialAgent::catalogue())
+            'agents' => collect(EditorialAgent::catalogue(for: $request->user()))
                 ->map(fn (array $agent) => $agent + [
                     'open' => $open->where('agent', $agent['value'])->count(),
                 ])

@@ -533,6 +533,9 @@ function TreeNode({
     const lineBelow = sameLevel && !isLifted && pointerDrag.to > pointerDrag.from && pointerDrag.to === index;
 
     const openActions = () => onActions?.({ node, parentId, index, count });
+    // Double-click a title to rename it, without the hover menu (ADR —
+    // Journey friction fixes).
+    const openRename = () => onActions?.({ node, parentId, index, count, startMode: 'rename' });
 
     // A long press with a finger opens the row's actions. The click that
     // follows the lifted finger is swallowed, so the press does not also
@@ -730,6 +733,7 @@ function TreeNode({
                         if (!isPart && !reordering) onSelect(node.id);
                     }}
                     onKeyDown={onKeyDown}
+                    onDoubleClick={() => !reordering && onActions && openRename()}
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={cancelPress}
@@ -784,7 +788,7 @@ function TreeNode({
                         aria-haspopup="dialog"
                         aria-label={tr('binder.more_actions', { title: node.title })}
                         title={tr('binder.more_title')}
-                        className="hidden h-[20px] w-[18px] shrink-0 place-items-center rounded text-text-secondary hover:text-text-primary group-focus-within:grid group-hover:grid"
+                        className="hidden h-[20px] w-[18px] shrink-0 place-items-center rounded text-text-secondary hover:text-text-primary group-focus-within:grid group-hover:grid pointer-coarse:grid pointer-coarse:h-[32px] pointer-coarse:w-[28px]"
                     >
                         <Icon name="more" size={14} strokeWidth={3} />
                     </button>
@@ -828,9 +832,9 @@ function TreeNode({
  * Delete asks first and names what goes (the chapter can be restored from
  * the database, not from here).
  */
-function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, onRenamed, onDeleted }) {
+function RowActions({ node, index, count, canMove, onClose, onMove, onSetGoal, onRenamed, onDeleted, startMode = 'menu' }) {
     const { formatNumber } = useI18n();
-    const [mode, setMode] = useState('menu');
+    const [mode, setMode] = useState(startMode);
     const [title, setTitle] = useState(node.title);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');

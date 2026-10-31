@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Import\DocxImporter;
 use App\Import\ImportOptions;
 use App\Import\ImportReport;
+use App\Import\LanguageGuess;
 use App\Import\MarkdownExporter;
 use App\Import\MarkdownImporter;
 use App\Models\Book;
@@ -82,6 +83,7 @@ class ImportController extends Controller
 
                 try {
                     $report = $this->manuscript($book, $file, $markdown, $request->user()->id, $this->options($request, $file));
+                    $this->setLanguage($book, $request, guess: true);
                 } catch (Throwable $e) {
                     // Nothing was imported: leave no empty book on the shelf.
                     $book->delete();
@@ -147,6 +149,10 @@ class ImportController extends Controller
         // editorial drivers follow. Nothing here interprets it.
         $report = $this->manuscript($book, $file, $markdown, $request->user()->id, $this->options($request, $file));
 
+        // Into a book that already has a language: only when the author
+        // chose one in the dialog.
+        $this->setLanguage($book, $request, guess: false);
+
         return response()->json([
             'report' => $report->toArray(),
             'book' => ['id' => $book->refresh()->id, 'word_count' => $book->word_count],
@@ -185,6 +191,8 @@ class ImportController extends Controller
         'ai_written' => ['sometimes', 'boolean'],
         'types' => ['sometimes', 'array', 'max:2000'],
         'types.*' => ['nullable', 'string', 'in:front_matter,part,chapter,back_matter'],
+        // The language the text is written in (ADR — Journey friction fixes).
+        'language' => ['sometimes', 'nullable', 'string', 'in:en,fr,ht'],
     ];
 
     private function options(Request $request, ?UploadedFile $file): ?ImportOptions
@@ -203,6 +211,26 @@ class ImportController extends Controller
                 ? __('Imported from “:file”, written with an AI tool', ['file' => mb_substr($file->getClientOriginalName(), 0, 120)])
                 : __('Imported from pasted text, written with an AI tool')) : null,
         );
+    }
+
+    /**
+     * The book's language from the import (ADR — Journey friction fixes):
+     * the one chosen in the dialog; for a new book with none chosen, the
+     * text's own (LanguageGuess), else the account's interface language.
+     * It drives spell-check, typography rules and every export.
+     */
+    private function setLanguage(Book $book, Request $request, bool $guess): void
+    {
+        $code = $request->input('language') ?: null;
+
+        if ($code === null && $guess) {
+            $text = $book->sections()->get()->map->plainText()->implode("\n\n");
+            $code = LanguageGuess::guess($text) ?? $request->user()->preferredLocale();
+        }
+
+        if ($name = LanguageGuess::name($code)) {
+            $book->forceFill(['language' => $name])->save();
+        }
     }
 
     /** Markdown when there is some, otherwise the Word file. */

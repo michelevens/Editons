@@ -9,6 +9,7 @@ use App\Mail\Notify;
 use App\Models\Book;
 use App\Models\BookExport;
 use App\Models\ManuscriptSection;
+use App\Research\BookReferences;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -520,6 +521,11 @@ class Exporter
         $sections = $book->sections()->get()
             ->map(fn (ManuscriptSection $section) => $this->typeset($section->asPublished(), $rules))
             ->keyBy('id');
+
+        // The generated reference list, when the plan has one (BookReferences).
+        if (ExportOptions::active($book) && ($references = BookReferences::section($book))) {
+            $sections->put(BookReferences::SECTION_ID, $references);
+        }
 
         return collect(Anatomy::plan($book)['pages'])
             ->filter(fn (array $page) => $page['section_id'] !== null && $page['state'] !== 'placeholder')

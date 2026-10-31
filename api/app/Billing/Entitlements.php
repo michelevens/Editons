@@ -42,6 +42,15 @@ class Entitlements
     }
 
     /**
+     * The name of the cheapest plan that includes this agent, for a locked
+     * row in the studio ("Author plan") — the same plan the refusal names.
+     */
+    public function unlockingPlanName(EditorialAgent $agent): string
+    {
+        return (string) ($this->cheapestPlanWithTier($agent->minimumTier())['name'] ?? 'Studio');
+    }
+
+    /**
      * Refuse an agent the plan does not include.
      *
      * 422 with the field the client submitted, so the message appears against

@@ -44,12 +44,16 @@ export default function SalesPanel({ bookId, variant = 'distribution' }) {
                 <h2 className="text-[15px] font-semibold text-text-primary">
                     {royalties ? t('sales.royalties') : t('sales.sales_distribution')}
                 </h2>
-                <p className="text-[11.5px] text-text-secondary">
-                    {status.live > 0
-                        ? t('sales.live_in_stores', { count: status.live })
-                        : status.in_review > 0
-                          ? t('sales.stores_reviewing', { count: status.in_review })
-                          : t('sales.not_on_sale_yet')}
+                <p className="text-[11.5px] text-text-secondary" data-a="sales:status">
+                    {status.storefront && status.live > 0
+                        ? t('jfix.on_sale_storefront_and_stores', { count: status.live })
+                        : status.storefront
+                          ? t('jfix.on_sale_storefront')
+                          : status.live > 0
+                            ? t('sales.live_in_stores', { count: status.live })
+                            : status.in_review > 0
+                              ? t('sales.stores_reviewing', { count: status.in_review })
+                              : t('sales.not_on_sale_yet')}
                 </p>
             </header>
 

@@ -100,8 +100,16 @@ class BookController extends Controller
             // The author's usual kind of book, so the flow opens on it
             // rather than asking a question they have already answered.
             'default_book_type' => $user->default_book_type,
-            'can_create' => $user->canCreateBook(),
+            'can_create' => $canCreate = $user->canCreateBook(),
             'plan' => $user->planLimits(),
+            // At the plan's limit the shelf still offers an import (ADR —
+            // Journey friction fixes): into the book the author already has,
+            // through the binder's import, rather than hiding the door.
+            'import_into' => $canCreate ? null : $user->books()
+                ->where('status', '!=', 'archived')
+                ->latest('updated_at')
+                ->first(['id', 'title'])
+                ?->only(['id', 'title']),
         ]);
     }
 
@@ -155,6 +163,8 @@ class BookController extends Controller
             'target_words' => ['nullable', 'integer', 'min:100', 'max:500000'],
             'assistance' => ['nullable', Rule::in(Book::ASSISTANCE)],
             'started_with' => ['nullable', 'string', 'max:40'],
+            // Quick Start's own door (ADR — Journey friction fixes).
+            'quick' => ['nullable', 'boolean'],
             // Asked at creation in the genre's own words, because the moment
             // somebody has just chosen "Cookbook" is the moment "What ties
             // these recipes together?" is easiest to answer. Optional: it is
@@ -176,7 +186,7 @@ class BookController extends Controller
             // Ownership from the session, never from input — see the Book
             // model's note on why user_id is not fillable.
             $book = $request->user()->books()->create(array_merge(
-                Arr::except($data, ['chapters']),
+                Arr::except($data, ['chapters', 'quick']),
                 $type ? [
                     // A book that knows its type and its premise starts past
                     // Discover. Without a premise it stays there, because
@@ -218,6 +228,14 @@ class BookController extends Controller
 
             return $book;
         });
+
+        // Quick Start promises an empty page, so an author's first book from
+        // it opens in the focused writing view, with the full studio one
+        // click away (ADR — Journey friction fixes). First book only: after
+        // that the author knows the studio, and a later book opens as before.
+        if ($request->boolean('quick') && $request->user()->books()->count() === 1) {
+            return redirect()->route('books.edit', ['book' => $book, 'start' => 'focus']);
+        }
 
         return redirect()->route('books.edit', $book);
     }
@@ -270,6 +288,7 @@ class BookController extends Controller
             // a memoir should not have to change the book's type to reach it.
             'agents' => EditorialAgent::catalogue(
                 BookType::find($book->book_type)?->agents() ?? [],
+                $request->user(),
             ),
             // Which pane to open on arrival, so Overview can link straight to
             // a section of the studio rather than always landing on the
