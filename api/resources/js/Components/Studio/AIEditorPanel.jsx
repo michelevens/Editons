@@ -5,6 +5,7 @@ import CommentsPanel from './CommentsPanel';
 import Icon from './Icon';
 import { useI18n } from '../../i18n';
 import ReviewDeck from './ReviewDeck';
+import { versionReason } from './VersionHistory';
 
 /**
  * The right rail: AI Editor, Comments, Research, Checks.
@@ -685,8 +686,8 @@ function ChecksTab({ findings, versions, changes = [], onRestore }) {
                                 <span className="text-[12px] font-semibold text-text-primary">
                                     v{version.version_number}
                                 </span>
-                                <span className="text-[10px] uppercase tracking-wide text-text-secondary">
-                                    {version.reason}
+                                <span className="text-[10.5px] text-text-secondary">
+                                    {versionReason(t, version.reason)}
                                 </span>
                             </div>
                             {version.label && (
