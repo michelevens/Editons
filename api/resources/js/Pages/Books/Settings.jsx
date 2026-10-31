@@ -19,6 +19,7 @@ import { useI18n } from '@/i18n';
 export default function Settings({
     book,
     genres,
+    book_types: bookTypes = [],
     languages,
     citation_styles: citationStyles,
     can_archive: canArchive,
@@ -76,7 +77,7 @@ export default function Settings({
                             </p>
                         </header>
 
-                        <DetailsForm book={book} genres={genres} languages={languages} />
+                        <DetailsForm book={book} genres={genres} bookTypes={bookTypes} languages={languages} />
                         <PublicationForm book={book} copyrightPreview={copyrightPreview} />
                         <BookPartsPanel bookId={book.id} initial={anatomy} />
                         <WritingPreferences book={book} citationStyles={citationStyles} />
@@ -91,7 +92,7 @@ export default function Settings({
     );
 }
 
-function DetailsForm({ book, genres, languages }) {
+function DetailsForm({ book, genres, bookTypes = [], languages }) {
     const { t } = useI18n();
     const [saved, setSaved] = useState(false);
 
@@ -100,6 +101,7 @@ function DetailsForm({ book, genres, languages }) {
         subtitle: book.subtitle ?? '',
         author_name: book.author_name ?? '',
         genre: book.genre ?? genres[0],
+        book_type: book.book_type ?? '',
         language: book.language ?? languages[0],
         target_words: book.target_words ?? '',
         description: book.description ?? '',
@@ -157,6 +159,26 @@ function DetailsForm({ book, genres, languages }) {
                     options={genres}
                     onChange={(value) => setData('genre', value)}
                 />
+                <label>
+                    <span className="mb-1.5 block text-[12.5px] font-semibold text-text-primary">
+                        {t('fric.book_type')}
+                    </span>
+                    <select
+                        id="book_type"
+                        value={data.book_type}
+                        data-a="settings:field:book_type"
+                        onChange={(event) => setData('book_type', event.target.value)}
+                        className="h-[38px] w-full rounded-control border border-border-input px-3 text-[13.5px] focus:border-brand-primary focus:ring-0"
+                    >
+                        <option value="">{t('fric.book_type_none')}</option>
+                        {bookTypes.map((type) => (
+                            <option key={type.key} value={type.key}>
+                                {type.name}
+                            </option>
+                        ))}
+                    </select>
+                    <span className="mt-1 block text-[11px] text-text-secondary">{t('fric.book_type_hint')}</span>
+                </label>
                 <LanguageField
                     value={data.language}
                     languages={languages}

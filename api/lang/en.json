@@ -3006,5 +3006,8 @@
     "fric.version_reason_check_fix": "Fix applied (automatic check)",
     "fric.version_reason_replace": "Find and replace",
     "fric.coming_soon": "Coming soon",
-    "fric.draft_soon_blurb": "AI drafting from your notes and outline is not available yet."
+    "fric.draft_soon_blurb": "AI drafting from your notes and outline is not available yet.",
+    "fric.book_type": "Kind of book",
+    "fric.book_type_none": "Not set",
+    "fric.book_type_hint": "Shapes the chapter names Guided suggests. Changing it never touches your chapters."
 }

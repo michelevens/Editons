@@ -3197,5 +3197,8 @@
     "fric.version_reason_check_fix": "Correction appliquée (vérification automatique)",
     "fric.version_reason_replace": "Rechercher et remplacer",
     "fric.coming_soon": "Bientôt disponible",
-    "fric.draft_soon_blurb": "La rédaction par IA à partir de vos notes et de votre plan n’est pas encore disponible."
+    "fric.draft_soon_blurb": "La rédaction par IA à partir de vos notes et de votre plan n’est pas encore disponible.",
+    "fric.book_type": "Type de livre",
+    "fric.book_type_none": "Non défini",
+    "fric.book_type_hint": "Oriente les titres de chapitres proposés par le mode guidé. Le changer ne modifie jamais vos chapitres."
 }

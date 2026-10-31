@@ -3202,3 +3202,6 @@ fric.version_reason_check_fix,Fix applied (automatic check),Correction appliqué
 fric.version_reason_replace,Find and replace,Rechercher et remplacer,Version history: snapshot before a manuscript-wide replace,
 fric.coming_soon,Coming soon,Bientôt disponible,Assistance picker: badge on an option not built yet,
 fric.draft_soon_blurb,AI drafting from your notes and outline is not available yet.,La rédaction par IA à partir de vos notes et de votre plan n’est pas encore disponible.,Assistance picker: why “Draft with me” cannot be chosen,
+fric.book_type,Kind of book,Type de livre,Book Settings: book type field,
+fric.book_type_none,Not set,Non défini,Book Settings: book type not chosen,
+fric.book_type_hint,Shapes the chapter names Guided suggests. Changing it never touches your chapters.,Oriente les titres de chapitres proposés par le mode guidé. Le changer ne modifie jamais vos chapitres.,Book Settings: what the book type does,

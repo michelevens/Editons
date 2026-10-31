@@ -348,6 +348,7 @@ class BookController extends Controller
                 'subtitle' => $book->subtitle,
                 'author_name' => $book->author_name,
                 'genre' => $book->genre,
+                'book_type' => $book->book_type,
                 'language' => $book->language,
                 'description' => $book->description,
                 'status' => $book->status,
@@ -366,6 +367,10 @@ class BookController extends Controller
             // Owner-edited lists (App\Platform\Trust\MasterData); a value the
             // book already has stays selectable when the list drops it.
             'genres' => MasterData::with('genres', $book->genre),
+            // The book's type, which picks the outline's shape: Quick Start
+            // books have none until the author chooses (ADR — Author
+            // walkthrough fixes). Changing it never re-scaffolds the binder.
+            'book_types' => array_map(fn (BookType $type) => ['key' => $type->key, 'name' => $type->displayName()], BookType::all()),
             'languages' => MasterData::with('languages', $book->language),
             'citation_styles' => MasterData::citationOptions($book->settings()['citation_style'] ?? null),
             // Language and typography (ADR — Book language and typography):
@@ -393,6 +398,7 @@ class BookController extends Controller
             'subtitle' => ['nullable', 'string', 'max:255'],
             'author_name' => ['nullable', 'string', 'max:255'],
             'genre' => ['nullable', 'string', 'max:120'],
+            'book_type' => ['nullable', 'string', Rule::in(array_keys(config('booktypes')))],
             'language' => ['nullable', 'string', 'max:60'],
             'description' => ['nullable', 'string', 'max:5000'],
             'target_words' => ['nullable', 'integer', 'min:1000', 'max:2000000'],

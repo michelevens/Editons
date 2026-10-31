@@ -102,3 +102,49 @@ it('shows "Draft with me" as coming soon and does not let it be chosen', functio
     expect($book->fresh()->assistance)->toBe('author_led')
         ->and($draft['available'])->toBeFalse();
 });
+
+it('names the chapters of a book with no type from a generic shape', function () {
+    $user = User::factory()->create();
+    // What Quick Start makes: no type, one chapter.
+    $this->actingAs($user)->post('/books', ['title' => 'The Kite Over Jacmel', 'quick' => true]);
+    $book = $user->books()->firstOrFail();
+    $book->sections()->create(['type' => 'chapter', 'title' => 'Untitled chapter', 'position' => 2000]);
+
+    expect($book->book_type)->toBeNull();
+    $this->actingAs($user)->postJson("/books/{$book->id}/outline")->assertOk()->assertJsonPath('renamed', 2);
+
+    expect($book->sections()->where('type', 'chapter')->orderBy('position')->pluck('title')->all())
+        ->toBe(['1. Beginnings', '2. First steps']);
+});
+
+it('fits the outline to the genre and never splices the premise into titles', function () {
+    expect(App\Journey\OutlineBuilder::arcKey('nonfiction', 'Self-help'))->toBe('self_help')
+        ->and(App\Journey\OutlineBuilder::arcKey('nonfiction', 'Nonfiction'))->toBe('nonfiction')
+        ->and(App\Journey\OutlineBuilder::arcKey(null, 'Middle grade'))->toBe('fiction')
+        ->and(App\Journey\OutlineBuilder::arcKey('fiction', 'Business'))->toBe('fiction')
+        ->and(App\Journey\OutlineBuilder::arcKey(null, null))->toBe('generic');
+
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create(['book_type' => 'nonfiction', 'genre' => 'Self-help', 'premise' => 'Adults with a goal that matters']);
+    foreach ([1, 2, 3] as $n) {
+        $book->sections()->create(['type' => 'chapter', 'title' => "Chapter {$n}", 'position' => $n * 1000]);
+    }
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/outline")->assertOk();
+    $titles = implode(' | ', $book->sections()->orderBy('position')->pluck('title')->all());
+
+    expect($titles)->toBe('1. Where you are now | 2. Why change is hard | 3. A different way to see it')
+        ->not->toContain('goal that matters');
+});
+
+it('lets Book Settings set the book type', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create(['book_type' => null]);
+
+    $this->actingAs($user)->get("/books/{$book->id}/settings")->assertOk()
+        ->assertInertia(fn ($page) => $page->where('book.book_type', null)->has('book_types'));
+    $this->actingAs($user)->patch("/books/{$book->id}", ['book_type' => 'fiction'])->assertRedirect();
+    $this->actingAs($user)->patch("/books/{$book->id}", ['book_type' => 'not-a-type'])->assertSessionHasErrors('book_type');
+
+    expect($book->fresh()->book_type)->toBe('fiction');
+});

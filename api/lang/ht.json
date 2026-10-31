@@ -3197,5 +3197,8 @@
     "fric.version_reason_check_fix": "Koreksyon aplike (verifikasyon otomatik)",
     "fric.version_reason_replace": "Chèche epi ranplase",
     "fric.coming_soon": "Byento disponib",
-    "fric.draft_soon_blurb": "Redaksyon pa IA apati nòt ak plan ou poko disponib."
+    "fric.draft_soon_blurb": "Redaksyon pa IA apati nòt ak plan ou poko disponib.",
+    "fric.book_type": "Kalite liv",
+    "fric.book_type_none": "Pa defini",
+    "fric.book_type_hint": "Li gide non chapit mòd gide a pwopoze. Chanje l pa janm touche chapit ou yo."
 }

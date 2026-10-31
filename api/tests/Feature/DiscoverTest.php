@@ -134,9 +134,10 @@ it('names chapters from the idea', function () {
     $titles = $book->sections()->where('type', 'chapter')->orderBy('position')
         ->pluck('title')->all();
 
+    // Neutral titles: the premise is not spliced in (ADR — Author walkthrough fixes).
     expect($titles[0])->toStartWith('1. ')
         ->and($titles[0])->not->toBe('Chapter 1')
-        ->and($titles[0])->toContain('Private practice');
+        ->and(implode(' ', $titles))->not->toContain('Private practice');
 });
 
 it('does not overwrite a chapter the author has named', function () {
@@ -191,15 +192,16 @@ it('numbers past the end of the arc rather than repeating it', function () {
         ->and(count(array_unique($titles)))->toBe(30);
 });
 
-it('falls back to the title when there is no premise', function () {
-    // Still the author's own words, never invented.
+it('names chapters neutrally, without splicing in the title', function () {
+    // Neutral stage names: the author's words are not spliced into a
+    // template (ADR — Author walkthrough fixes).
     $user = User::factory()->create();
     $book = bookWithChaptersNamed($user, 3);
 
     $this->actingAs($user)->postJson("/books/{$book->id}/outline")->assertOk();
 
     expect($book->sections()->orderBy('position')->first()->title)
-        ->toContain('Building an Independent Practice');
+        ->toBe('1. Why it matters');
 });
 
 it('uses the arc that suits the kind of book', function () {
@@ -211,13 +213,15 @@ it('uses the arc that suits the kind of book', function () {
     expect($memoir->sections()->orderBy('position')->first()->title)->toContain('Before');
 });
 
-it('refuses to outline a book with no type', function () {
+it('outlines a book with no type from a generic shape', function () {
     $user = User::factory()->create();
     $book = bookWithChaptersNamed($user, 3, ['book_type' => null]);
 
     $this->actingAs($user)
         ->postJson("/books/{$book->id}/outline")
-        ->assertStatus(422);
+        ->assertOk();
+
+    expect($book->sections()->orderBy('position')->first()->title)->toBe('1. Beginnings');
 });
 
 it('refuses to outline a book with no chapters', function () {

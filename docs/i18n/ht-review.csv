@@ -3202,3 +3202,6 @@ fric.version_reason_check_fix,Fix applied (automatic check),Koreksyon aplike (ve
 fric.version_reason_replace,Find and replace,Chèche epi ranplase,Version history: snapshot before a manuscript-wide replace,
 fric.coming_soon,Coming soon,Byento disponib,Assistance picker: badge on an option not built yet,
 fric.draft_soon_blurb,AI drafting from your notes and outline is not available yet.,Redaksyon pa IA apati nòt ak plan ou poko disponib.,Assistance picker: why “Draft with me” cannot be chosen,
+fric.book_type,Kind of book,Kalite liv,Book Settings: book type field,
+fric.book_type_none,Not set,Pa defini,Book Settings: book type not chosen,
+fric.book_type_hint,Shapes the chapter names Guided suggests. Changing it never touches your chapters.,Li gide non chapit mòd gide a pwopoze. Chanje l pa janm touche chapit ou yo.,Book Settings: what the book type does,
