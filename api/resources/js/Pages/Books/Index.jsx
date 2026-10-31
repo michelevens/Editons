@@ -120,6 +120,7 @@ export default function Index({
                             title={t('shelf.import_title')}
                             hint={t('shelf.import_hint')}
                             url="/books/import"
+                            newBook
                             accept=".md,.markdown,.txt,.docx,.ecrivain"
                             doneLabel={t('shelf.open_book')}
                             onClose={() => setImporting(false)}

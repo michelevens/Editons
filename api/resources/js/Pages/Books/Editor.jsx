@@ -1418,8 +1418,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
             {importing && (
                 <ImportDialog
-                    title="Import chapters"
-                    hint="A Markdown (.md) or Word (.docx) file. Its chapters are added after the ones already here; nothing is replaced."
+                    title={t('jfix.import_into_title', { title: book.title })}
+                    hint={t('jfix.import_into_hint')}
                     url={`/books/${book.id}/import`}
                     accept=".md,.markdown,.txt,.docx"
                     onClose={() => setImporting(false)}

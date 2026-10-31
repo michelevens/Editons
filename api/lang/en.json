@@ -2975,5 +2975,15 @@
     "jfix.first_run_note": "Just you and the page. The chapters, the AI editor and everything else are in the full studio.",
     "jfix.open_full_studio": "Open the full studio",
     "jfix.on_sale_storefront": "On sale on your storefront",
-    "jfix.on_sale_storefront_and_stores": "On sale on your storefront and in {count, plural, one {# store} other {# stores}}"
+    "jfix.on_sale_storefront_and_stores": "On sale on your storefront and in {count, plural, one {# store} other {# stores}}",
+    "jfix.import_language": "Language of the text",
+    "jfix.import_language_detect": "Detect from the text",
+    "jfix.import_language_keep": "Keep the book’s language",
+    "jfix.import_language_guessed": "This text looks like {language}.",
+    "jfix.import_result_types": "Imported: {list}.",
+    "jfix.import_pictures": "{count, plural, one {# picture came with them.} other {# pictures came with them.}}",
+    "jfix.count_front_matter": "{count, plural, one {# front matter section} other {# front matter sections}}",
+    "jfix.count_part": "{count, plural, one {# part} other {# parts}}",
+    "jfix.count_chapter": "{count, plural, one {# chapter} other {# chapters}}",
+    "jfix.count_back_matter": "{count, plural, one {# back matter section} other {# back matter sections}}"
 }

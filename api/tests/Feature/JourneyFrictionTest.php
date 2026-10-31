@@ -368,3 +368,56 @@ it('counts the author storefront as on sale in the sales status', function () {
     $this->actingAs($user)->getJson("/books/{$book->id}/sales")
         ->assertJsonPath('status.storefront', false);
 });
+
+// 10. Import sets the language and reports real counts per type.
+
+it('guesses English, French and Kreyòl from their commonest words', function () {
+    $fr = str_repeat('Le médecin est arrivé dans la ville avec les infirmières, et cette clinique était pour nous la seule qui restait ouverte. ', 4);
+    $ht = str_repeat('Doktè a te rive nan vil la ak enfimyè yo, epi klinik sa a se te sèl kote ki te louvri pou nou. Anpil moun konn vini chak jou paske yo pa gen lòt kote. ', 3);
+    $en = str_repeat('The doctor arrived in the town with the nurses, and this clinic was the only one that was still open for them. ', 4);
+
+    expect(App\Import\LanguageGuess::guess($fr))->toBe('fr')
+        ->and(App\Import\LanguageGuess::guess($ht))->toBe('ht')
+        ->and(App\Import\LanguageGuess::guess($en))->toBe('en')
+        ->and(App\Import\LanguageGuess::guess('Bonjour.'))->toBeNull();
+});
+
+it('sets a new book’s language from the text, the dialog’s choice, or the account', function () {
+    $user = User::factory()->subscribed('studio')->create(['locale' => 'ht']);
+    $french = "# Chapitre un\n\n".str_repeat('Le médecin est arrivé dans la ville avec les infirmières, et cette clinique était pour nous la seule qui restait ouverte. ', 5)."\n";
+
+    $import = fn (string $name, string $text, array $extra = []) => $this->actingAs($user)
+        ->post('/books/import', ['file' => Illuminate\Http\UploadedFile::fake()->createWithContent($name, $text)] + $extra, ['Accept' => 'application/json'])
+        ->assertCreated()
+        ->json('book.id');
+
+    expect(Book::find($import('roman.md', $french))->language)->toBe('French')
+        // Chosen in the dialog: that wins.
+        ->and(Book::find($import('roman2.md', $french, ['language' => 'en']))->language)->toBe('English (US)')
+        // Too little text to tell: the account's interface language.
+        ->and(Book::find($import('court.md', "# Un\n\nOk.\n"))->language)->toBe('Haitian Creole');
+
+    // Into an existing book: unchanged unless the author chose one.
+    $book = Book::factory()->for($user)->create(['language' => 'English (US)']);
+    $this->actingAs($user)->post("/books/{$book->id}/import", ['file' => Illuminate\Http\UploadedFile::fake()->createWithContent('more.md', $french)], ['Accept' => 'application/json'])->assertCreated();
+    expect($book->fresh()->language)->toBe('English (US)');
+
+    $this->actingAs($user)->post("/books/{$book->id}/import", ['file' => Illuminate\Http\UploadedFile::fake()->createWithContent('more.md', $french), 'language' => 'fr'], ['Accept' => 'application/json'])->assertCreated();
+    expect($book->fresh()->language)->toBe('French');
+});
+
+it('reports the sections made per type, not all as chapters', function () {
+    $user = User::factory()->subscribed('studio')->create();
+    $markdown = "# Preface\n\nWhy.\n\n# Part One\n\n# Arrival\n\nWords.\n\n# Leaving\n\nWords.\n\n# Glossary\n\nTerms.\n";
+
+    $this->actingAs($user)
+        ->post('/books/import', [
+            'file' => Illuminate\Http\UploadedFile::fake()->createWithContent('book.md', $markdown),
+            'types' => ['front_matter', 'part', 'chapter', 'chapter', 'back_matter'],
+        ], ['Accept' => 'application/json'])
+        ->assertCreated()
+        ->assertJsonPath('report.types.front_matter', 1)
+        ->assertJsonPath('report.types.part', 1)
+        ->assertJsonPath('report.types.chapter', 2)
+        ->assertJsonPath('report.types.back_matter', 1);
+});

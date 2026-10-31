@@ -3166,5 +3166,15 @@
     "jfix.first_run_note": "Juste vous et la page. Les chapitres, l’éditeur IA et tout le reste sont dans le studio complet.",
     "jfix.open_full_studio": "Ouvrir le studio complet",
     "jfix.on_sale_storefront": "En vente sur votre boutique",
-    "jfix.on_sale_storefront_and_stores": "En vente sur votre boutique et dans {count, plural, one {# librairie} other {# librairies}}"
+    "jfix.on_sale_storefront_and_stores": "En vente sur votre boutique et dans {count, plural, one {# librairie} other {# librairies}}",
+    "jfix.import_language": "Langue du texte",
+    "jfix.import_language_detect": "Détecter d’après le texte",
+    "jfix.import_language_keep": "Garder la langue du livre",
+    "jfix.import_language_guessed": "Ce texte semble être en {language}.",
+    "jfix.import_result_types": "Importé : {list}.",
+    "jfix.import_pictures": "{count, plural, one {# image les accompagne.} other {# images les accompagnent.}}",
+    "jfix.count_front_matter": "{count, plural, one {# section liminaire} other {# sections liminaires}}",
+    "jfix.count_part": "{count, plural, one {# partie} other {# parties}}",
+    "jfix.count_chapter": "{count, plural, one {# chapitre} other {# chapitres}}",
+    "jfix.count_back_matter": "{count, plural, one {# section annexe} other {# sections annexes}}"
 }

@@ -3166,5 +3166,15 @@
     "jfix.first_run_note": "Se ou menm ak paj la sèlman. Chapit yo, editè IA a ak tout lòt bagay yo nan estidyo konplè a.",
     "jfix.open_full_studio": "Louvri estidyo konplè a",
     "jfix.on_sale_storefront": "An vant sou boutik ou",
-    "jfix.on_sale_storefront_and_stores": "An vant sou boutik ou ak nan {count} magazen"
+    "jfix.on_sale_storefront_and_stores": "An vant sou boutik ou ak nan {count} magazen",
+    "jfix.import_language": "Lang tèks la",
+    "jfix.import_language_detect": "Detekte l nan tèks la",
+    "jfix.import_language_keep": "Kenbe lang liv la",
+    "jfix.import_language_guessed": "Tèks sa a sanble li an {language}.",
+    "jfix.import_result_types": "Enpòte: {list}.",
+    "jfix.import_pictures": "{count} imaj vini avèk yo.",
+    "jfix.count_front_matter": "{count} seksyon devan",
+    "jfix.count_part": "{count} pati",
+    "jfix.count_chapter": "{count} chapit",
+    "jfix.count_back_matter": "{count} seksyon dèyè"
 }
