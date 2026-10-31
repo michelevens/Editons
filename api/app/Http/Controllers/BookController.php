@@ -289,6 +289,7 @@ class BookController extends Controller
             'agents' => EditorialAgent::catalogue(
                 BookType::find($book->book_type)?->agents() ?? [],
                 $request->user(),
+                $book,
             ),
             // Which pane to open on arrival, so Overview can link straight to
             // a section of the studio rather than always landing on the

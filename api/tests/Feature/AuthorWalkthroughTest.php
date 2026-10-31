@@ -218,3 +218,113 @@ it('finds a phrase split across marks and registers collision-free shortcuts', f
         ->and($replace['keys'])->toBe(['Mod+Shift+KeyH'])
         ->and($shortcuts->flatMap(fn ($s) => $s['keys'])->duplicates()->all())->toBe([]);
 });
+
+/* ---------------------------------------------------------- agents that read the book */
+
+function awFindings(string $agent, string ...$paragraphs): Illuminate\Support\Collection
+{
+    $user = User::factory()->create();
+    $section = ManuscriptSection::factory()->for(Book::factory()->for($user))->create(['content' => awDoc(...$paragraphs)]);
+    app(ReviewRunner::class)->run($section, EditorialAgent::from($agent), $user->id);
+
+    return EditorialFinding::where('manuscript_section_id', $section->id)->get();
+}
+
+it('leaves the thesis examiners out of a full review of a novel', function () {
+    $user = User::factory()->create();
+    $novel = Book::factory()->for($user)->create(['book_type' => 'fiction', 'genre' => 'Middle grade']);
+    $thesis = Book::factory()->for($user)->create(['book_type' => 'masters_thesis']);
+    $fits = fn (Book $b) => collect(EditorialAgent::catalogue([], $user, $b))->pluck('fits', 'value');
+
+    expect($fits($novel)['masters_examiner'])->toBeFalse()
+        ->and($fits($novel)['doctoral_examiner'])->toBeFalse()
+        ->and($fits($novel)['line'])->toBeTrue()
+        ->and($fits($thesis)['masters_examiner'])->toBeTrue()
+        // Unfit agents sort last; still listed, to run by hand.
+        ->and(collect(EditorialAgent::catalogue([], $user, $novel))->last()['fits'])->toBeFalse();
+});
+
+it('does not treat dialogue as a claim to fact-check', function () {
+    $findings = awFindings('fact_checker', '"You always lose the kite," said Ti Jak. "90 percent of kites fall!"', 'The town has 40 percent of the coast.');
+
+    expect($findings)->toHaveCount(1)
+        ->and($findings->first()->excerpt)->toContain('40 percent');
+});
+
+it('does not call "was red" or "was tired" passive voice', function () {
+    $findings = awFindings('line', 'The kite was red. She was tired. The letter was written by her aunt.');
+    $passive = $findings->where('title', 'Possible passive voice');
+
+    expect($passive)->toHaveCount(1)
+        ->and($passive->first()->excerpt)->toContain('was written');
+});
+
+it('counts each line of dialogue as its own sentence', function () {
+    $line = '"Look at the kite over the roofs of Jacmel, it climbs higher than the church tower today," she said.';
+    $findings = awFindings('line', $line."\n".'"It will fall soon enough, you know, it always does when the wind turns at noon," he said.'."\n".'"Not this one, not today, because I tied the string myself with the knot my grandmother taught me."');
+
+    expect($findings->filter(fn ($f) => str_starts_with($f->title, 'Long sentence')))->toBeEmpty();
+});
+
+it('counts sentence openers without the quotation marks', function () {
+    $findings = awFindings('developmental', '"She ran." She stopped. “She laughed.” She sat.');
+
+    expect($findings->pluck('title')->all())->toContain('Repeated sentence opening: "she" ×4');
+});
+
+it('does not offer "would rather" as a filler to delete', function () {
+    $findings = awFindings('copy', 'I would rather fly the kite than sleep. He is rather tall for his age.');
+    $rather = $findings->first(fn ($f) => str_starts_with($f->title, 'Filler word: "rather"'));
+
+    expect($rather->title)->toContain('×1')
+        ->and($rather->excerpt)->not->toContain('would rather')
+        ->and((string) $rather->suggestion)->not->toContain('would fly');
+});
+
+it('keeps a dismissed finding dismissed on the next run over unchanged text', function () {
+    $user = User::factory()->create();
+    $section = ManuscriptSection::factory()->for(Book::factory()->for($user))->create(['content' => awDoc('The kite rose at dawn.  Nurses came early. She was really tired by noon.')]);
+    app(ReviewRunner::class)->run($section, EditorialAgent::Copy, $user->id);
+    $space = EditorialFinding::where('manuscript_section_id', $section->id)->where('title', 'Double space between sentences')->firstOrFail();
+    $this->actingAs($user)->patchJson("/findings/{$space->id}", ['status' => 'dismissed'])->assertOk();
+    $open = EditorialFinding::where('manuscript_section_id', $section->id)->where('status', 'open')->count();
+
+    app(ReviewRunner::class)->run($section, EditorialAgent::Copy, $user->id);
+
+    expect(EditorialFinding::where('manuscript_section_id', $section->id)->where('title', 'Double space between sentences')->pluck('status')->all())->toBe(['dismissed'])
+        ->and(EditorialFinding::where('manuscript_section_id', $section->id)->where('status', 'open')->count())->toBe($open);
+});
+
+it('offers children\'s and other genres, and the juvenile store categories, keeping old values', function () {
+    $genres = App\Platform\Trust\MasterData::get('genres');
+    $categories = App\Platform\Trust\MasterData::get('store_categories');
+
+    expect($genres)->toContain("Children's", 'Middle grade', 'Young adult', 'Self-help', 'Business', 'Biography & memoir', 'Religion & spirituality', 'Education')
+        ->and(array_slice($genres, 0, 5))->toBe(['Nonfiction', 'Memoir', 'Textbook', 'Technical', 'Fiction'])
+        ->and($categories)->toContain('Juvenile Fiction / General', 'Juvenile Nonfiction / General', 'Young Adult Fiction / General', 'Self-Help / General',
+            'Business & Economics / General', 'Biography & Autobiography / General', 'Religion / General', 'Education / General')
+        ->and($categories)->toContain('Fiction / Literary')
+        // A value the list does not have stays selectable for the book that has it.
+        ->and(App\Platform\Trust\MasterData::with('genres', 'Steampunk'))->toContain('Steampunk');
+});
+
+it('lets Cover Studio load its fonts from the configured API origin, and nothing wider', function () {
+    putenv('VITE_API_URL=https://api.ecrivain.ai/');
+    putenv('CORS_ALLOWED_ORIGINS=https://app.ecrivain.ai');
+
+    try {
+        $config = require config_path('security.php');
+    } finally {
+        putenv('VITE_API_URL');
+        putenv('CORS_ALLOWED_ORIGINS');
+    }
+
+    expect($config['csp']['font_src'])->toBe(['https://api.ecrivain.ai']);
+
+    config(['security.csp.font_src' => $config['csp']['font_src']]);
+    $csp = $this->get('/login')->headers->get('Content-Security-Policy');
+    preg_match('/font-src ([^;]*)/', $csp, $font);
+
+    expect($font[1])->toBe("'self' data: https://api.ecrivain.ai")
+        ->not->toContain('*');
+});

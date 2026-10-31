@@ -137,7 +137,20 @@ class ReviewRunner
 
                 $stale->delete();
 
+                // What the author dismissed stays dismissed: the same agent
+                // and rule over the same words, on a later run over text
+                // that has not changed (ADR — Author walkthrough fixes).
+                $dismissed = EditorialFinding::where('manuscript_section_id', $section->id)
+                    ->where('status', 'dismissed')
+                    ->get(['agent', 'rule', 'excerpt', 'title'])
+                    ->map(fn (EditorialFinding $d) => self::dismissalKey($d->agent->value, $d->rule, $d->excerpt, $d->title))
+                    ->flip();
+
                 foreach ($keep as [$f, $findingAgent, $rule, $term, $source]) {
+                    if ($dismissed->has(self::dismissalKey($findingAgent->value, $rule, $f->excerpt, $f->title))) {
+                        continue;
+                    }
+
                     EditorialFinding::create([
                         'editorial_review_id' => $review->id,
                         'manuscript_section_id' => $section->id,
@@ -284,6 +297,12 @@ class ReviewRunner
         }
 
         return $out;
+    }
+
+    /** How a dismissed finding is recognised again: agent, rule, words. */
+    private static function dismissalKey(string $agent, ?string $rule, ?string $excerpt, ?string $title): string
+    {
+        return $agent.'|'.($rule ?? '').'|'.($excerpt ?? '#'.$title);
     }
 
     /** Is this driver's output sample output rather than a model's review? */

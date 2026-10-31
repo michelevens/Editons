@@ -382,7 +382,9 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         let latest = findings;
         // Only the agents the plan includes (ADR — Journey friction fixes):
         // the others are shown locked, and asking for them would be refused.
-        const included = agents.filter((agent) => agent.included !== false);
+        // And only those that suit the book: no thesis examiner on a novel
+        // (ADR — Author walkthrough fixes).
+        const included = agents.filter((agent) => agent.included !== false && agent.fits !== false);
 
         for (const [index, agent] of included.entries()) {
             setReviewProgress({
@@ -1154,6 +1156,21 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         showStatusBar={layout.panels.statusBar}
                                         typewriter={layout.canvas.typewriter}
                                         onTypewriter={(on) => ws.update({ canvas: { typewriter: on } }, { preset: layout.preset })}
+                                        onOpenSection={openSection}
+                                        onReplacedAll={(data) => {
+                                            // The open chapter, rewritten on the server, is
+                                            // re-read; the others load when opened.
+                                            if (data.current) {
+                                                setSection((value) => (value?.id === data.current.id ? {
+                                                    ...value,
+                                                    content: data.current.content,
+                                                    word_count: data.current.word_count,
+                                                    revision: (value.revision ?? 0) + 1,
+                                                } : value));
+                                            }
+                                            setBookWords(data.book_word_count);
+                                            load();
+                                        }}
                                         headerActions={
                                             <>
                                                 <ViewMenu
