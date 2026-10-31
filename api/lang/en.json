@@ -2935,5 +2935,15 @@
     "team.select_none": "Clear selection",
     "team.books_selected": "Books in this invitation: {count}",
     "team.invited_to": "Invited to {count}:",
-    "team.skipped_book": "Skipped “{title}”: {reason}"
+    "team.skipped_book": "Skipped “{title}”: {reason}",
+    "import.ai_written": "This text was written with an AI tool",
+    "import.ai_written_hint": "Each section’s first version is marked as an AI draft, so the book’s AI disclosure counts it.",
+    "import.review": "Review sections",
+    "import.review_hint": "Choose what each section is. Anything you leave becomes a chapter.",
+    "import.review_none": "This file has no sections to review.",
+    "import.type_of": "Type of “{title}”",
+    "import.type_front_matter": "Front matter",
+    "import.type_part": "Part",
+    "import.type_chapter": "Chapter",
+    "import.type_back_matter": "Back matter"
 }

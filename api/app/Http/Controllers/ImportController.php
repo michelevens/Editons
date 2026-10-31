@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Import\DocxImporter;
+use App\Import\ImportOptions;
 use App\Import\ImportReport;
 use App\Import\MarkdownExporter;
 use App\Import\MarkdownImporter;
@@ -60,6 +61,7 @@ class ImportController extends Controller
     {
         $request->validate([
             'file' => ['required', 'file', 'extensions:ecrivain,md,markdown,txt,docx', 'max:25600'],
+            ...self::OPTION_RULES,
         ]);
 
         abort_unless(
@@ -79,7 +81,7 @@ class ImportController extends Controller
                 $book = $request->user()->books()->create(['title' => $this->titleFrom($file)]);
 
                 try {
-                    $report = $this->manuscript($book, $file, $markdown, $request->user()->id);
+                    $report = $this->manuscript($book, $file, $markdown, $request->user()->id, $this->options($request, $file));
                 } catch (Throwable $e) {
                     // Nothing was imported: leave no empty book on the shelf.
                     $book->delete();
@@ -129,6 +131,7 @@ class ImportController extends Controller
         $data = $request->validate([
             'file' => ['nullable', 'file', 'extensions:md,markdown,txt,docx', 'max:25600'],
             'markdown' => ['nullable', 'string', 'max:5000000'],
+            ...self::OPTION_RULES,
         ]);
 
         $file = $data['file'] ?? null;
@@ -142,7 +145,7 @@ class ImportController extends Controller
 
         // The manuscript is content, never instructions — the same rule the
         // editorial drivers follow. Nothing here interprets it.
-        $report = $this->manuscript($book, $file, $markdown, $request->user()->id);
+        $report = $this->manuscript($book, $file, $markdown, $request->user()->id, $this->options($request, $file));
 
         return response()->json([
             'report' => $report->toArray(),
@@ -150,18 +153,70 @@ class ImportController extends Controller
         ], 201);
     }
 
+    /**
+     * The sections a Markdown file would become, nothing written: the import
+     * dialog's "Review sections", where each can be given a type before it
+     * is imported (ADR — AI-written imports). A Word file is not previewed —
+     * reading one stores its pictures — so it says so and imports as before.
+     */
+    public function preview(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'file' => ['nullable', 'file', 'extensions:md,markdown,txt,docx', 'max:25600'],
+            'markdown' => ['nullable', 'string', 'max:5000000'],
+        ]);
+
+        $file = $data['file'] ?? null;
+
+        if ($file && $this->format($file) !== 'markdown') {
+            return response()->json(['sections' => null]);
+        }
+
+        $markdown = $file ? $this->markdownFrom($file) : (string) ($data['markdown'] ?? '');
+
+        return response()->json([
+            'sections' => array_map(fn (string $title) => ['title' => $title, 'type' => 'chapter'], $this->importer->outline($markdown)),
+            'types' => ImportOptions::TYPES,
+        ]);
+    }
+
+    /** The import dialog's choices; none of them changes an import that leaves them alone. */
+    private const OPTION_RULES = [
+        'ai_written' => ['sometimes', 'boolean'],
+        'types' => ['sometimes', 'array', 'max:2000'],
+        'types.*' => ['nullable', 'string', 'in:front_matter,part,chapter,back_matter'],
+    ];
+
+    private function options(Request $request, ?UploadedFile $file): ?ImportOptions
+    {
+        $types = $request->input('types');
+        $ai = $request->boolean('ai_written');
+
+        if (! $ai && ! is_array($types)) {
+            return null;
+        }
+
+        return new ImportOptions(
+            types: is_array($types) ? array_values($types) : null,
+            // In the version history, beside each section's first version.
+            aiLabel: $ai ? ($file
+                ? __('Imported from “:file”, written with an AI tool', ['file' => mb_substr($file->getClientOriginalName(), 0, 120)])
+                : __('Imported from pasted text, written with an AI tool')) : null,
+        );
+    }
+
     /** Markdown when there is some, otherwise the Word file. */
-    private function manuscript(Book $book, ?UploadedFile $file, ?string $markdown, int $userId): ImportReport
+    private function manuscript(Book $book, ?UploadedFile $file, ?string $markdown, int $userId, ?ImportOptions $options = null): ImportReport
     {
         if ($markdown !== null) {
-            return $this->importer->import($book, $markdown, $userId);
+            return $this->importer->import($book, $markdown, $userId, $options);
         }
 
         if (! config('publishing.docx_import')) {
             throw ValidationException::withMessages(['file' => __('Importing Word documents is turned off.')]);
         }
 
-        return $this->docx->import($book, (string) $file->getRealPath(), $userId, $this->titleFrom($file));
+        return $this->docx->import($book, (string) $file->getRealPath(), $userId, $this->titleFrom($file), $options);
     }
 
     /** By extension, which validation has already restricted. */

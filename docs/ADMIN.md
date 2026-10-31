@@ -18,6 +18,7 @@ design decisions are in `docs/DECISIONS.md` (ADR — super-admin console).
 | Suspend / reactivate, reset someone's two-factor | ✓ | — |
 | Complimentary plans (set, extend, end) | ✓ | — |
 | Make or remove support staff | ✓ | — |
+| Move an account's books to another account | ✓ | — |
 | Change platform settings, maintenance mode | ✓ | — |
 | Answer support tickets, internal notes, assign, close | ✓ | ✓ |
 | Manage canned replies | ✓ | — |
@@ -229,6 +230,31 @@ first and last seen, and one example (message, stack without arguments, path
 without its query string, user id). Resolve when fixed: if it comes back it
 opens again. Ignore what is known and harmless.
 
+### Moving books between accounts (account page, owner)
+
+An account's page lists its books (up to 200): id, title, words, status,
+members, product (on sale / draft), ISBNs, versions. Tick books and choose
+**Move to another account…**: search the target by email, name or house
+slug (any active account, a person's or a house's), *Preview* — the same
+table as the shell: sections, exports, product, ISBNs, what happens to the
+previous owner, problems and warnings, nothing written — then a reason and
+*Move*. All or none, one `book.transferred` audit row per book
+(`house.book_transferred` when the target is a house account).
+
+- The product and ISBNs move with each book; sales made before the move
+  stay the previous owner's.
+- **Keep … as an editor** is ticked by default when the account is a
+  person's, and not shown for a house account (a house is not a person and
+  never becomes a member).
+- The new owner's own membership of the book is removed — including an
+  invitation sent to their address and never accepted.
+- A suspended target, or one scheduled for deletion, cannot receive books;
+  a book in the bin or already moved elsewhere stops the whole move. Going
+  past the target's plan limit is a warning, not a block.
+- From the shell: `php artisan books:transfer 127 401 489 --to=<email|id|slug>
+  --reason="…"` (dry run), then the same with `--force`; `--drop-previous`
+  does not keep the previous owner.
+
 ## Business (billing, plans, book sales, partners, growth, invitations, onboarding)
 
 Design decisions: `docs/DECISIONS.md` (ADR — console business). The
@@ -371,6 +397,8 @@ bulk panel (export, price, on/off sale) sits in the same bar.
   stay the previous owner's royalty. From the shell:
   `php artisan house:transfer 199-217 --to=ecrivain-prepa --reason="…"`
   (dry run), then the same with `--force`.
+- **Move books between any accounts** (owner): from an account's page, see
+  *Moving books between accounts* below. The house console's transfer is unchanged.
 - **Money.** A house book's royalty share is platform revenue: Book sales
   shows it inside *Platform revenue*, it is never in *Royalties owed*, no
   payout can be recorded for a house account and no royalty statement is

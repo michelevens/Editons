@@ -90,7 +90,7 @@ class DocxImporter
     /**
      * @throws ValidationException when the file is not a Word document
      */
-    public function import(Book $book, string $path, ?int $userId = null, string $fallbackTitle = 'Untitled'): ImportReport
+    public function import(Book $book, string $path, ?int $userId = null, string $fallbackTitle = 'Untitled', ?ImportOptions $options = null): ImportReport
     {
         $this->book = $book;
         $this->report = new ImportReport;
@@ -125,7 +125,7 @@ class DocxImporter
             $this->zip->close();
         }
 
-        $this->chapters->append($book, $this->split($blocks, $fallbackTitle), $userId, $this->report);
+        $this->chapters->append($book, $this->split($blocks, $fallbackTitle), $userId, $this->report, $options);
 
         return $this->report;
     }

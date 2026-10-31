@@ -1,4 +1,5 @@
 import Dialog from '@/Components/Dialog';
+import AccountBooks from '@/Components/Admin/AccountBooks';
 import { money } from '@/Components/Store/money';
 import AdminLayout, { Panel, buttonClass, formatDate, inputClass, usd } from '@/Layouts/AdminLayout';
 import { Link, router, useForm } from '@inertiajs/react';
@@ -30,6 +31,7 @@ export default function Show({
     signup = null,
     plans = null,
     offboarding = null,
+    transfer = null,
 }) {
     const owner = can.owner;
 
@@ -124,26 +126,7 @@ export default function Show({
 
                 {onboarding && <OnboardingPanel steps={onboarding} signup={signup} />}
 
-                <Panel title={`Books (${books.length})`} detail="Counts only: open a book with View as.">
-                    {books.length === 0 ? (
-                        <Empty>No books.</Empty>
-                    ) : (
-                        <Table
-                            head={['Title', 'Words', 'Sections', 'Versions', 'Exports', 'Updated']}
-                            rows={books.map((book) => [
-                                <span key="t" className="font-medium text-text-primary">
-                                    {book.title}
-                                    {book.status === 'archived' && <span className="ml-1 text-text-muted">(archived)</span>}
-                                </span>,
-                                book.words.toLocaleString(),
-                                book.sections,
-                                book.versions,
-                                book.exports,
-                                formatDate(book.updated_at, false),
-                            ])}
-                        />
-                    )}
-                </Panel>
+                <AccountBooks account={account} books={books} owner={owner} keepPreviousDefault={transfer?.keep_previous_default ?? true} />
 
                 <Panel title="Exports" detail="The 20 most recent.">
                     {exports.length === 0 ? (

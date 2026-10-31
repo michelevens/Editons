@@ -17,6 +17,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\UserLogin;
 use App\Platform\AccountAdmin;
+use App\Platform\BookTransfer;
 use App\Platform\Ai\AiControls;
 use App\Platform\Ai\AiUsageReport;
 use App\Platform\Features;
@@ -92,11 +93,16 @@ class AccountsController extends Controller
         $limits = $user->planLimits();
         $staff = (string) config('platform.staff_name');
 
+        // Up to 200, with what a move between accounts carries (ADR —
+        // moving books between any accounts): members, product, ISBNs.
         $books = Book::where('user_id', $user->id)
-            ->withCount(['sections', 'exports'])
+            ->withCount(['sections', 'exports', 'members' => fn ($m) => $m->where('status', '!=', 'revoked')])
+            ->with('product')
             ->orderByDesc('updated_at')
-            ->limit(50)
-            ->get()
+            ->limit(200)
+            ->get();
+        $isbns = DB::table('isbns')->whereIn('book_id', $books->pluck('id'))->get(['book_id', 'isbn'])->groupBy('book_id');
+        $books = $books
             ->map(fn (Book $book) => [
                 'id' => $book->id,
                 'title' => $book->title,
@@ -104,6 +110,9 @@ class AccountsController extends Controller
                 'words' => (int) $book->word_count,
                 'sections' => $book->sections_count,
                 'exports' => $book->exports_count,
+                'members' => $book->members_count,
+                'product' => $book->product ? ($book->product->isPublished() ? 'on_sale' : 'draft') : null,
+                'isbns' => ($isbns[$book->id] ?? collect())->pluck('isbn')->values()->all(),
                 'versions' => (int) DB::table('manuscript_versions')
                     ->join('manuscript_sections', 'manuscript_sections.id', '=', 'manuscript_versions.manuscript_section_id')
                     ->where('manuscript_sections.book_id', $book->id)
@@ -218,6 +227,9 @@ class AccountsController extends Controller
                 ->limit(10)
                 ->get()
                 ->map(fn (ImpersonationSession $s) => self::sessionRow($s)),
+            // Moving books out (BookTransferController): whether the previous
+            // owner stays as an editor unless the owner says otherwise.
+            'transfer' => ['keep_previous_default' => BookTransfer::keepsPreviousByDefault($user)],
             'can' => [
                 'owner' => $viewer->isPlatformOwner(),
                 'impersonate' => Impersonation::refusal($viewer, $user),

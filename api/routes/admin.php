@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AccountActionsController;
 use App\Http\Controllers\Admin\AccountsController;
 use App\Http\Controllers\Admin\AiUsageController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\BookTransferController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ErrorsController;
 use App\Http\Controllers\Admin\FeatureFlagsController;
@@ -95,6 +96,11 @@ Route::prefix('admin')->name('admin.')->middleware('platform.admin')->group(func
             Route::post('/accounts/{user}/two-factor-reset', [AccountActionsController::class, 'resetTwoFactor'])->whereNumber('user')->name('accounts.two-factor-reset');
             Route::post('/accounts/{user}/plan', [AccountActionsController::class, 'plan'])->whereNumber('user')->name('accounts.plan');
             Route::post('/accounts/{user}/role', [AccountActionsController::class, 'role'])->whereNumber('user')->name('accounts.role');
+            // Moving an account's books to another account (ADR — moving books
+            // between any accounts): find the target, preview, apply.
+            Route::get('/accounts/{user}/transfer-targets', [BookTransferController::class, 'targets'])->whereNumber('user')->name('accounts.transfer-targets');
+            Route::post('/accounts/{user}/books/transfer/preview', [BookTransferController::class, 'preview'])->whereNumber('user')->name('accounts.books.transfer.preview');
+            Route::post('/accounts/{user}/books/transfer', [BookTransferController::class, 'transfer'])->whereNumber('user')->name('accounts.books.transfer');
             Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
             // Switching AI off and on, spend caps, feature flags, the

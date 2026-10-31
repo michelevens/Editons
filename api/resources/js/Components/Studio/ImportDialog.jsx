@@ -10,7 +10,18 @@ import { useI18n } from '@/i18n';
  * happens: which chapters were made, how many pictures came with them, and
  * what the file held that the book could not take. An author who imports
  * 90,000 words needs to read that list now, not find the gaps at proof.
+ *
+ * Two choices, both off unless the author makes them (ADR — AI-written
+ * imports): "written with an AI tool", which saves each section's first
+ * version as an AI draft so the book's AI disclosure counts it; and, for a
+ * Markdown file, "Review sections", which lists the sections before
+ * anything is written so each can be front matter, a part, a chapter or
+ * back matter. Left alone, every section is a chapter, as before.
  */
+
+const TYPES = ['front_matter', 'part', 'chapter', 'back_matter'];
+
+const isMarkdown = (file) => /\.(md|markdown|txt)$/i.test(file?.name ?? '');
 
 const MAX_MB = 25;
 
@@ -20,6 +31,9 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
     const [result, setResult] = useState(null);
+    const [aiWritten, setAiWritten] = useState(false);
+    // null: not reviewed (every section a chapter); a list once reviewed.
+    const [sections, setSections] = useState(null);
     const chooser = useRef(null);
     const done = useRef(null);
 
@@ -40,6 +54,7 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
 
         setError(null);
         setFile(chosen);
+        setSections(null);
 
         // Said here rather than after a 25 MB upload fails.
         if (chosen && chosen.size > MAX_MB * 1024 * 1024) {
@@ -56,6 +71,8 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
         try {
             const form = new FormData();
             form.append('file', file);
+            if (aiWritten) form.append('ai_written', '1');
+            (sections ?? []).forEach((section) => form.append('types[]', section.type));
             const response = await window.axios.post(url, form, { headers: { Accept: 'application/json' } });
 
             setResult(response.data);
@@ -69,6 +86,27 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
             setBusy(false);
         }
     };
+
+    const review = async () => {
+        if (!file || busy) return;
+
+        setBusy(true);
+        setError(null);
+
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            const { data } = await window.axios.post('/import/preview', form, { headers: { Accept: 'application/json' } });
+
+            setSections(data.sections ?? []);
+        } catch (failure) {
+            setError(failure.response?.data?.errors?.file?.[0] ?? failure.response?.data?.message ?? t('import.failed'));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const setType = (index, type) => setSections((list) => list.map((s, i) => (i === index ? { ...s, type } : s)));
 
     const report = result?.report;
     const skipped = Object.entries(report?.skipped ?? {});
@@ -104,13 +142,59 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
                         />
                     </label>
 
+                    <label className="mt-3 flex items-start gap-2 text-[12.5px] text-text-primary">
+                        <input
+                            type="checkbox"
+                            data-a="import:ai-written"
+                            checked={aiWritten}
+                            onChange={(event) => setAiWritten(event.target.checked)}
+                            className="mt-0.5"
+                        />
+                        <span>
+                            {t('import.ai_written')}
+                            <span className="block text-[12px] text-text-secondary">{t('import.ai_written_hint')}</span>
+                        </span>
+                    </label>
+
+                    {sections && (
+                        <div className="mt-3" data-a="import:sections">
+                            <p className="text-[12.5px] text-text-secondary">
+                                {sections.length > 0 ? t('import.review_hint') : t('import.review_none')}
+                            </p>
+                            {sections.length > 0 && (
+                                <ol className="mt-2 max-h-[220px] space-y-1 overflow-y-auto rounded-control bg-bg-subtle p-2 text-[12.5px]">
+                                    {sections.map((section, index) => (
+                                        <li key={index} className="flex min-w-0 items-center gap-2">
+                                            <span className="min-w-0 flex-1 truncate text-text-body" title={section.title}>
+                                                {index + 1}. {section.title}
+                                            </span>
+                                            <select
+                                                aria-label={t('import.type_of', { title: section.title })}
+                                                data-a="import:section-type"
+                                                value={section.type}
+                                                onChange={(event) => setType(index, event.target.value)}
+                                                className="h-[28px] shrink-0 rounded-control border border-border-input bg-bg-surface px-1.5 text-[12px] text-text-primary"
+                                            >
+                                                {TYPES.map((type) => (
+                                                    <option key={type} value={type}>
+                                                        {t(`import.type_${type}`)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </li>
+                                    ))}
+                                </ol>
+                            )}
+                        </div>
+                    )}
+
                     {error && (
                         <p role="alert" className="mt-3 text-[12.5px] text-status-danger">
                             {error}
                         </p>
                     )}
 
-                    <div className="mt-4 flex justify-end gap-2">
+                    <div className="mt-4 flex flex-wrap justify-end gap-2">
                         <button
                             type="button"
                             onClick={onClose}
@@ -119,6 +203,17 @@ export default function ImportDialog({ title, url, accept, hint, onClose, onDone
                         >
                             {t('common.cancel')}
                         </button>
+                        {isMarkdown(file) && !sections && (
+                            <button
+                                type="button"
+                                data-a="import:review"
+                                onClick={review}
+                                disabled={busy || file.size > MAX_MB * 1024 * 1024}
+                                className="h-[34px] rounded-control border border-border-input px-3.5 text-[13px] text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                            >
+                                {t('import.review')}
+                            </button>
+                        )}
                         <button
                             type="button"
                             data-a="import:upload"

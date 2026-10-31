@@ -3124,5 +3124,17 @@
     "team.select_none": "Retire tout",
     "team.books_selected": "Liv nan envitasyon sa a: {count}",
     "team.invited_to": "Envitasyon voye pou {count}:",
-    "team.skipped_book": "Nou sote “{title}”: {reason}"
+    "team.skipped_book": "Nou sote “{title}”: {reason}",
+    "import.ai_written": "Tèks sa a te ekri ak yon zouti IA",
+    "import.ai_written_hint": "Premye vèsyon chak seksyon make kòm bouyon IA, konsa deklarasyon IA liv la konte l.",
+    "import.review": "Revize seksyon yo",
+    "import.review_hint": "Chwazi sa chak seksyon ye. Sa ou pa chanje ap tounen yon chapit.",
+    "import.review_none": "Fichye sa a pa gen seksyon pou revize.",
+    "import.type_of": "Kalite “{title}”",
+    "import.type_front_matter": "Paj devan",
+    "import.type_part": "Pati",
+    "import.type_chapter": "Chapit",
+    "import.type_back_matter": "Paj dèyè",
+    "Imported from “:file”, written with an AI tool": "Enpòte soti nan “:file”, ekri ak yon zouti IA",
+    "Imported from pasted text, written with an AI tool": "Enpòte soti nan tèks ki kole, ekri ak yon zouti IA"
 }
