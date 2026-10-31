@@ -31,7 +31,7 @@ class HouseTransferBooks extends Command
 
     public function handle(HouseTransfer $transfer, HouseAccounts $accounts): int
     {
-        $ids = $this->ids((array) $this->argument('books'));
+        $ids = self::parseIds((array) $this->argument('books'));
 
         if ($ids === null) {
             $this->error('Give book ids as numbers or ranges, e.g. 199 200 or 199-217.');
@@ -101,8 +101,13 @@ class HouseTransferBooks extends Command
         return self::SUCCESS;
     }
 
-    /** @return list<int>|null */
-    private function ids(array $args): ?array
+    /**
+     * Book ids from the shell's arguments: numbers and ranges, spaces or
+     * commas between. Null when one is neither. Shared with books:transfer.
+     *
+     * @return list<int>|null
+     */
+    public static function parseIds(array $args): ?array
     {
         $ids = [];
 
