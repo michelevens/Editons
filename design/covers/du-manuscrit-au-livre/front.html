@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=Inter:wght@500;600&display=block" rel="stylesheet">
+<style>
+  :root { --night: #10233c; --deep: #0b1a2e; --ivory: #fbf5e9; --gold: #f2b84b; --hibiscus: #e0533d; --teal: #3fa7a0; }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 1600px; height: 2560px; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 70% at 50% 18%, #1b3657 0%, var(--night) 55%, var(--deep) 100%);
+    color: var(--ivory); font-family: Inter, sans-serif; position: relative;
+  }
+  .kicker {
+    position: absolute; top: 210px; left: 0; right: 0; text-align: center;
+    font-weight: 600; font-size: 46px; letter-spacing: .32em; color: var(--gold);
+  }
+  .kicker::after { content: ''; display: block; width: 120px; height: 4px; background: var(--gold); margin: 44px auto 0; opacity: .8; }
+  h1 {
+    position: absolute; top: 400px; left: 100px; right: 100px; text-align: center;
+    font-family: Fraunces, serif; font-weight: 700; font-size: 236px; line-height: 1.02; letter-spacing: -.01em;
+    font-variation-settings: 'opsz' 144;
+  }
+  h1 em { display: block; font-style: italic; font-weight: 500; color: var(--gold); }
+  .sub {
+    position: absolute; top: 1010px; left: 100px; right: 100px; text-align: center;
+    font-family: Fraunces, serif; font-weight: 500; font-size: 64px; line-height: 1.3; color: #e9dfcc;
+  }
+  svg { position: absolute; left: 0; top: 1300px; }
+  .author {
+    position: absolute; bottom: 190px; left: 0; right: 0; text-align: center;
+    font-weight: 600; font-size: 72px; letter-spacing: .26em; color: var(--ivory);
+  }
+</style>
+</head>
+<body>
+  <div class="kicker">GUIDE PRATIQUE</div>
+  <h1>Du manuscrit <em>au livre</em></h1>
+  <div class="sub">Écrire, publier et vendre son livre<br>depuis Haïti et la diaspora</div>
+
+  <svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+    <!-- the journey: a dotted arc from the loose pages to the book -->
+    <path d="M 360 700 C 520 260, 960 160, 1170 430" fill="none" stroke="#f2b84b" stroke-width="9" stroke-linecap="round" stroke-dasharray="1 30" opacity=".95"/>
+
+    <!-- loose manuscript pages, lower left -->
+    <g transform="translate(250 560) rotate(-12)">
+      <rect width="230" height="300" rx="10" fill="#e9dfcc"/>
+    </g>
+    <g transform="translate(270 545) rotate(6)">
+      <rect width="230" height="300" rx="10" fill="#fbf5e9"/>
+      <g stroke="#9aa6b5" stroke-width="7" stroke-linecap="round">
+        <path d="M34 60 H196"/><path d="M34 100 H180"/><path d="M34 140 H196"/><path d="M34 180 H150"/><path d="M34 220 H190"/>
+      </g>
+      <path d="M34 260 C 70 240, 100 280, 140 255" fill="none" stroke="#e0533d" stroke-width="6" stroke-linecap="round"/>
+    </g>
+
+    <!-- pages in flight along the arc, straightening as they go -->
+    <g transform="translate(560 330) rotate(-24)"><rect width="96" height="126" rx="6" fill="#fbf5e9" opacity=".9"/><g stroke="#9aa6b5" stroke-width="4"><path d="M16 30 H80"/><path d="M16 52 H72"/><path d="M16 74 H80"/></g></g>
+    <g transform="translate(780 215) rotate(-10)"><rect width="88" height="116" rx="6" fill="#fbf5e9" opacity=".95"/><g stroke="#9aa6b5" stroke-width="4"><path d="M15 28 H73"/><path d="M15 48 H66"/><path d="M15 68 H73"/></g></g>
+    <g transform="translate(985 250) rotate(4)"><rect width="80" height="106" rx="6" fill="#fbf5e9"/><g stroke="#9aa6b5" stroke-width="4"><path d="M14 26 H66"/><path d="M14 44 H60"/><path d="M14 62 H66"/></g></g>
+
+    <!-- the finished book, standing, lower right -->
+    <g transform="translate(1080 430)">
+      <ellipse cx="170" cy="438" rx="230" ry="22" fill="#07121f" opacity=".55"/>
+      <rect x="0" y="0" width="70" height="430" rx="8" fill="#b8402e"/>
+      <rect x="58" y="0" width="262" height="430" rx="10" fill="#e0533d"/>
+      <rect x="62" y="10" width="252" height="410" rx="8" fill="none" stroke="#f2b84b" stroke-width="5"/>
+      <rect x="110" y="110" width="160" height="12" rx="6" fill="#fbf5e9"/>
+      <rect x="130" y="146" width="120" height="10" rx="5" fill="#fbf5e9" opacity=".8"/>
+      <path d="M190 236 L222 270 L190 304 L158 270 Z" fill="none" stroke="#f2b84b" stroke-width="6"/>
+      <path d="M190 254 L206 270 L190 286 L174 270 Z" fill="#3fa7a0"/>
+      <rect x="18" y="60" width="34" height="6" rx="3" fill="#f2b84b"/>
+      <rect x="18" y="364" width="34" height="6" rx="3" fill="#f2b84b"/>
+    </g>
+  </svg>
+
+  <div class="author">EVENS MICHEL</div>
+  <script>document.fonts.ready.then(() => { window.READY = true; });</script>
+</body>
+</html>

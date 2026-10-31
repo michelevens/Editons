@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600&display=block" rel="stylesheet">
+<style>
+  /* 6 × 9 in back panel at 300 dpi with 0.125 in bleed on the outer, top and bottom edges
+     (the spine is on the right). Text stays 0.375 in inside the trim. */
+  :root { --night: #10233c; --deep: #0b1a2e; --ivory: #fbf5e9; --gold: #f2b84b; --hibiscus: #e0533d; }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 1838px; height: 2775px; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 70% at 50% 10%, #1b3657 0%, var(--night) 55%, var(--deep) 100%);
+    color: var(--ivory); font-family: Inter, sans-serif; position: relative;
+  }
+  .panel { position: absolute; left: 190px; right: 150px; top: 190px; }
+  .lead {
+    font-family: Fraunces, serif; font-weight: 500; font-style: italic; font-size: 84px; line-height: 1.22; color: var(--gold);
+  }
+  p { font-size: 50px; line-height: 1.5; color: #e9dfcc; margin-top: 56px; }
+  h2 { margin-top: 96px; font-size: 40px; font-weight: 600; letter-spacing: .3em; color: var(--gold); }
+  ul { list-style: none; padding: 0; margin-top: 40px; }
+  li { position: relative; padding-left: 70px; font-size: 46px; line-height: 1.45; color: #e9dfcc; margin-top: 30px; }
+  li::before { content: ''; position: absolute; left: 0; top: 24px; width: 30px; height: 30px; border-radius: 50%; background: var(--hibiscus); }
+  li b { color: var(--ivory); font-weight: 600; }
+  .author { position: absolute; left: 190px; bottom: 300px; font-weight: 600; font-size: 56px; letter-spacing: .24em; }
+  .barcode { position: absolute; right: 150px; bottom: 150px; width: 600px; height: 360px; background: #fff; }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="lead">Vous avez un livre en vous. Ce guide vous mène du premier brouillon jusqu’au lecteur qui l’achète.</div>
+    <p>À Port-au-Prince, à Montréal ou à Miami, vous écrivez pour la première fois et vous voulez bien faire. Clair, honnête et concret, ce livre répond à vos vraies questions : comment finir votre manuscrit, le faire corriger, le mettre en page, obtenir un ISBN, fixer un prix, vendre en gourdes et en dollars, et lancer votre livre avec un petit budget, sans vous faire arnaquer.</p>
+    <h2>DANS CE LIVRE</h2>
+    <ul>
+      <li><b>Écrire :</b> savoir quel livre vous écrivez, un plan qui tient, une routine pour une vraie vie, la révision.</li>
+      <li><b>Publier :</b> la correction, les droits, la mise en page et la couverture, l’ISBN, les formats et les métadonnées.</li>
+      <li><b>Vendre :</b> où vendre, le prix et l’argent, le lancement et la longue traîne.</li>
+      <li><b>En annexe :</b> une liste de contrôle de publication et des modèles prêts à l’emploi.</li>
+    </ul>
+  </div>
+  <div class="author">EVENS MICHEL</div>
+  <div class="barcode"></div>
+  <script>document.fonts.ready.then(() => { window.READY = true; });</script>
+</body>
+</html>
