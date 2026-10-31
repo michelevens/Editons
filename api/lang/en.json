@@ -2956,5 +2956,7 @@
     "jfix.advice_only": "Advice, no automatic fix",
     "jfix.advice_why": "This needs your judgement: there is no mechanical change that fixes it. Edit the text yourself if you agree, then dismiss it.",
     "jfix.agent_locked": "{agent} is part of the {plan} plan. See plans.",
-    "jfix.plan_short": "{plan} plan"
+    "jfix.plan_short": "{plan} plan",
+    "jfix.citation_source": "Source",
+    "jfix.citation_marker_hint": "The in-text citation goes in after the words you selected in the chapter."
 }

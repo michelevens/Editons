@@ -9,7 +9,7 @@ import { useI18n } from '@/i18n';
  * deleted. Both are computed on read rather than stored, because both can
  * become true without the citation itself changing.
  */
-export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
+export default function CitationsTab({ sectionId, bookId, onManageLibrary, selectionText = '', onCite = null }) {
     const { t } = useI18n();
     const [citations, setCitations] = useState([]);
     const [sources, setSources] = useState([]);
@@ -58,6 +58,7 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
                     {t('citations.title')}
                 </p>
                 <button
+                    data-a="citations:add"
                     onClick={() => setAdding((v) => !v)}
                     className="rounded bg-brand-fill px-2 py-1 text-[11px] font-bold text-white hover:bg-brand-primary-hover"
                 >
@@ -75,9 +76,13 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary }) {
                 <AddCitation
                     sectionId={sectionId}
                     sources={sources}
-                    onAdded={(rows) => {
+                    selectionText={selectionText}
+                    onAdded={(rows, marker) => {
                         setCitations(rows);
                         setAdding(false);
+                        // The marker goes into the prose through the editor,
+                        // as the author's own edit (saved and undoable).
+                        if (marker) onCite?.(marker);
                     }}
                     onManageLibrary={onManageLibrary}
                 />
@@ -170,9 +175,12 @@ function Status({ value }) {
     );
 }
 
-function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
+function AddCitation({ sectionId, sources, selectionText = '', onAdded, onManageLibrary }) {
     const { t } = useI18n();
-    const [claim, setClaim] = useState('');
+    // The words selected in the chapter, as the claim (ADR — Journey friction
+    // fixes); the author can still rewrite it in their own words.
+    const selected = selectionText.trim().slice(0, 2000);
+    const [claim, setClaim] = useState(selected);
     const [sourceId, setSourceId] = useState('');
     const [locator, setLocator] = useState('');
     const [saving, setSaving] = useState(false);
@@ -188,11 +196,14 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
                 claim,
                 locator: locator || null,
                 research_source_id: sourceId || null,
+                // Anchored on the selection, so the citation goes stale if
+                // the cited words are deleted.
+                excerpt: selected || null,
                 // Without a source this can only be a claim awaiting one —
                 // the API and the database both refuse anything else.
                 status: sourceId ? 'supported' : 'needs_source',
             });
-            onAdded(res.data.citations);
+            onAdded(res.data.citations, res.data.marker);
         } catch (err) {
             setError(err.response?.data?.message ?? t('citations.save_failed'));
         } finally {
@@ -204,6 +215,8 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
         <form onSubmit={submit} className="mb-3 rounded-lg bg-bg-subtle p-2.5">
             <textarea
                 value={claim}
+                data-a="citations:claim"
+                aria-label={t('citations.claim_placeholder')}
                 onChange={(e) => setClaim(e.target.value)}
                 required
                 rows={2}
@@ -225,6 +238,8 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
             ) : (
                 <select
                     value={sourceId}
+                    data-a="citations:source"
+                    aria-label={t('jfix.citation_source')}
                     onChange={(e) => setSourceId(e.target.value)}
                     className="mt-2 w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
                 >
@@ -251,7 +266,12 @@ function AddCitation({ sectionId, sources, onAdded, onManageLibrary }) {
                 <p className="mt-2 text-[11px] font-semibold text-status-danger">{error}</p>
             )}
 
+            {sourceId && (
+                <p className="mt-2 text-[10.5px] leading-relaxed text-text-secondary">{t('jfix.citation_marker_hint')}</p>
+            )}
+
             <button
+                data-a="citations:record"
                 disabled={saving}
                 className="mt-2 w-full rounded bg-bg-inverse py-1.5 text-[11px] font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
             >

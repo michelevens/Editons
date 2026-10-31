@@ -49,6 +49,8 @@ export default function AIEditorPanel({
     onOpenSection,
     onRestore,
     onOpenLibrary,
+    selectionText = '',
+    onCite = null,
     // Suggest mode: the open chapter's pending changes, listed at the top
     // of Comments, and how to decide or show one.
     changes = [],
@@ -195,6 +197,8 @@ export default function AIEditorPanel({
                         sectionId={sectionId}
                         bookId={bookId}
                         onManageLibrary={onOpenLibrary}
+                        selectionText={selectionText}
+                        onCite={onCite}
                     />
                 )}
 

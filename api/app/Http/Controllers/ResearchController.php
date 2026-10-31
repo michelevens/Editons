@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\Citation;
 use App\Models\ManuscriptSection;
 use App\Models\ResearchSource;
+use App\Research\Bibliography;
 use App\Research\Import\Entry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -232,9 +233,60 @@ class ResearchController extends Controller
             abort(422, __('A supported or contradicted claim must name a source.'));
         }
 
-        $section->citations()->create($data + ['created_by' => $request->user()->id]);
+        $citation = $section->citations()->create($data + ['created_by' => $request->user()->id]);
 
-        return response()->json(['citations' => $this->citationsFor($section)], 201);
+        return response()->json([
+            'citations' => $this->citationsFor($section),
+            // What the editor puts into the prose at the selection (ADR —
+            // Journey friction fixes); the author's own edit, through the
+            // editor, so it is saved, versioned and undoable like typing.
+            'marker' => $this->markerFor($citation),
+        ], 201);
+    }
+
+    /**
+     * The in-text citation for a new citation, in the book's style: "(Smith,
+     * 2021, p. 4)", "[3]", or for a notes style the note a footnote carries.
+     * Null when there is no source yet: a claim awaiting one has nothing to
+     * cite.
+     *
+     * @return array{kind: 'text'|'note', text: string}|null
+     */
+    private function markerFor(Citation $citation): ?array
+    {
+        $source = $citation->source;
+
+        if (! $source) {
+            return null;
+        }
+
+        $book = $citation->section->book;
+        $style = Bibliography::normalise($book->settings()['citation_style'] ?? null);
+        $bibliography = app(Bibliography::class);
+        $locator = trim((string) $citation->locator);
+
+        if ($style === 'Chicago-notes') {
+            $first = ! Citation::whereKeyNot($citation->id)
+                ->where('research_source_id', $source->id)
+                ->whereIn('manuscript_section_id', $book->sections()->select('id'))
+                ->exists();
+
+            return ['kind' => 'note', 'text' => $bibliography->note($source, $first, $locator ?: null)];
+        }
+
+        $number = collect($bibliography->forBook($book, $style))->firstWhere('id', $source->id)['number'] ?? 1;
+        $text = $bibliography->inText($source, $style, $number);
+
+        if ($locator !== '') {
+            $text = match ($style) {
+                'IEEE' => mb_substr($text, 0, -1).', '.$locator.']',
+                'Vancouver' => $text,
+                'MLA' => mb_substr($text, 0, -1).' '.preg_replace('/^p+\.\s*/', '', $locator).')',
+                default => mb_substr($text, 0, -1).', '.$locator.')',
+            };
+        }
+
+        return ['kind' => 'text', 'text' => $text];
     }
 
     public function destroyCitation(Citation $citation): JsonResponse

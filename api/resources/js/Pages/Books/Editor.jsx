@@ -771,6 +771,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         onOpenSection: openSection,
         onRestore: restore,
         onOpenLibrary: openLibrary,
+        // The words selected in the chapter prefill a citation's claim, and
+        // a recorded citation puts its marker in after them.
+        selectionText: lastSelection?.sectionId === section?.id ? lastSelection.text : '',
+        onCite: (marker) => manuscript.current?.cite(marker) ?? false,
         changes,
         onDecide: (ids, accept) => manuscript.current?.decide(ids, accept),
         onShowChange: (change) => {

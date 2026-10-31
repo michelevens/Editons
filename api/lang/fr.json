@@ -3147,5 +3147,7 @@
     "jfix.advice_only": "Conseil, pas de correction automatique",
     "jfix.advice_why": "Ceci demande votre jugement : aucune modification mécanique ne le corrige. Modifiez le texte vous-même si vous êtes d’accord, puis écartez-le.",
     "jfix.agent_locked": "{agent} fait partie de l’offre {plan}. Voir les offres.",
-    "jfix.plan_short": "Offre {plan}"
+    "jfix.plan_short": "Offre {plan}",
+    "jfix.citation_source": "Source",
+    "jfix.citation_marker_hint": "La citation dans le texte est insérée après les mots sélectionnés dans le chapitre."
 }

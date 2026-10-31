@@ -3152,3 +3152,5 @@ jfix.advice_only,"Advice, no automatic fix","Konsèy, pa gen koreksyon otomatik"
 jfix.advice_why,"This needs your judgement: there is no mechanical change that fixes it. Edit the text yourself if you agree, then dismiss it.","Sa a mande jijman pa w: pa gen chanjman mekanik ki ka korije l. Modifye tèks la tèt ou si ou dakò, epi rejte l.",Review deck: why a finding has no automatic fix,
 jfix.agent_locked,{agent} is part of the {plan} plan. See plans.,{agent} fè pati plan {plan} la. Gade plan yo.,AI panel: a reviewer outside the author's plan,
 jfix.plan_short,{plan} plan,Plan {plan},AI panel: locked reviewer badge naming the plan,
+jfix.citation_source,Source,Sous,Citations: source picker label,
+jfix.citation_marker_hint,The in-text citation goes in after the words you selected in the chapter.,Sitasyon an ap antre apre mo ou te chwazi nan chapit la.,Citations: where the marker is inserted,

@@ -3147,5 +3147,7 @@
     "jfix.advice_only": "Konsèy, pa gen koreksyon otomatik",
     "jfix.advice_why": "Sa a mande jijman pa w: pa gen chanjman mekanik ki ka korije l. Modifye tèks la tèt ou si ou dakò, epi rejte l.",
     "jfix.agent_locked": "{agent} fè pati plan {plan} la. Gade plan yo.",
-    "jfix.plan_short": "Plan {plan}"
+    "jfix.plan_short": "Plan {plan}",
+    "jfix.citation_source": "Sous",
+    "jfix.citation_marker_hint": "Sitasyon an ap antre apre mo ou te chwazi nan chapit la."
 }

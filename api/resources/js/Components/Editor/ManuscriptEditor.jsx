@@ -247,11 +247,15 @@ export default function ManuscriptEditor({
     // refs, because both need the editor, which is made below.
     const decideRef = useRef(null);
     const revealRef = useRef(null);
+    // A citation marker, put in at the end of the chapter's selection (ADR —
+    // Journey friction fixes).
+    const citeRef = useRef(null);
 
     useImperativeHandle(ref, () => ({
         flush: () => Promise.race([flush(), new Promise((resolve) => setTimeout(resolve, FLUSH_WAIT_MS))]),
         decide: (ids, accept) => decideRef.current?.(ids, accept),
         reveal: (id) => revealRef.current?.(id),
+        cite: (marker) => citeRef.current?.(marker) ?? false,
     }), [flush]);
 
     // A deletion Suggest mode would not track (a picture, a table) is
@@ -768,6 +772,21 @@ export default function ManuscriptEditor({
             ? { kind: 'change', id: change.getAttribute('data-change'), ...place }
             : { kind: 'comment', id: Number(anchor.getAttribute('data-thread')), ...place });
     }, [below]);
+
+    // ProseMirror keeps its selection while focus is in the side panel, so
+    // the marker lands after the words the author selected and cited. Text
+    // for author-date and numeric styles, a footnote for a notes style.
+    citeRef.current = (marker) => {
+        if (!editor || editor.isDestroyed || !marker?.text) return false;
+
+        const at = editor.state.selection.to;
+        const before = at > 1 ? editor.state.doc.textBetween(at - 1, at, ' ', ' ') : '';
+        const content = marker.kind === 'note'
+            ? { type: 'footnote', attrs: { text: marker.text } }
+            : `${before && !/\s/.test(before) ? ' ' : ''}${marker.text}`;
+
+        return editor.chain().focus().setTextSelection(at).insertContent(content).run();
+    };
 
     revealRef.current = (id) => {
         if (!editor || editor.isDestroyed) return;
