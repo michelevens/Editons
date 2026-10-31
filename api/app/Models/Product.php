@@ -115,9 +115,25 @@ class Product extends Model
     /** Plain text. The storefront renders it as text, never as HTML. */
     public function displayDescription(): string
     {
-        $text = trim((string) $this->description) !== '' ? $this->description : $this->book?->description;
+        // The product's own copy first; then what the author wrote in the
+        // store listing (Export & Publish saves it to the book's meta, not
+        // its description column — ADR — Journey friction fixes); then the
+        // older book description.
+        $candidates = [
+            $this->description,
+            $this->book?->meta['description'] ?? null,
+            $this->book?->description,
+        ];
 
-        return trim(strip_tags((string) $text));
+        foreach ($candidates as $text) {
+            $text = trim(strip_tags((string) $text));
+
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
     }
 
     /**

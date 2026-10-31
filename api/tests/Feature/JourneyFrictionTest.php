@@ -146,3 +146,27 @@ it('includes every agent on the top plan', function () {
     expect($agents->every(fn ($a) => $a['included'] === true && $a['unlocks'] === null))->toBeTrue()
         ->and(collect(App\Editorial\EditorialAgent::catalogue())->first())->not->toHaveKey('included');
 });
+
+// 4. The storefront shows the description the store listing saved.
+
+it('shows the store listing description on the product, falling back to the old field', function () {
+    $user = User::factory()->create();
+    $product = partnerProduct($user, rate: null, attributes: ['description' => null]);
+    $book = $product->book;
+
+    // Saved the way Export & Publish → Store listing saves it.
+    $this->actingAs($user)
+        ->patchJson("/books/{$book->id}/publishing", ['description' => 'A harbour town and the clinic that kept it alive.'])
+        ->assertOk();
+
+    expect($product->fresh(['book'])->displayDescription())->toBe('A harbour town and the clinic that kept it alive.');
+
+    // The product's own copy still wins.
+    $product->forceFill(['description' => 'Product copy.'])->save();
+    expect($product->fresh(['book'])->displayDescription())->toBe('Product copy.');
+
+    // A book with only the old description column.
+    $product->forceFill(['description' => null])->save();
+    $book->forceFill(['meta' => [], 'description' => '<p>Old description.</p>'])->save();
+    expect($product->fresh(['book'])->displayDescription())->toBe('Old description.');
+});
