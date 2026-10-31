@@ -4327,3 +4327,93 @@ verification untouched, tenant isolation, reviewer read-only),
 can_resolve, bulk resolve and reopen record who and when, reviewer limited
 to own threads, no re-stamping, other-book ids, replies, strangers),
 `tests/Browser/research.spec.js` (1440 and 390 px).
+
+
+## ADR-00XX — Moving books between any accounts; AI-written imports
+
+**Status:** accepted (2026-10-31). Number assigned at merge.
+
+**Context.** Two operations the platform owner asked for were being done by
+shell. Books were moved between people's accounts, and out of a house
+account into a person's, by calling the private `HouseTransfer::move()` by
+reflection, because `plan()` and `apply()` refuse any target that is not a
+house. That move deleted the new owner's membership by `user_id` only, so
+an invitation sent to their address and never accepted (`user_id` null)
+survived on the book and had to be deleted by hand. And a manuscript
+written with AI was loaded by a tinker script that saved each section with
+reason `ai_draft`, because an ordinary import saves `import` and the book's
+AI disclosure (`AiDisclosure`) then had no record of it.
+
+**Decisions.**
+
+- *`App\Platform\BookTransfer`.* The move, with any active account as the
+  target. Same plan (sections, versions, exports, channels, product, ISBNs,
+  sold items, problems, warnings) and the same all-or-nothing transaction
+  with row locks. Target problems stop every book: suspended, or scheduled
+  for deletion. A plan's `from` (the account page's account) refuses a book
+  no longer there. Going past the target's plan limit is a warning. The
+  previous owner is kept as an `editor` by default when a person
+  (`keepsPreviousByDefault`), never when a house; `null` means "the
+  default". The new owner's membership is removed by `user_id` **or**
+  `lower(email)` (the bug above), and the plan warns that it will be.
+  Audit: `book.transferred` for a person's account, `house.book_transferred`
+  (with `house`) for a house account, so the house history reads as it did.
+- *`HouseTransfer`* is now `BookTransfer` held to a house target: same
+  signatures, same plan shape (`house` key), still refusing a non-house
+  target and a book owned by another house. The House console and
+  `house:transfer` are unchanged; their tests pass untouched.
+- *Shell.* `books:transfer {books*} --to=<email|id|slug> --reason=
+  [--drop-previous] [--force]`, dry run unless `--force`, sharing
+  `house:transfer`'s id and range parsing.
+- *Console.* Admin › Accounts › one account lists its books (now up to 200,
+  with members, product status and ISBNs), with checkboxes and **Move to
+  another account…** (`Components/Admin/AccountBooks.jsx`): target search
+  (`GET /admin/accounts/{user}/transfer-targets`, active accounts other
+  than this one), preview (`POST …/books/transfer/preview`), then a reason
+  and confirm (`POST …/books/transfer`). All three are owner-only
+  (`can:platform.owner`); support gets 403. The keep-previous box is on for
+  a person's account and hidden for a house's. Staff screens stay in
+  English (docs/I18N.md).
+- *AI-written imports.* The import dialog (in the studio and on the shelf)
+  has an opt-in box, "This text was written with an AI tool", default off.
+  When on, `ImportOptions::$aiLabel` makes `ChapterAppender` create each
+  section from an empty page and save it with reason `ai_draft` and the
+  label "Imported from “file”, written with an AI tool" (translated); that
+  first version is what `AiDisclosure::evidence` counts — the same shape
+  the AI drafting tools and the sample thesis leave. Off, nothing changes:
+  reason `import`, no version for a new section's first save.
+- *Section types.* The Markdown importer starts a section at every `#` and
+  `##` and makes each a chapter, so it cannot tell a part, an
+  introduction, an appendix or a glossary from a chapter. Rather than guess
+  (which would change today's imports), the dialog offers **Review
+  sections** for a Markdown file: `POST /import/preview` returns the
+  section titles (`MarkdownImporter::outline`), nothing written, and the
+  author picks front matter, part, chapter or back matter for each;
+  `types[]` goes with the import. Unchosen entries stay `chapter`; an
+  unknown type is refused. A Word file is not previewed (reading one
+  stores its pictures); its sections can be retyped in the binder as
+  before.
+
+**Defaults unchanged.** An import with neither choice, the House console,
+`house:transfer`, and the account page for support all behave as before
+(the books table gains columns, not actions, for support).
+
+**Not done.** Moving a book's editions automatically with it (they are
+warned about, as in the house transfer), a preview of Word files, and
+guessing section types from titles.
+
+**Tests.** `tests/Feature/Platform/BookTransferTest.php` (preview writes
+nothing; person target with product, ISBNs, sales history and audit row;
+membership removed by user id and by email-only invitation, bystanders
+kept; house source never kept even when asked; house target keeps
+`house.book_transferred`; drop previous; reason required; all or none;
+suspended target; book no longer in the account; shell by email, id and
+slug; console owner-only with support refused, reason required, page
+props and keep-previous default per source kind),
+`tests/Feature/House/HouseTransferTest.php` (unchanged),
+`tests/Feature/AiWrittenImportTest.php` (off: chapters, no AI evidence; on:
+every section's first version `ai_draft` with the label, disclosure
+`generated`; shelf import; pasted text; preview writes nothing, Word not
+previewed, guests refused; chosen types incl. part, front and back matter,
+unchosen stay chapters, unknown type refused),
+`tests/Browser/ops.spec.js` (both flows at 1440 and 390 px).
