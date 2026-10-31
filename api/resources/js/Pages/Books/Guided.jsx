@@ -466,12 +466,15 @@ function Assistance({ book, journey, send, busy }) {
             <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 {journey.assistance_levels.map((level) => {
                     const chosen = journey.assistance === level.key;
+                    // "Draft with me" is not built yet (ADR — Author walkthrough fixes).
+                    const soon = level.available === false;
 
                     return (
                         <button
                             key={level.key}
                             data-a={`guided:assist:${level.key}`}
-                            disabled={busy === 'assist'}
+                            disabled={busy === 'assist' || soon}
+                            aria-disabled={soon || undefined}
                             onClick={() =>
                                 send(
                                     'patch',
@@ -482,16 +485,23 @@ function Assistance({ book, journey, send, busy }) {
                             }
                             aria-pressed={chosen}
                             className={`rounded-tile border px-4 py-3 text-left transition ${
-                                chosen
-                                    ? 'border-brand-primary bg-brand-primary/[0.05]'
-                                    : 'border-border-default bg-bg-surface hover:border-brand-primary/40'
+                                soon
+                                    ? 'cursor-not-allowed border-dashed border-border-default bg-bg-subtle'
+                                    : chosen
+                                      ? 'border-brand-primary bg-brand-primary/[0.05]'
+                                      : 'border-border-default bg-bg-surface hover:border-brand-primary/40'
                             }`}
                         >
-                            <span className="block text-[13.5px] font-semibold text-text-primary">
-                                {level.name}
+                            <span className="flex items-center gap-2 text-[13.5px] font-semibold text-text-primary">
+                                {t(`assist.${level.key}`)}
+                                {soon && (
+                                    <span className="rounded-full bg-bg-surface px-2 py-0.5 text-[10.5px] font-semibold text-text-secondary ring-1 ring-border-default">
+                                        {t('fric.coming_soon')}
+                                    </span>
+                                )}
                             </span>
                             <span className="mt-0.5 block text-[12px] leading-relaxed text-text-secondary">
-                                {level.detail}
+                                {soon ? t('fric.draft_soon_blurb') : t(`assist.${level.key}_blurb`)}
                             </span>
                         </button>
                     );

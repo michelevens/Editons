@@ -114,10 +114,10 @@ it('changes the assistance level without touching the manuscript', function () {
     $before = $book->sections()->first()->content;
 
     $this->actingAs($user)
-        ->patchJson("/books/{$book->id}/assistance", ['assistance' => 'collaborative'])
+        ->patchJson("/books/{$book->id}/assistance", ['assistance' => 'coach'])
         ->assertOk();
 
-    expect($book->fresh()->assistance)->toBe('collaborative')
+    expect($book->fresh()->assistance)->toBe('coach')
         ->and($book->sections()->first()->content)->toBe($before);
 });
 

@@ -161,7 +161,7 @@ class BookController extends Controller
             'book_type' => ['nullable', 'string', Rule::in(array_keys(config('booktypes')))],
             'chapters' => ['nullable', 'integer', 'min:1', 'max:60'],
             'target_words' => ['nullable', 'integer', 'min:100', 'max:500000'],
-            'assistance' => ['nullable', Rule::in(Book::ASSISTANCE)],
+            'assistance' => ['nullable', Rule::in(Book::ASSISTANCE_AVAILABLE)],
             'started_with' => ['nullable', 'string', 'max:40'],
             // Quick Start's own door (ADR — Journey friction fixes).
             'quick' => ['nullable', 'boolean'],

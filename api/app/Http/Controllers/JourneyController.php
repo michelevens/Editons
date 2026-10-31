@@ -109,7 +109,7 @@ class JourneyController extends Controller
         $this->authorize('update', $book);
 
         $data = $request->validate([
-            'assistance' => ['required', Rule::in(Book::ASSISTANCE)],
+            'assistance' => ['required', Rule::in(Book::ASSISTANCE_AVAILABLE)],
         ]);
 
         // Changing this never touches the manuscript, which is what makes it
@@ -357,7 +357,10 @@ class JourneyController extends Controller
         [
             'key' => 'collaborative',
             'name' => 'Draft with me',
-            'detail' => 'Drafts passages from your notes and outline, for you to accept or reject.',
+            // Not built: AI drafting does not exist yet, so the option is
+            // shown as coming soon and cannot be chosen.
+            'detail' => 'Coming soon: drafting passages from your notes and outline.',
+            'available' => false,
         ],
     ];
 }

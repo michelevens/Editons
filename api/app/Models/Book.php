@@ -73,6 +73,14 @@ class Book extends Model
     /** How much the author wants the AI to do. */
     public const ASSISTANCE = ['author_led', 'coach', 'collaborative'];
 
+    /**
+     * The levels an author can choose today. "Draft with me" needs AI
+     * drafting, which does not exist yet: it is shown as coming soon and
+     * refused, rather than stored and silently ignored. A book that already
+     * has it keeps the value (ADR — Author walkthrough fixes).
+     */
+    public const ASSISTANCE_AVAILABLE = ['author_led', 'coach'];
+
     public const JOURNEY_STAGES = [
         'discover', 'plan', 'create', 'improve', 'design', 'publish',
     ];
