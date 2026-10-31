@@ -13,6 +13,8 @@
 
         { "id": "editor.save", "scope": "editor", "description": "Save now and keep a version", "keys": ["Mod+KeyS"], "remap": true },
         { "id": "editor.history", "scope": "editor", "description": "Version history", "keys": ["Mod+Alt+KeyV"], "remap": true },
+        { "id": "editor.find", "scope": "editor", "description": "Find in the chapter or the manuscript", "keys": ["Mod+KeyF"], "remap": false },
+        { "id": "editor.replace", "scope": "editor", "description": "Find and replace", "keys": ["Mod+Shift+KeyH"], "remap": true },
         { "id": "view.outline", "scope": "editor", "description": "Show or hide the chapter outline", "keys": ["Mod+Backslash"], "remap": true },
         { "id": "view.right", "scope": "editor", "description": "Show or hide the AI editor panel", "keys": ["Mod+Alt+Backslash"], "remap": true },
         { "id": "view.bottom", "scope": "editor", "description": "Show or hide the bottom cards", "keys": ["Mod+KeyJ"], "remap": true },

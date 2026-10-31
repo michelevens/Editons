@@ -148,3 +148,73 @@ it('lets Book Settings set the book type', function () {
 
     expect($book->fresh()->book_type)->toBe('fiction');
 });
+
+/* ------------------------------------------------------------ find and replace */
+
+function awBookWithChapters(User $user): array
+{
+    $book = Book::factory()->for($user)->create();
+    $one = ManuscriptSection::factory()->for($book)->create(['title' => 'Kite', 'position' => 1000, 'content' => ['type' => 'doc', 'content' => [
+        ['type' => 'paragraph', 'content' => [
+            ['type' => 'text', 'text' => 'Ti Jak flew the '],
+            ['type' => 'text', 'text' => 'kite', 'marks' => [['type' => 'bold']]],
+            ['type' => 'text', 'text' => ' over Jacmel. Kites everywhere; the KITE rose.'],
+        ]],
+    ]]]);
+    $two = ManuscriptSection::factory()->for($book)->create(['title' => 'Sea', 'position' => 2000, 'content' => awDoc('The sea had no kite at all.')]);
+    $three = ManuscriptSection::factory()->for($book)->create(['title' => 'Home', 'position' => 3000, 'content' => awDoc('Nothing to find here.')]);
+
+    return [$book, $one, $two, $three];
+}
+
+it('finds across the manuscript by chapter, with case and whole-word options', function () {
+    $user = User::factory()->create();
+    [$book, $one, $two] = awBookWithChapters($user);
+
+    $all = $this->actingAs($user)->getJson("/books/{$book->id}/find?q=kite")->assertOk();
+    expect($all->json('total'))->toBe(4)
+        ->and(collect($all->json('sections'))->pluck('count', 'id')->all())->toBe([$one->id => 3, $two->id => 1])
+        ->and($all->json('sections.0.snippets.0'))->toContain('flew the kite over');
+
+    expect($this->actingAs($user)->getJson("/books/{$book->id}/find?q=kite&word=1")->json('total'))->toBe(3)
+        ->and($this->actingAs($user)->getJson("/books/{$book->id}/find?q=kite&word=1&case=1")->json('total'))->toBe(2);
+
+    $this->actingAs(User::factory()->create())->getJson("/books/{$book->id}/find?q=kite")->assertForbidden();
+});
+
+it('replaces in every chapter, keeping a version of each changed chapter first', function () {
+    $user = User::factory()->create();
+    [$book, $one, $two, $three] = awBookWithChapters($user);
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/replace", ['q' => 'kite', 'replacement' => 'cerf-volant', 'word' => true])
+        ->assertUnprocessable()->assertJsonValidationErrors('confirmed');
+
+    $response = $this->actingAs($user)->postJson("/books/{$book->id}/replace", [
+        'q' => 'kite', 'replacement' => 'cerf-volant', 'word' => true, 'confirmed' => true, 'section' => $one->id,
+    ])->assertOk();
+
+    expect($response->json('replaced'))->toBe(3)
+        ->and($response->json('current.id'))->toBe($one->id)
+        ->and($one->fresh()->plainText())->toBe('Ti Jak flew the cerf-volant over Jacmel. Kites everywhere; the cerf-volant rose.')
+        ->and($two->fresh()->plainText())->toBe('The sea had no cerf-volant at all.')
+        // The bold stays on the replaced word.
+        ->and($one->fresh()->content['content'][0]['content'][1])->toEqual(['type' => 'text', 'text' => 'cerf-volant', 'marks' => [['type' => 'bold']]])
+        ->and($one->versions()->where('reason', 'replace')->count())->toBe(1)
+        ->and($two->versions()->where('reason', 'replace')->first()->content['content'][0]['content'][0]['text'])->toBe('The sea had no kite at all.')
+        ->and($three->versions()->count())->toBe(0);
+});
+
+it('finds a phrase split across marks and registers collision-free shortcuts', function () {
+    $user = User::factory()->create();
+    [$book, $one] = awBookWithChapters($user);
+
+    expect($this->actingAs($user)->getJson("/books/{$book->id}/find?q=".urlencode('the kite over'))->json('total'))->toBe(1);
+
+    $registry = json_decode(file_get_contents(resource_path('js/prefs.json')), true);
+    $shortcuts = collect($registry['shortcuts'])->whereIn('scope', ['editor', 'global']);
+    $replace = $shortcuts->firstWhere('id', 'editor.replace');
+
+    expect($shortcuts->firstWhere('id', 'editor.find')['keys'])->toBe(['Mod+KeyF'])
+        ->and($replace['keys'])->toBe(['Mod+Shift+KeyH'])
+        ->and($shortcuts->flatMap(fn ($s) => $s['keys'])->duplicates()->all())->toBe([]);
+});

@@ -20,6 +20,7 @@ use App\Http\Controllers\CoverWrapController;
 use App\Http\Controllers\CrossReferenceController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\EditionsController;
+use App\Http\Controllers\FindReplaceController;
 use App\Http\Controllers\EditorialController;
 use App\Http\Controllers\GoalsController;
 use App\Http\Controllers\GrowthController;
@@ -489,6 +490,13 @@ Route::middleware('auth')->group(function () {
         ->name('design.cover.artwork');
     Route::get('/books/{book}/cross-references', [CrossReferenceController::class, 'index'])
         ->name('books.cross-references');
+    // Find across the manuscript, and replace in every chapter (ADR — Author walkthrough fixes).
+    Route::get('/books/{book}/find', [FindReplaceController::class, 'find'])
+        ->middleware('throttle:120,1')
+        ->name('books.find');
+    Route::post('/books/{book}/replace', [FindReplaceController::class, 'replace'])
+        ->middleware('throttle:30,1')
+        ->name('books.replace');
     Route::post('/charts/preview', [ChartController::class, 'preview'])
         ->middleware('throttle:120,1')
         ->name('charts.preview');

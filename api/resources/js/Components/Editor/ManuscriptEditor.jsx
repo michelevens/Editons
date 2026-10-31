@@ -24,6 +24,8 @@ import { ImageBar, TableBar } from './PlacementBar';
 import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
 import { Typography } from './Typography';
+import { FindReplace } from './FindReplace';
+import FindBar from './FindBar';
 import { matches } from '../../shortcuts';
 import { t as tr, useI18n } from '../../i18n';
 
@@ -137,6 +139,10 @@ export default function ManuscriptEditor({
     showStatusBar = true,
     typewriter: typewriterSetting = undefined,
     onTypewriter = null,
+    // Find across the manuscript: open a chapter at its matches, and take
+    // the rewritten open chapter after a replace in every chapter.
+    onOpenSection = null,
+    onReplacedAll = null,
     ref,
 }) {
     const user = usePage().props.auth?.user ?? null;
@@ -303,6 +309,8 @@ export default function ManuscriptEditor({
                     onRefused: () => setNotice('Pictures, tables, charts and display equations cannot be removed while suggesting. Turn Suggest off to remove one.'),
                 }),
                 CommentAnchors,
+                // Find and replace highlights (FindReplace.js).
+                FindReplace,
                 // A quotation's box kind, chosen in the toolbar (Callout.js).
                 CalloutChoice,
                 ...(typography?.as_you_type
@@ -472,6 +480,25 @@ export default function ManuscriptEditor({
             window.removeEventListener('online', retry);
         };
     }, [status, flush]);
+
+    // Find (Ctrl/Cmd+F) and replace (Ctrl/Cmd+Shift+H; Ctrl+H is the
+    // browser's history and Cmd+H hides the app on a Mac), ADR — Author
+    // walkthrough fixes. `at` re-focuses the bar when pressed again.
+    const [find, setFind] = useState(null);
+
+    useEffect(() => {
+        const onKey = (e) => {
+            if (matches('editor.find', e)) {
+                e.preventDefault();
+                setFind({ mode: 'find', at: Date.now() });
+            } else if (matches('editor.replace', e)) {
+                e.preventDefault();
+                setFind({ mode: 'replace', at: Date.now() });
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
 
     // Ctrl/Cmd+S forces a save and a version, because writers press it
     // (editor.save in the shortcut registry: the author may move it).
@@ -1097,6 +1124,23 @@ export default function ManuscriptEditor({
                 )}
                 {headerActions}
             </header>
+
+            {find && editor && (
+                <FindBar
+                    editor={editor}
+                    bookId={bookId}
+                    sectionId={section.id}
+                    mode={find.mode}
+                    focusAt={find.at}
+                    onClose={() => {
+                        setFind(null);
+                        editor.commands.focus();
+                    }}
+                    onOpenSection={onOpenSection}
+                    onFlush={() => Promise.race([flush(), new Promise((resolve) => setTimeout(resolve, FLUSH_WAIT_MS))])}
+                    onReplacedAll={onReplacedAll}
+                />
+            )}
 
             {/* Said in words as well as by the pressed button: on a phone
                 the button is an icon, and typing that does not delete is

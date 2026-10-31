@@ -422,6 +422,18 @@ html.dark .manuscript {
     cursor: pointer;
 }
 
+/* Find and replace matches (FindReplace.js). Decorations, never saved. */
+.manuscript .ProseMirror .find-match {
+    background: var(--color-status-warning-bg);
+    box-shadow: 0 0 0 1px var(--color-status-warning-badge);
+    border-radius: 2px;
+}
+
+.manuscript .ProseMirror .find-match-current {
+    background: var(--color-brand-primary-subtle);
+    box-shadow: 0 0 0 2px var(--color-brand-primary);
+}
+
 /* A passage with an open comment thread. A decoration, never saved. */
 .manuscript .ProseMirror .comment-anchor {
     background: var(--color-status-warning-bg);
