@@ -180,8 +180,13 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         setFirstRun(true);
     }, []);
 
+    // Leaving the focused view (its button, Esc, the shortcut) ends the
+    // first run: only a change from on to off, never the first render.
+    const wasFocused = useRef(false);
+
     useEffect(() => {
-        if (!focusMode) setFirstRun(false);
+        if (wasFocused.current && !focusMode) setFirstRun(false);
+        wasFocused.current = focusMode;
     }, [focusMode]);
 
     // The panel shortcuts (workspace.js SHORTCUTS), through a ref so the

@@ -135,7 +135,7 @@ test('1440: first book, review, citation and store listing', async ({ page }) =>
     await page.click('[data-a="ai:tab:Research"]');
     await page.click('[data-a="citations:add"]');
     await expect(page.locator('[data-a="citations:claim"]')).toHaveValue('Rural clinics lost a third of their staff in a decade.');
-    const sourceValue = await page.locator('[data-a="citations:source"] option', { hasText: 'Rural Health in Transition' }).getAttribute('value');
+    const sourceValue = await page.locator('[data-a="citations:source"] option', { hasText: 'Moreau' }).getAttribute('value');
     await page.selectOption('[data-a="citations:source"]', sourceValue);
     await shot(page, 'd06-cite');
     await page.click('[data-a="citations:record"]');
