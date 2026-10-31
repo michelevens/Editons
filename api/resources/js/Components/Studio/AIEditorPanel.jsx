@@ -561,7 +561,7 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                         {t('ai.show_in_text')}
                                     </button>
                                 )}
-                                {finding.suggestion && (
+                                {finding.suggestion ? (
                                     <button
                                         data-a={`ai:accept:${finding.id}`}
                                         onClick={() => onResolve(finding, 'accepted')}
@@ -569,6 +569,10 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                     >
                                         {t('ai.apply')}
                                     </button>
+                                ) : (
+                                    <span className="text-[11px] text-text-secondary" title={t('jfix.advice_why')}>
+                                        {t('jfix.advice_only')}
+                                    </span>
                                 )}
                                 <button
                                     data-a={`ai:dismiss:${finding.id}`}

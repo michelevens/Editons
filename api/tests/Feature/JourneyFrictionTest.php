@@ -51,3 +51,65 @@ it('sends no import target while another book can be made', function () {
             ->where('can_create', true)
             ->where('import_into', null));
 });
+
+// 2. Accepting findings without a provider.
+
+function jfixDoc(string ...$paragraphs): array
+{
+    return ['type' => 'doc', 'content' => array_map(
+        fn ($p) => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $p]]],
+        $paragraphs,
+    )];
+}
+
+function jfixReview(App\Models\ManuscriptSection $section, string $agent): Illuminate\Support\Collection
+{
+    app(App\Editorial\ReviewRunner::class)->run($section, App\Editorial\EditorialAgent::from($agent), $section->book->user_id);
+
+    return App\Models\EditorialFinding::where('manuscript_section_id', $section->id)->get();
+}
+
+it('gives a double space and a filler word a concrete fix that applies after approval', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    $section = App\Models\ManuscriptSection::factory()->for($book)->create([
+        'content' => jfixDoc('The clinic opened at dawn.  Nurses came early. She was really tired by noon.', 'A second paragraph.'),
+    ]);
+
+    $findings = jfixReview($section, 'copy');
+    $space = $findings->firstWhere('title', 'Double space between sentences');
+    $filler = $findings->first(fn ($f) => str_starts_with($f->title, 'Filler word: "really"'));
+
+    expect($space->suggestion)->toBe('dawn. Nurses')
+        ->and($space->excerpt)->toBe('dawn.  Nurses')
+        ->and($filler->excerpt)->toBe('was really tired')
+        ->and($filler->suggestion)->toBe('was tired');
+
+    // Nothing changed until the author approves each one.
+    expect($section->fresh()->plainText())->toContain('dawn.  Nurses');
+
+    $this->actingAs($user)->patchJson("/findings/{$space->id}", ['status' => 'accepted'])->assertOk();
+    $this->actingAs($user)->patchJson("/findings/{$filler->id}", ['status' => 'accepted'])->assertOk();
+
+    expect($section->fresh()->plainText())
+        ->toBe("The clinic opened at dawn. Nurses came early. She was tired by noon.\n\nA second paragraph.");
+});
+
+it('does not take a paragraph break for a double space', function () {
+    $section = App\Models\ManuscriptSection::factory()->for(Book::factory()->for(User::factory()))->create([
+        'content' => jfixDoc('One sentence ends here.', 'Another begins here.'),
+    ]);
+
+    expect(jfixReview($section, 'copy')->where('title', 'Double space between sentences'))->toBeEmpty();
+});
+
+it('leaves a filler word that cannot simply be deleted as advice', function () {
+    $section = App\Models\ManuscriptSection::factory()->for(Book::factory()->for(User::factory()))->create([
+        'content' => jfixDoc('Basically, the plan worked.'),
+    ]);
+
+    $filler = jfixReview($section, 'copy')->first(fn ($f) => str_starts_with($f->title, 'Filler word: "basically"'));
+
+    expect($filler)->not->toBeNull()
+        ->and($filler->suggestion)->toBeNull();
+});

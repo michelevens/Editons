@@ -103,14 +103,21 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         foreach (self::HEDGES as $word) {
             if (preg_match_all('/\b'.preg_quote($word, '/').'\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
                 $count = count($m[0]);
+                $fix = $this->hedgeFix($text, $word);
+                $at = $fix[2] ?? $m[0][0][1];
                 $out[] = new Finding(
                     severity: 'suggestion',
                     title: "Filler word: \"{$word}\" ×{$count}",
-                    detail: 'Hedges and intensifiers usually weaken a sentence. Removing them rarely changes the meaning.',
-                    excerpt: $this->around($text, $m[0][0][1], mb_strlen($word)),
-                    suggestion: null,
-                    fromOffset: $m[0][0][1],
-                    toOffset: $m[0][0][1] + mb_strlen($word),
+                    detail: 'Hedges and intensifiers usually weaken a sentence. Removing them rarely changes the meaning.'
+                        .($fix && $count > 1 ? ' The fix removes one; the others are yours to judge.' : ''),
+                    excerpt: $fix[0] ?? $this->around($text, $m[0][0][1], mb_strlen($word)),
+                    // A concrete deletion when the word sits mid-sentence
+                    // between two words; at the start of a sentence or
+                    // before punctuation, removing it needs rewording, so
+                    // the finding stays advice (ADR — Journey friction fixes).
+                    suggestion: $fix[1] ?? null,
+                    fromOffset: $at,
+                    toOffset: $at + mb_strlen($word),
                 );
             }
         }
@@ -139,15 +146,23 @@ class FakeDriver implements EditorialDriver, SimulatesReview
             }
         }
 
-        // Double spaces after a sentence — a typesetting artefact.
-        if (preg_match('/\.\s{2,}[A-Z]/', $text, $m, PREG_OFFSET_CAPTURE)) {
-            $out[] = new Finding(
-                severity: 'suggestion',
-                title: 'Double space between sentences',
-                detail: 'Single spacing is the convention in typeset books.',
-                excerpt: trim($m[0][0]),
-                fromOffset: $m[0][1],
-            );
+        // Double spaces after a sentence — a typesetting artefact. Spaces
+        // only: a paragraph break is whitespace too in the plain text, and
+        // flagging every one of those was a false finding. Each carries the
+        // collapsed spacing, so "Apply fix" works without a model.
+        if (preg_match_all('/(?<=[.!?])[ \t\x{00A0}]{2,}(?=\S)/u', $text, $m, PREG_OFFSET_CAPTURE)) {
+            foreach (array_slice($m[0], 0, 10) as [$spaces, $at]) {
+                $span = $this->uniqueSpan($text, $at, $at + strlen($spaces));
+
+                $out[] = new Finding(
+                    severity: 'suggestion',
+                    title: 'Double space between sentences',
+                    detail: 'Single spacing is the convention in typeset books.',
+                    excerpt: $span[0] ?? trim(substr($text, max(0, $at - 1), strlen($spaces) + 2)),
+                    suggestion: $span ? $span[1].' '.$span[2] : null,
+                    fromOffset: $at,
+                );
+            }
         }
 
         return $out;
@@ -420,6 +435,66 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         $start = max(0, $offset - $pad);
 
         return $this->clip(mb_substr($text, $start, $length + $pad * 2));
+    }
+
+    /**
+     * A filler word that can simply be deleted: mid-sentence, with a word
+     * on each side. Returns [excerpt, replacement, byte offset] anchored on
+     * text that occurs once, or null when no occurrence qualifies.
+     *
+     * @return array{0: string, 1: string, 2: int}|null
+     */
+    private function hedgeFix(string $text, string $word): ?array
+    {
+        if (! preg_match_all('/(?<=[\p{L}\p{N},;] )'.preg_quote($word, '/').' (?=[\p{L}\p{N}])/iu', $text, $m, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        foreach ($m[0] as [$hit, $at]) {
+            if ($span = $this->uniqueSpan($text, $at, $at + strlen($hit))) {
+                return [$span[0], rtrim($span[1]).' '.ltrim($span[2]), $at];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Grow a byte range by whole words on both sides, within its own line
+     * (one paragraph: an excerpt that crosses a paragraph cannot be
+     * applied), until the slice occurs once in the text.
+     *
+     * Returns [excerpt, text before the range, text after it], or null if
+     * no width up to eight words is unique. At least one word beside the
+     * range, so the excerpt reads as a phrase and the replacement is never
+     * empty.
+     *
+     * @return array{0: string, 1: string, 2: string}|null
+     */
+    private function uniqueSpan(string $text, int $start, int $end): ?array
+    {
+        $lineStart = strrpos(substr($text, 0, $start), "\n");
+        $lineStart = $lineStart === false ? 0 : $lineStart + 1;
+        $lineEnd = strpos($text, "\n", $end);
+        $lineEnd = $lineEnd === false ? strlen($text) : $lineEnd;
+
+        $before = substr($text, $lineStart, $start - $lineStart);
+        $after = substr($text, $end, $lineEnd - $end);
+        $core = substr($text, $start, $end - $start);
+
+        foreach ([1, 2, 3, 5, 8] as $words) {
+            preg_match('/(?:\S+\s*){0,'.$words.'}$/u', $before, $head);
+            preg_match('/^(?:\s*\S+){0,'.$words.'}/u', $after, $tail);
+            $head = $head[0] ?? '';
+            $tail = $tail[0] ?? '';
+            $candidate = $head.$core.$tail;
+
+            if (trim($head.$tail) !== '' && substr_count($text, $candidate) === 1) {
+                return [$candidate, $head, $tail];
+            }
+        }
+
+        return null;
     }
 
     /**

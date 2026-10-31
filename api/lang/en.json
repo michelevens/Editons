@@ -2952,5 +2952,7 @@
     "jfix.import_into_hint": "A Markdown (.md) or Word (.docx) file. Its chapters are added after the ones already in the book; nothing is replaced.",
     "jfix.import_limit_explain": "A new book would go over the {plan} plan. You can import the file into {title} instead (its chapters are added at the end), or see the plans for more books.",
     "jfix.import_limit_explain_none": "A new book would go over the {plan} plan. Archive a book, or see the plans for more books.",
-    "jfix.see_plans": "See plans"
+    "jfix.see_plans": "See plans",
+    "jfix.advice_only": "Advice, no automatic fix",
+    "jfix.advice_why": "This needs your judgement: there is no mechanical change that fixes it. Edit the text yourself if you agree, then dismiss it."
 }

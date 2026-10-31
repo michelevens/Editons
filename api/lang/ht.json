@@ -3143,5 +3143,7 @@
     "jfix.import_into_hint": "Yon fichye Markdown (.md) oswa Word (.docx). Chapit li yo ajoute apre sa ki deja nan liv la; anyen pa ranplase.",
     "jfix.import_limit_explain": "Yon nouvo liv ta depase plan {plan} la. Ou ka enpòte fichye a nan {title} pito (chapit li yo ajoute nan fen), oswa gade plan yo pou plis liv.",
     "jfix.import_limit_explain_none": "Yon nouvo liv ta depase plan {plan} la. Achive yon liv, oswa gade plan yo pou plis liv.",
-    "jfix.see_plans": "Gade plan yo"
+    "jfix.see_plans": "Gade plan yo",
+    "jfix.advice_only": "Konsèy, pa gen koreksyon otomatik",
+    "jfix.advice_why": "Sa a mande jijman pa w: pa gen chanjman mekanik ki ka korije l. Modifye tèks la tèt ou si ou dakò, epi rejte l."
 }

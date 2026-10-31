@@ -3143,5 +3143,7 @@
     "jfix.import_into_hint": "Un fichier Markdown (.md) ou Word (.docx). Ses chapitres sont ajoutés après ceux du livre ; rien n’est remplacé.",
     "jfix.import_limit_explain": "Un nouveau livre dépasserait l’offre {plan}. Vous pouvez importer le fichier dans {title} (ses chapitres sont ajoutés à la fin), ou voir les offres pour avoir plus de livres.",
     "jfix.import_limit_explain_none": "Un nouveau livre dépasserait l’offre {plan}. Archivez un livre, ou voyez les offres pour avoir plus de livres.",
-    "jfix.see_plans": "Voir les offres"
+    "jfix.see_plans": "Voir les offres",
+    "jfix.advice_only": "Conseil, pas de correction automatique",
+    "jfix.advice_why": "Ceci demande votre jugement : aucune modification mécanique ne le corrige. Modifiez le texte vous-même si vous êtes d’accord, puis écartez-le."
 }

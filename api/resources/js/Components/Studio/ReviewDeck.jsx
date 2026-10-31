@@ -249,6 +249,12 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                         </div>
                     )}
 
+                    {!finding.suggestion && (
+                        <p className="mt-2 text-[12px] leading-relaxed text-text-secondary" data-a="review:advice-why">
+                            {t('jfix.advice_why')}
+                        </p>
+                    )}
+
                     {finding.stale && (
                         <p className="mt-2 rounded bg-status-warning-bg px-2 py-1 text-[11px] font-semibold text-status-warning">
                             {t('ai.stale')}
@@ -306,15 +312,26 @@ export default function ReviewDeck({ findings, agents = [], onResolve, onReopen,
                     >
                         {t('ai.dismiss')}
                     </button>
-                    <button
-                        data-a="review:apply"
-                        onClick={() => decide('accepted')}
-                        disabled={busy || !finding.suggestion}
-                        title={finding.suggestion ? undefined : t('review.no_wording')}
-                        className="h-11 rounded-control bg-status-success-fill text-[13.5px] font-semibold text-white disabled:bg-bg-subtle disabled:text-text-secondary"
-                    >
-                        {t('ai.apply_fix')}
-                    </button>
+                    {/* No wording, no green button (ADR — Journey friction
+                        fixes): the finding says it is advice and why, rather
+                        than offering a fix that can never be pressed. */}
+                    {finding.suggestion ? (
+                        <button
+                            data-a="review:apply"
+                            onClick={() => decide('accepted')}
+                            disabled={busy}
+                            className="h-11 rounded-control bg-status-success-fill text-[13.5px] font-semibold text-white disabled:bg-bg-subtle disabled:text-text-secondary"
+                        >
+                            {t('ai.apply_fix')}
+                        </button>
+                    ) : (
+                        <p
+                            data-a="review:advice"
+                            className="flex h-11 items-center justify-center rounded-control border border-dashed border-border-default px-2 text-center text-[12.5px] font-medium text-text-secondary"
+                        >
+                            {t('jfix.advice_only')}
+                        </p>
+                    )}
                     <button
                         data-a="review:next"
                         onClick={() => step(1)}
