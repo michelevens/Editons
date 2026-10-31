@@ -575,7 +575,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             route('sections.store', book.id),
             {
                 type: 'chapter',
-                title: `${countChapters(binder) + 1}. Untitled Chapter`,
+                // No number in the title (ADR — Journey friction fixes):
+                // exports and the binder number chapters themselves, and a
+                // stored "2." reads wrong once the chapter moves.
+                title: t('jfix.untitled_chapter'),
             },
             { preserveScroll: true, onFinish: () => setAdding(false) },
         );
@@ -1067,8 +1070,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                             side={layout.swap ? 'right' : 'left'}
                                             onExpand={() => toggleRail('outline', '#ws-outline [data-a="outline:search"]')}
                                             items={[
-                                                { key: 'add', icon: 'plus', label: 'Add chapter', run: addChapter },
-                                                { key: 'import', icon: 'fDoc', label: 'Import chapters', run: () => setImporting(true) },
+                                                { key: 'add', icon: 'plus', label: t('binder.add_chapter'), run: addChapter },
+                                                { key: 'import', icon: 'fDoc', label: t('jfix.import_chapters'), run: () => setImporting(true) },
                                             ]}
                                         />
                                     )}
@@ -1540,14 +1543,6 @@ function flatten(nodes, out = []) {
     }
 
     return out;
-}
-
-function countChapters(nodes) {
-    return nodes.reduce(
-        (total, node) =>
-            total + (node.type === 'part' ? 0 : 1) + countChapters(node.children ?? []),
-        0,
-    );
 }
 
 const NAV_LABELS = {

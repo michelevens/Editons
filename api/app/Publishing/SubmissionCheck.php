@@ -2,6 +2,7 @@
 
 namespace App\Publishing;
 
+use App\I18n\Locales;
 use App\Models\Book;
 use App\Models\BookChannel;
 use App\Models\Isbn;
@@ -18,6 +19,9 @@ use App\Platform\House\House;
  */
 class SubmissionCheck
 {
+    /** Below this the book is too short to publish. */
+    public const MINIMUM_WORDS = 500;
+
     /**
      * Problems blocking submission, keyed by field.
      *
@@ -69,8 +73,15 @@ class SubmissionCheck
             $errors['isbn'] = 'That is not a valid ISBN-13. Check the digits.';
         }
 
-        if ($book->word_count < 500) {
-            $errors['manuscript'] = 'The manuscript is too short to publish.';
+        if ($book->word_count < self::MINIMUM_WORDS) {
+            // The threshold and the distance to it, in the reader's language
+            // (ADR — Journey friction fixes): "too short" alone left the
+            // author guessing by how much.
+            $errors['manuscript'] = Locales::t('jfix.too_short', [
+                'minimum' => number_format(self::MINIMUM_WORDS),
+                'count' => self::MINIMUM_WORDS - (int) $book->word_count,
+                'missing' => number_format(self::MINIMUM_WORDS - (int) $book->word_count),
+            ]);
         }
 
         if ($book->channels()->where('status', '!=', 'not_submitted')->doesntExist()

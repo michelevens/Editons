@@ -3176,5 +3176,22 @@
     "jfix.count_front_matter": "{count, plural, one {# section liminaire} other {# sections liminaires}}",
     "jfix.count_part": "{count, plural, one {# partie} other {# parties}}",
     "jfix.count_chapter": "{count, plural, one {# chapitre} other {# chapitres}}",
-    "jfix.count_back_matter": "{count, plural, one {# section annexe} other {# sections annexes}}"
+    "jfix.count_back_matter": "{count, plural, one {# section annexe} other {# sections annexes}}",
+    "jfix.untitled_chapter": "Chapitre sans titre",
+    "jfix.import_chapters": "Importer des chapitres",
+    "jfix.ring_no_goal": "{count, plural, one {{words} mot, aucun objectif} other {{words} mots, aucun objectif}}",
+    "jfix.ring_reached": "Objectif atteint : {words} mots sur {goal}",
+    "jfix.ring_progress": "{words} mots sur {goal}, {percent} %",
+    "jfix.goals_label": "Objectifs — {status}",
+    "jfix.set_word_goal": "Fixer un objectif de mots",
+    "jfix.suggest": "Suggérer",
+    "jfix.suggesting": "Suggestion en cours",
+    "jfix.suggest_title": "Suggérer : suivre ce que vous tapez et supprimez, pour que l’auteur l’accepte ou le refuse",
+    "jfix.suggesting_title": "Suggestion : ce que vous tapez et supprimez est suivi pour relecture. Cliquez pour modifier directement.",
+    "jfix.suggesting_notice": "Suggestion — ce que vous tapez et supprimez est gardé comme suggestion à accepter ou refuser.",
+    "jfix.too_short": "Le manuscrit doit compter au moins {minimum} mots pour être publié ({count, plural, one {encore # mot} other {encore {missing} mots}}).",
+    "jfix.use_account_name": "Utiliser « {name} »",
+    "jfix.price_label": "Prix",
+    "jfix.no_book_title": "Commencez d’abord un livre",
+    "jfix.no_book_body": "{area} fonctionne sur un livre. Commencez-en un, ou importez un manuscrit, et il s’ouvrira ici."
 }

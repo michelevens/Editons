@@ -1,4 +1,4 @@
-import AppHeader from '@/Components/Studio/AppHeader';
+import AppHeader, { TOP_NAV } from '@/Components/Studio/AppHeader';
 import MobileNav from '@/Components/Studio/MobileNav';
 import Icon from '@/Components/Studio/Icon';
 import ImportDialog from '@/Components/Studio/ImportDialog';
@@ -32,6 +32,11 @@ export default function Index({
     const [importing, setImporting] = useState(false);
     const [importingInto, setImportingInto] = useState(false);
     const [limitOpen, setLimitOpen] = useState(false);
+    // Arrived from a book screen in the top bar with no book open.
+    const { url } = usePage();
+    const [dismissed, setDismissed] = useState(null);
+    const noBook = dismissed === url ? null : new URLSearchParams(url.split('?')[1] ?? '').get('nobook');
+    const noBookArea = noBook ? TOP_NAV.find((item) => item.key === noBook) : null;
     const totalWords = counts.words ?? books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
 
     // Order and labels follow the design: All first, then the three states.
@@ -83,6 +88,27 @@ export default function Index({
                             {!creating && <Icon name="plus" size={15} strokeWidth={2.4} />}
                         </button>
                     </header>
+
+                    {noBookArea && (
+                        <div
+                            role="status"
+                            data-a="books:no-book"
+                            className="mt-3 flex items-start gap-3 rounded-control bg-brand-primary-subtle px-3.5 py-2.5 text-[12.5px] text-outline-active-text"
+                        >
+                            <p className="min-w-0 flex-1">
+                                <strong className="block">{t('jfix.no_book_title')}</strong>
+                                {t('jfix.no_book_body', { area: t(noBookArea.tKey) })}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setDismissed(url)}
+                                aria-label={t('common.close')}
+                                className="grid h-7 w-7 shrink-0 place-items-center rounded-control hover:bg-bg-surface"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    )}
 
                     {/*
                      * The simplest door, for somebody who wants to type

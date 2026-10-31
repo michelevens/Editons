@@ -1,3 +1,5 @@
+import { formatNumber, t } from '@/i18n';
+
 /**
  * A word-goal ring: how far `value` is toward `goal`.
  *
@@ -15,13 +17,15 @@ export function progressOf(value, goal) {
 }
 
 export function ringLabel(value, goal) {
-    const words = (Number(value) || 0).toLocaleString();
+    // In the interface language (ADR — Journey friction fixes).
+    const count = Number(value) || 0;
+    const words = formatNumber(count);
 
-    if (!goal) return `${words} words, no goal set`;
+    if (!goal) return t('jfix.ring_no_goal', { count, words });
 
     return progressOf(value, goal) >= 1
-        ? `Goal reached: ${words} of ${goal.toLocaleString()} words`
-        : `${words} of ${goal.toLocaleString()} words, ${Math.floor(progressOf(value, goal) * 100)}%`;
+        ? t('jfix.ring_reached', { words, goal: formatNumber(goal) })
+        : t('jfix.ring_progress', { words, goal: formatNumber(goal), percent: Math.floor(progressOf(value, goal) * 100) });
 }
 
 export default function ProgressRing({ value, goal, size = 22, stroke = 3, label = null, className = '' }) {

@@ -25,7 +25,7 @@ import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
 import { Typography } from './Typography';
 import { matches } from '../../shortcuts';
-import { useI18n } from '../../i18n';
+import { t as tr, useI18n } from '../../i18n';
 
 /**
  * The writing canvas.
@@ -1036,7 +1036,7 @@ export default function ManuscriptEditor({
                     {section.title}
                 </h2>
                 <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
-                    {words.toLocaleString()} words
+                    {tr('book.words', { count: words, words: words.toLocaleString() })}
                 </span>
                 {/* The chapter's word goal: the ring fills as the
                     chapter grows, and opens the goals sheet. Without a goal
@@ -1047,8 +1047,8 @@ export default function ManuscriptEditor({
                         data-a="editor:goals"
                         onClick={() => onGoals(words)}
                         aria-haspopup="dialog"
-                        aria-label={`Goals — ${ringLabel(words, wordGoal)}`}
-                        title={wordGoal ? ringLabel(words, wordGoal) : 'Set a word goal'}
+                        aria-label={tr('jfix.goals_label', { status: ringLabel(words, wordGoal) })}
+                        title={wordGoal ? ringLabel(words, wordGoal) : tr('jfix.set_word_goal')}
                         className="grid h-7 w-7 shrink-0 place-items-center rounded-control transition hover:bg-bg-subtle max-md:h-9 max-md:w-9 max-sm:ml-auto"
                     >
                         <ProgressRing value={words} goal={wordGoal} size={20} stroke={2.5} />
@@ -1086,15 +1086,13 @@ export default function ManuscriptEditor({
                     data-a="editor:suggest"
                     onClick={toggleSuggest}
                     aria-pressed={suggesting}
-                    title={suggesting
-                        ? 'Suggesting: what you type and delete is tracked for review. Click to edit directly.'
-                        : 'Suggest: track what you type and delete, for the author to accept or reject'}
+                    title={suggesting ? tr('jfix.suggesting_title') : tr('jfix.suggest_title')}
                     className={`flex h-7 shrink-0 items-center gap-1 rounded-control px-1.5 text-[12px] font-semibold transition max-md:h-9 max-md:min-w-9 max-md:justify-center ${
                         suggesting ? 'bg-status-success-bg text-status-success' : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary'
                     }`}
                 >
                     <Icon name="aLine" size={15} />
-                    <span className="max-lg:sr-only">{suggesting ? 'Suggesting' : 'Suggest'}</span>
+                    <span className="max-lg:sr-only">{suggesting ? tr('jfix.suggesting') : tr('jfix.suggest')}</span>
                 </button>
                 )}
                 {headerActions}
@@ -1115,7 +1113,7 @@ export default function ManuscriptEditor({
                             : 'border-status-success/20 bg-status-success-bg text-status-success'
                     }`}
                 >
-                    {notice ?? 'Suggesting — what you type and delete is kept as a suggestion to accept or reject.'}
+                    {notice ?? tr('jfix.suggesting_notice')}
                 </p>
             )}
 

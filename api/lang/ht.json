@@ -3176,5 +3176,22 @@
     "jfix.count_front_matter": "{count} seksyon devan",
     "jfix.count_part": "{count} pati",
     "jfix.count_chapter": "{count} chapit",
-    "jfix.count_back_matter": "{count} seksyon dèyè"
+    "jfix.count_back_matter": "{count} seksyon dèyè",
+    "jfix.untitled_chapter": "Chapit san tit",
+    "jfix.import_chapters": "Enpòte chapit",
+    "jfix.ring_no_goal": "{words} mo, pa gen objektif",
+    "jfix.ring_reached": "Objektif rive: {words} mo sou {goal}",
+    "jfix.ring_progress": "{words} mo sou {goal}, {percent}%",
+    "jfix.goals_label": "Objektif — {status}",
+    "jfix.set_word_goal": "Mete yon objektif mo",
+    "jfix.suggest": "Sijere",
+    "jfix.suggesting": "Ap sijere",
+    "jfix.suggest_title": "Sijere: swiv sa ou tape ak sa ou efase, pou otè a aksepte oswa refize l",
+    "jfix.suggesting_title": "Ap sijere: sa ou tape ak sa ou efase swiv pou revizyon. Klike pou modifye dirèkteman.",
+    "jfix.suggesting_notice": "Ap sijere — sa ou tape ak sa ou efase rete kòm yon sijesyon pou aksepte oswa refize.",
+    "jfix.too_short": "Maniskri a bezwen omwen {minimum} mo pou l pibliye ({count, plural, other {rete {missing} mo}}).",
+    "jfix.use_account_name": "Itilize “{name}”",
+    "jfix.price_label": "Pri",
+    "jfix.no_book_title": "Kòmanse yon liv anvan",
+    "jfix.no_book_body": "{area} mache sou yon liv. Kòmanse youn, oswa enpòte yon maniskri, epi l ap louvri isit la."
 }

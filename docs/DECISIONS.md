@@ -4417,3 +4417,112 @@ every section's first version `ai_draft` with the label, disclosure
 previewed, guests refused; chosen types incl. part, front and back matter,
 unchosen stay chapters, unknown type refused),
 `tests/Browser/ops.spec.js` (both flows at 1440 and 390 px).
+
+## ADR-00XX — Journey friction fixes
+
+**Status:** accepted (2026-10-31). Number assigned at merge.
+
+**Context.** A brand-new author walked from signup to a sold copy through
+the UI only (the journey report). Every stage could be finished, but the
+middle of the journey leaked: the Free plan's one book hid the shelf's
+import, sample findings could not be accepted, six of nine agents answered
+422, citations reached neither the prose nor the exported book, the
+storefront dropped the listing's description, history hid in the Checks
+tab behind a native `confirm()`, Quick Start promised an empty page and
+opened a four-pane studio, and a French manuscript imported as an English
+book. The goal: start a book and finish it with minimum friction, from the
+UI, without changing any plan limit or any default an author who changes
+nothing would notice.
+
+**Decision.**
+- *Plan limit vs. import.* The register page names the books the free plan
+  includes (`offer.books`, already sent). At the limit the shelf keeps
+  "Or import a manuscript": it explains, and offers **Import into <book>**
+  (the binder's import, `POST /books/{book}/import`, into the author's most
+  recently updated active book, sent as `import_into`) and **See plans**.
+  Limits unchanged; the server still refuses a new book.
+- *Accepting sample findings.* `FakeDriver` gives a double space and a
+  removable filler word a concrete replacement anchored on text that occurs
+  once in one paragraph (`uniqueSpan`), so Apply works without a provider
+  and still only on the author's approval through `SuggestionApplier`. A
+  filler word at a sentence start or before punctuation stays advice. A
+  paragraph break is no longer taken for a double space. A finding with no
+  wording shows "Advice, no automatic fix" and why, instead of a disabled
+  green button.
+- *Agents outside the plan.* `EditorialAgent::catalogue($preferred, $user)`
+  adds `included` and `unlocks` (the cheapest plan that includes it, the
+  one the refusal names, `Entitlements::unlockingPlanName`). The panel
+  shows those rows locked with a link to billing; "Review this chapter" and
+  Review options run only included agents. The 422 stays as the control.
+- *Storefront description.* `Product::displayDescription` reads the
+  product's copy, then the store listing (`book.meta.description`), then the
+  old `book.description`.
+- *Citations.* The words selected in the chapter prefill the claim and are
+  stored as the citation's excerpt. `POST /sections/{id}/citations` returns
+  `marker`: the in-text citation in the book's style with its locator
+  ("(Moreau, 2021, p. 4)", "[3, p. 4]"), or for Chicago notes the note a
+  footnote carries. The editor inserts it after the selection, as the
+  author's own edit (saved, versioned, undoable). `App\Research\
+  BookReferences` builds an unsaved Bibliography back-matter section of the
+  *cited* sources (`Bibliography::forBook`, so it matches the References
+  screen), which `Anatomy::plan` and `Exporter::structure` add only while an
+  export runs: PDF, EPUB and Word end with it, each in its own style, no new
+  renderer. Off for books with no cited source, when the author wrote their
+  own Bibliography section, when `settings.references` is false, or when an
+  export profile leaves out `bibliography`.
+- *Version history.* A History button in the chapter header, a search
+  command and `editor.history` (Mod+Alt+V, remappable) open a dialog of the
+  chapter's versions; Restore asks in `ConfirmDialog` (translated, focus on
+  Cancel). Version reasons are words ("Autosaved", "AI suggestion applied").
+- *Quick Start.* Its form sends `quick`; an author's *first* book from it
+  opens with `?start=focus`: distraction-free canvas at a comfortable width
+  and a bar with **Open the full studio**. The flag is stripped from the
+  address, so a reload or a later book opens the studio as before.
+- *Sales header.* `GET /books/{book}/sales` sends `status.storefront`; the
+  header says "On sale on your storefront" instead of "Not on sale yet".
+- *Import language and counts.* The import dialog has "Language of the
+  text": for a new book "Detect from the text" (default) or a language; for
+  an existing book "Keep the book's language" (default). Markdown is
+  guessed in the browser and on the server (`App\Import\LanguageGuess`, a
+  stop-word count over English, French and Kreyòl); with too little text,
+  the account's interface language. The report counts sections per type
+  (`report.types`) and says "2 front matter sections, 1 part, 16 chapters".
+- *Small things.* "Écrivain" in the studio header and on Quick Start; new
+  chapters are "Untitled chapter" (no number stored); double-click a binder
+  title to rename, and the "…" button always shows on touch screens; the
+  editor's word count, goal ring, Suggest labels and the binder rail
+  translated; the publish minimum says "at least 500 words (194 more to
+  go)" in the reader's language; listing fields read as to-dos until
+  touched or Submit is tried; an empty author field offers the account
+  name (never filled silently: a book may be anonymous); the product price
+  input has a label; top-bar book screens with no book open the shelf with
+  "Start a book first" instead of silently reloading.
+
+**Defaults unchanged.** No plan limit moved. An author who never cites a
+source, never imports, never uses Quick Start for a first book, or uses a
+real provider sees the same screens and receives the same files. Findings
+from a model are untouched. The guidance in the store listing still shows
+from the start, only no longer in red.
+
+**Not done.** Translating the rest of `SubmissionCheck`'s messages and the
+English-only strings left in the editor header (typewriter) and product
+editor; the export file shown on its own row (item 15); Writing stats vs.
+Sales in the top bar (item 10); design presets (17); weak-password policy
+(24); part divider files in EPUB (25); author-shelf slugs (26); phone header
+icons (27); DOCX title as book title (14); a generated References list for
+HTML/Markdown exports.
+
+**Tests.** `tests/Feature/JourneyFrictionTest.php` (register offer; shelf
+import target at the limit and none below it; double space and filler
+fixes applied only on approval, paragraph breaks ignored, sentence-start
+filler stays advice; agents' `included`/`unlocks` on Free and Studio; store
+listing description and fallbacks; citation marker with locator, none for
+a claim without a source, a note for Chicago notes; PDF/EPUB/Word end with
+the cited sources only, nothing for uncited libraries or an author's own
+bibliography, setting off; history shortcut free of collisions, reason
+labels in three languages, restore; Quick Start first book only; sales
+`status.storefront`; language guesses, the import's language from the
+text, the dialog or the account, binder import keeps it unless chosen;
+per-type counts; the 500-word message in English and French),
+`tests/Browser/journey-fix.spec.js` (first book, review, citation and
+store listing at 1440 and 390 px).

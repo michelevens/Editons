@@ -421,3 +421,18 @@ it('reports the sections made per type, not all as chapters', function () {
         ->assertJsonPath('report.types.chapter', 2)
         ->assertJsonPath('report.types.back_matter', 1);
 });
+
+// 9. Small things: the publish minimum says how far there is to go.
+
+it('names the 500-word minimum and how many words are missing, in the reader’s language', function () {
+    $book = Book::factory()->for(User::factory())->create(['word_count' => 306]);
+
+    $errors = app(App\Publishing\SubmissionCheck::class)->errors($book);
+
+    expect($errors['manuscript'])->toContain('500')->toContain('194');
+
+    app()->setLocale('fr');
+    App\I18n\Locales::flush();
+    expect(app(App\Publishing\SubmissionCheck::class)->errors($book)['manuscript'])->toContain('mots');
+    app()->setLocale('en');
+});

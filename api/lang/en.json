@@ -2985,5 +2985,22 @@
     "jfix.count_front_matter": "{count, plural, one {# front matter section} other {# front matter sections}}",
     "jfix.count_part": "{count, plural, one {# part} other {# parts}}",
     "jfix.count_chapter": "{count, plural, one {# chapter} other {# chapters}}",
-    "jfix.count_back_matter": "{count, plural, one {# back matter section} other {# back matter sections}}"
+    "jfix.count_back_matter": "{count, plural, one {# back matter section} other {# back matter sections}}",
+    "jfix.untitled_chapter": "Untitled chapter",
+    "jfix.import_chapters": "Import chapters",
+    "jfix.ring_no_goal": "{count, plural, one {{words} word, no goal set} other {{words} words, no goal set}}",
+    "jfix.ring_reached": "Goal reached: {words} of {goal} words",
+    "jfix.ring_progress": "{words} of {goal} words, {percent}%",
+    "jfix.goals_label": "Goals — {status}",
+    "jfix.set_word_goal": "Set a word goal",
+    "jfix.suggest": "Suggest",
+    "jfix.suggesting": "Suggesting",
+    "jfix.suggest_title": "Suggest: track what you type and delete, for the author to accept or reject",
+    "jfix.suggesting_title": "Suggesting: what you type and delete is tracked for review. Click to edit directly.",
+    "jfix.suggesting_notice": "Suggesting — what you type and delete is kept as a suggestion to accept or reject.",
+    "jfix.too_short": "The manuscript needs at least {minimum} words to publish ({count, plural, one {# more to go} other {{missing} more to go}}).",
+    "jfix.use_account_name": "Use “{name}”",
+    "jfix.price_label": "Price",
+    "jfix.no_book_title": "Start a book first",
+    "jfix.no_book_body": "{area} works on a book. Start one, or import a manuscript, and it opens here."
 }
