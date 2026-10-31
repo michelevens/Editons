@@ -89,7 +89,7 @@ class SecurityHeaders
             'script-src' => ["'self'", "'nonce-{$nonce}'", ...$hot],
             'style-src' => ["'self'", "'unsafe-inline'", ...$hot],
             'img-src' => ["'self'", 'data:', 'blob:', ...$origins, ...$hot],
-            'font-src' => ["'self'", 'data:', ...$hot],
+            'font-src' => ["'self'", 'data:', ...config('security.csp.font_src', []), ...$hot],
             'connect-src' => ["'self'", ...$origins, ...$hot],
             'media-src' => ["'self'", 'blob:', ...$origins],
             'worker-src' => ["'self'", 'blob:'],
