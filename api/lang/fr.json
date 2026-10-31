@@ -3145,5 +3145,7 @@
     "jfix.import_limit_explain_none": "Un nouveau livre dépasserait l’offre {plan}. Archivez un livre, ou voyez les offres pour avoir plus de livres.",
     "jfix.see_plans": "Voir les offres",
     "jfix.advice_only": "Conseil, pas de correction automatique",
-    "jfix.advice_why": "Ceci demande votre jugement : aucune modification mécanique ne le corrige. Modifiez le texte vous-même si vous êtes d’accord, puis écartez-le."
+    "jfix.advice_why": "Ceci demande votre jugement : aucune modification mécanique ne le corrige. Modifiez le texte vous-même si vous êtes d’accord, puis écartez-le.",
+    "jfix.agent_locked": "{agent} fait partie de l’offre {plan}. Voir les offres.",
+    "jfix.plan_short": "Offre {plan}"
 }

@@ -3150,3 +3150,5 @@ jfix.import_limit_explain_none,"A new book would go over the {plan} plan. Archiv
 jfix.see_plans,See plans,Gade plan yo,Shelf at the plan limit: link to billing,
 jfix.advice_only,"Advice, no automatic fix","Konsèy, pa gen koreksyon otomatik",Review deck: a finding with no replacement wording,
 jfix.advice_why,"This needs your judgement: there is no mechanical change that fixes it. Edit the text yourself if you agree, then dismiss it.","Sa a mande jijman pa w: pa gen chanjman mekanik ki ka korije l. Modifye tèks la tèt ou si ou dakò, epi rejte l.",Review deck: why a finding has no automatic fix,
+jfix.agent_locked,{agent} is part of the {plan} plan. See plans.,{agent} fè pati plan {plan} la. Gade plan yo.,AI panel: a reviewer outside the author's plan,
+jfix.plan_short,{plan} plan,Plan {plan},AI panel: locked reviewer badge naming the plan,

@@ -3145,5 +3145,7 @@
     "jfix.import_limit_explain_none": "Yon nouvo liv ta depase plan {plan} la. Achive yon liv, oswa gade plan yo pou plis liv.",
     "jfix.see_plans": "Gade plan yo",
     "jfix.advice_only": "Konsèy, pa gen koreksyon otomatik",
-    "jfix.advice_why": "Sa a mande jijman pa w: pa gen chanjman mekanik ki ka korije l. Modifye tèks la tèt ou si ou dakò, epi rejte l."
+    "jfix.advice_why": "Sa a mande jijman pa w: pa gen chanjman mekanik ki ka korije l. Modifye tèks la tèt ou si ou dakò, epi rejte l.",
+    "jfix.agent_locked": "{agent} fè pati plan {plan} la. Gade plan yo.",
+    "jfix.plan_short": "Plan {plan}"
 }

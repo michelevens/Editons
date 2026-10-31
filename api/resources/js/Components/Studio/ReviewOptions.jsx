@@ -41,7 +41,8 @@ function money(usd) {
 
 export default function ReviewOptions({ bookId, agents, sections, currentSectionId = null, selection = null, refresh = 0, onDone, onNotify }) {
     const { t, formatNumber } = useI18n();
-    const runnable = agents ?? [];
+    // Agents outside the plan are not offered (ADR — Journey friction fixes).
+    const runnable = (agents ?? []).filter((a) => a.included !== false);
     const firstId = sections[0]?.id ?? null;
     const [agent, setAgent] = useState(runnable.find((a) => a.value === 'copy')?.value ?? runnable[0]?.value ?? '');
     const [scope, setScope] = useState(currentSectionId ? 'chapter' : 'book');

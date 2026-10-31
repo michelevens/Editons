@@ -385,6 +385,9 @@ function AgentList({
                     };
                     const mine = open.filter((f) => f.agent === agent.value);
                     const busy = running === agent.value;
+                    // Outside the plan (ADR — Journey friction fixes): shown
+                    // locked with the plan that unlocks it, never run.
+                    const locked = agent.included === false;
 
                     // Worst open severity drives the badge tone, so a single
                     // critical finding cannot hide behind four suggestions.
@@ -418,17 +421,29 @@ function AgentList({
                                     </p>
                                 </button>
 
-                                <button
-                                    data-a={`ai:run:${agent.value}`}
-                                    onClick={() => onRunAgent(agent.value)}
-                                    disabled={busy}
-                                    title={t('ai.run_agent', { agent: agent.label })}
-                                    className="shrink-0 rounded px-1.5 py-1 text-[11px] font-semibold text-brand-primary transition hover:bg-brand-primary-subtle disabled:opacity-50"
-                                >
-                                    {busy ? <Spinner dark /> : t('ai.run')}
-                                </button>
+                                {locked ? (
+                                    <a
+                                        href={route('billing.show')}
+                                        data-a={`ai:locked:${agent.value}`}
+                                        title={t('jfix.agent_locked', { agent: agent.label, plan: agent.unlocks })}
+                                        className="flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-semibold text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary"
+                                    >
+                                        <Icon name="lock" size={12} />
+                                        {t('jfix.plan_short', { plan: agent.unlocks })}
+                                    </a>
+                                ) : (
+                                    <button
+                                        data-a={`ai:run:${agent.value}`}
+                                        onClick={() => onRunAgent(agent.value)}
+                                        disabled={busy}
+                                        title={t('ai.run_agent', { agent: agent.label })}
+                                        className="shrink-0 rounded px-1.5 py-1 text-[11px] font-semibold text-brand-primary transition hover:bg-brand-primary-subtle disabled:opacity-50"
+                                    >
+                                        {busy ? <Spinner dark /> : t('ai.run')}
+                                    </button>
+                                )}
 
-                                {mine.length > 0 ? (
+                                {locked ? null : mine.length > 0 ? (
                                     <span
                                         className={`grid h-[17px] min-w-[17px] shrink-0 place-items-center rounded-badge px-1 text-[10.5px] font-semibold ${SEVERITY_BADGE[tone]}`}
                                     >

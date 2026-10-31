@@ -113,3 +113,36 @@ it('leaves a filler word that cannot simply be deleted as advice', function () {
     expect($filler)->not->toBeNull()
         ->and($filler->suggestion)->toBeNull();
 });
+
+// 3. Agents outside the plan.
+
+it('tells the studio which agents the plan includes and which plan unlocks the rest', function () {
+    $user = User::factory()->create(['plan' => 'free']);
+    $book = Book::factory()->for($user)->create();
+    App\Models\ManuscriptSection::factory()->for($book)->create();
+
+    $this->actingAs($user)->get("/books/{$book->id}/edit")
+        ->assertInertia(function (Assert $page) {
+            $agents = collect($page->toArray()['props']['agents'])->keyBy('value');
+
+            expect($agents['copy']['included'])->toBeTrue()
+                ->and($agents['copy']['unlocks'])->toBeNull()
+                ->and($agents['fact_checker']['included'])->toBeFalse()
+                ->and($agents['fact_checker']['unlocks'])->toBe(config('billing.plans.author.name'))
+                ->and($agents['subject_matter']['included'])->toBeFalse();
+        });
+
+    $this->actingAs($user)->getJson("/books/{$book->id}/findings")
+        ->assertOk()
+        ->assertJsonPath('agents.0.included', fn ($v) => is_bool($v));
+});
+
+it('includes every agent on the top plan', function () {
+    $user = User::factory()->subscribed('studio')->create();
+    $book = Book::factory()->for($user)->create();
+
+    $agents = collect(App\Editorial\EditorialAgent::catalogue([], $user));
+
+    expect($agents->every(fn ($a) => $a['included'] === true && $a['unlocks'] === null))->toBeTrue()
+        ->and(collect(App\Editorial\EditorialAgent::catalogue())->first())->not->toHaveKey('included');
+});

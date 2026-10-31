@@ -3150,3 +3150,5 @@ jfix.import_limit_explain_none,"A new book would go over the {plan} plan. Archiv
 jfix.see_plans,See plans,Voir les offres,Shelf at the plan limit: link to billing,
 jfix.advice_only,"Advice, no automatic fix","Conseil, pas de correction automatique",Review deck: a finding with no replacement wording,
 jfix.advice_why,"This needs your judgement: there is no mechanical change that fixes it. Edit the text yourself if you agree, then dismiss it.","Ceci demande votre jugement : aucune modification mécanique ne le corrige. Modifiez le texte vous-même si vous êtes d’accord, puis écartez-le.",Review deck: why a finding has no automatic fix,
+jfix.agent_locked,{agent} is part of the {plan} plan. See plans.,{agent} fait partie de l’offre {plan}. Voir les offres.,AI panel: a reviewer outside the author's plan,
+jfix.plan_short,{plan} plan,Offre {plan},AI panel: locked reviewer badge naming the plan,

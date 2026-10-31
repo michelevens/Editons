@@ -278,6 +278,7 @@ class BookController extends Controller
             // a memoir should not have to change the book's type to reach it.
             'agents' => EditorialAgent::catalogue(
                 BookType::find($book->book_type)?->agents() ?? [],
+                $request->user(),
             ),
             // Which pane to open on arrival, so Overview can link straight to
             // a section of the studio rather than always landing on the

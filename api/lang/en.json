@@ -2954,5 +2954,7 @@
     "jfix.import_limit_explain_none": "A new book would go over the {plan} plan. Archive a book, or see the plans for more books.",
     "jfix.see_plans": "See plans",
     "jfix.advice_only": "Advice, no automatic fix",
-    "jfix.advice_why": "This needs your judgement: there is no mechanical change that fixes it. Edit the text yourself if you agree, then dismiss it."
+    "jfix.advice_why": "This needs your judgement: there is no mechanical change that fixes it. Edit the text yourself if you agree, then dismiss it.",
+    "jfix.agent_locked": "{agent} is part of the {plan} plan. See plans.",
+    "jfix.plan_short": "{plan} plan"
 }

@@ -348,10 +348,13 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         if (!section || reviewProgress) return;
 
         let latest = findings;
+        // Only the agents the plan includes (ADR — Journey friction fixes):
+        // the others are shown locked, and asking for them would be refused.
+        const included = agents.filter((agent) => agent.included !== false);
 
-        for (const [index, agent] of agents.entries()) {
+        for (const [index, agent] of included.entries()) {
             setReviewProgress({
-                label: t('ai.reviewing_progress', { title: section.title, n: index + 1, total: agents.length }),
+                label: t('ai.reviewing_progress', { title: section.title, n: index + 1, total: included.length }),
             });
 
             try {
