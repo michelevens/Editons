@@ -3149,5 +3149,22 @@
     "jfix.agent_locked": "{agent} fait partie de l’offre {plan}. Voir les offres.",
     "jfix.plan_short": "Offre {plan}",
     "jfix.citation_source": "Source",
-    "jfix.citation_marker_hint": "La citation dans le texte est insérée après les mots sélectionnés dans le chapitre."
+    "jfix.citation_marker_hint": "La citation dans le texte est insérée après les mots sélectionnés dans le chapitre.",
+    "shortcut.editor.history": "Historique des versions",
+    "jfix.restore": "Restaurer",
+    "jfix.restore_title": "Restaurer cette version ?",
+    "jfix.restore_message": "Votre texte actuel est d’abord enregistré dans l’historique : vous pourrez y revenir.",
+    "jfix.version_reason_autosave": "Enregistrement automatique",
+    "jfix.version_reason_manual": "Enregistré par vous",
+    "jfix.version_reason_import": "Importé",
+    "jfix.version_reason_restore": "Restauré",
+    "jfix.version_reason_ai_suggestion": "Suggestion d’IA appliquée",
+    "jfix.version_reason_ai_draft": "Brouillon d’IA",
+    "jfix.version_reason_typography": "Typographie corrigée",
+    "jfix.version_reason_review": "Modifications suggérées tranchées",
+    "jfix.version_reason_other": "Enregistré",
+    "jfix.first_run_note": "Juste vous et la page. Les chapitres, l’éditeur IA et tout le reste sont dans le studio complet.",
+    "jfix.open_full_studio": "Ouvrir le studio complet",
+    "jfix.on_sale_storefront": "En vente sur votre boutique",
+    "jfix.on_sale_storefront_and_stores": "En vente sur votre boutique et dans {count, plural, one {# librairie} other {# librairies}}"
 }

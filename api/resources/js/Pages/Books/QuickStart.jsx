@@ -27,6 +27,7 @@ export default function QuickStart({ recent }) {
     const { data, setData, post, processing, errors } = useForm({
         title: '',
         started_with: 'blank',
+        quick: true,
     });
 
     const submit = (event) => {
@@ -42,7 +43,7 @@ export default function QuickStart({ recent }) {
                 <div className="flex items-center gap-2.5">
                     <img src="/brand/symbol.svg" alt="" width={28} height={28} />
                     <span className="font-display text-[21px] font-bold tracking-[-0.01em] text-text-primary">
-                        Ecrivain
+                        Écrivain
                     </span>
                 </div>
 

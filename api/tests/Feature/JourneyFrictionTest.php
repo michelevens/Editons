@@ -282,3 +282,89 @@ it('leaves exports unchanged for a book with no cited sources, or one with its o
     // And the book's setting can turn the generated list off.
     expect(App\Research\BookReferences::section(tap($book->fresh())->forceFill(['settings' => ['references' => false]])))->toBeNull();
 });
+
+// 6. Version history: its own entry and shortcut, translated labels.
+
+it('registers a version history shortcut that collides with nothing', function () {
+    $registry = json_decode(file_get_contents(resource_path('js/prefs.json')), true);
+    $history = collect($registry['shortcuts'])->firstWhere('id', 'editor.history');
+
+    expect($history)->not->toBeNull()
+        ->and($history['scope'])->toBe('editor');
+
+    $taken = collect($registry['shortcuts'])
+        ->reject(fn ($s) => $s['id'] === 'editor.history')
+        ->whereIn('scope', ['editor', 'global'])
+        ->flatMap(fn ($s) => $s['keys']);
+
+    expect($taken->intersect($history['keys']))->toBeEmpty()
+        ->and(array_keys($registry['reserved']))->not->toContain($history['keys'][0]);
+});
+
+it('labels every reason a version is saved with, in all three languages', function () {
+    $reasons = ['autosave', 'manual', 'import', 'restore', 'ai_suggestion', 'ai_draft', 'typography', 'review'];
+
+    foreach (['en', 'fr', 'ht'] as $locale) {
+        $catalogue = json_decode(file_get_contents(lang_path("{$locale}.json")), true);
+
+        foreach ($reasons as $reason) {
+            expect($catalogue)->toHaveKey("jfix.version_reason_{$reason}");
+        }
+    }
+
+    // Restore asks in the app's dialog, not the browser's.
+    expect(file_get_contents(resource_path('js/Pages/Books/Editor.jsx')))
+        ->not->toContain("confirm('Restore this version?");
+});
+
+it('restores a version and keeps the current text in history first', function () {
+    $user = User::factory()->create();
+    $section = App\Models\ManuscriptSection::factory()->for(Book::factory()->for($user))->create(['content' => jfixDoc('First draft.')]);
+    $writer = app(App\Services\ManuscriptWriter::class);
+    // The snapshot keeps the text as it was before the save.
+    $writer->save($section, jfixDoc('Second draft.'), reason: 'manual', userId: $user->id);
+    $first = $section->versions()->latest('version_number')->first();
+
+    $this->actingAs($user)
+        ->postJson("/sections/{$section->id}/versions/{$first->id}/restore")
+        ->assertOk();
+
+    expect($section->fresh()->plainText())->toBe('First draft.')
+        ->and($section->versions()->pluck('reason'))->toContain('restore');
+});
+
+// 7. Quick Start opens a focused writing view, once.
+
+it('opens a first Quick Start book in the focused writing view, and later books as before', function () {
+    $user = User::factory()->subscribed('author')->create();
+
+    $first = $this->actingAs($user)->post('/books', ['title' => 'First', 'started_with' => 'blank', 'quick' => true]);
+    $book = $user->books()->first();
+    $first->assertRedirect(route('books.edit', ['book' => $book, 'start' => 'focus']));
+
+    // A second book from Quick Start, or any book from the full form: the studio.
+    $this->actingAs($user)->post('/books', ['title' => 'Second', 'quick' => true])
+        ->assertRedirect(route('books.edit', $user->books()->where('title', 'Second')->first()));
+
+    $other = User::factory()->create();
+    $this->actingAs($other)->post('/books', ['title' => 'Plain'])
+        ->assertRedirect(route('books.edit', $other->books()->first()));
+});
+
+// 8. The sales header reflects the storefront.
+
+it('counts the author storefront as on sale in the sales status', function () {
+    $user = User::factory()->create();
+    $product = partnerProduct($user, rate: null);
+    $book = $product->book;
+
+    $this->actingAs($user)->getJson("/books/{$book->id}/sales")
+        ->assertOk()
+        ->assertJsonPath('status.storefront', true)
+        ->assertJsonPath('status.live', 0);
+
+    $product->forceFill(['published_at' => null])->save();
+
+    $this->actingAs($user)->getJson("/books/{$book->id}/sales")
+        ->assertJsonPath('status.storefront', false);
+});

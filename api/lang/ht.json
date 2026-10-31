@@ -3149,5 +3149,22 @@
     "jfix.agent_locked": "{agent} fè pati plan {plan} la. Gade plan yo.",
     "jfix.plan_short": "Plan {plan}",
     "jfix.citation_source": "Sous",
-    "jfix.citation_marker_hint": "Sitasyon an ap antre apre mo ou te chwazi nan chapit la."
+    "jfix.citation_marker_hint": "Sitasyon an ap antre apre mo ou te chwazi nan chapit la.",
+    "shortcut.editor.history": "Istwa vèsyon yo",
+    "jfix.restore": "Retabli",
+    "jfix.restore_title": "Retabli vèsyon sa a?",
+    "jfix.restore_message": "Tèks ou genyen kounye a ap anrejistre nan istwa a anvan, pou ou ka retounen sou li.",
+    "jfix.version_reason_autosave": "Anrejistre otomatikman",
+    "jfix.version_reason_manual": "Ou te anrejistre l",
+    "jfix.version_reason_import": "Enpòte",
+    "jfix.version_reason_restore": "Retabli",
+    "jfix.version_reason_ai_suggestion": "Sijesyon IA aplike",
+    "jfix.version_reason_ai_draft": "Bouyon IA",
+    "jfix.version_reason_typography": "Tipografi korije",
+    "jfix.version_reason_review": "Chanjman sijere yo deside",
+    "jfix.version_reason_other": "Anrejistre",
+    "jfix.first_run_note": "Se ou menm ak paj la sèlman. Chapit yo, editè IA a ak tout lòt bagay yo nan estidyo konplè a.",
+    "jfix.open_full_studio": "Louvri estidyo konplè a",
+    "jfix.on_sale_storefront": "An vant sou boutik ou",
+    "jfix.on_sale_storefront_and_stores": "An vant sou boutik ou ak nan {count} magazen"
 }

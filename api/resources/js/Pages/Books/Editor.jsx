@@ -45,7 +45,9 @@ import {
     SIZE_LIMITS,
     useWorkspace,
 } from '@/Components/Studio/workspace';
-import { matches, usePrefs } from '@/shortcuts';
+import { ariaKeys, matches, shortcutLabel as keyLabel, usePrefs } from '@/shortcuts';
+import ConfirmDialog from '@/Components/ConfirmDialog';
+import VersionHistory from '@/Components/Studio/VersionHistory';
 import { t } from '@/i18n';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -161,6 +163,27 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // top takes Escape first; see Components/Dialog).
     const [focusMode, setFocusMode] = useState(false);
 
+    // Arriving from Quick Start with a first book (?start=focus): the page
+    // it promised, the canvas alone at a comfortable width, and a plain way
+    // to the full studio (ADR — Journey friction fixes). Once: the address
+    // loses the flag, so a reload or a later visit opens the studio.
+    const [firstRun, setFirstRun] = useState(false);
+
+    useEffect(() => {
+        const url = new URL(window.location.href);
+
+        if (url.searchParams.get('start') !== 'focus') return;
+
+        url.searchParams.delete('start');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+        setFocusMode(true);
+        setFirstRun(true);
+    }, []);
+
+    useEffect(() => {
+        if (!focusMode) setFirstRun(false);
+    }, [focusMode]);
+
     // The panel shortcuts (workspace.js SHORTCUTS), through a ref so the
     // listener is added once and still calls today's handlers.
     const shortcuts = useRef({});
@@ -174,6 +197,10 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 setFocusMode((on) => !on);
             } else if (matches('view.leave', event)) {
                 setFocusMode(false);
+            } else if (matches('editor.history', event) && shortcuts.current.history) {
+                // Version history has its own key (ADR — Journey friction fixes).
+                event.preventDefault();
+                shortcuts.current.history();
             } else {
                 for (const name of ['outline', 'right', 'bottom']) {
                     if (SHORTCUTS[name].match(event) && shortcuts.current[name]) {
@@ -438,13 +465,29 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         }
     };
 
-    const restore = async (versionId) => {
-        if (
-            !confirm('Restore this version? Your current text is saved to history first.')
-        ) {
-            return;
-        }
+    // Version history: its own dialog and shortcut, and Restore asks in the
+    // app's dialog rather than the browser's (ADR — Journey friction fixes).
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [restoring, setRestoring] = useState(null);
 
+    const restore = (versionId) => setRestoring({ id: versionId, busy: false });
+
+    const confirmRestore = async () => {
+        const versionId = restoring?.id;
+
+        if (!versionId) return;
+
+        setRestoring((current) => ({ ...current, busy: true }));
+
+        try {
+            await restoreNow(versionId);
+            setHistoryOpen(false);
+        } finally {
+            setRestoring(null);
+        }
+    };
+
+    const restoreNow = async (versionId) => {
         const res = await window.axios.post(
             `/sections/${section.id}/versions/${versionId}/restore`,
         );
@@ -657,6 +700,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
               outline: () => (window.matchMedia('(min-width: 768px)').matches ? togglePanel('outline') : setBinderOpen((open) => !open)),
               right: () => (wide() ? togglePanel('right') : setPanelOpen((open) => !open)),
               bottom: () => togglePanel('bottom'),
+              history: section ? () => setHistoryOpen(true) : null,
           }
         : {};
 
@@ -680,6 +724,14 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             icon: 'expand',
             shortcut: shortcutLabel('focus'),
             run: () => setFocusMode((on) => !on),
+        });
+        list.push({
+            key: 'view:history',
+            label: t('versions.title'),
+            group: 'View',
+            icon: 'flow',
+            shortcut: keyLabel('editor.history'),
+            run: () => setHistoryOpen(true),
         });
         list.push({
             key: 'view:swap',
@@ -826,6 +878,22 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
                 <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none sm:p-[11px]">
                     {house && <HouseBanner house={house} />}
+                    {focused && firstRun && (
+                        <div
+                            data-a="editor:first-run"
+                            className="mx-auto mb-2 flex w-full max-w-[860px] flex-wrap items-center gap-x-3 gap-y-1.5 rounded-control bg-brand-primary-subtle px-3.5 py-2 text-[12.5px] text-outline-active-text max-sm:mx-2 max-sm:w-auto"
+                        >
+                            <span className="min-w-0 flex-1">{t('jfix.first_run_note')}</span>
+                            <button
+                                type="button"
+                                data-a="editor:open-studio"
+                                onClick={() => setFocusMode(false)}
+                                className="min-h-[32px] shrink-0 rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white hover:bg-brand-primary-hover"
+                            >
+                                {t('jfix.open_full_studio')}
+                            </button>
+                        </div>
+                    )}
                     {/* Above the panes: this is where credits are spent, so
                         this is where the balance belongs. */}
                     {/* Not on a phone: forty pixels of a 390px screen, on
@@ -1091,6 +1159,18 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                                 />
                                                 <button
                                                     type="button"
+                                                    data-a="editor:history"
+                                                    onClick={() => setHistoryOpen(true)}
+                                                    aria-haspopup="dialog"
+                                                    aria-keyshortcuts={ariaKeys('editor.history')}
+                                                    title={`${t('versions.title')} (${keyLabel('editor.history')})`}
+                                                    className="grid h-7 w-7 shrink-0 place-items-center rounded-control text-text-secondary transition hover:bg-bg-subtle hover:text-text-primary max-md:h-9 max-md:w-9"
+                                                >
+                                                    <Icon name="flow" size={15} />
+                                                    <span className="sr-only">{t('versions.title')}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     data-a="editor:focus-mode"
                                                     onClick={() => setFocusMode((on) => !on)}
                                                     aria-pressed={focused}
@@ -1304,6 +1384,26 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         <AIEditorPanel {...panelProps} visibleTabs={layout.subpanels.rightTabs} />
                     </div>
                 </Dialog>
+            )}
+
+            {historyOpen && section && (
+                <VersionHistory
+                    title={section.title}
+                    versions={versions}
+                    onRestore={restore}
+                    onClose={() => setHistoryOpen(false)}
+                />
+            )}
+
+            {restoring && (
+                <ConfirmDialog
+                    title={t('jfix.restore_title')}
+                    message={t('jfix.restore_message')}
+                    confirmLabel={t('jfix.restore')}
+                    busy={restoring.busy}
+                    onConfirm={confirmRestore}
+                    onCancel={() => setRestoring(null)}
+                />
             )}
 
             {goals && (

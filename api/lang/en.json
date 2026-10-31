@@ -2958,5 +2958,22 @@
     "jfix.agent_locked": "{agent} is part of the {plan} plan. See plans.",
     "jfix.plan_short": "{plan} plan",
     "jfix.citation_source": "Source",
-    "jfix.citation_marker_hint": "The in-text citation goes in after the words you selected in the chapter."
+    "jfix.citation_marker_hint": "The in-text citation goes in after the words you selected in the chapter.",
+    "shortcut.editor.history": "Version history",
+    "jfix.restore": "Restore",
+    "jfix.restore_title": "Restore this version?",
+    "jfix.restore_message": "Your current text is saved to history first, so you can come back to it.",
+    "jfix.version_reason_autosave": "Autosaved",
+    "jfix.version_reason_manual": "Saved by you",
+    "jfix.version_reason_import": "Imported",
+    "jfix.version_reason_restore": "Restored",
+    "jfix.version_reason_ai_suggestion": "AI suggestion applied",
+    "jfix.version_reason_ai_draft": "AI draft",
+    "jfix.version_reason_typography": "Typography corrected",
+    "jfix.version_reason_review": "Suggested changes decided",
+    "jfix.version_reason_other": "Saved",
+    "jfix.first_run_note": "Just you and the page. The chapters, the AI editor and everything else are in the full studio.",
+    "jfix.open_full_studio": "Open the full studio",
+    "jfix.on_sale_storefront": "On sale on your storefront",
+    "jfix.on_sale_storefront_and_stores": "On sale on your storefront and in {count, plural, one {# store} other {# stores}}"
 }
