@@ -169,7 +169,7 @@ class AiEditorController extends Controller
             if ($data['action'] === 'accept' && $finding->suggestion) {
                 try {
                     $section = $applier->apply($finding, $user->id);
-                    $appliedVersion = $section->versions()->where('reason', 'ai_suggestion')->value('id');
+                    $appliedVersion = $applier->snapshotOf($section);
                 } catch (RuntimeException $e) {
                     $skipped[] = ['id' => $finding->id, 'message' => $e->getMessage()];
 

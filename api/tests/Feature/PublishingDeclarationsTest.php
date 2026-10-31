@@ -165,9 +165,9 @@ it('suggests AI answers from the book\'s provenance and records the author\'s ow
     expect(AiDisclosure::for($book)['suggested'])->toBe(['text' => 'none', 'images' => 'none', 'translations' => 'none'])
         ->and(app(SubmissionCheck::class)->errors($book))->toHaveKey('ai_disclosure');
 
-    // An accepted AI fix is AI-assisted.
+    // An accepted AI fix (a model's: a sample driver's is not AI) is AI-assisted.
     $version = ManuscriptVersion::create(['manuscript_section_id' => $section->id, 'version_number' => 50, 'title' => 'One', 'content' => $section->content, 'word_count' => 1, 'reason' => 'ai_suggestion']);
-    $review = EditorialReview::create(['manuscript_section_id' => $section->id, 'agent' => 'copy', 'status' => 'completed', 'driver' => 'fake']);
+    $review = EditorialReview::create(['manuscript_section_id' => $section->id, 'agent' => 'copy', 'status' => 'completed', 'driver' => 'anthropic', 'model' => 'claude-sonnet-5-5']);
     EditorialFinding::create([
         'editorial_review_id' => $review->id, 'manuscript_section_id' => $section->id, 'agent' => 'copy',
         'severity' => 'suggestion', 'title' => 'Tighten', 'detail' => 'd', 'status' => 'accepted', 'applied_version_id' => $version->id,

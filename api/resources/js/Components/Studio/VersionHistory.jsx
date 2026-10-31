@@ -3,8 +3,14 @@ import { useI18n } from '@/i18n';
 
 /** Why a version was saved, in words (ADR — Journey friction fixes). */
 const REASONS = ['autosave', 'manual', 'import', 'restore', 'ai_suggestion', 'ai_draft', 'typography', 'review'];
+// A check's fix (not AI) and a manuscript-wide replace (ADR — Author walkthrough fixes).
+const MORE_REASONS = ['check_fix', 'replace'];
 
 export function versionReason(t, reason) {
+    if (MORE_REASONS.includes(reason)) {
+        return t(`fric.version_reason_${reason}`);
+    }
+
     return REASONS.includes(reason) ? t(`jfix.version_reason_${reason}`) : t('jfix.version_reason_other');
 }
 

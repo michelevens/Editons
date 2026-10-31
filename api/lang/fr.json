@@ -3193,5 +3193,9 @@
     "jfix.use_account_name": "Utiliser « {name} »",
     "jfix.price_label": "Prix",
     "jfix.no_book_title": "Commencez d’abord un livre",
-    "jfix.no_book_body": "{area} fonctionne sur un livre. Commencez-en un, ou importez un manuscrit, et il s’ouvrira ici."
+    "jfix.no_book_body": "{area} fonctionne sur un livre. Commencez-en un, ou importez un manuscrit, et il s’ouvrira ici.",
+    "fric.version_reason_check_fix": "Correction appliquée (vérification automatique)",
+    "fric.version_reason_replace": "Rechercher et remplacer",
+    "fric.coming_soon": "Bientôt disponible",
+    "fric.draft_soon_blurb": "La rédaction par IA à partir de vos notes et de votre plan n’est pas encore disponible."
 }

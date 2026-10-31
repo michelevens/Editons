@@ -213,8 +213,10 @@ it('records an accepted suggestion as AI-written, not as a manual edit', functio
     // and no later work recovers which was which.
     $section = sectionWithText('The the decision was made early.');
     $finding = findingOn($section, 'The the', 'The');
+    // A model's finding; the sample driver's fixes are `check_fix` (ADR — Author walkthrough fixes).
+    $finding->review->update(['driver' => 'anthropic', 'model' => 'claude-sonnet-5-5']);
 
-    app(SuggestionApplier::class)->apply($finding);
+    app(SuggestionApplier::class)->apply($finding->fresh());
 
     expect($section->versions()->latest('version_number')->first()->reason)
         ->toBe('ai_suggestion');

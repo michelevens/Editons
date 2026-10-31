@@ -15,7 +15,8 @@ use App\Models\User;
  * (the author's own content, edited or checked with AI). The app keeps
  * provenance for each kind of AI it applies: a chapter drafted by AI is
  * saved with a version of reason `ai_draft`; an accepted AI fix points at
- * the version it replaced (`applied_version_id`); an AI cover records its
+ * the version it replaced (`applied_version_id`) and its review records
+ * the driver and model that wrote it; an AI cover records its
  * model in `artwork_source`. This reads those records, shows them as
  * evidence, and suggests the answer they support.
  *
@@ -31,10 +32,24 @@ class AiDisclosure
     {
         $sections = $book->sections()->withTrashed()->pluck('id');
         $drafts = ManuscriptVersion::whereIn('manuscript_section_id', $sections)->where('reason', 'ai_draft');
-        $fixes = EditorialFinding::whereIn('manuscript_section_id', $sections)
+        // Only fixes a model wrote. A deterministic check's fix, or the
+        // sample driver's, is not AI (EditorialFinding::fromModel).
+        $fixes = EditorialFinding::with('review')
+            ->whereIn('manuscript_section_id', $sections)
             ->where('status', 'accepted')
-            ->whereNotNull('applied_version_id');
-        $inline = ManuscriptVersion::whereIn('manuscript_section_id', $sections)->where('reason', 'ai_suggestion');
+            ->whereNotNull('applied_version_id')
+            ->get()
+            ->filter(fn (EditorialFinding $f) => $f->fromModel());
+        // AI wording applied other than as an accepted fix. Each applied fix
+        // leaves an `ai_suggestion` version too ("Applied: <title>"); it was
+        // counted again here, so five fixes read as ten AI edits.
+        $linked = EditorialFinding::whereIn('manuscript_section_id', $sections)
+            ->whereNotNull('applied_version_id')
+            ->pluck('applied_version_id');
+        $inline = ManuscriptVersion::whereIn('manuscript_section_id', $sections)
+            ->where('reason', 'ai_suggestion')
+            ->whereNotIn('id', $linked)
+            ->where(fn ($q) => $q->whereNull('label')->orWhere('label', 'not like', 'Applied: %'));
         $source = ($book->cover ?? [])['artwork_source'] ?? null;
         $aiCover = is_array($source) && ($source['type'] ?? null) === 'ai' && ! empty(($book->cover ?? [])['artwork']);
 

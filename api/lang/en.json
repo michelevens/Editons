@@ -3002,5 +3002,9 @@
     "jfix.use_account_name": "Use “{name}”",
     "jfix.price_label": "Price",
     "jfix.no_book_title": "Start a book first",
-    "jfix.no_book_body": "{area} works on a book. Start one, or import a manuscript, and it opens here."
+    "jfix.no_book_body": "{area} works on a book. Start one, or import a manuscript, and it opens here.",
+    "fric.version_reason_check_fix": "Fix applied (automatic check)",
+    "fric.version_reason_replace": "Find and replace",
+    "fric.coming_soon": "Coming soon",
+    "fric.draft_soon_blurb": "AI drafting from your notes and outline is not available yet."
 }

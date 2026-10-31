@@ -460,7 +460,8 @@ it('accepts or dismisses many at once, after confirmation, only in this book', f
         ->assertOk()->assertJsonPath('done', 2);
     expect($repeated->section->fresh()->plainText())->toContain('The end came')
         ->and($repeated->fresh()->applied_version_id)->not->toBeNull()
-        ->and($repeated->section->versions()->where('reason', 'ai_suggestion')->exists())->toBeTrue();
+        // The sample driver's fix is not AI: saved as `check_fix`.
+        ->and($repeated->section->versions()->where('reason', 'check_fix')->exists())->toBeTrue();
 
     // A reviewer may not triage.
     $reviewer = User::factory()->create();

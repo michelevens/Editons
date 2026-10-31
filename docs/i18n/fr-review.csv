@@ -3198,3 +3198,7 @@ jfix.use_account_name,Use “{name}”,Utiliser « {name} »,Store listing: offe
 jfix.price_label,Price,Prix,Product editor: price input label,
 jfix.no_book_title,Start a book first,Commencez d’abord un livre,Shelf: a book screen chosen with no book,
 jfix.no_book_body,"{area} works on a book. Start one, or import a manuscript, and it opens here.","{area} fonctionne sur un livre. Commencez-en un, ou importez un manuscrit, et il s’ouvrira ici.",Shelf: explanation when a book screen is chosen with no book,
+fric.version_reason_check_fix,Fix applied (automatic check),Correction appliquée (vérification automatique),"Version history: a deterministic check's fix, not AI",
+fric.version_reason_replace,Find and replace,Rechercher et remplacer,Version history: snapshot before a manuscript-wide replace,
+fric.coming_soon,Coming soon,Bientôt disponible,Assistance picker: badge on an option not built yet,
+fric.draft_soon_blurb,AI drafting from your notes and outline is not available yet.,La rédaction par IA à partir de vos notes et de votre plan n’est pas encore disponible.,Assistance picker: why “Draft with me” cannot be chosen,

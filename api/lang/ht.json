@@ -3193,5 +3193,9 @@
     "jfix.use_account_name": "Itilize “{name}”",
     "jfix.price_label": "Pri",
     "jfix.no_book_title": "Kòmanse yon liv anvan",
-    "jfix.no_book_body": "{area} mache sou yon liv. Kòmanse youn, oswa enpòte yon maniskri, epi l ap louvri isit la."
+    "jfix.no_book_body": "{area} mache sou yon liv. Kòmanse youn, oswa enpòte yon maniskri, epi l ap louvri isit la.",
+    "fric.version_reason_check_fix": "Koreksyon aplike (verifikasyon otomatik)",
+    "fric.version_reason_replace": "Chèche epi ranplase",
+    "fric.coming_soon": "Byento disponib",
+    "fric.draft_soon_blurb": "Redaksyon pa IA apati nòt ak plan ou poko disponib."
 }
