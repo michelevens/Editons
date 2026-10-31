@@ -4418,7 +4418,7 @@ previewed, guests refused; chosen types incl. part, front and back matter,
 unchosen stay chapters, unknown type refused),
 `tests/Browser/ops.spec.js` (both flows at 1440 and 390 px).
 
-## ADR-00XX — Journey friction fixes
+## ADR-0056 — Journey friction fixes
 
 **Status:** accepted (2026-10-31). Number assigned at merge.
 
