@@ -24,11 +24,14 @@ export default function Index({
     default_book_type: defaultBookType = null,
     house = null,
     shelf,
+    import_into: importInto = null,
 }) {
     const { auth } = usePage().props;
     const { t, formatNumber } = useI18n();
     const [creating, setCreating] = useState(false);
     const [importing, setImporting] = useState(false);
+    const [importingInto, setImportingInto] = useState(false);
+    const [limitOpen, setLimitOpen] = useState(false);
     const totalWords = counts.words ?? books.reduce((sum, book) => sum + (book.word_count ?? 0), 0);
 
     // Order and labels follow the design: All first, then the three states.
@@ -87,18 +90,24 @@ export default function Index({
                      * A quiet link rather than a second button: the full
                      * form is the right default for most people here.
                      */}
-                    {canCreate && !creating && (
+                    {!creating && (
                         <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
-                            <button
-                                data-a="books:quick"
-                                onClick={() => router.get(route('books.quick'))}
-                                className="text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
-                            >
-                                {t('shelf.quick')}
-                            </button>
+                            {canCreate && (
+                                <button
+                                    data-a="books:quick"
+                                    onClick={() => router.get(route('books.quick'))}
+                                    className="text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
+                                >
+                                    {t('shelf.quick')}
+                                </button>
+                            )}
+                            {/* At the plan's limit the import stays in view and
+                                explains itself (ADR — Journey friction fixes)
+                                rather than disappearing. */}
                             <button
                                 data-a="books:import"
-                                onClick={() => setImporting(true)}
+                                onClick={() => (canCreate ? setImporting(true) : setLimitOpen((open) => !open))}
+                                aria-expanded={canCreate ? undefined : limitOpen}
                                 className="text-[12.5px] font-medium text-text-secondary transition hover:text-brand-primary"
                             >
                                 {t('shelf.import')}
@@ -118,10 +127,51 @@ export default function Index({
                         />
                     )}
 
+                    {importingInto && importInto && (
+                        <ImportDialog
+                            title={t('jfix.import_into_title', { title: importInto.title })}
+                            hint={t('jfix.import_into_hint')}
+                            url={`/books/${importInto.id}/import`}
+                            accept=".md,.markdown,.txt,.docx"
+                            doneLabel={t('shelf.open_book')}
+                            onClose={() => setImportingInto(false)}
+                            onDone={() => router.visit(route('books.edit', importInto.id))}
+                        />
+                    )}
+
                     {!canCreate && (
-                        <p className="mt-3 rounded-control bg-status-warning-bg px-3.5 py-2.5 text-[12.5px] text-status-warning">
-                            {t('shelf.plan_limit_note', { plan: plan.name, count: plan.books })}
-                        </p>
+                        <div
+                            data-a="books:limit"
+                            className="mt-3 rounded-control bg-status-warning-bg px-3.5 py-2.5 text-[12.5px] text-status-warning"
+                        >
+                            <p>{t('shelf.plan_limit_note', { plan: plan.name, count: plan.books })}</p>
+                            {limitOpen && (
+                                <p className="mt-1.5 text-text-body">
+                                    {importInto
+                                        ? t('jfix.import_limit_explain', { plan: plan.name, title: importInto.title })
+                                        : t('jfix.import_limit_explain_none', { plan: plan.name })}
+                                </p>
+                            )}
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {importInto && (
+                                    <button
+                                        type="button"
+                                        data-a="books:import-into"
+                                        onClick={() => setImportingInto(true)}
+                                        className="min-h-[32px] rounded-control bg-brand-fill px-3 text-[12.5px] font-semibold text-white hover:bg-brand-primary-hover"
+                                    >
+                                        {t('jfix.import_into', { title: importInto.title })}
+                                    </button>
+                                )}
+                                <Link
+                                    href={route('billing.show')}
+                                    data-a="books:see-plans"
+                                    className="inline-flex min-h-[32px] items-center rounded-control border border-border-input bg-bg-surface px-3 text-[12.5px] font-medium text-text-primary hover:bg-bg-subtle"
+                                >
+                                    {t('jfix.see_plans')}
+                                </Link>
+                            </div>
+                        </div>
                     )}
 
                     {creating && (

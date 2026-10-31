@@ -100,8 +100,16 @@ class BookController extends Controller
             // The author's usual kind of book, so the flow opens on it
             // rather than asking a question they have already answered.
             'default_book_type' => $user->default_book_type,
-            'can_create' => $user->canCreateBook(),
+            'can_create' => $canCreate = $user->canCreateBook(),
             'plan' => $user->planLimits(),
+            // At the plan's limit the shelf still offers an import (ADR —
+            // Journey friction fixes): into the book the author already has,
+            // through the binder's import, rather than hiding the door.
+            'import_into' => $canCreate ? null : $user->books()
+                ->where('status', '!=', 'archived')
+                ->latest('updated_at')
+                ->first(['id', 'title'])
+                ?->only(['id', 'title']),
         ]);
     }
 

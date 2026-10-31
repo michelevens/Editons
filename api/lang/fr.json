@@ -3136,5 +3136,12 @@
     "import.type_chapter": "Chapitre",
     "import.type_back_matter": "Pages de fin",
     "Imported from “:file”, written with an AI tool": "Importé de « :file », écrit avec un outil d’IA",
-    "Imported from pasted text, written with an AI tool": "Importé d’un texte collé, écrit avec un outil d’IA"
+    "Imported from pasted text, written with an AI tool": "Importé d’un texte collé, écrit avec un outil d’IA",
+    "jfix.register_free_plan": "L’offre gratuite comprend {books, plural, one {# livre} other {# livres}} et {credits} crédits IA par mois, sans carte bancaire. Rien n’est facturé tant que vous ne choisissez pas une offre payante.",
+    "jfix.import_into": "Importer plutôt dans {title}",
+    "jfix.import_into_title": "Importer des chapitres dans {title}",
+    "jfix.import_into_hint": "Un fichier Markdown (.md) ou Word (.docx). Ses chapitres sont ajoutés après ceux du livre ; rien n’est remplacé.",
+    "jfix.import_limit_explain": "Un nouveau livre dépasserait l’offre {plan}. Vous pouvez importer le fichier dans {title} (ses chapitres sont ajoutés à la fin), ou voir les offres pour avoir plus de livres.",
+    "jfix.import_limit_explain_none": "Un nouveau livre dépasserait l’offre {plan}. Archivez un livre, ou voyez les offres pour avoir plus de livres.",
+    "jfix.see_plans": "Voir les offres"
 }

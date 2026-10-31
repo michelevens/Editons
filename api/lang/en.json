@@ -2945,5 +2945,12 @@
     "import.type_front_matter": "Front matter",
     "import.type_part": "Part",
     "import.type_chapter": "Chapter",
-    "import.type_back_matter": "Back matter"
+    "import.type_back_matter": "Back matter",
+    "jfix.register_free_plan": "The free plan includes {books, plural, one {# book} other {# books}} and {credits} AI credits a month, and needs no card. Nothing is charged unless you choose a paid plan.",
+    "jfix.import_into": "Import into {title} instead",
+    "jfix.import_into_title": "Import chapters into {title}",
+    "jfix.import_into_hint": "A Markdown (.md) or Word (.docx) file. Its chapters are added after the ones already in the book; nothing is replaced.",
+    "jfix.import_limit_explain": "A new book would go over the {plan} plan. You can import the file into {title} instead (its chapters are added at the end), or see the plans for more books.",
+    "jfix.import_limit_explain_none": "A new book would go over the {plan} plan. Archive a book, or see the plans for more books.",
+    "jfix.see_plans": "See plans"
 }

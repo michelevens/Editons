@@ -3136,5 +3136,12 @@
     "import.type_chapter": "Chapit",
     "import.type_back_matter": "Paj dèyè",
     "Imported from “:file”, written with an AI tool": "Enpòte soti nan “:file”, ekri ak yon zouti IA",
-    "Imported from pasted text, written with an AI tool": "Enpòte soti nan tèks ki kole, ekri ak yon zouti IA"
+    "Imported from pasted text, written with an AI tool": "Enpòte soti nan tèks ki kole, ekri ak yon zouti IA",
+    "jfix.register_free_plan": "Plan gratis la gen {books} liv ak {credits} kredi IA chak mwa, san kat. Yo p ap fè ou peye anyen toutotan ou pa chwazi yon plan peyan.",
+    "jfix.import_into": "Enpòte nan {title} pito",
+    "jfix.import_into_title": "Enpòte chapit nan {title}",
+    "jfix.import_into_hint": "Yon fichye Markdown (.md) oswa Word (.docx). Chapit li yo ajoute apre sa ki deja nan liv la; anyen pa ranplase.",
+    "jfix.import_limit_explain": "Yon nouvo liv ta depase plan {plan} la. Ou ka enpòte fichye a nan {title} pito (chapit li yo ajoute nan fen), oswa gade plan yo pou plis liv.",
+    "jfix.import_limit_explain_none": "Yon nouvo liv ta depase plan {plan} la. Achive yon liv, oswa gade plan yo pou plis liv.",
+    "jfix.see_plans": "Gade plan yo"
 }
