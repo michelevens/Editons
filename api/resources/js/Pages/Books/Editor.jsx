@@ -360,6 +360,65 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
     const chapters = useMemo(() => flatten(binder), [binder]);
 
+    // Agents that did not finish in the last review of this chapter, each
+    // with a retry: a failed agent is shown, never silently missing (ADR —
+    // AI writer round 2).
+    const [reviewFailures, setReviewFailures] = useState([]);
+
+    useEffect(() => setReviewFailures([]), [section?.id]);
+
+    /**
+     * One agent over the open chapter. A real provider (or the web
+     * fact-check) answers 202 with a run on the worker, followed here until
+     * it ends; sample output answers at once. Resolves to 'completed',
+     * 'failed' (with `unavailable` when the provider is down) or 'refused'.
+     */
+    const reviewOnce = async (agent, body) => {
+        const res = await window.axios.post(`/sections/${section.id}/review`, { agent, ...body });
+
+        setFindings(res.data.findings);
+        setCredits(res.data.billing?.credits ?? null);
+
+        if (res.status !== 202) {
+            return { status: res.data.review?.status ?? 'completed', unavailable: res.data.review?.unavailable ?? null };
+        }
+
+        let data = { run: res.data.run, reviews: [] };
+        const deadline = Date.now() + 20 * 60 * 1000;
+
+        while (['queued', 'running'].includes(data.run?.status) && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+
+            try {
+                ({ data } = await window.axios.get(`/editorial-runs/${res.data.run.id}`));
+            } catch {
+                // Try again on the next tick.
+            }
+        }
+
+        setCredits(data.billing?.credits ?? null);
+
+        const f = await window.axios.get(`/sections/${section.id}/findings`);
+        setFindings(f.data.findings);
+
+        const review = data.reviews?.find((r) => r.agent === agent) ?? data.reviews?.[0];
+
+        if (data.run?.status !== 'completed' || !review || review.status === 'failed') {
+            return { status: 'failed', unavailable: review?.unavailable ?? null, reason: review?.error ?? data.run?.stop_reason ?? null };
+        }
+
+        return { status: 'completed' };
+    };
+
+    const markOutcome = (agent, outcome) =>
+        setReviewFailures((list) => {
+            const rest = list.filter((item) => item.agent !== agent);
+            if (outcome.status !== 'failed') return rest;
+            const label = agents.find((a) => a.value === agent)?.label ?? agent;
+
+            return [...rest, { agent, label, reason: outcome.unavailable ? t('fric.ai_unavailable') : outcome.reason }];
+        });
+
     // extra: review options, e.g. {web: true} for the fact-checker (ADR — AI
     // research, source-backed fact-checking, cover templates).
     const runAgent = async (agent, extra = {}) => {
@@ -368,28 +427,23 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         try {
             // Picked by hand: an agent that does not suit the book (an
             // examiner on a novel) runs only this way (ADR — Safe apply).
-            const res = await window.axios.post(`/sections/${section.id}/review`, {
-                agent,
-                explicit: true,
-                ...extra,
-            });
-            setFindings(res.data.findings);
-            setCredits(res.data.billing?.credits ?? null);
-            // A failed run returns 200 with nothing found: said, never shown
-            // as a clean chapter (ADR — Author walkthrough fixes).
-            if (res.data.review?.status === 'failed') {
-                notify(res.data.review.unavailable ? t('fric.ai_unavailable') : t('review.run_failed'));
+            const outcome = await reviewOnce(agent, { explicit: true, ...extra });
+            markOutcome(agent, outcome);
+
+            // A failed run is said, never shown as a clean chapter (ADR —
+            // Author walkthrough fixes).
+            if (outcome.status === 'failed') {
+                notify(outcome.unavailable ? t('fric.ai_unavailable') : t('review.run_failed'));
             }
         } catch (error) {
-            // Previously this had no catch, so a refusal — the plan does not
-            // include this agent, or the balance will not cover it — failed
-            // silently and the spinner just stopped. The server's message
-            // names the plan or the shortfall, so it is worth showing.
+            // A refusal — the plan does not include this agent, or the
+            // balance will not cover it — names the plan or the shortfall.
             const refusal = error.response?.data?.errors;
 
             notify(
                 refusal?.agent?.[0]
                     ?? refusal?.credits?.[0]
+                    ?? error.response?.data?.message
                     ?? t('review.run_failed'),
             );
         } finally {
@@ -400,21 +454,22 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     /**
      * Run every agent over the open chapter, one after another.
      *
-     * Sequential rather than parallel: each run replaces that agent's own open
-     * findings, and the progress label is only meaningful if the steps are
-     * ordered. The driver answers in milliseconds, so this costs nothing in
-     * wall-clock time today — and when a real provider replaces it, this is
-     * the call site that moves behind a queue.
+     * Sequential rather than parallel: each run replaces that agent's own
+     * open findings, and the progress label is only meaningful if the steps
+     * are ordered. With a real provider each agent runs on the worker and is
+     * followed to its end; an agent that fails is listed with a retry
+     * rather than dropped (ADR — AI writer round 2).
      */
     const runFullReview = async () => {
         if (!section || reviewProgress) return;
 
-        let latest = findings;
         // Only the agents the plan includes (ADR — Journey friction fixes):
         // the others are shown locked, and asking for them would be refused.
         // And only those that suit the book: no thesis examiner on a novel
         // (ADR — Author walkthrough fixes).
         const included = agents.filter((agent) => agent.included !== false && agent.fits !== false);
+        const failed = [];
+        setReviewFailures([]);
 
         for (const [index, agent] of included.entries()) {
             setReviewProgress({
@@ -422,43 +477,39 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             });
 
             try {
-                const res = await window.axios.post(
-                    `/sections/${section.id}/review`,
-                    { agent: agent.value },
-                );
-                latest = res.data.findings;
-                setFindings(latest);
-                setCredits(res.data.billing?.credits ?? null);
+                const outcome = await reviewOnce(agent.value, {});
 
-                // The provider is down: the other agents would fail too.
-                if (res.data.review?.status === 'failed' && res.data.review.unavailable) {
-                    notify(t('fric.ai_unavailable'));
-                    break;
+                if (outcome.status === 'failed') {
+                    failed.push({ agent: agent.value, label: agent.label, reason: outcome.unavailable ? t('fric.ai_unavailable') : outcome.reason });
+
+                    // The provider is down: the other agents would fail too.
+                    if (outcome.unavailable) {
+                        included.slice(index + 1).forEach((rest) => failed.push({ agent: rest.value, label: rest.label, reason: t('fric.ai_unavailable') }));
+                        break;
+                    }
                 }
             } catch (error) {
                 const refusal = error.response?.data?.errors;
+                const reason = refusal?.agent?.[0] ?? refusal?.credits?.[0] ?? error.response?.data?.message ?? null;
 
-                // A refusal is worth naming: "could not finish" reads like a
-                // fault when the real reason is the plan or the balance.
-                notify(
-                    refusal?.agent?.[0]
-                        ?? refusal?.credits?.[0]
-                        ?? t('ai.agent_could_not_finish', { agent: agent.label }),
-                );
+                failed.push({ agent: agent.value, label: agent.label, reason });
             }
         }
 
         setReviewProgress(null);
+        setReviewFailures(failed);
 
+        const latest = (await window.axios.get(`/sections/${section.id}/findings`).catch(() => null))?.data?.findings ?? findings;
+        setFindings(latest);
         const open = latest.filter((f) => f.status === 'open').length;
 
         // Names the chapter, because that is what ran. The button beside it
         // is the one that reads the book.
-        notify(
-            open === 0
-                ? t('ai.chapter_nothing_open', { title: section.title })
-                : t('ai.chapter_open_findings', { title: section.title, count: open }),
-        );
+        const summary = open === 0
+            ? t('ai.chapter_nothing_open', { title: section.title })
+            : t('ai.chapter_open_findings', { title: section.title, count: open });
+
+        notify(failed.length ? `${summary} ${t('writer2.agents_failed', { count: failed.length })}` : summary);
     };
 
     const resolve = async (finding, status) => {
@@ -877,6 +928,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         versions,
         running,
         reviewProgress,
+        reviewFailures,
+        onRetryAgent: (agent) => runAgent(agent),
         sectionId: section?.id,
         bookId: book.id,
         onRunAgent: runAgent,

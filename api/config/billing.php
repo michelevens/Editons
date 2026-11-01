@@ -119,6 +119,11 @@ return [
     'metered' => [
         'usd_per_credit' => (float) env('METERED_USD_PER_CREDIT', 0.01),
         'minimum' => 1,
+        // A hold or a review still "running" after this long belongs to a
+        // process that died (a request timeout, a worker crash): the
+        // sweeper (`ai:sweep-stale`) fails it and gives the credits back
+        // (ADR — AI writer round 2). Longer than any one AI call can take.
+        'stale_after_minutes' => (int) env('METERED_STALE_AFTER_MINUTES', 45),
     ],
 
     /*

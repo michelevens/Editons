@@ -114,7 +114,7 @@ it('never labels a claim supported without a saved source that says so', functio
         ['severity' => 'warning', 'title' => 'Cheese', 'excerpt' => 'The moon is cheese.', 'verdict' => 'contradicted', 'source_id' => $source->id, 'source_excerpt' => 'The moon is rock.'],
     ]))]);
 
-    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertOk();
+    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertStatus(202);
 
     $byTitle = EditorialFinding::all()->keyBy('title');
 
@@ -178,7 +178,7 @@ it('searches the web for unverified claims when the author allows it', function 
 
     $findings = $this->actingAs($user)
         ->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker', 'web' => true])
-        ->assertOk()
+        ->assertStatus(202)
         ->json('findings');
 
     $evidence = $findings[0]['evidence'];
@@ -218,7 +218,7 @@ it('shows the real fact-checker the chapter\'s citations and footnotes with thei
 
     Http::fake(['api.anthropic.com/*' => Http::response(fcResponse([]))]);
 
-    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertOk();
+    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertStatus(202);
 
     Http::assertSent(function (HttpRequest $request) use ($source) {
         $docs = collect($request['messages'][0]['content'])->keyBy('title');
@@ -252,7 +252,7 @@ it('moves an instruction the fact-checker put in suggestion into the detail', fu
         ['severity' => 'suggestion', 'title' => 'Date', 'excerpt' => 'In 2010 the earthquake struck.', 'suggestion' => 'In January 2010 the earthquake struck.'],
     ]))]);
 
-    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertOk();
+    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertStatus(202);
 
     $byTitle = EditorialFinding::all()->keyBy('title');
 

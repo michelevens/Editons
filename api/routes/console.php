@@ -23,6 +23,13 @@ Schedule::command('exports:expire')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('exports:expire --missing')->dailyAt('03:30')->withoutOverlapping();
 
 /*
+ | AI work a dead process left "running" (a request killed at its time
+ | limit, a worker crash) is failed and its credits refunded (ADR — AI
+ | writer round 2, App\Billing\StaleHolds).
+ */
+Schedule::command('ai:sweep-stale')->everyTenMinutes()->withoutOverlapping();
+
+/*
  | The admin console's daily figures (trend lines start the day this ships;
  | nothing is back-filled) and the end of complimentary plans. The limits
  | already treat an ended plan as Free, so a late run gives nothing away.

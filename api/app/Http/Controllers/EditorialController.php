@@ -115,7 +115,18 @@ class EditorialController extends Controller
         }
 
         $focus = trim((string) ($data['focus'] ?? ''));
-        $context = $this->runner->contextFor($section, $focus === '' ? null : $focus, $data['sensitivity'] ?? 'standard', $agent === EditorialAgent::FactChecker && ($data['web'] ?? false));
+        $web = $agent === EditorialAgent::FactChecker && ($data['web'] ?? false);
+        $context = $this->runner->contextFor($section, $focus === '' ? null : $focus, $data['sensitivity'] ?? 'standard', $web);
+
+        // A real provider, or the web, can outlive the request: the web
+        // fact-check died at about 35 seconds and kept 33 credits each time
+        // (ADR — AI writer round 2). That work runs on the worker and the
+        // panel polls it; a failure there is refunded and shown, never lost.
+        // Sample output answers in milliseconds and stays here.
+        if ($web || ! $this->runner->simulated()) {
+            return $this->queueSection($section, $agent, $context, $request->user());
+        }
+
         $review = $this->runner->run($section, $agent, $request->user()->id, $context, options: ['scope' => 'chapter']);
 
         return response()->json([
@@ -136,6 +147,48 @@ class EditorialController extends Controller
             // than needing a second request to notice the spend.
             'billing' => $this->entitlements->summaryFor($request->user()->fresh()),
         ]);
+    }
+
+    /**
+     * One agent over one chapter, on the worker (RunEditorialReview): the
+     * response is the run to poll, with the findings as they stand.
+     */
+    private function queueSection(ManuscriptSection $section, EditorialAgent $agent, ReviewContext $context, $user): JsonResponse
+    {
+        $run = EditorialRun::create([
+            'uuid' => (string) Str::uuid(),
+            'book_id' => $section->book_id,
+            'user_id' => $user->id,
+            'agent' => $agent->value,
+            'scope' => 'chapter',
+            'status' => 'queued',
+            'section_ids' => [$section->id],
+            'done_ids' => [],
+            'total' => 1,
+            'context' => EditorialRun::freeze($context),
+        ]);
+
+        RunEditorialReview::dispatch($run->id);
+
+        // Already there when the worker was quicker than this response (or
+        // the queue is synchronous): the same shape as a review run here.
+        $review = EditorialReview::where('options->run_id', $run->uuid)->whereIn('status', ['completed', 'failed'])->latest('id')->first();
+
+        return response()->json([
+            'queued' => true,
+            'run' => $run->fresh()->progress(),
+            'review' => $review ? [
+                'id' => $review->id,
+                'agent' => $review->agent->value,
+                'status' => $review->status,
+                'error' => $review->error,
+                'unavailable' => ($review->options ?? [])['unavailable'] ?? null,
+                'simulated' => $this->runner->simulated(),
+            ] : null,
+            'simulated' => $this->runner->simulated(),
+            'findings' => $this->findingsFor($section->fresh()),
+            'billing' => $this->entitlements->summaryFor($user->fresh()),
+        ], 202);
     }
 
     /**
@@ -179,7 +232,10 @@ class EditorialController extends Controller
 
         $planner->enforce($estimate, (bool) ($data['approved'] ?? false));
 
-        if (in_array($plan['scope'], ['range', 'book'], true) || count($plan['items']) > self::QUEUE_ABOVE) {
+        // A real provider goes to the worker whatever the scope: three
+        // chapters, or one long one, can outlive the request (ADR — AI
+        // writer round 2).
+        if (in_array($plan['scope'], ['range', 'book'], true) || count($plan['items']) > self::QUEUE_ABOVE || ! $this->runner->simulated()) {
             return $this->queue($book, $plan, $estimate, $user);
         }
 
@@ -242,9 +298,21 @@ class EditorialController extends Controller
 
         RunEditorialReview::dispatch($run->id);
 
+        // Already there when the worker was quicker than this response (or
+        // the queue is synchronous): the same shape as a review run here.
+        $review = EditorialReview::where('options->run_id', $run->uuid)->whereIn('status', ['completed', 'failed'])->latest('id')->first();
+
         return response()->json([
             'queued' => true,
             'run' => $run->fresh()->progress(),
+            'review' => $review ? [
+                'id' => $review->id,
+                'agent' => $review->agent->value,
+                'status' => $review->status,
+                'error' => $review->error,
+                'unavailable' => ($review->options ?? [])['unavailable'] ?? null,
+                'simulated' => $this->runner->simulated(),
+            ] : null,
             'simulated' => $this->runner->simulated(),
             'estimate' => $estimate,
         ], 202);
@@ -255,7 +323,7 @@ class EditorialController extends Controller
      * far, and each finished section. Only for someone who may open the
      * book.
      */
-    public function run(EditorialRun $run): JsonResponse
+    public function run(Request $request, EditorialRun $run): JsonResponse
     {
         $this->authorize('view', $run->book);
 
@@ -263,9 +331,22 @@ class EditorialController extends Controller
 
         return response()->json([
             'run' => $run->progress(),
+            // Each review with its agent and, when it failed, why: a failed
+            // agent is shown as failed with a retry, never silently missing
+            // (ADR — AI writer round 2).
             'reviews' => EditorialReview::where('options->run_id', $run->uuid)->orderBy('id')->withCount('findings')->get()
-                ->map(fn (EditorialReview $r) => ['section_id' => $r->manuscript_section_id, 'title' => $titles[$r->manuscript_section_id] ?? null, 'status' => $r->status, 'findings' => $r->findings_count])
+                ->map(fn (EditorialReview $r) => [
+                    'section_id' => $r->manuscript_section_id,
+                    'title' => $titles[$r->manuscript_section_id] ?? null,
+                    'agent' => $r->agent->value,
+                    'status' => $r->status,
+                    'error' => $r->error,
+                    'unavailable' => ($r->options ?? [])['unavailable'] ?? null,
+                    'findings' => $r->findings_count,
+                ])
                 ->all(),
+            // So the credit strip follows a run the worker charged.
+            'billing' => $this->entitlements->summaryFor($request->user()),
         ]);
     }
 

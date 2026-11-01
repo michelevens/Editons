@@ -198,7 +198,7 @@ it('stops an account at its monthly cap, counting only this month', function () 
     expect(app(AiControls::class)->spentThisMonth($user->fresh()))->toBe(1.5);
 
     // Under the cap: allowed.
-    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'copy'])->assertOk();
+    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'copy'])->assertStatus(202);
 
     AiUsage::create(['feature' => 'editorial_review', 'provider' => 'anthropic', 'model' => 'claude-opus-5-5', 'user_id' => $user->id, 'status' => 'ok', 'cost_usd' => 0.6]);
     $balance = app(CreditLedger::class)->balanceFor($user);

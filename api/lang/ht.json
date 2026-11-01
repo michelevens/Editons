@@ -3524,5 +3524,12 @@
     "A licence": "Yon lisans",
     "Public domain": "Domèn piblik",
     "Quotations used under fair use / short quotation, credited": "Sitasyon kout ki itilize dapre itilizasyon jis (fair use), ak sous yo",
-    "Not sure yet": "Poko sèten"
+    "Not sure yet": "Poko sèten",
+    "writer2.agents_failed": "{count} korektè pa t fini: relanse yo anba a.",
+    "writer2.agents_failed_title": "{count} korektè pa t fini",
+    "writer2.retry": "Eseye ankò",
+    "writer2.retrying": "N ap eseye ankò…",
+    "The review stopped unexpectedly. Credits for any unfinished section were returned.": "Revizyon an kanpe san atann. Kredi pou seksyon ki pa t fini yo retounen.",
+    "The review stopped before it finished. Nothing was charged.": "Revizyon an kanpe anvan li fini. Yo pa t fè w peye anyen.",
+    "AI research stopped before it finished. Nothing was charged.": "Rechèch IA a kanpe anvan li fini. Yo pa t fè w peye anyen."
 }

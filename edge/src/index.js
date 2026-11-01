@@ -94,7 +94,25 @@ export default {
             duplex: 'half',
         });
 
-        const response = await fetch(upstream);
+        let response;
+
+        try {
+            response = await fetch(upstream);
+        } catch {
+            // The origin never answered (a timeout, a restart). Said as a
+            // 504 the browser can read, not a bare network failure.
+            response = new Response('The server took too long to answer. Try again.', {
+                status: 504,
+                headers: { 'content-type': 'text/plain; charset=utf-8' },
+            });
+        }
+
+        // An error from the origin's own edge (Railway's 502/504 when the app
+        // is killed at its time limit) carries no CORS headers, so the studio
+        // on app.ecrivain.ai saw "CORS error" instead of the real failure.
+        // Only the app's own origin is named, and only on an error the app
+        // did not answer itself; everything the app sends is left alone.
+        response = withErrorCors(request, url, response);
 
         // A redirect to the origin hostname has to be rewritten, or signing in
         // would bounce the user from app.ecrivain.ai onto the bare Railway URL
@@ -126,3 +144,28 @@ export default {
         return response;
     },
 };
+
+/** The studio's origin, the only one the API answers with credentials. */
+const APP_ORIGIN = 'https://app.ecrivain.ai';
+
+function withErrorCors(request, url, response) {
+    if (
+        url.hostname !== 'api.ecrivain.ai'
+        || response.status < 500
+        || request.headers.get('Origin') !== APP_ORIGIN
+        || response.headers.has('access-control-allow-origin')
+    ) {
+        return response;
+    }
+
+    const headers = new Headers(response.headers);
+    headers.set('access-control-allow-origin', APP_ORIGIN);
+    headers.set('access-control-allow-credentials', 'true');
+    headers.append('vary', 'Origin');
+
+    return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+    });
+}

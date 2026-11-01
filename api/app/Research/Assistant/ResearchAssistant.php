@@ -98,7 +98,6 @@ class ResearchAssistant
 
         if (! $researcher->simulated()) {
             $this->entitlements->assertCanAfford($user, $label);
-            $hold = $this->meter->hold($user, $label, $book);
         }
 
         $started = hrtime(true);
@@ -111,6 +110,23 @@ class ResearchAssistant
             'driver' => $researcher->name(),
             'simulated' => $researcher->simulated(),
         ];
+
+        // The run is kept from the start, as running, and the hold points at
+        // it (ADR — AI writer round 2): a process killed mid-run (a request
+        // timeout, a worker crash) leaves a running row whose hold the
+        // sweeper gives back (`ai:sweep-stale`), rather than credits taken
+        // for nothing with no record of why.
+        $run = ResearchRun::create($row + ['status' => 'running']);
+
+        try {
+            if (! $researcher->simulated()) {
+                $hold = $this->meter->hold($user, $label, $run);
+            }
+        } catch (Throwable $e) {
+            $run->delete();
+
+            throw $e;
+        }
 
         try {
             $found = $researcher->research($brief);
@@ -139,7 +155,7 @@ class ResearchAssistant
                 error: ProviderUnavailable::scrub($e->getMessage()),
             );
 
-            return ResearchRun::create($row + [
+            return tap($run)->update([
                 'status' => 'failed',
                 'error' => $unavailable
                     ? __('AI research is unavailable right now. Try again later. Nothing was charged.')
@@ -162,7 +178,7 @@ class ResearchAssistant
             latencyMs: AiMeter::since($started),
         );
 
-        return ResearchRun::create($row + [
+        return tap($run)->update([
             'status' => 'completed',
             'model' => $found->model,
             'results' => $found->sources,

@@ -140,9 +140,11 @@ it('returns the new balance with the result', function () {
     $user = User::factory()->subscribed('studio', 100)->create();
     $section = reviewable($user);
 
+    // A provider review runs on the worker (the sync queue here); the 202
+    // carries the balance after it (ADR — AI writer round 2).
     $response = $this->actingAs($user)
         ->postJson("/sections/{$section->id}/review", ['agent' => 'copy'])
-        ->assertOk();
+        ->assertStatus(202);
 
     expect($response->json('billing.credits'))
         ->toBe(100 - config('billing.costs.agent_run'));
@@ -242,8 +244,8 @@ it('does not label a provider review as sample output', function () {
 
     $this->actingAs($user)
         ->postJson("/sections/{$section->id}/review", ['agent' => 'copy'])
-        ->assertOk()
-        ->assertJsonPath('review.simulated', false);
+        ->assertStatus(202)
+        ->assertJsonPath('simulated', false);
 });
 
 it('tells every page whether reviews are sample output', function () {

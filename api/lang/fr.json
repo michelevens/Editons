@@ -3524,5 +3524,12 @@
     "A licence": "Une licence",
     "Public domain": "Domaine public",
     "Quotations used under fair use / short quotation, credited": "Citations courtes au titre du droit de citation (fair use), créditées",
-    "Not sure yet": "Pas encore sûr"
+    "Not sure yet": "Pas encore sûr",
+    "writer2.agents_failed": "{count, plural, one {# correcteur n’a pas terminé : relancez-le ci-dessous.} other {# correcteurs n’ont pas terminé : relancez-les ci-dessous.}}",
+    "writer2.agents_failed_title": "{count, plural, one {# correcteur n’a pas terminé} other {# correcteurs n’ont pas terminé}}",
+    "writer2.retry": "Relancer",
+    "writer2.retrying": "Relance…",
+    "The review stopped unexpectedly. Credits for any unfinished section were returned.": "La relecture s’est arrêtée de façon inattendue. Les crédits des sections non terminées ont été rendus.",
+    "The review stopped before it finished. Nothing was charged.": "La relecture s’est arrêtée avant la fin. Rien n’a été facturé.",
+    "AI research stopped before it finished. Nothing was charged.": "La recherche par IA s’est arrêtée avant la fin. Rien n’a été facturé."
 }

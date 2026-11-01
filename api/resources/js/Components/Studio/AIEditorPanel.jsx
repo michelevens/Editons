@@ -45,6 +45,8 @@ export default function AIEditorPanel({
     versions = [],
     running,
     reviewProgress,
+    reviewFailures = [],
+    onRetryAgent = null,
     sectionId,
     bookId,
     onRunAgent,
@@ -193,6 +195,8 @@ export default function AIEditorPanel({
                                 open={open}
                                 running={running}
                                 reviewProgress={reviewProgress}
+                                reviewFailures={reviewFailures}
+                                onRetryAgent={onRetryAgent}
                                 onRunAgent={onRunAgent}
                                 onRunFullReview={onRunFullReview}
                                 onOpenAiScreen={onOpenAiScreen}
@@ -239,6 +243,8 @@ function AgentList({
     open,
     running,
     reviewProgress,
+    reviewFailures = [],
+    onRetryAgent = null,
     onRunAgent,
     onRunFullReview,
     onOpenAiScreen,
@@ -340,6 +346,33 @@ function AgentList({
                             {t('common.cancel')}
                         </button>
                     </div>
+                </div>
+            )}
+
+            {reviewFailures.length > 0 && !reviewProgress && (
+                <div role="status" data-a="ai:agents-failed" className="mt-2 rounded-tile border border-status-danger/40 bg-status-danger-bg p-2.5 text-[12px] text-text-body">
+                    <p className="font-semibold text-status-danger">{t('writer2.agents_failed_title', { count: reviewFailures.length })}</p>
+                    <ul className="mt-1.5 space-y-1.5">
+                        {reviewFailures.map((item) => (
+                            <li key={item.agent} data-a="ai:agent-failed" className="flex items-start justify-between gap-2">
+                                <span className="min-w-0">
+                                    <span className="font-medium text-text-primary">{item.label}</span>
+                                    {item.reason && <span className="block text-[11px] text-text-secondary">{item.reason}</span>}
+                                </span>
+                                {onRetryAgent && (
+                                    <button
+                                        type="button"
+                                        data-a="ai:agent-retry"
+                                        disabled={Boolean(running)}
+                                        onClick={() => onRetryAgent(item.agent)}
+                                        className="shrink-0 rounded-control border border-border-input bg-bg-surface px-2 py-0.5 text-[11.5px] font-semibold text-text-primary disabled:opacity-60"
+                                    >
+                                        {running === item.agent ? t('writer2.retrying') : t('writer2.retry')}
+                                    </button>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
 

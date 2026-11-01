@@ -93,7 +93,7 @@ it('lets a brand new account run an editor without being topped up', function ()
 
     $this->actingAs($user)
         ->postJson("/sections/{$section->id}/review", ['agent' => 'copy'])
-        ->assertOk();
+        ->assertStatus(202);
 
     expect(app(CreditLedger::class)->balanceFor($user))
         ->toBe(1000 - config('billing.costs.agent_run'));

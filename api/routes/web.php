@@ -215,10 +215,9 @@ Route::middleware('auth')->group(function () {
 /*
  * Editorial review (Milestone 2).
  *
- * Synchronous: the fake driver answers in milliseconds, so a queue would add
- * a worker and a polling UI to buy nothing. The seam is the driver, not the
- * dispatch — a real provider moves this behind a job without touching the
- * client.
+ * Sample output answers in milliseconds and stays in the request. A real
+ * provider, or the web fact-check, runs on the worker and the client polls
+ * /editorial-runs/{run} (ADR — AI writer round 2).
  */
 Route::middleware('auth')->group(function () {
     // The whole book at once: the structural review no per-section agent

@@ -3,7 +3,9 @@
 namespace App\Jobs;
 
 use App\Billing\CreditLedger;
+use App\Billing\StaleHolds;
 use App\Editorial\Contracts\ReadsReviewContext;
+use App\Editorial\ProviderUnavailable;
 use App\Editorial\ReviewRunner;
 use App\Models\CreditTransaction;
 use App\Models\EditorialReview;
@@ -69,6 +71,11 @@ class RunEditorialReview implements ShouldQueue
 
             $section = ManuscriptSection::where('book_id', $run->book_id)->find($sectionId);
 
+            // A review this run started and never finished: the worker died
+            // mid-call. It is failed and refunded, and shown as failed so the
+            // author can retry it (ADR — AI writer round 2), never billed.
+            $this->abandonUnfinished($sectionId);
+
             // Done already by a run that died before saying so.
             $review = $section ? $this->reviewed($run, $sectionId) : null;
 
@@ -90,14 +97,36 @@ class RunEditorialReview implements ShouldQueue
         $run->update(['status' => 'completed', 'finished_at' => now()]);
     }
 
+    /**
+     * The job gave up (a timeout, a crash, its last try): the run says so,
+     * and a review it left running is failed and its credits refunded
+     * (ADR — AI writer round 2). The sweeper does the same for a worker
+     * that died without reaching this.
+     */
     public function failed(?Throwable $e): void
     {
         EditorialRun::whereKey($this->runId)->whereIn('status', EditorialRun::ACTIVE)->update([
             'status' => 'failed',
-            'stop_reason' => mb_substr($e?->getMessage() ?? 'The run stopped.', 0, 500),
+            'stop_reason' => mb_substr(ProviderUnavailable::scrub($e?->getMessage() ?? 'The run stopped.'), 0, 500),
             'finished_at' => now(),
             'updated_at' => now(),
         ]);
+
+        if ($run = EditorialRun::find($this->runId)) {
+            EditorialReview::where('options->run_id', $run->uuid)->where('status', 'running')->get()
+                ->each(fn (EditorialReview $review) => app(StaleHolds::class)->abandonReview($review));
+        }
+    }
+
+    private function abandonUnfinished(int $sectionId): void
+    {
+        $run = EditorialRun::find($this->runId);
+
+        EditorialReview::where('manuscript_section_id', $sectionId)
+            ->where('options->run_id', $run->uuid)
+            ->where('status', 'running')
+            ->get()
+            ->each(fn (EditorialReview $review) => app(StaleHolds::class)->abandonReview($review));
     }
 
     private function reviewed(EditorialRun $run, int $sectionId): ?EditorialReview

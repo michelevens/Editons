@@ -3312,5 +3312,9 @@
     "safe.mark_unverified": "Mark unverified",
     "safe.select_source": "Select {title}",
     "safe.field_accessed": "Accessed on",
-    "safe.fair_use_hint": "For short passages quoted to discuss, review or illustrate, each credited to its source. Whether a use is fair or a permitted quotation depends on the case and the country; this records what you state and is not legal advice."
+    "safe.fair_use_hint": "For short passages quoted to discuss, review or illustrate, each credited to its source. Whether a use is fair or a permitted quotation depends on the case and the country; this records what you state and is not legal advice.",
+    "writer2.agents_failed": "{count, plural, one {# agent did not finish: retry it below.} other {# agents did not finish: retry them below.}}",
+    "writer2.agents_failed_title": "{count, plural, one {# agent did not finish} other {# agents did not finish}}",
+    "writer2.retry": "Retry",
+    "writer2.retrying": "Retrying…"
 }

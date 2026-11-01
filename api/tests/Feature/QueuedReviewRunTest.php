@@ -52,10 +52,11 @@ it('queues a range or whole-book run instead of reviewing in the request', funct
         ->and(app(CreditLedger::class)->balanceFor($user))->toBe(100)
         ->and(EditorialRun::where('uuid', $res->json('run.id'))->first()->section_ids)->toBe($ids->all());
 
-    // One chapter stays in the request.
+    // One chapter with a real provider is queued too: it can outlive the
+    // request (ADR — AI writer round 2). Sample output stays in it.
     $this->actingAs($user)->postJson("/books/{$book->id}/reviews", ['agent' => 'copy', 'scope' => 'chapter', 'section_id' => $ids[0]])
-        ->assertOk()->assertJsonCount(1, 'reviews');
-    Queue::assertPushed(RunEditorialReview::class, 2);
+        ->assertStatus(202);
+    Queue::assertPushed(RunEditorialReview::class, 3);
 });
 
 it('reviews one section at a time, keeping each section’s findings and cost as it goes', function () {

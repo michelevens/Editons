@@ -12,6 +12,7 @@ use App\Http\Middleware\RequirePlatformTwoFactor;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ValidateSignatureAtPublicUrl;
+use App\Http\CorsOnErrors;
 use App\Http\TrustedProxies;
 use App\Platform\Ops\ErrorGroups;
 use Illuminate\Foundation\Application;
@@ -129,4 +130,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->report(function (Throwable $e) {
             ErrorGroups::captureServer($e);
         });
+
+        // An error rendered outside the middleware (a fatal time limit, via
+        // the shutdown handler) still carries the CORS headers, so the
+        // browser shows the real error rather than a CORS one
+        // (App\Http\CorsOnErrors, ADR — AI writer round 2).
+        $exceptions->respond(fn ($response, Throwable $e, Request $request) => CorsOnErrors::apply($response, $request));
     })->create();

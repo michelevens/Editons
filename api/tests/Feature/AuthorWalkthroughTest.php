@@ -553,7 +553,8 @@ it('handles each provider failure gracefully: unchanged credits, a plain message
     $user = User::factory()->subscribed('studio', 500)->create();
     $section = ManuscriptSection::factory()->for(Book::factory()->for($user))->create(['content' => awDoc('The kite rose over Jacmel.')]);
 
-    $response = $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'line'])->assertOk();
+    // On the worker (the sync queue here): the 202 carries the review.
+    $response = $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'line'])->assertStatus(202);
 
     expect($response->json('review.status'))->toBe('failed')
         ->and($response->json('review.unavailable'))->toBe($kind)
@@ -579,7 +580,7 @@ it('treats a dropped connection as the provider being unavailable', function () 
 
     $user = User::factory()->subscribed('studio', 500)->create();
     $section = ManuscriptSection::factory()->for(Book::factory()->for($user))->create(['content' => awDoc('Words here.')]);
-    $response = $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'line'])->assertOk();
+    $response = $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'line'])->assertStatus(202);
 
     expect($response->json('review.unavailable'))->toBe('timeout')
         ->and(app(App\Billing\CreditLedger::class)->balanceFor($user))->toBe(500)
