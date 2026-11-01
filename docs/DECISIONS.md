@@ -4889,6 +4889,7 @@ isolation; Free's taste; the kill switch; the flag; Quick Start's sentence
 to a French plan). `AuthorWalkthroughTest` (Draft with me coming soon while
 the flag is off). `tests/Browser/ai-writer.spec.js` (the one-sentence
 journey to a drafted book and an EPUB at 1440 and 390 px).
+
 ## ADR-0059 — AI research, source-backed fact-checking, cover templates
 
 **Status:** accepted (feat/research).
