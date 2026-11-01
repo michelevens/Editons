@@ -60,6 +60,7 @@ use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\TypographyController;
 use App\Http\Controllers\WorkflowController;
+use App\Http\Middleware\StudioPage;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -152,6 +153,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/books', [BookController::class, 'index'])->name('books.index');
     Route::post('/books', [BookController::class, 'store'])->name('books.store');
     Route::get('/books/{book}/edit', [BookController::class, 'edit'])->name('books.edit');
+    // The book's own address goes to its studio, not a 405 (ADR — Author walkthrough fixes).
+    Route::get('/books/{book}', fn (App\Models\Book $book) => redirect()->route('books.edit', $book))
+        ->whereNumber('book')->middleware('can:view,book')->name('books.show');
     Route::patch('/books/{book}', [BookController::class, 'update'])->name('books.update');
     Route::delete('/books/{book}', [BookController::class, 'destroy'])->name('books.destroy');
 
@@ -185,7 +189,7 @@ Route::middleware('auth')->group(function () {
      | Writing goals: the chapter's word goal, and the goals sheet's figures
      | (chapter, book target, today's words, streak) from version history.
      */
-    Route::get('/books/{book}/goals', [GoalsController::class, 'show'])->name('books.goals');
+    Route::get('/books/{book}/goals', [GoalsController::class, 'show'])->middleware(StudioPage::class.':writing')->name('books.goals');
     Route::patch('/sections/{section}/goal', [GoalsController::class, 'chapter'])->name('sections.goal');
 
     /*
@@ -241,7 +245,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/editorial-runs/{run}/cancel', [EditorialController::class, 'cancelRun'])->name('editorial.run.cancel');
 
     // Style guides: the account's editorial rules, followed by its books.
-    Route::get('/books/{book}/style-guide', [StyleGuideController::class, 'show'])->name('style-guides.show');
+    Route::get('/books/{book}/style-guide', [StyleGuideController::class, 'show'])->middleware(StudioPage::class.':ai')->name('style-guides.show');
     Route::post('/books/{book}/style-guide', [StyleGuideController::class, 'store'])->name('style-guides.store');
     Route::post('/books/{book}/style-guide/follow', [StyleGuideController::class, 'follow'])->name('style-guides.follow');
     Route::post('/books/{book}/style-guide/detach', [StyleGuideController::class, 'detach'])->name('style-guides.detach');
@@ -259,7 +263,7 @@ Route::middleware('auth')->group(function () {
  * carries evidentiary weight.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/sources', [ResearchController::class, 'index'])
+    Route::get('/books/{book}/sources', [ResearchController::class, 'index'])->middleware(StudioPage::class.':research')
         ->name('research.index');
     Route::post('/books/{book}/sources', [ResearchController::class, 'store'])
         ->name('research.store');
@@ -291,7 +295,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/citations/{citation}', [ResearchController::class, 'destroyCitation'])
         ->name('citations.destroy');
 
-    Route::get('/books/{book}/consistency', [ConsistencyController::class, 'show'])
+    Route::get('/books/{book}/consistency', [ConsistencyController::class, 'show'])->middleware(StudioPage::class.':research')
         ->name('consistency.show');
     Route::post('/books/{book}/terms', [ConsistencyController::class, 'storeTerm'])
         ->name('consistency.terms.store');
@@ -341,7 +345,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/books/{book}/overview', [OverviewController::class, 'update'])
         ->name('books.overview.update');
 
-    Route::get('/books/{book}/workflow', [WorkflowController::class, 'show'])
+    Route::get('/books/{book}/workflow', [WorkflowController::class, 'show'])->middleware(StudioPage::class.':workflow')
         ->name('workflow.show');
     Route::patch('/sections/{section}/status', [WorkflowController::class, 'move'])
         ->name('workflow.move');
@@ -365,7 +369,7 @@ Route::middleware('auth')->group(function () {
  | across the whole book, and which sources are doing any work.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/findings', [AiEditorController::class, 'index'])
+    Route::get('/books/{book}/findings', [AiEditorController::class, 'index'])->middleware(StudioPage::class.':ai')
         ->name('ai.index');
     Route::patch('/findings/{finding}/reopen', [AiEditorController::class, 'reopen'])
         ->name('ai.reopen');
@@ -377,7 +381,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/books/{book}/findings/unsuppress', [AiEditorController::class, 'unsuppress'])
         ->name('ai.unsuppress');
 
-    Route::get('/books/{book}/references', [ReferencesController::class, 'show'])
+    Route::get('/books/{book}/references', [ReferencesController::class, 'show'])->middleware(StudioPage::class.':research')
         ->name('references.show');
     Route::put('/books/{book}/references/style', [ReferencesController::class, 'style'])
         ->name('references.style');
@@ -394,7 +398,7 @@ Route::middleware('auth')->group(function () {
  | Analytics, computed from version history rather than generated.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/analytics', [AnalyticsController::class, 'show'])
+    Route::get('/books/{book}/analytics', [AnalyticsController::class, 'show'])->middleware(StudioPage::class.':analytics')
         ->name('analytics.show');
 });
 
@@ -403,7 +407,7 @@ Route::middleware('auth')->group(function () {
  | invited usually has no account yet.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/members', [TeamController::class, 'index'])
+    Route::get('/books/{book}/members', [TeamController::class, 'index'])->middleware(StudioPage::class.':team')
         ->name('team.index');
     Route::post('/books/{book}/members', [TeamController::class, 'invite'])
         ->name('team.invite');
@@ -448,7 +452,7 @@ Route::post('/join/{token}/decline', [JoinController::class, 'decline'])
  | book is exactly the person invited to comment on it.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/comments', [CommentController::class, 'index'])
+    Route::get('/books/{book}/comments', [CommentController::class, 'index'])->middleware(StudioPage::class.':comments')
         ->name('comments.index');
     Route::post('/sections/{section}/comments', [CommentController::class, 'store'])
         ->name('comments.store');
@@ -467,7 +471,7 @@ Route::middleware('auth')->group(function () {
  | changing it needs update, because layout is the author's decision.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/design', [DesignController::class, 'show'])
+    Route::get('/books/{book}/design', [DesignController::class, 'show'])->middleware(StudioPage::class.':design')
         ->name('design.show');
     Route::get('/books/{book}/design/callouts', [DesignController::class, 'callouts'])
         ->name('design.callouts');
@@ -527,7 +531,7 @@ Route::middleware('auth')->group(function () {
     // The back and the spine as layers, the whole print wrap as Cover
     // Studio shows it, and the pictures image layers place
     // (ADR "Editable back cover, spine and image layers").
-    Route::get('/books/{book}/cover/wrap', [CoverWrapController::class, 'show'])
+    Route::get('/books/{book}/cover/wrap', [CoverWrapController::class, 'show'])->middleware(StudioPage::class.':cover')
         ->name('design.cover.wrap');
     Route::get('/books/{book}/cover/wrap/image', [CoverWrapController::class, 'image'])
         ->middleware('throttle:120,1')
@@ -578,7 +582,7 @@ Route::middleware('auth')->group(function () {
 
     // The full-screen preview (PreviewController): contents first, then a
     // page at a time.
-    Route::get('/books/{book}/preview', [PreviewController::class, 'show'])
+    Route::get('/books/{book}/preview', [PreviewController::class, 'show'])->middleware(StudioPage::class.':preview')
         ->middleware('feature:preview')
         ->name('preview.show');
     Route::get('/books/{book}/preview/page', [PreviewController::class, 'page'])
@@ -595,7 +599,7 @@ Route::middleware('auth')->group(function () {
  | since a reviewer reading a proof is the point of inviting them.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/publishing', [PublishingController::class, 'show'])
+    Route::get('/books/{book}/publishing', [PublishingController::class, 'show'])->middleware(StudioPage::class.':publishing')
         ->name('publishing.show');
     Route::patch('/books/{book}/publishing', [PublishingController::class, 'update'])
         ->name('publishing.update');
@@ -624,7 +628,7 @@ Route::middleware('auth')->group(function () {
 
     // Publish in three steps: Check, Choose channels, Publish
     // (App\Http\Controllers\PublishFlowController for who may do what).
-    Route::get('/books/{book}/publish-flow', [PublishFlowController::class, 'show'])->name('publish.show');
+    Route::get('/books/{book}/publish-flow', [PublishFlowController::class, 'show'])->middleware(StudioPage::class.':publish')->name('publish.show');
     Route::post('/books/{book}/publish-flow/regenerate', [PublishFlowController::class, 'regenerate'])
         ->middleware('throttle:20,1')->name('publish.regenerate');
     Route::post('/books/{book}/publish-flow/channels', [PublishFlowController::class, 'channel'])->name('publish.channel');
@@ -656,7 +660,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/shelf/progress', [ShelfController::class, 'progress'])->middleware('throttle:120,1')->name('shelf.progress');
 
     // The print kit: print settings, checks, prices and the cover preview.
-    Route::get('/books/{book}/print-kit', [PrintKitController::class, 'show'])
+    Route::get('/books/{book}/print-kit', [PrintKitController::class, 'show'])->middleware(StudioPage::class.':publishing')
         ->name('print-kit.show');
     Route::patch('/books/{book}/print-kit', [PrintKitController::class, 'update'])
         ->name('print-kit.update');
@@ -676,7 +680,7 @@ Route::middleware('auth')->group(function () {
  | scoped to a book.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/rights', [RightsController::class, 'show'])
+    Route::get('/books/{book}/rights', [RightsController::class, 'show'])->middleware(StudioPage::class.':rights')
         ->name('rights.show');
     Route::post('/books/{book}/isbns', [RightsController::class, 'assign'])
         ->name('rights.isbn.assign');
@@ -701,7 +705,7 @@ Route::middleware('auth')->group(function () {
  | the controller gates on manage rather than update.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/editions', [EditionsController::class, 'index'])
+    Route::get('/books/{book}/editions', [EditionsController::class, 'index'])->middleware(StudioPage::class.':editions')
         ->name('editions.index');
     Route::post('/books/{book}/editions', [EditionsController::class, 'store'])
         ->name('editions.store');
@@ -739,7 +743,7 @@ Route::middleware(['auth', 'feature:inbox'])->group(function () {
  | outstanding; writing alt text is an edit to the manuscript.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/accessibility', [AccessibilityController::class, 'show'])
+    Route::get('/books/{book}/accessibility', [AccessibilityController::class, 'show'])->middleware(StudioPage::class.':a11y')
         ->name('accessibility.show');
     Route::patch('/sections/{section}/image-description', [AccessibilityController::class, 'describeImage'])
         ->name('accessibility.image');
@@ -751,7 +755,7 @@ Route::middleware('auth')->group(function () {
  | real orders (App\Commerce\SalesReport).
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/sales', [SalesController::class, 'show'])
+    Route::get('/books/{book}/sales', [SalesController::class, 'show'])->middleware(StudioPage::class.':sales')
         ->name('sales.show');
     Route::get('/sales', [SalesController::class, 'overview'])
         ->name('sales.overview');
@@ -769,7 +773,7 @@ Route::middleware('auth')->group(function () {
         ->name('sales.timezone');
 
     // The book's product in the storefront. Owner only (BookPolicy::manage).
-    Route::get('/books/{book}/product', [ProductController::class, 'show'])
+    Route::get('/books/{book}/product', [ProductController::class, 'show'])->middleware(StudioPage::class.':sales')
         ->name('products.show');
     Route::put('/books/{book}/product', [ProductController::class, 'update'])
         ->name('products.update');
@@ -919,7 +923,7 @@ Route::prefix('p')->name('partners.page')->group(function () {
  | Launch Planner.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/launch', [LaunchController::class, 'show'])
+    Route::get('/books/{book}/launch', [LaunchController::class, 'show'])->middleware(StudioPage::class.':launch')
         ->name('launch.show');
     Route::patch('/books/{book}/launch', [LaunchController::class, 'update'])
         ->name('launch.update');
@@ -939,12 +943,12 @@ Route::middleware('auth')->group(function () {
  | product information, and it should come from the same place as the plans.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/notes', [GrowthController::class, 'notes'])
+    Route::get('/books/{book}/notes', [GrowthController::class, 'notes'])->middleware(StudioPage::class.':notes')
         ->name('notes.show');
     Route::put('/books/{book}/notes', [GrowthController::class, 'saveNotes'])
         ->name('notes.save');
 
-    Route::get('/books/{book}/marketing-kit', [GrowthController::class, 'kit'])
+    Route::get('/books/{book}/marketing-kit', [GrowthController::class, 'kit'])->middleware(StudioPage::class.':marketing')
         ->name('kit.show');
     Route::post('/books/{book}/marketing-kit', [GrowthController::class, 'generateKit'])
         ->name('kit.generate');
@@ -961,7 +965,7 @@ Route::middleware('auth')->group(function () {
  | chapter nine has misunderstood how writing works.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/books/{book}/journey', [JourneyController::class, 'show'])
+    Route::get('/books/{book}/journey', [JourneyController::class, 'show'])->middleware(StudioPage::class.':guided')
         ->name('journey.show');
 
     // The Guided Journey interface. A route rather than a mode, for the same
