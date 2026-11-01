@@ -201,7 +201,8 @@ class ManuscriptSection extends Model
      * The section's prose as plain text.
      *
      * Paragraph boundaries become blank lines so a reviewer can tell
-     * paragraphs apart; everything else flattens. Drivers receive this rather
+     * paragraphs apart; a block inside another (a list item, a quoted
+     * paragraph) gets a line of its own. Drivers receive this rather
      * than the ProseMirror tree — a provider should not need to understand
      * the document format, and offsets into this string are what findings
      * anchor to.
@@ -212,27 +213,43 @@ class ManuscriptSection extends Model
      */
     public function plainText(bool $withSuggestions = false): string
     {
-        $content = $withSuggestions ? $this->content : Suggestions::published($this->content);
+        return self::flatten($withSuggestions ? $this->content : Suggestions::published($this->content), false);
+    }
 
+    /**
+     * The text an editorial reviewer reads (ADR — Safe apply, honest
+     * prices, citation fixes): plainText() with each list item marked
+     * ("- ", "1. ", indented when nested) and each quoted line marked
+     * ("> "). Without the markers a reviewer read a list as a run of
+     * sentences and reported "missing break between list items" in every
+     * chapter, billed. Findings and selections anchor to this text.
+     */
+    public function reviewText(): string
+    {
+        return self::flatten(Suggestions::published($this->content), true);
+    }
+
+    /**
+     * Top-level blocks apart by a blank line; every block inside them (a
+     * list item, a quoted paragraph, a table cell) on its own line. They
+     * used to run together: "…everything else.Add daily immersion…".
+     *
+     * @param  array<string, mixed>|null  $content
+     */
+    private static function flatten(?array $content, bool $markers): string
+    {
         if (! $content) {
             return '';
         }
 
         $blocks = [];
-        $walk = function (array $node, bool $topLevel = false) use (&$walk, &$blocks): string {
-            $text = $node['text'] ?? '';
-            foreach ($node['content'] ?? [] as $child) {
-                if (is_array($child)) {
-                    $text .= $walk($child);
-                }
-            }
-
-            return $text;
-        };
 
         foreach ($content['content'] ?? [] as $block) {
             if (is_array($block)) {
-                $t = trim($walk($block));
+                $lines = [];
+                self::lines($block, $lines, $markers, '', '');
+                $t = trim(implode("\n", $lines));
+
                 if ($t !== '') {
                     $blocks[] = $t;
                 }
@@ -240,6 +257,66 @@ class ManuscriptSection extends Model
         }
 
         return implode("\n\n", $blocks);
+    }
+
+    /**
+     * The lines of one node: a text block is one line (its first line
+     * prefixed with $first, any after a hard break with $rest); a container
+     * gives each child its own lines.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  list<string>  $lines
+     */
+    private static function lines(array $node, array &$lines, bool $markers, string $first, string $rest): void
+    {
+        $children = array_values(array_filter($node['content'] ?? [], 'is_array'));
+        $container = collect($children)->contains(fn (array $c) => isset($c['content']));
+
+        if (! $container) {
+            $text = self::inline($node);
+
+            foreach (explode("\n", $text) as $i => $line) {
+                if (trim($line) !== '') {
+                    $lines[] = ($i === 0 && $first !== null ? $first : $rest).trim($line);
+                    $first = $rest;
+                }
+            }
+
+            return;
+        }
+
+        $type = $node['type'] ?? null;
+        $number = (int) ($node['attrs']['start'] ?? 1);
+
+        foreach ($children as $i => $child) {
+            [$childFirst, $childRest] = match (true) {
+                ! $markers => [$rest, $rest],
+                $type === 'bulletList' || $type === 'taskList' => [$rest.'- ', $rest.'  '],
+                $type === 'orderedList' => [$rest.($number + $i).'. ', $rest.str_repeat(' ', strlen(($number + $i).'. '))],
+                $type === 'blockquote' => [($i === 0 ? $first : $rest).'> ', $rest.'> '],
+                default => [$i === 0 ? $first : $rest, $rest],
+            };
+
+            self::lines($child, $lines, $markers, $childFirst, $childRest);
+        }
+    }
+
+    /** @param  array<string, mixed>  $node */
+    private static function inline(array $node): string
+    {
+        if (($node['type'] ?? null) === 'hardBreak') {
+            return "\n";
+        }
+
+        $text = $node['text'] ?? '';
+
+        foreach ($node['content'] ?? [] as $child) {
+            if (is_array($child)) {
+                $text .= self::inline($child);
+            }
+        }
+
+        return $text;
     }
 
     /**

@@ -4792,3 +4792,14 @@ template's prompt. Otherwise the list is generated, and in an export plan
 `Anatomy::plan` drops the empty section (`BookReferences::replaced()`) so
 the generated Bibliography takes its place rather than standing beside a
 blank page.
+
+**3. The text sent to reviewers keeps its breaks.** `ManuscriptSection::
+plainText()` flattened each top-level block, so a list became one run of
+sentences ("…everything else.Add daily immersion…") and every chapter got
+six to eight false, billed "missing break between list items" findings.
+Every block inside another (a list item, a quoted paragraph, a table cell)
+now gets its own line, and a hard break is a newline. `reviewText()` adds
+markers for the reviewer: "- " and "1. " (from the list's `start`) per
+item, indented under a nested item, "> " per quoted line. `ReviewRunner`
+sends `reviewText()`, and `ReviewPlanner` locates a selection in it,
+across item markers.

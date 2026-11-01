@@ -83,7 +83,8 @@ class ReviewPlanner
 
         foreach ($pick as $id) {
             $section = $sections[$id];
-            $text = $section->plainText();
+            // The text the reviewer reads, markers and all (ReviewRunner).
+            $text = $section->reviewText();
             $selection = null;
 
             if ($scope === 'selection') {
@@ -244,7 +245,8 @@ class ReviewPlanner
     private function locate(string $text, string $selected): array
     {
         $words = preg_split('/\s+/u', trim($selected), -1, PREG_SPLIT_NO_EMPTY);
-        $pattern = '/'.implode('\s+', array_map(fn ($w) => preg_quote($w, '/'), $words)).'/u';
+        // A selection over several list items crosses their markers.
+        $pattern = '/'.implode('\s+(?:(?:-|>|\d+\.)\s+)*', array_map(fn ($w) => preg_quote($w, '/'), $words)).'/u';
 
         if ($words === [] || ! preg_match($pattern, $text, $m, PREG_OFFSET_CAPTURE)) {
             throw ValidationException::withMessages(['selection' => 'The selected text is not in the chapter as saved. Save, then select it again.']);
