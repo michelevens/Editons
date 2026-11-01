@@ -4877,3 +4877,20 @@ into `compact` (copied from the main layout the first time) and the phone
 shows it; the canvas, sizes and everything else stay shared. Until a layout
 is changed on a phone, the phone follows the main layout as before. A
 preset saves the layout shown, never the phone's group.
+
+**Tests.** `tests/Feature/SafeApplyTest.php` (advice told from replacement
+text, both ways; advice shown as advice; no instruction applied, single or
+bulk; Fact Checker and Subject Matter left out of bulk and applied one by
+one; the cited-quotation guard; one version per chapter and an exact undo;
+no rollback over later writing; another book's batch),
+`SafeReferencesTest.php` (empty, blank and heading-only References
+sections; a written list kept), `SafeReviewTextTest.php` (lists, nested
+lists, blockquotes, headings, hard breaks; the text the driver receives; a
+selection across items), `SafePricesTest.php` (the price list, one billing
+line per whole-book run, examiners refused unless picked),
+`SafeCitationsTest.php` (organisations, quoted web titles, access dates,
+"$", bulk verify, the access date stored), `SafeRightsTest.php` (fair use
+stored and translated), `SafeWorkspaceTest.php` (the phone's group kept
+apart, validated, out of presets); `tests/Browser/safe-apply.spec.js` (the
+bulk-accept breakdown and its undo, the citation picker's search, at 1440
+and 390 px, no console errors, no horizontal scroll).

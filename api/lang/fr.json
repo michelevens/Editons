@@ -3247,7 +3247,7 @@
     "safe.one_by_one": "À appliquer une par une, après vérification de la source",
     "safe.bulk_cited_quotes": "{count, plural, one {# correction modifierait une citation sourcée et est laissée de côté.} other {# corrections modifieraient une citation sourcée et sont laissées de côté.}} Appliquez-les une par une si c’est voulu.",
     "safe.bulk_quoted": "{count, plural, one {# correction modifie un texte entre guillemets ou un passage sourcé.} other {# corrections modifient un texte entre guillemets ou un passage sourcé.}} Vérifiez-les d’abord.",
-    "safe.bulk_summary": "{count, plural, one {# remarque acceptée} other {# remarques acceptées}}, {fixes, plural, one {# correction appliquée au texte} other {# corrections appliquées au texte}}. Une version de chaque chapitre est enregistrée avant, pour pouvoir tout annuler d’un coup.",
+    "safe.bulk_summary": "{count, plural, one {Accepte # remarque} other {Accepte # remarques}} et applique {fixes, plural, one {# correction} other {# corrections}} au texte. Une version de chaque chapitre est enregistrée avant, pour pouvoir tout annuler d’un coup.",
     "safe.bulk_done": "{count, plural, one {# remarque acceptée en une fois.} other {# remarques acceptées en une fois.}}",
     "safe.bulk_undo": "Annuler cette acceptation groupée",
     "safe.bulk_undone": "Acceptation groupée annulée : {count, plural, one {# chapitre restauré.} other {# chapitres restaurés.}}",

@@ -3247,7 +3247,7 @@
     "safe.one_by_one": "Aplike youn pa youn, apre ou fin verifye sous la",
     "safe.bulk_cited_quotes": "{count, plural, one {# koreksyon ta chanje yon sitasyon ki gen sous, li rete deyò.} other {# koreksyon ta chanje yon sitasyon ki gen sous, yo rete deyò.}} Aplike yo youn pa youn si se sa ou vle.",
     "safe.bulk_quoted": "{count, plural, one {# koreksyon chanje tèks ant gimè oswa yon pasaj ki gen sous.} other {# koreksyon chanje tèks ant gimè oswa yon pasaj ki gen sous.}} Verifye yo anvan.",
-    "safe.bulk_summary": "{count, plural, one {# remak aksepte} other {# remak aksepte}}, {fixes, plural, one {# koreksyon aplike nan tèks la} other {# koreksyon aplike nan tèks la}}. Yo anrejistre yon vèsyon chak chapit anvan, pou ou ka anile tout an yon sèl fwa.",
+    "safe.bulk_summary": "{count, plural, one {Aksepte # remak} other {Aksepte # remak}} epi aplike {fixes, plural, one {# koreksyon} other {# koreksyon}} nan tèks la. Yo anrejistre yon vèsyon chak chapit anvan, pou ou ka anile tout an yon sèl fwa.",
     "safe.bulk_done": "{count, plural, one {# remak aksepte an yon sèl fwa.} other {# remak aksepte an yon sèl fwa.}}",
     "safe.bulk_undo": "Anile aksepte an gwo sa a",
     "safe.bulk_undone": "Aksepte an gwo a anile: {count, plural, one {# chapit retabli.} other {# chapit retabli.}}",
