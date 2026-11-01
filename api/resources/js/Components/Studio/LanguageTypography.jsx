@@ -205,11 +205,11 @@ export default function LanguageTypography({ book, typography, interior }) {
                 {switches.map((row) => (
                     <Row key={row.key} title={row.title} detail={row.detail}>
                         <Switch
-                            on={!!stored[row.key]}
+                            on={!!(stored[row.key] ?? typography.defaults?.[row.key])}
                             label={row.title}
                             name={`typography:${row.key}`}
                             disabled={busy === row.key}
-                            onClick={() => setRule(row.key, !stored[row.key])}
+                            onClick={() => setRule(row.key, !(stored[row.key] ?? typography.defaults?.[row.key]))}
                         />
                     </Row>
                 ))}

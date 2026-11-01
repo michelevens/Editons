@@ -107,7 +107,7 @@ it('takes the rules from the language until the author picks', function () {
     $english = typoBook(['language' => 'English (US)']);
     $kreyol = typoBook(['language' => 'Haitian Creole']);
 
-    expect(Typography::resolve($french))->toMatchArray(FR + ['as_you_type' => false, 'apply_at_export' => false, 'language' => 'fr'])
+    expect(Typography::resolve($french))->toMatchArray(FR + ['as_you_type' => false, 'apply_at_export' => true, 'language' => 'fr'])
         ->and(Typography::resolve($english))->toMatchArray(EN + ['language' => 'en-US'])
         ->and(Typography::resolve($kreyol))->toMatchArray(['quotes' => 'guillemets', 'french_spacing' => true, 'language' => 'ht']);
 
@@ -132,7 +132,7 @@ it('validates and merges the typography settings', function () {
     $this->actingAs($user)->patch("/books/{$book->id}", ['settings' => ['typography' => ['dashes' => null], 'spellcheck' => false]])->assertSessionHasNoErrors();
 
     expect($book->fresh()->settings()['typography'])->toBe([
-        'as_you_type' => true, 'apply_at_export' => false, 'quotes' => 'none',
+        'as_you_type' => true, 'apply_at_export' => null, 'quotes' => 'none',
         'french_spacing' => null, 'dashes' => null, 'ellipsis' => null,
     ])->and($book->fresh()->settings()['spellcheck'])->toBeFalse();
 
@@ -209,8 +209,10 @@ it('declares the book language in every export, including a language code', func
     expect(Storage::disk('local')->get($exporter->generate($book, 'html')->path))->toContain('<html lang="fr-CA">');
 });
 
-it('sets French spacing in the EPUB only when the book opts in, never touching the manuscript', function () {
+it('sets French spacing in the EPUB unless the book opts out, never touching the manuscript', function () {
+    // On by default since the author walkthrough fixes; off as typed.
     $book = typoBook();
+    $book->update(['settings' => ['typography' => ['apply_at_export' => false]]]);
     $exporter = app(Exporter::class);
     $chapter = function (Book $book) use ($exporter) {
         $zip = new ZipArchive;
@@ -221,7 +223,7 @@ it('sets French spacing in the EPUB only when the book opts in, never touching t
         return $xhtml;
     };
 
-    $plain = $chapter($book);
+    $plain = $chapter($book->fresh());
     expect($plain)->toContain('dit &quot;bonjour&quot; ! Quoi?')->not->toContain("\u{202F}");
 
     $book->update(['settings' => ['typography' => ['apply_at_export' => true]]]);
@@ -241,16 +243,17 @@ it('prints a narrow no-break space as a full one in a face without it', function
     expect($html)->toContain("Quoi\u{00A0}? Oui\u{00A0}!")->not->toContain("\u{202F}");
 });
 
-it('exports an untouched book exactly as before', function () {
+it('sets an untouched book with its language\'s rules, and as typed when the author turns it off', function () {
+    // ADR — Author walkthrough fixes: exports kept straight quotes although
+    // the language writes curly ones. The manuscript is never rewritten.
     $book = typoBook(['language' => 'English (US)'], ['She said "it\'s fine" -- and left...']);
     $exporter = app(Exporter::class);
     $html = fn (Book $b) => preg_replace('/\d{4}-\d{2}-\d{2}T[\d:+.Z-]+/', '', Storage::disk('local')->get($exporter->generate($b, 'html')->path));
+    $before = $book->sections()->first()->content;
 
-    $untouched = $html($book);
+    expect($html($book))->toContain('She said “it’s fine” — and left…')
+        ->and($book->sections()->first()->content)->toBe($before);
 
-    expect($untouched)->toContain('She said &quot;it')->toContain('fine&quot; -- and left...')->not->toContain('“');
-
-    // Rules chosen but not applied at export: the same file.
-    $book->update(['settings' => ['typography' => ['as_you_type' => true, 'quotes' => 'curly']]]);
-    expect($html($book->fresh()))->toBe($untouched);
+    $book->update(['settings' => ['typography' => ['apply_at_export' => false, 'quotes' => 'curly']]]);
+    expect($html($book->fresh()))->toContain('She said &quot;it')->toContain('fine&quot; -- and left...')->not->toContain('“');
 });
