@@ -51,6 +51,58 @@ export const DEFAULT_WORKSPACE = {
     preset: null,
 };
 
+// The phone's own panels (ADR — Safe apply, honest prices, citation fixes):
+// a layout chosen at 390 px no longer carries over to the desktop. Until a
+// layout is changed on a phone (`set`), the phone follows the main one.
+DEFAULT_WORKSPACE.compact = {
+    set: false,
+    panels: { ...DEFAULT_WORKSPACE.panels },
+    subpanels: JSON.parse(JSON.stringify(DEFAULT_WORKSPACE.subpanels)),
+    rails: { ...DEFAULT_WORKSPACE.rails },
+    preset: null,
+};
+
+/** The layout keys that belong to a viewport rather than to the author. */
+export const VIEWPORT_KEYS = ['panels', 'subpanels', 'rails'];
+
+/** Below this width the studio is the phone layout. */
+export const COMPACT_QUERY = '(max-width: 767px)';
+
+/**
+ * The layout a viewport shows: on a phone that has its own, the phone's
+ * panels over the shared settings (canvas, sizes and the rest).
+ */
+export function effectiveLayout(settings, compact) {
+    if (!compact || !settings.compact?.set) return settings;
+
+    const own = settings.compact;
+
+    return { ...settings, panels: own.panels, subpanels: own.subpanels, rails: own.rails, preset: own.preset ?? null };
+}
+
+/**
+ * A change made on a phone: its panels, sub-panels and rails go into the
+ * phone's own group (copied from the main layout the first time), the rest
+ * is shared as before.
+ */
+export function splitCompactChange(settings, partial, preset) {
+    const shared = {};
+    const own = {};
+
+    Object.entries(partial ?? {}).forEach(([key, value]) => {
+        (VIEWPORT_KEYS.includes(key) ? own : shared)[key] = value;
+    });
+
+    const start = settings.compact?.set
+        ? settings.compact
+        : { set: true, panels: settings.panels, subpanels: settings.subpanels, rails: settings.rails, preset: settings.preset ?? null };
+
+    return {
+        ...mergeLayout(settings, shared),
+        compact: { ...mergeLayout(start, own), set: true, preset },
+    };
+}
+
 /** Splitter bounds, as the schema has them. */
 export const SIZE_LIMITS = {
     outline: { min: 200, max: 480 },
@@ -247,6 +299,20 @@ export function useWorkspace({ initial, bookId, userId }) {
     });
     const [presets, setPresets] = useState(initial?.presets ?? []);
     const [error, setError] = useState(null);
+    // A phone-width window keeps its own panels.
+    const [compact, setCompact] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.(COMPACT_QUERY).matches));
+    const compactRef = useRef(compact);
+    compactRef.current = compact;
+
+    useEffect(() => {
+        const query = window.matchMedia?.(COMPACT_QUERY);
+        if (!query) return undefined;
+
+        const change = () => setCompact(query.matches);
+        query.addEventListener('change', change);
+
+        return () => query.removeEventListener('change', change);
+    }, []);
 
     const latest = useRef(state);
     latest.current = state;
@@ -334,8 +400,11 @@ export function useWorkspace({ initial, bookId, userId }) {
     const update = useCallback(
         (changes, { preset = null } = {}) => {
             setState((value) => {
-                const partial = typeof changes === 'function' ? changes(value.settings) : changes;
-                const settings = { ...mergeLayout(value.settings, partial), preset };
+                const shown = effectiveLayout(value.settings, compactRef.current);
+                const partial = typeof changes === 'function' ? changes(shown) : changes;
+                const settings = compactRef.current
+                    ? splitCompactChange(value.settings, partial, preset)
+                    : { ...mergeLayout(value.settings, partial), preset };
                 const next = { ...value, settings, pending: true };
 
                 writeCache(cacheKey, { settings, scope: value.scope, pending: true });
@@ -394,7 +463,7 @@ export function useWorkspace({ initial, bookId, userId }) {
     }, [adopt, bookId, defaults, update]);
 
     const savePreset = useCallback(async (name) => {
-        const { preset, version, ...layout } = latest.current.settings;
+        const { preset, version, compact: own, ...layout } = effectiveLayout(latest.current.settings, compactRef.current);
         const { data } = await window.axios.post('/workspace/presets', { name, layout });
 
         setPresets(data.presets);
@@ -409,7 +478,8 @@ export function useWorkspace({ initial, bookId, userId }) {
     }, []);
 
     return {
-        settings: state.settings,
+        settings: effectiveLayout(state.settings, compact),
+        compact,
         scope: state.scope,
         pending: state.pending,
         presets,

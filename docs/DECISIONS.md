@@ -4868,3 +4868,12 @@ which does not count as unsure. Choosing it shows a short neutral note
 and that this records the author's statement and is not legal advice). The
 kinds and permissions are now sent in the reader's language (en, fr, ht);
 the stored keys are unchanged.
+
+**7. A phone's layout stays on the phone.** The workspace settings gain a
+`compact` group (`set`, `panels`, `subpanels`, `rails`, `preset`),
+validated like the rest. `useWorkspace` watches `(max-width: 767px)`: on a
+phone, a change to panels, sub-panels or rails (a toggle, a preset) goes
+into `compact` (copied from the main layout the first time) and the phone
+shows it; the canvas, sizes and everything else stay shared. Until a layout
+is changed on a phone, the phone follows the main layout as before. A
+preset saves the layout shown, never the phone's group.
