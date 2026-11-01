@@ -493,11 +493,16 @@ class InteriorDesign
         return $word.' '.$figure;
     }
 
-    /** The figure a large-numeral opener sets: the label's number alone. */
-    public static function figure(string $kind, int $number, array $opener): string
+    /**
+     * The figure a large-numeral opener sets: the label's number alone.
+     * Spelled out when the label is ("Four"): the option did nothing with
+     * this opener (ADR — Author walkthrough fixes).
+     */
+    public static function figure(string $kind, int $number, array $opener, string $lang = 'en'): string
     {
         return match ($opener['label'] ?? 'auto') {
             'roman' => self::roman($number),
+            'words' => self::spell($number, $lang) ?? (string) $number,
             default => $kind === 'part' && ($opener['label'] ?? 'auto') !== 'numerals' ? self::roman($number) : (string) $number,
         };
     }

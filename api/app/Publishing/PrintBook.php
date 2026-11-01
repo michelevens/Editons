@@ -681,7 +681,7 @@ class PrintBook
                 'label' => $number === null || $bare ? null
                     : InteriorDesign::label($kind, $number, $language, $opener, $words[$kind]),
                 // The number alone, for openers that set it large.
-                'figure' => $number === null || $bare || $opener['label'] === 'none' ? null : InteriorDesign::figure($kind, $number, $opener),
+                'figure' => $number === null || $bare || $opener['label'] === 'none' ? null : InteriorDesign::figure($kind, $number, $opener, $language),
                 'running' => $title,
                 'partTitle' => $kind === 'part' ? $title : $partTitle,
                 'toc' => $kind !== 'dedication',
@@ -1707,7 +1707,7 @@ class PrintBook
 
         return match ($style) {
             'numeral' => '<div class="opener opener-numeral"'.$id.'>'
-                .($figure !== null ? '<p class="opener-figure">'.e($figure).'</p>' : '')
+                .($figure !== null ? '<p class="opener-figure'.(self::wordFigure($figure) ? ' opener-figure-word' : '').'">'.e($figure).'</p>' : '')
                 .$title.'<div class="rule"></div></div>',
             'rule' => '<div class="opener opener-rule"'.$id.'><div class="rule rule-top"></div>'.$label.$title.'</div>',
             // A table, since dompdf sets one reliably where floats drift.
@@ -1717,6 +1717,12 @@ class PrintBook
             'smallcaps', 'sink' => '<div class="opener opener-'.$style.'"'.$id.'>'.$label.$title.'<div class="rule"></div></div>',
             default => '<div class="opener"'.$id.'>'.$label.$title.'<div class="rule"></div></div>',
         };
+    }
+
+    /** A figure spelled out ("Twenty-One"), set smaller than a numeral. */
+    private static function wordFigure(string $figure): bool
+    {
+        return ! preg_match('/^[0-9IVXLCDM]+$/u', $figure);
     }
 
     /** A part's title page in the design's style; classic keeps the ornament. */
@@ -2338,6 +2344,7 @@ class PrintBook
         $css = match ($opener['style']) {
             'numeral' => <<<CSS
                 .opener-figure, .part-figure { text-align: center; text-indent: 0; font-size: 3.4em; line-height: {$lh(1.0)}; margin: 0 0 .35em; color: #333333; }
+                .opener-figure-word { font-size: 2.2em; }
                 .part-numeral .part-title { font-style: normal; }
 
                 CSS,
