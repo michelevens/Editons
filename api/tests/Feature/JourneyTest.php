@@ -89,13 +89,22 @@ function scaffolded(string $key, ?int $chapters = null): Book
     return app(Scaffolder::class)->build($book, BookType::findOrFail($key), $chapters);
 }
 
-it('totals the scaffold words on the book', function () {
-    // The chapters carry their prompts; the shelf reads the book's total,
-    // which was left at 0.
+it('totals the scaffold words on the book, counting no prompt as written', function () {
+    // The chapters carry their prompts, which are questions for the author,
+    // not words written (ADR — Author walkthrough fixes): the total is 0,
+    // and still the sum of the chapters.
     $book = scaffolded('nonfiction', 4);
 
-    expect($book->word_count)->toBeGreaterThan(0)
+    expect($book->word_count)->toBe(0)
         ->and($book->word_count)->toBe((int) $book->sections()->sum('word_count'));
+
+    $chapter = $book->sections()->where('type', 'chapter')->first();
+    $chapter->update(['content' => ['type' => 'doc', 'content' => [
+        ...$chapter->content['content'],
+        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Three real words.']]],
+    ]]]);
+
+    expect(App\Models\ManuscriptSection::countWords($chapter->content))->toBe(3);
 });
 
 it('builds the number of chapters asked for', function () {

@@ -56,10 +56,7 @@ class OutlineImporter
             // already has one means the author is correcting it, and ending
             // up with both is never what they meant. Only untouched chapters
             // go — anything with words in it is their work.
-            $book->sections()
-                ->where('word_count', 0)
-                ->whereIn('type', ['chapter', 'part'])
-                ->delete();
+            $this->clearUntouched($book, ['chapter']);
 
             $created = 0;
             $position = 0;
@@ -96,6 +93,28 @@ class OutlineImporter
     }
 
     /**
+     * Take out the unwritten sections an imported outline replaces, then
+     * the parts left with nothing in them.
+     *
+     * One by one rather than as one query, so each goes through the
+     * model's delete (and its children with it). A part holding a written
+     * chapter stays, with that chapter in it: deleting the part used to
+     * soft-delete it and leave the chapter live under a deleted parent,
+     * a ghost the binder could not show (ADR — Author walkthrough fixes).
+     * "Unwritten" counts no scaffold prompt as words.
+     *
+     * @param  list<string>  $types
+     */
+    private function clearUntouched(Book $book, array $types): void
+    {
+        $book->sections()->where('word_count', 0)->whereIn('type', $types)->get()->each->delete();
+
+        $book->sections()->where('type', 'part')->where('word_count', 0)->get()
+            ->reject(fn (ManuscriptSection $part) => $part->children()->exists())
+            ->each->delete();
+    }
+
+    /**
      * Build the binder from a structured outline, and keep the rest of it.
      *
      * The chapter plans and everything around the structure go into the
@@ -114,10 +133,7 @@ class OutlineImporter
         }
 
         return DB::transaction(function () use ($book, $parsed) {
-            $book->sections()
-                ->where('word_count', 0)
-                ->whereIn('type', ['chapter', 'part', 'back_matter'])
-                ->delete();
+            $this->clearUntouched($book, ['chapter', 'back_matter']);
 
             $ids = [];
             $position = 0;

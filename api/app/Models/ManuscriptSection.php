@@ -56,6 +56,35 @@ class ManuscriptSection extends Model
                 $section->word_count = self::countWords($section->content);
             }
         });
+
+        // A part's chapters go with it. Soft deletes never reach the
+        // database's cascade, so deleting a part left its chapters live
+        // under a deleted parent: invisible in the binder, undeletable,
+        // and still counted, reviewed and exported (ADR — Author
+        // walkthrough fixes).
+        static::deleting(function (self $section) {
+            if (! $section->isForceDeleting()) {
+                $section->children()->get()->each->delete();
+            }
+        });
+    }
+
+    /**
+     * Is this block of text one of the scaffold's chapter prompts
+     * (App\Journey\Scaffolder)? A question put there for the author is not
+     * their writing: it counts as no words, and a chapter holding only its
+     * prompt is unwritten.
+     */
+    public static function isPrompt(string $text): bool
+    {
+        static $prompts = null;
+
+        $prompts ??= array_flip(array_filter([
+            'What happens in this chapter?',
+            ...array_column(config('booktypes', []), 'chapter_prompt'),
+        ]));
+
+        return isset($prompts[trim(preg_replace('/\s+/u', ' ', $text))]);
     }
 
     /** The conventional part this section is, if it has been named. */
@@ -148,7 +177,20 @@ class ManuscriptSection extends Model
                 }
             }
         };
-        $walk($doc);
+
+        // Block by block, so a scaffold prompt left in place counts nothing.
+        foreach ($doc['content'] ?? [] as $block) {
+            if (! is_array($block)) {
+                continue;
+            }
+
+            $before = strlen($text);
+            $walk($block);
+
+            if (self::isPrompt(substr($text, $before))) {
+                $text = substr($text, 0, $before);
+            }
+        }
 
         $trimmed = trim(preg_replace('/\s+/u', ' ', $text));
 
