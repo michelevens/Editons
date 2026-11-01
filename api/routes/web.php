@@ -1071,6 +1071,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/sections/{section}/draft', [App\Http\Controllers\BookDraftController::class, 'section'])
         ->middleware('throttle:20,1')->name('draft.section');
     Route::post('/sections/{section}/draft/accept', [App\Http\Controllers\BookDraftController::class, 'acceptSection'])->name('draft.accept');
+});
+
+/*
  | AI research, source-backed fact-checking, cover templates, store copy and
  | the "Finish my book" checklist (ADR — AI research, source-backed
  | fact-checking, cover templates). One block, kept apart from the AI book
