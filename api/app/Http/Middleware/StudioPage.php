@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -20,17 +21,20 @@ class StudioPage
 {
     public function handle(Request $request, Closure $next, string $pane = ''): Response
     {
-        if (! $request->isMethod('GET') || ! self::isNavigation($request) || ! ($book = $request->route('book'))) {
+        $inertia = (bool) $request->header('X-Inertia');
+
+        if (! $request->isMethod('GET') || ! ($inertia || self::isNavigation($request)) || ! ($book = $request->route('book'))) {
             return $next($request);
         }
 
         $id = is_object($book) ? $book->getKey() : $book;
+        $url = $pane === 'guided'
+            ? route('journey.guided', $id)
+            : route('books.edit', array_filter(['book' => $id, 'pane' => $pane ?: null]));
 
-        if ($pane === 'guided') {
-            return redirect()->route('journey.guided', $id);
-        }
-
-        return redirect()->route('books.edit', array_filter(['book' => $id, 'pane' => $pane ?: null]));
+        // An Inertia link to the pane's URL (Book Settings' "Open Design")
+        // got JSON where it expected a page; it is sent there in full.
+        return $inertia ? Inertia::location($url) : redirect()->to($url);
     }
 
     /** A page load in the browser, not the studio's own fetch or an Inertia visit. */

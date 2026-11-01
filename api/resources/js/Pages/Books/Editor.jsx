@@ -225,6 +225,24 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
     useEffect(() => setSection(activeSection), [activeSection?.id]);
 
+    // A cover saved in Cover Studio: the sidebar's thumbnail is re-read, a
+    // moment after the last change, rather than staying on the old palette
+    // until a reload (ADR — Author walkthrough fixes).
+    useEffect(() => {
+        let timer = null;
+        const onCover = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => router.reload({ only: ['book'], preserveScroll: true }), 1200);
+        };
+
+        window.addEventListener('ecrivain:cover-changed', onCover);
+
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('ecrivain:cover-changed', onCover);
+        };
+    }, []);
+
     // The last text selected in the chapter, for the AI Editor's "Review
     // the selection" (ADR — Style guides and review options). Kept when the
     // author moves to that screen, which is when the selection collapses.
