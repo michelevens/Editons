@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/i18n';
+import AiResearchPanel from './AiResearchPanel';
 
 const KINDS = ['book', 'journal_article', 'website', 'report', 'interview', 'other'];
 const STANDINGS = ['verified', 'unverified', 'disputed'];
@@ -24,13 +25,13 @@ const EMPTY_FILTERS = { q: '', verification: '', kind: '', tag: '', collection: 
  * so the list a filter shows is the list the server would act on. Imports
  * (BibTeX, RIS, a DOI) are previewed first and always arrive unverified.
  */
-export default function ResearchLibrary({ bookId, onChanged }) {
+export default function ResearchLibrary({ bookId, onChanged, chapters = [] }) {
     const { t } = useI18n();
     const [sources, setSources] = useState([]);
     const [facets, setFacets] = useState(null);
     const [filters, setFilters] = useState(EMPTY_FILTERS);
     const [loading, setLoading] = useState(true);
-    const [mode, setMode] = useState(null); // null | 'add' | 'import'
+    const [mode, setMode] = useState(null); // null | 'add' | 'import' | 'ai'
     const [error, setError] = useState(null);
     const [notice, setNotice] = useState(null);
     const requestRef = useRef(0);
@@ -113,6 +114,13 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                         </a>
                     )}
                     <button
+                        data-a="research:ai"
+                        onClick={() => setMode((m) => (m === 'ai' ? null : 'ai'))}
+                        className="rounded-md border border-brand-primary px-3 py-1.5 text-sm font-semibold text-brand-primary hover:bg-bg-subtle"
+                    >
+                        {mode === 'ai' ? t('common.cancel') : t('airesearch.open')}
+                    </button>
+                    <button
                         data-a="research:import"
                         onClick={() => setMode((m) => (m === 'import' ? null : 'import'))}
                         className="rounded-md border border-border-input px-3 py-1.5 text-sm font-semibold text-text-primary hover:bg-bg-subtle"
@@ -128,6 +136,17 @@ export default function ResearchLibrary({ bookId, onChanged }) {
                     </button>
                 </div>
             </header>
+
+            {mode === 'ai' && (
+                <AiResearchPanel
+                    bookId={bookId}
+                    chapters={chapters}
+                    onSaved={(data) => {
+                        setNotice(t('airesearch.saved_notice', { count: data.saved.length }));
+                        changed();
+                    }}
+                />
+            )}
 
             {mode === 'add' && (
                 <AddSource

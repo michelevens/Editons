@@ -1065,7 +1065,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         </Panel>
                     ) : effectivePane === 'research' ? (
                         <Panel>
-                            <ResearchLibrary bookId={book.id} onChanged={refreshLibrary} />
+                            <ResearchLibrary bookId={book.id} onChanged={refreshLibrary} chapters={chapters} />
                         </Panel>
                     ) : effectivePane === 'references' ? (
                         <Panel>

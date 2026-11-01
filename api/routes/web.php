@@ -1050,3 +1050,19 @@ Route::get('/account-exports/{export}/download', AccountExportDownloadController
     ->whereNumber('export')
     ->middleware(['signed', 'throttle:10,1'])
     ->name('account-exports.download');
+
+/*
+ | AI research, source-backed fact-checking, cover templates, store copy and
+ | the "Finish my book" checklist (ADR — AI research, source-backed
+ | fact-checking, cover templates). One block, kept apart from the AI book
+ | writer's routes.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/research/runs', [App\Http\Controllers\ResearchAssistantController::class, 'index'])
+        ->name('research.runs.index');
+    Route::post('/books/{book}/research/runs', [App\Http\Controllers\ResearchAssistantController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('research.runs.store');
+    Route::post('/research-runs/{run}/save', [App\Http\Controllers\ResearchAssistantController::class, 'save'])
+        ->name('research.runs.save');
+});

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '@/i18n';
+import AiResearchPanel from './AiResearchPanel';
 
 /**
  * Citations for the open chapter.
@@ -15,6 +16,7 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary, selec
     const [sources, setSources] = useState([]);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
+    const [finding, setFinding] = useState(false);
 
     useEffect(() => {
         if (!sectionId) return;
@@ -70,6 +72,43 @@ export default function CitationsTab({ sectionId, bookId, onManageLibrary, selec
                 <p className="mb-3 rounded bg-status-warning-bg px-2 py-1.5 text-[11px] font-semibold text-status-warning">
                     {t('citations.needs_source_count', { count: needsSource })}
                 </p>
+            )}
+
+            {/* Find sources for the selected words with AI (ADR — AI research,
+                source-backed fact-checking, cover templates). */}
+            {selectionText.trim() !== '' && !adding && (
+                <div className="mb-3">
+                    <button
+                        data-a="citations:find-sources"
+                        onClick={() => setFinding((v) => !v)}
+                        className="text-[11px] font-semibold text-brand-primary hover:underline"
+                    >
+                        {finding ? t('common.cancel') : t('airesearch.find_for_claim')}
+                    </button>
+                    {finding && (
+                        <div className="mt-2">
+                            <AiResearchPanel
+                                compact
+                                bookId={bookId}
+                                sectionId={sectionId}
+                                claim={selectionText.trim().slice(0, 2000)}
+                                onSaved={(data) => setSources(data.sources)}
+                                onCite={async (source) => {
+                                    const claim = selectionText.trim().slice(0, 2000);
+                                    const res = await window.axios.post(`/sections/${sectionId}/citations`, {
+                                        claim,
+                                        research_source_id: source.id,
+                                        excerpt: claim,
+                                        status: 'supported',
+                                    });
+                                    setCitations(res.data.citations);
+                                    setFinding(false);
+                                    if (res.data.marker) onCite?.(res.data.marker);
+                                }}
+                            />
+                        </div>
+                    )}
+                </div>
             )}
 
             {adding && (

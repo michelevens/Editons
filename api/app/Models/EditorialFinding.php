@@ -28,6 +28,9 @@ class EditorialFinding extends Model
         'from_offset', 'to_offset', 'status', 'resolved_by', 'resolved_at',
         // Triage and "never flag this again" (ADR — Style guides and review options).
         'rule', 'term', 'source', 'dismissal',
+        // The fact-checker's verdict, source and excerpt (ADR — AI research,
+        // source-backed fact-checking, cover templates).
+        'evidence',
     ];
 
     protected function casts(): array
@@ -35,6 +38,7 @@ class EditorialFinding extends Model
         return [
             'agent' => EditorialAgent::class,
             'resolved_at' => 'datetime',
+            'evidence' => 'array',
         ];
     }
 

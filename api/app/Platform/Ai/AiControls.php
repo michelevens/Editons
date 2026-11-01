@@ -37,6 +37,9 @@ final class AiControls
         'cover_concepts' => ['Cover concepts', 'AI cover concepts are paused by Ecrivain — try again later.'],
         'cover_artwork' => ['Cover artwork', 'AI cover artwork is paused by Ecrivain — try again later.'],
         'support_draft' => ['Support reply drafts', 'AI reply drafts are paused.'],
+        // ADR — AI research, source-backed fact-checking, cover templates.
+        'research' => ['Web research', 'AI research is paused by Ecrivain — try again later.'],
+        'store_copy' => ['Blurb and store copy', 'AI store copy is paused by Ecrivain — try again later.'],
     ];
 
     private const CACHE_KEY = 'platform.ai-controls';

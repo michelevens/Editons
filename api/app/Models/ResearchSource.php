@@ -30,13 +30,15 @@ class ResearchSource extends Model
     ];
 
     /** Where an entry came from; null is typed in by hand. Server-set only. */
-    public const ORIGINS = ['bibtex', 'ris', 'crossref'];
+    public const ORIGINS = ['bibtex', 'ris', 'crossref', 'ai_web'];
 
     public const MAX_TAGS = 12;
 
     protected function casts(): array
     {
-        return ['verified_at' => 'datetime', 'tags' => 'array'];
+        // provenance: for a source the AI retrieved, {retrieved_by, run_id,
+        // model, query, retrieved_at, excerpt, summary, sample}. Server-set.
+        return ['verified_at' => 'datetime', 'tags' => 'array', 'provenance' => 'array'];
     }
 
     public function book(): BelongsTo
