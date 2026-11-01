@@ -96,7 +96,7 @@ function DetailsForm({ book, genres, bookTypes = [], languages }) {
     const { t } = useI18n();
     const [saved, setSaved] = useState(false);
 
-    const { data, setData, patch, processing, errors } = useForm({
+    const { data, setData, patch, processing, errors, isDirty, setDefaults } = useForm({
         title: book.title ?? '',
         subtitle: book.subtitle ?? '',
         author_name: book.author_name ?? '',
@@ -112,7 +112,12 @@ function DetailsForm({ book, genres, bookTypes = [], languages }) {
 
         patch(route('books.update', book.id), {
             preserveScroll: true,
+            // Kept, so the other form's unsaved fields survive this save:
+            // "Save changes" used to reload the page and drop a disclaimer
+            // typed in Publishing details (ADR — Author walkthrough fixes).
+            preserveState: true,
             onSuccess: () => {
+                setDefaults();
                 setSaved(true);
                 window.setTimeout(() => setSaved(false), 2600);
             },
@@ -197,6 +202,11 @@ function DetailsForm({ book, genres, bookTypes = [], languages }) {
             </div>
 
             <div className="mt-5 flex items-center justify-end gap-3">
+                {isDirty && !saved && !processing && (
+                    <span data-a="settings:unsaved" className="text-[12.5px] font-medium text-status-warning">
+                        {t('fric.unsaved')}
+                    </span>
+                )}
                 {saved && (
                     <span className="text-[12.5px] font-medium text-status-success">
                         {t('editor.save_saved')}
@@ -227,7 +237,7 @@ function PublicationForm({ book, copyrightPreview }) {
     const [saved, setSaved] = useState(false);
     const publication = book.publication ?? {};
 
-    const { data, setData, patch, processing, errors } = useForm({
+    const { data, setData, patch, processing, errors, isDirty, setDefaults } = useForm({
         series_name: book.series_name ?? '',
         series_number: book.series_number ?? '',
         publication: {
@@ -265,7 +275,12 @@ function PublicationForm({ book, copyrightPreview }) {
 
         patch(route('books.update', book.id), {
             preserveScroll: true,
+            // Kept, so the other form's unsaved fields survive this save:
+            // "Save changes" used to reload the page and drop a disclaimer
+            // typed in Publishing details (ADR — Author walkthrough fixes).
+            preserveState: true,
             onSuccess: () => {
+                setDefaults();
                 setSaved(true);
                 window.setTimeout(() => setSaved(false), 2600);
             },
@@ -518,6 +533,11 @@ function PublicationForm({ book, copyrightPreview }) {
             </div>
 
             <div className="mt-5 flex items-center justify-end gap-3">
+                {isDirty && !saved && !processing && (
+                    <span data-a="settings:unsaved" className="text-[12.5px] font-medium text-status-warning">
+                        {t('fric.unsaved')}
+                    </span>
+                )}
                 {saved && (
                     <span className="text-[12.5px] font-medium text-status-success">{t('editor.save_saved')}</span>
                 )}
