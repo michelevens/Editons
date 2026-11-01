@@ -3,15 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ecrivain — écrivez, corrigez, mettez en page et publiez votre livre</title>
-<meta name="description" content="Un studio d'édition du premier jet au livre terminé : chapitres, relecture éditoriale, mise en page, couvertures, exports PDF, EPUB et Word, et livre broché prêt à imprimer — en français, en kreyòl ou en anglais, sur ordinateur ou sur téléphone.">
+<title>Ecrivain — votre coauteur IA, d'une phrase à un livre terminé</title>
+<meta name="description" content="D'une phrase à un livre terminé&nbsp;: un coauteur IA rédige chaque chapitre à partir d'un plan que vous validez, Claude le relit, et vous créez la couverture et exportez un PDF prêt à imprimer et un EPUB — en français, en kreyòl ou en anglais, sur ordinateur ou sur téléphone.">
 
-<meta property="og:title" content="Ecrivain — écrivez, corrigez, mettez en page et publiez votre livre">
-<meta property="og:description" content="Chapitres, relecture éditoriale, mise en page, couvertures et livre broché prêt à imprimer, dans un seul studio — sur tous vos écrans.">
+<meta property="og:title" content="Ecrivain — votre coauteur IA, d'une phrase à un livre terminé">
+<meta property="og:description" content="Votre coauteur IA rédige le livre à partir d'un plan que vous validez, et vous gardez la main. Relecture éditoriale, recherche avec de vraies sources, couvertures et exports vérifiés, dans un seul studio.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://ecrivain.ai/fr/">
 <meta property="og:locale" content="fr_FR">
-<meta property="og:image" content="https://ecrivain.ai/brand/open-graph.png">
+<meta property="og:image" content="https://ecrivain.ai/brand/og-cowriter.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="«&nbsp;Write my book&nbsp;» dans Ecrivain&nbsp;: trois chapitres rédigés, le quatrième en cours, les autres en attente, chacun marqué «&nbsp;AI draft&nbsp;» jusqu'à ce que l'auteur l'accepte.">
 <meta name="twitter:card" content="summary_large_image">
 
 <!-- Brand marks from ecrivain-brand-assets. -->
@@ -275,6 +278,30 @@ footer li a{display:inline-block;padding:6px 0}
 footer a:hover{color:#fff}
 .foot-bottom{border-top:1px solid #1E293B;margin-top:36px;padding-top:22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:#64748B}
 
+/* ---------- key features ---------- */
+/* Real screenshots of the live app, framed like the hero's browser. The book
+   in them is a real test book drafted by the co-author. */
+.shot{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 22px 44px -28px rgba(15,23,42,.4)}
+.shot img{width:100%}
+.feat-lead{display:grid;gap:28px;padding:24px;border-color:#DCE6FD;background:linear-gradient(180deg,var(--brand-tint),var(--surface) 60%)}
+@media(min-width:1000px){.feat-lead{grid-template-columns:1fr 1.3fr;gap:44px;padding:40px;align-items:center}}
+.feat-lead > *{min-width:0}
+.feat-lead h3{font-size:clamp(24px,3.6vw,32px);font-weight:800;letter-spacing:-.025em;line-height:1.12;margin:12px 0 14px}
+.feat-lead p{font-size:16px;color:var(--body);line-height:1.65}
+.feat-lead p + p{margin-top:12px}
+.feat-steps{display:grid;gap:8px;margin-top:20px;counter-reset:fs}
+.feat-steps li{display:flex;gap:12px;align-items:center;font-size:15px;color:var(--ink);font-weight:600}
+.feat-steps li::before{counter-increment:fs;content:counter(fs);flex:none;width:28px;height:28px;border-radius:99px;display:grid;place-items:center;background:var(--brand);color:#fff;font:700 13px Inter,sans-serif}
+.feat-note{margin-top:18px;padding:12px 14px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);font-size:14px;line-height:1.55;color:var(--muted)}
+.feat-note b{color:var(--ink)}
+.feat-shots{display:grid;gap:14px}
+.feat-grid{display:grid;gap:16px;margin-top:16px}
+@media(min-width:800px){.feat-grid{grid-template-columns:repeat(2,1fr)}}
+.feat-grid .card{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.feat-grid .card .shot{order:-1;border-width:0 0 1px;border-radius:0;box-shadow:none;background:#F8FAFC}
+.feat-body{padding:20px 22px 22px}
+.feat-body h3{font-size:19px;margin-bottom:8px}
+
 /* ---------- phone CTA bar ---------- */
 /* What the app's tab bar is to the studio: the one action, under the thumb. */
 .mobile-cta{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
@@ -292,6 +319,7 @@ footer a:hover{color:#fff}
   <div class="wrap nav-in">
     <a class="logo" href="/fr/"><img src="/brand/symbol.svg" alt="" width="30" height="30"> Ecrivain</a>
     <nav class="nav-links" aria-label="Navigation principale">
+      <a href="#features">Fonctions</a>
       <a href="#books">Les livres</a>
       <a href="#studio">Studio</a>
       <a href="#mobile">Téléphone</a>
@@ -309,6 +337,7 @@ footer a:hover{color:#fff}
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </summary>
         <nav class="menu-sheet" aria-label="Menu">
+          <a href="#features">Fonctions clés</a>
           <a href="#books">Faits avec Ecrivain</a>
           <a href="#studio">Le studio</a>
           <a href="#mobile">Sur téléphone</a>
@@ -331,18 +360,18 @@ footer a:hover{color:#fff}
   <div class="wrap hero-grid">
     <div>
       <p class="eyebrow">Écrire · Corriger · Mettre en page · Publier</p>
-      <h1>Du premier jet au livre terminé — sur tous vos écrans.</h1>
+      <h1>D'une phrase à un livre terminé.</h1>
       <p class="lede">
-        Ecrivain est un studio d'édition. Organisez vos chapitres, recevez une
-        relecture éditoriale que vous validez ligne par ligne, composez
-        l'intérieur et la couverture, et repartez avec un EPUB pour les
-        librairies numériques et un livre broché prêt à imprimer — intérieur et
-        couverture complète, dos compris — en français, en kreyòl ou en anglais,
-        à votre bureau ou sur votre téléphone.
+        Votre coauteur IA écrit le livre avec vous, à partir d'un plan que vous
+        validez — et vous gardez la main sur chaque mot. Faites-le ensuite
+        relire par Claude, composez l'intérieur et la couverture, et repartez
+        avec un EPUB pour les librairies numériques et un livre broché prêt à
+        imprimer, en français, en kreyòl ou en anglais, à votre bureau ou sur
+        votre téléphone.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Commencer gratuitement</a>
-        <a class="btn btn-ghost" href="#books">Voir les livres réalisés</a>
+        <a class="btn btn-ghost" href="#features">Voir ce qu'il sait faire</a>
       </div>
       <div class="trust">
         <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Offre gratuite, sans carte</span>
@@ -357,6 +386,84 @@ footer a:hover{color:#fff}
         <img src="/shots/desktop-studio.jpg" width="2160" height="1350" alt="Le studio d'écriture Ecrivain : la liste des chapitres, le manuscrit et l'éditeur IA à côté.">
       </div>
       <div class="phone"><img src="/shots/phone-write.jpg" width="780" height="1688" alt="Le même chapitre sur un téléphone, avec la barre d'onglets en bas."></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FONCTIONS CLÉS ================= -->
+<!-- Seulement ce qui marche aujourd'hui dans l'application. Captures — un vrai
+     livre de test en français, rédigé par le coauteur sur app.ecrivain.ai en
+     novembre 2026. -->
+<section id="features">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Fonctions clés</p>
+      <h2>Un coauteur IA — et le dernier mot vous revient</h2>
+      <p class="lede mt-s">Tout ce qui suit fonctionne aujourd'hui dans l'application, avec Claude. L'IA propose&nbsp;; vous décidez. Rien de ce qu'elle écrit ou suggère n'entre dans votre livre sans votre accord.</p>
+    </div>
+
+    <div class="card feat-lead mt-l">
+      <div>
+        <span class="chip chip-now">Le coauteur IA</span>
+        <h3>D'une phrase à un livre rédigé</h3>
+        <p>Décrivez votre livre en une phrase. Le coauteur propose un plan — des idées de titre, le lecteur, la voix, et chaque chapitre avec son but et sa longueur — que vous modifiez puis acceptez. Lancez ensuite «&nbsp;Write my book&nbsp;» (écrire mon livre)&nbsp;: une seule validation, avec une estimation en crédits, et chaque chapitre s'écrit en arrière-plan, avec pause, reprise et annulation.</p>
+        <p>Chaque chapitre reste marqué «&nbsp;AI draft&nbsp;» (brouillon IA) jusqu'à ce que vous l'acceptiez, le fassiez réécrire avec une consigne ou le modifiiez vous-même. Il n'écrit jamais par-dessus votre propre texte, et chaque chapitre rédigé par l'IA est consigné pour la déclaration d'IA que demande Amazon KDP.</p>
+        <ol class="feat-steps">
+          <li>Une phrase sur votre livre</li>
+          <li>Un plan que vous modifiez et acceptez</li>
+          <li>Une validation, puis tous les chapitres</li>
+        </ol>
+        <p class="feat-note"><b>Dans notre essai&nbsp;:</b> un guide de jardinage de 25&nbsp;000 mots en français, rédigé en une dizaine de minutes pour une centaine de crédits. Il écrit en français, en kreyòl et en anglais.</p>
+      </div>
+      <div class="feat-shots">
+        <figure class="shot"><img src="/shots/ai-plan.webp" width="1192" height="528" loading="lazy" decoding="async" alt="Le plan proposé par le coauteur pour un guide de jardinage&nbsp;: trois idées de titre, un sous-titre, le lecteur, la promesse au lecteur, la voix et une feuille de style, tout modifiable."></figure>
+        <figure class="shot"><img src="/shots/ai-writing.webp" width="1192" height="668" loading="lazy" decoding="async" alt="L'écriture du livre en cours&nbsp;: trois chapitres sur huit terminés, le quatrième en cours, les autres en attente, avec Pause et Annuler&nbsp;; les chapitres rédigés sont marqués brouillon IA, pas encore relu, avec un bouton Accepter."></figure>
+      </div>
+    </div>
+
+    <div class="feat-grid">
+      <div class="card">
+        <div class="feat-body">
+          <h3>Une recherche sur des pages réellement ouvertes</h3>
+          <p>Posez une question&nbsp;: l'IA cherche sur le web et ne propose que des pages qu'elle a vraiment ouvertes, chacune avec un extrait cité. Vous choisissez celles à garder, vous les citez, et le livre exporté se termine par une bibliographie.</p>
+        </div>
+        <figure class="shot"><img src="/shots/research.webp" width="832" height="520" loading="lazy" decoding="async" alt="Résultats d'une recherche sur les saisons des pluies à Port-au-Prince&nbsp;: chaque source affiche son site, un extrait cité et une case pour la garder."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Une relecture éditoriale par Claude</h3>
+          <p>Structure, style, correction, cohérence, accessibilité, vérification des faits et relecture spécialisée. Chaque correction est à votre choix. L'acceptation groupée est sûre&nbsp;: les vérifications de faits se traitent une par une, les citations sourcées sont protégées, et un clic annule tout.</p>
+        </div>
+        <figure class="shot"><img src="/shots/review.webp" width="916" height="572" loading="lazy" decoding="async" alt="Un chapitre rédigé dans l'éditeur, marqué brouillon IA, à côté du panneau de l'éditeur IA avec sa vue d'ensemble et la liste des agents de relecture."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Des faits vérifiés sur vos sources</h3>
+          <p>Les affirmations de vos chapitres sont confrontées aux sources enregistrées pour le livre, et marquées confirmées, contredites ou non vérifiées. Rien n'est déclaré «&nbsp;vérifié&nbsp;» sans une source à l'appui.</p>
+        </div>
+        <figure class="shot"><img src="/shots/factcheck.webp" width="916" height="242" loading="lazy" decoding="async" alt="Une remarque de vérification à côté du chapitre&nbsp;: une affirmation contestée sur les gouttes d'eau qui brûlent les feuilles, marquée non vérifiée car aucune source enregistrée ne la tranche."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Une couverture dessinée, sans illustrateur</h3>
+          <p>Partez de huit modèles aux illustrations originales, et laissez l'IA proposer une palette, un motif et des polices pour votre livre. Le contraste du texte est vérifié, et le dessin couvre toute la couverture imprimée, dos et 4e compris.</p>
+        </div>
+        <figure class="shot"><img src="/shots/cover-templates.webp" width="1192" height="512" loading="lazy" decoding="async" alt="Le studio de couverture&nbsp;: huit modèles de couverture avec le titre du livre, les couleurs, les polices et le dessin suggérés par l'IA, et l'indication que le contraste du texte est bon sur chaque calque."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>4e de couverture et fiche librairie</h3>
+          <p>L'IA rédige le texte de 4e de couverture, les descriptions courte et longue pour les librairies et les mots-clés. Vous modifiez et approuvez chaque champ&nbsp;; rien n'est enregistré avant.</p>
+        </div>
+        <figure class="shot"><img src="/shots/store-copy.webp" width="1192" height="500" loading="lazy" decoding="async" alt="Le texte de 4e de couverture et les descriptions courte et longue rédigés par l'IA, chacun marqué approuvé par l'auteur."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Puis, terminer le livre</h3>
+          <p>«&nbsp;Finish my book&nbsp;» réunit en une seule liste ce qui mène du livre rédigé aux fichiers&nbsp;: relecture, vérification des faits, couverture, fiche librairie, vérifications de publication, puis le PDF et l'EPUB. Chaque étape affiche son coût et demande avant de changer quoi que ce soit.</p>
+        </div>
+        <figure class="shot"><img src="/shots/finish.webp" width="1192" height="444" loading="lazy" decoding="async" alt="La liste Finish my book&nbsp;: relecture éditoriale, vérification des faits, pages liminaires et finales, couverture, 4e et fiche librairie, vérifications de publication, fichiers PDF et EPUB, chacun avec son coût."></figure>
+      </div>
     </div>
   </div>
 </section>
@@ -656,7 +763,13 @@ footer a:hover{color:#fff}
       <div class="card">
         <span class="chip chip-now">Disponible</span>
         <ul class="checks">
+          <li>Un coauteur IA qui rédige votre livre chapitre par chapitre à partir d'un plan que vous validez, en français, en kreyòl ou en anglais</li>
+          <li>Une recherche par l'IA qui ne propose que des pages réellement ouvertes, avec extraits cités, citations et bibliographie</li>
+          <li>Vérification des faits sur vos sources enregistrées&nbsp;: confirmé, contredit ou non vérifié</li>
           <li>Relectures éditoriales par l'IA Claude&nbsp;: structure, style, correction, cohérence et plus, chaque correction à votre choix</li>
+          <li>Huit modèles de couverture aux illustrations originales, avec palette, motif et polices suggérés par l'IA</li>
+          <li>Texte de 4e de couverture, descriptions pour les librairies et mots-clés rédigés par l'IA, chacun approuvé par vous</li>
+          <li>«&nbsp;Finish my book&nbsp;»&nbsp;: une seule liste, du livre rédigé au PDF et à l'EPUB</li>
           <li>Éditeur de chapitres, plan du livre, enregistrement automatique et historique</li>
           <li>Mode suggestion, commentaires, circuit de relecture et rôles d'équipe</li>
           <li>Bibliothèque de sources, citations et cohérence dans tout le livre</li>
@@ -671,12 +784,11 @@ footer a:hover{color:#fff}
       <div class="card">
         <span class="chip chip-soon">Bientôt</span>
         <ul class="soon" style="margin-top:12px">
-          <li>Un coauteur IA qui écrit votre livre chapitre par chapitre, à partir d'un plan que vous validez</li>
-          <li>Recherche par l'IA avec de vraies sources citées, vérification des faits sourcée et modèles de couverture prêts à l'emploi</li>
           <li>Abonnements payants et packs de crédits au paiement</li>
           <li>Vente directe depuis votre boutique, et MonCash pour les lecteurs en Haïti</li>
           <li>Livres audio</li>
           <li>Créateur de cours et site d'auteur</li>
+          <li>Vérification des faits sur le web (en cours de finition)</li>
         </ul>
       </div>
     </div>
@@ -744,7 +856,19 @@ footer a:hover{color:#fff}
     <div class="faq mt-l">
       <details class="q" open>
         <summary>L'IA réécrit-elle mon livre&nbsp;?</summary>
-        <p>Non. Chaque remarque est une suggestion que vous appliquez ou écartez, et une correction appliquée peut être annulée. Les modifications suivies d'un coauteur attendent elles aussi votre accord. Rien ne change dans votre manuscrit sans votre geste.</p>
+        <p>Non. Chaque remarque est une suggestion que vous appliquez ou écartez, et une correction appliquée peut être annulée. Les modifications suivies d'un coauteur attendent elles aussi votre accord, et le coauteur IA n'écrit que dans des chapitres vides. Rien ne change dans votre manuscrit sans votre geste.</p>
+      </details>
+      <details class="q">
+        <summary>L'IA peut-elle écrire tout mon livre&nbsp;?</summary>
+        <p>Oui, si vous le souhaitez — à partir d'un plan que vous validez d'abord. Elle n'écrit que dans des chapitres vides, jamais par-dessus vos propres mots, et vous relisez et acceptez chaque chapitre. Quand un fait doit être vérifié, elle le signale, et vous réglez ces signalements avant de publier.</p>
+      </details>
+      <details class="q">
+        <summary>Combien cela coûte-t-il&nbsp;?</summary>
+        <p>La rédaction est facturée en crédits, selon l'usage réel de l'IA. Dans notre essai, un livre de 25&nbsp;000 mots a pris une centaine de crédits. L'application affiche une estimation et vous demande votre accord avant de commencer.</p>
+      </details>
+      <details class="q">
+        <summary>Le livre m'appartient-il&nbsp;?</summary>
+        <p>Le livre est à vous pour le publier, sous votre nom ou sous un pseudonyme. Les librairies comme Amazon KDP vous demandent de déclarer le texte généré par l'IA&nbsp;; Ecrivain garde la trace des chapitres rédigés par l'IA, pour que vous puissiez répondre honnêtement. Ceci n'est pas un conseil juridique&nbsp;: pour une question de droits dans votre pays, adressez-vous à un professionnel.</p>
       </details>
       <details class="q">
         <summary>Peut-on vraiment écrire sur un téléphone&nbsp;?</summary>
@@ -764,7 +888,7 @@ footer a:hover{color:#fff}
       </details>
       <details class="q">
         <summary>Mon manuscrit inédit sert-il à entraîner une IA&nbsp;?</summary>
-        <p>Non. Le texte n'est envoyé à un fournisseur que lorsque vous lancez une relecture, et seulement le chapitre relu. Les polices sont hébergées par le studio, et l'application installée ne garde aucune copie de votre manuscrit sur l'appareil.</p>
+        <p>Non. Le texte n'est envoyé au fournisseur d'IA (Claude, d'Anthropic) que lorsque vous lancez une action d'IA, et seulement ce dont elle a besoin&nbsp;: une relecture envoie le chapitre relu&nbsp;; la rédaction envoie votre plan, la consigne du chapitre en cours et de courts résumés des chapitres précédents&nbsp;; la recherche envoie votre question ou le passage à vérifier. Rien n'est envoyé en arrière-plan, et les livres des autres ne se mêlent jamais au vôtre. Les polices sont hébergées par le studio, et l'application installée ne garde aucune copie de votre manuscrit sur l'appareil.</p>
       </details>
       <details class="q">
         <summary>Que se passe-t-il si une relecture échoue&nbsp;?</summary>
@@ -780,7 +904,7 @@ footer a:hover{color:#fff}
       </details>
       <details class="q">
         <summary>Est-ce terminé&nbsp;?</summary>
-        <p>Pas entièrement, et la section «&nbsp;En toute franchise&nbsp;» ci-dessus dit exactement ce qui arrive. L'écriture, la relecture, la mise en page et l'export fonctionnent aujourd'hui.</p>
+        <p>Pas entièrement, et la section «&nbsp;En toute franchise&nbsp;» ci-dessus dit exactement ce qui arrive. Le coauteur IA, la recherche, la relecture, la mise en page et l'export fonctionnent aujourd'hui.</p>
       </details>
     </div>
   </div>

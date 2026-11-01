@@ -3,14 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ecrivain — write, edit, design and publish your book</title>
-<meta name="description" content="A book studio from first draft to finished book: chapters, editorial review, research, book design, covers and PDF, EPUB and Word exports — in English, French or Kreyòl, on your desktop or your phone.">
+<title>Ecrivain — your AI co-author, from one sentence to a finished book</title>
+<meta name="description" content="From one sentence to a finished book: an AI co-author drafts every chapter from a plan you approve, Claude reviews it, and you design the cover and export print-ready PDF and EPUB — in English, French or Kreyòl, on your desktop or your phone.">
 
-<meta property="og:title" content="Ecrivain — write, edit, design and publish your book">
-<meta property="og:description" content="Chapters, editorial review, book design, covers and validated exports in one studio — on any screen.">
+<meta property="og:title" content="Ecrivain — your AI co-author, from one sentence to a finished book">
+<meta property="og:description" content="Your AI co-author drafts the book from a plan you approve, and you stay in charge. Editorial review, research with real sources, covers and validated exports in one studio.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://ecrivain.ai/">
-<meta property="og:image" content="https://ecrivain.ai/brand/open-graph.png">
+<meta property="og:image" content="https://ecrivain.ai/brand/og-cowriter.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Write my book in Ecrivain: three chapters drafted, the fourth being written, the rest queued, each marked AI draft until the author accepts it.">
 <meta name="twitter:card" content="summary_large_image">
 
 <!-- Brand marks from ecrivain-brand-assets. -->
@@ -274,6 +277,30 @@ footer li a{display:inline-block;padding:6px 0}
 footer a:hover{color:#fff}
 .foot-bottom{border-top:1px solid #1E293B;margin-top:36px;padding-top:22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:#64748B}
 
+/* ---------- key features ---------- */
+/* Real screenshots of the live app, framed like the hero's browser. The book
+   in them is a real test book drafted by the co-author. */
+.shot{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 22px 44px -28px rgba(15,23,42,.4)}
+.shot img{width:100%}
+.feat-lead{display:grid;gap:28px;padding:24px;border-color:#DCE6FD;background:linear-gradient(180deg,var(--brand-tint),var(--surface) 60%)}
+@media(min-width:1000px){.feat-lead{grid-template-columns:1fr 1.3fr;gap:44px;padding:40px;align-items:center}}
+.feat-lead > *{min-width:0}
+.feat-lead h3{font-size:clamp(24px,3.6vw,32px);font-weight:800;letter-spacing:-.025em;line-height:1.12;margin:12px 0 14px}
+.feat-lead p{font-size:16px;color:var(--body);line-height:1.65}
+.feat-lead p + p{margin-top:12px}
+.feat-steps{display:grid;gap:8px;margin-top:20px;counter-reset:fs}
+.feat-steps li{display:flex;gap:12px;align-items:center;font-size:15px;color:var(--ink);font-weight:600}
+.feat-steps li::before{counter-increment:fs;content:counter(fs);flex:none;width:28px;height:28px;border-radius:99px;display:grid;place-items:center;background:var(--brand);color:#fff;font:700 13px Inter,sans-serif}
+.feat-note{margin-top:18px;padding:12px 14px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);font-size:14px;line-height:1.55;color:var(--muted)}
+.feat-note b{color:var(--ink)}
+.feat-shots{display:grid;gap:14px}
+.feat-grid{display:grid;gap:16px;margin-top:16px}
+@media(min-width:800px){.feat-grid{grid-template-columns:repeat(2,1fr)}}
+.feat-grid .card{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.feat-grid .card .shot{order:-1;border-width:0 0 1px;border-radius:0;box-shadow:none;background:#F8FAFC}
+.feat-body{padding:20px 22px 22px}
+.feat-body h3{font-size:19px;margin-bottom:8px}
+
 /* ---------- phone CTA bar ---------- */
 /* What the app's tab bar is to the studio: the one action, under the thumb. */
 .mobile-cta{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
@@ -291,7 +318,8 @@ footer a:hover{color:#fff}
   <div class="wrap nav-in">
     <a class="logo" href="/"><img src="/brand/symbol.svg" alt="" width="30" height="30"> Ecrivain</a>
     <nav class="nav-links" aria-label="Main">
-      <a href="#books">Made with Ecrivain</a>
+      <a href="#features">Features</a>
+      <a href="#books">Books</a>
       <a href="#studio">The studio</a>
       <a href="#mobile">On your phone</a>
       <a href="#print">Print</a>
@@ -308,6 +336,7 @@ footer a:hover{color:#fff}
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </summary>
         <nav class="menu-sheet" aria-label="Menu">
+          <a href="#features">Key features</a>
           <a href="#books">Made with Ecrivain</a>
           <a href="#studio">The studio</a>
           <a href="#mobile">On your phone</a>
@@ -330,17 +359,17 @@ footer a:hover{color:#fff}
   <div class="wrap hero-grid">
     <div>
       <p class="eyebrow">Write · Edit · Design · Publish</p>
-      <h1>From first draft to finished book — on any screen.</h1>
+      <h1>From one sentence to a finished book.</h1>
       <p class="lede">
-        Ecrivain is a book studio. Organise your chapters, get an editorial
-        review you decide on line by line, design the interior and the cover,
-        and leave with an EPUB for the ebook stores and a print-ready paperback
-        — interior and full cover, spine included — in English, French or
-        Kreyòl, at your desk or on your phone.
+        Your AI co-author writes the book with you, from a plan you approve —
+        and you stay in charge of every word. Then review it with Claude,
+        design the interior and the cover, and leave with an EPUB for the ebook
+        stores and a print-ready paperback, in English, French or Kreyòl, at
+        your desk or on your phone.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="https://app.ecrivain.ai/register">Start writing free</a>
-        <a class="btn btn-ghost" href="#books">See books made with it</a>
+        <a class="btn btn-ghost" href="#features">See what it does</a>
       </div>
       <div class="trust">
         <span><svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Free plan, no card</span>
@@ -355,6 +384,83 @@ footer a:hover{color:#fff}
         <img src="/shots/desktop-studio.jpg" width="2160" height="1350" alt="The Ecrivain writing studio: chapter list, the manuscript, and the AI editor beside it.">
       </div>
       <div class="phone"><img src="/shots/phone-write.jpg" width="780" height="1688" alt="The same chapter on a phone, with the tab bar along the bottom."></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= KEY FEATURES ================= -->
+<!-- Only what works today on the live app. Screenshots: a real test book in
+     French, drafted by the co-author on app.ecrivain.ai in November 2026. -->
+<section id="features">
+  <div class="wrap">
+    <div class="center">
+      <p class="eyebrow">Key features</p>
+      <h2>An AI co-author — and you have the last word</h2>
+      <p class="lede mt-s">Everything here works today in the live app, with Claude. The AI proposes; you decide. Nothing it writes or suggests goes into your book without your yes.</p>
+    </div>
+
+    <div class="card feat-lead mt-l">
+      <div>
+        <span class="chip chip-now">The AI co-author</span>
+        <h3>From one sentence to a drafted book</h3>
+        <p>Describe your book in a sentence. The co-author proposes a plan — title options, the reader, the voice, and every chapter with its purpose and length — that you edit and accept. Then press “Write my book”: one approval with a credit estimate, and every chapter is written in the background, with pause, resume and cancel.</p>
+        <p>Each chapter stays marked “AI draft” until you accept it, ask for a rewrite with a note, or edit it yourself. It never writes over your own text, and every AI chapter is recorded for the AI disclosure Amazon KDP asks for.</p>
+        <ol class="feat-steps">
+          <li>One sentence about your book</li>
+          <li>A plan you edit and accept</li>
+          <li>One approval, then every chapter</li>
+        </ol>
+        <p class="feat-note"><b>In our test:</b> a 25,000-word gardening guide in French, drafted in about 10 minutes for about 100 credits. It writes in English, French and Kreyòl.</p>
+      </div>
+      <div class="feat-shots">
+        <figure class="shot"><img src="/shots/ai-plan.webp" width="1192" height="528" loading="lazy" decoding="async" alt="The plan the co-author proposed for a French gardening book: three title options, a subtitle, the reader, the promise to the reader, the voice and a style sheet, all editable."></figure>
+        <figure class="shot"><img src="/shots/ai-writing.webp" width="1192" height="668" loading="lazy" decoding="async" alt="Writing your book: three of eight chapters done, the fourth being written, the rest queued, with Pause and Cancel; drafted chapters are marked AI draft, not yet reviewed, with an Accept button."></figure>
+      </div>
+    </div>
+
+    <div class="feat-grid">
+      <div class="card">
+        <div class="feat-body">
+          <h3>Research with sources it actually opened</h3>
+          <p>Ask a question and the AI searches the web, then offers only pages it really opened, each with a quoted excerpt. You pick the ones to keep and cite them, and the exported book ends with a bibliography.</p>
+        </div>
+        <figure class="shot"><img src="/shots/research.webp" width="832" height="520" loading="lazy" decoding="async" alt="Research results for a question about the rainy seasons in Port-au-Prince: each source shows its site, a quoted excerpt and a checkbox to keep it."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Editorial review by Claude</h3>
+          <p>Developmental, line, copy, consistency, accessibility, fact-checking and subject-matter review. Every fix is yours to accept. Accepting in bulk is safe: fact-check items stay one by one, cited quotes are protected, and one click undoes it.</p>
+        </div>
+        <figure class="shot"><img src="/shots/review.webp" width="916" height="572" loading="lazy" decoding="async" alt="A drafted chapter in the editor, marked AI draft, beside the AI Editor panel with its editorial overview and the list of review agents."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Fact-checking against your sources</h3>
+          <p>Claims in your chapters are checked against the sources you saved for the book, and labelled supported, contradicted or unverified. It never calls a claim verified without a source to show for it.</p>
+        </div>
+        <figure class="shot"><img src="/shots/factcheck.webp" width="916" height="242" loading="lazy" decoding="async" alt="A fact-check finding beside the chapter: a disputed claim about water drops burning leaves, labelled Unverified because none of the saved sources settles it."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>A designed cover, no artwork needed</h3>
+          <p>Start from eight templates with original illustrations, and let the AI suggest a palette, a motif and fonts for your book. Text contrast is checked, and the design runs across the full print wrap, spine and back included.</p>
+        </div>
+        <figure class="shot"><img src="/shots/cover-templates.webp" width="1192" height="512" loading="lazy" decoding="async" alt="Cover Studio: eight cover templates showing the book's title, with the AI's suggested colours, type pairing and drawing, and a note that text contrast passes on every layer."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Blurb and store copy</h3>
+          <p>The AI drafts the back-cover blurb, the short and long store descriptions and the keywords. You edit and approve each field; nothing is saved until you do.</p>
+        </div>
+        <figure class="shot"><img src="/shots/store-copy.webp" width="1192" height="500" loading="lazy" decoding="async" alt="The back-cover blurb and the short and long store descriptions drafted by the AI, each marked Approved by the author."></figure>
+      </div>
+      <div class="card">
+        <div class="feat-body">
+          <h3>Then, “Finish my book”</h3>
+          <p>One checklist from a drafted book to files: review, fact-check, cover, store copy, publishing checks, then the PDF and the EPUB. Each step shows its cost and asks before it changes anything.</p>
+        </div>
+        <figure class="shot"><img src="/shots/finish.webp" width="1192" height="444" loading="lazy" decoding="async" alt="The Finish my book checklist: editorial review, fact-check, front and back matter, cover, blurb and store copy, publishing checks, and PDF and EPUB files, each with its cost."></figure>
+      </div>
     </div>
   </div>
 </section>
@@ -652,7 +758,13 @@ footer a:hover{color:#fff}
       <div class="card">
         <span class="chip chip-now">Available now</span>
         <ul class="checks">
+          <li>An AI co-author that drafts your book chapter by chapter from a plan you approve, in English, French or Kreyòl</li>
+          <li>AI research that offers only pages it actually opened, with quoted excerpts, citations and a bibliography</li>
+          <li>Fact-checking against your saved sources: supported, contradicted or unverified</li>
           <li>AI editorial reviews by Claude: developmental, line, copy, consistency and more, with every fix yours to accept</li>
+          <li>Eight cover templates with original illustrations, with palette, motif and fonts suggested by the AI</li>
+          <li>Back-cover blurb, store descriptions and keywords drafted by the AI, each approved by you</li>
+          <li>“Finish my book”: one checklist from a drafted book to PDF and EPUB</li>
           <li>Chapter editor, binder, autosave and version history</li>
           <li>Suggest mode, comments, review workflow and team roles</li>
           <li>Research library, citations and cross-book consistency</li>
@@ -667,12 +779,11 @@ footer a:hover{color:#fff}
       <div class="card">
         <span class="chip chip-soon">Coming next</span>
         <ul class="soon" style="margin-top:12px">
-          <li>An AI co-author that writes your book chapter by chapter from a plan you approve</li>
-          <li>AI research with real, cited sources, source-backed fact-checking, and ready-made cover templates</li>
           <li>Paid plans and credit packs at checkout</li>
           <li>Direct sales from your own storefront, and MonCash for readers in Haiti</li>
           <li>Audiobook narration</li>
           <li>Course builder and author website</li>
+          <li>Web fact-checking (being finished)</li>
         </ul>
       </div>
     </div>
@@ -740,7 +851,19 @@ footer a:hover{color:#fff}
     <div class="faq mt-l">
       <details class="q" open>
         <summary>Does the AI rewrite my book?</summary>
-        <p>No. Every finding is a suggestion you apply or dismiss, and an applied fix can be undone. Tracked changes from a co-author wait for your accept or reject too. Nothing changes your manuscript without your tap.</p>
+        <p>No. Every finding is a suggestion you apply or dismiss, and an applied fix can be undone. Tracked changes from a co-author wait for your accept or reject too, and the AI co-author writes only into empty chapters. Nothing changes your manuscript without your tap.</p>
+      </details>
+      <details class="q">
+        <summary>Will the AI write my whole book?</summary>
+        <p>Yes, if you want it to — from a plan you approve first. It writes into empty chapters only, never over your own words, and you review and accept every chapter. Where a fact needs checking it marks it, and you resolve those marks before you publish.</p>
+      </details>
+      <details class="q">
+        <summary>What does it cost?</summary>
+        <p>Drafting is charged in credits, from the real AI usage. In our test, a 25,000-word book took about 100 credits. The app shows an estimate and asks before it starts.</p>
+      </details>
+      <details class="q">
+        <summary>Do I own the book?</summary>
+        <p>The book is yours to publish, under your own name or a pen name. Stores such as Amazon KDP ask you to disclose AI-generated text, and Ecrivain keeps a record of which chapters the AI drafted, so you can answer honestly. This is not legal advice: for questions about rights where you live, ask a professional.</p>
       </details>
       <details class="q">
         <summary>Can I really write on my phone?</summary>
@@ -760,7 +883,7 @@ footer a:hover{color:#fff}
       </details>
       <details class="q">
         <summary>Is my unpublished manuscript used to train anything?</summary>
-        <p>No. Text is sent to a review provider only when you run a review, and only the chapter being reviewed. Fonts are self-hosted in the studio, and the installed app keeps no copy of your manuscript on the device.</p>
+        <p>No. Text goes to the AI provider (Anthropic's Claude) only when you start an AI action, and only what that action needs: a review sends the chapter being reviewed; drafting sends your plan, the brief for the chapter being written and short summaries of earlier chapters; research sends your question or the passage you are checking. Nothing is sent in the background, and other people's books are never part of yours. Fonts are self-hosted in the studio, and the installed app keeps no copy of your manuscript on the device.</p>
       </details>
       <details class="q">
         <summary>What happens if a review fails?</summary>
@@ -776,7 +899,7 @@ footer a:hover{color:#fff}
       </details>
       <details class="q">
         <summary>Is it finished?</summary>
-        <p>Not entirely, and the “Honest status” section above says exactly which parts are coming. Writing, review, design and export work today.</p>
+        <p>Not entirely, and the “Honest status” section above says exactly which parts are coming. The AI co-author, research, review, design and export work today.</p>
       </details>
     </div>
   </div>
