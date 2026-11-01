@@ -9,6 +9,7 @@ use App\Models\ManuscriptSection;
 use App\Models\User;
 use App\Platform\House\House;
 use App\Publishing\AiDisclosure;
+use App\Publishing\Anatomy;
 use App\Publishing\IsbnPlan;
 use App\Publishing\LegalDeposit;
 use App\Publishing\RightsDeclaration;
@@ -321,6 +322,13 @@ class RightsController extends Controller
             ->map(fn (ManuscriptSection $section) => $section->plainText())
             ->implode("\n");
 
+        // The copyright page the book generates (Anatomy) is in every
+        // export: the checklist said "Insert copyright page" for a page
+        // already in the PDF (ADR — Author walkthrough fixes).
+        $generatedCopyright = collect(Anatomy::plan($book)['pages'])
+            ->contains(fn (array $page) => ($page['part'] ?? null) === 'copyright_page' && ($page['source'] ?? null) === 'generated');
+        $disclaimer = trim((string) ($book->publication()['disclaimer'] ?? '')) !== '';
+
         $imageCount = $book->sections()->get()
             ->sum(fn (ManuscriptSection $section) => $this->countImages($section->content ?? []));
 
@@ -344,14 +352,14 @@ class RightsController extends Controller
                     'label' => 'Copyright page in the front matter',
                     // Computed every time: an author who deletes the page
                     // should see the check go back to unmet.
-                    'done' => str_contains($frontMatter, 'Copyright ©'),
+                    'done' => $generatedCopyright || str_contains($frontMatter, 'Copyright ©'),
                     'action' => 'insert_copyright',
                     'action_label' => 'Insert copyright page',
                 ],
                 [
                     'key' => 'disclaimer',
                     'label' => 'A disclaimer saying the book is not professional advice',
-                    'done' => str_contains(strtolower($frontMatter), 'not legal'),
+                    'done' => $disclaimer || str_contains(strtolower($frontMatter), 'not legal'),
                     'action' => 'insert_copyright',
                     'action_label' => 'Insert with the copyright page',
                 ],
