@@ -3241,5 +3241,20 @@
     "fric.kit_build_free": "Kreye twous la · gratis",
     "fric.kit_rebuild_free": "Refè · gratis",
     "fric.ai_unavailable": "Revizyon IA a pa disponib kounye a. Eseye ankò pita. Yo pa chaje anyen.",
-    "AI review is unavailable right now. Try again later.": "Revizyon IA a pa disponib kounye a. Eseye ankò pita."
+    "AI review is unavailable right now. Try again later.": "Revizyon IA a pa disponib kounye a. Eseye ankò pita.",
+    "safe.bulk_title": "Aplike koreksyon sa yo?",
+    "safe.bulk_agent_counts": "{fixes, plural, one {# koreksyon} other {# koreksyon}}, {notes, plural, one {# nòt} other {# nòt}}",
+    "safe.one_by_one": "Aplike youn pa youn, apre ou fin verifye sous la",
+    "safe.bulk_cited_quotes": "{count, plural, one {# koreksyon ta chanje yon sitasyon ki gen sous, li rete deyò.} other {# koreksyon ta chanje yon sitasyon ki gen sous, yo rete deyò.}} Aplike yo youn pa youn si se sa ou vle.",
+    "safe.bulk_quoted": "{count, plural, one {# koreksyon chanje tèks ant gimè oswa yon pasaj ki gen sous.} other {# koreksyon chanje tèks ant gimè oswa yon pasaj ki gen sous.}} Verifye yo anvan.",
+    "safe.bulk_summary": "{count, plural, one {# remak aksepte} other {# remak aksepte}}, {fixes, plural, one {# koreksyon aplike nan tèks la} other {# koreksyon aplike nan tèks la}}. Yo anrejistre yon vèsyon chak chapit anvan, pou ou ka anile tout an yon sèl fwa.",
+    "safe.bulk_done": "{count, plural, one {# remak aksepte an yon sèl fwa.} other {# remak aksepte an yon sèl fwa.}}",
+    "safe.bulk_undo": "Anile aksepte an gwo sa a",
+    "safe.bulk_undone": "Aksepte an gwo a anile: {count, plural, one {# chapit retabli.} other {# chapit retabli.}}",
+    "safe.bulk_undone_kept": "Aksepte an gwo a anile: {count, plural, one {# chapit retabli.} other {# chapit retabli.}} Pa retabli, paske ou ekri ladan yo depi lè sa a: {kept}. Sèvi ak Istwa pou yo.",
+    "safe.changes_cited_quote": "chanje yon sitasyon ki gen sous",
+    "safe.check_source_first": "Verifye sous la anvan ou aplike",
+    "This suggestion is advice, not replacement text, so it cannot be applied. Edit the passage by hand if you agree.": "Sijesyon sa a se yon konsèy, se pa tèks pou ranplase, kidonk li pa ka aplike. Chanje pasaj la ak men ou si ou dakò.",
+    "Fact Checker and Subject Matter fixes are applied one by one, after checking the source.": "Koreksyon Verifikatè Fè ak Espesyalis Sijè a aplike youn pa youn, apre ou fin verifye sous la.",
+    "This would change a quotation that has a citation. Apply it on its own if you mean to.": "Sa ta chanje yon sitasyon ki gen sous. Aplike li pou kont li si se sa ou vle."
 }

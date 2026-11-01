@@ -376,6 +376,10 @@ Route::middleware('auth')->group(function () {
     // Triage: many at once, and "never flag this again" with its undo.
     Route::post('/books/{book}/findings/bulk', [AiEditorController::class, 'bulk'])
         ->name('ai.bulk');
+    // Safe apply (ADR — Safe apply, honest prices, citation fixes).
+    Route::post('/books/{book}/findings/bulk/{batch}/undo', [AiEditorController::class, 'undoBulk'])
+        ->where('batch', '[0-9a-f-]{36}')
+        ->name('ai.bulk.undo');
     Route::post('/findings/{finding}/never-flag', [AiEditorController::class, 'neverFlag'])
         ->name('ai.never-flag');
     Route::post('/books/{book}/findings/unsuppress', [AiEditorController::class, 'unsuppress'])

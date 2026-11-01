@@ -3241,5 +3241,20 @@
     "fric.kit_build_free": "Créer le kit · gratuit",
     "fric.kit_rebuild_free": "Refaire · gratuit",
     "fric.ai_unavailable": "La relecture par IA est indisponible pour le moment. Réessayez plus tard. Rien n’a été facturé.",
-    "AI review is unavailable right now. Try again later.": "La relecture par IA est indisponible pour le moment. Réessayez plus tard."
+    "AI review is unavailable right now. Try again later.": "La relecture par IA est indisponible pour le moment. Réessayez plus tard.",
+    "safe.bulk_title": "Appliquer ces corrections ?",
+    "safe.bulk_agent_counts": "{fixes, plural, one {# correction} other {# corrections}}, {notes, plural, one {# remarque} other {# remarques}}",
+    "safe.one_by_one": "À appliquer une par une, après vérification de la source",
+    "safe.bulk_cited_quotes": "{count, plural, one {# correction modifierait une citation sourcée et est laissée de côté.} other {# corrections modifieraient une citation sourcée et sont laissées de côté.}} Appliquez-les une par une si c’est voulu.",
+    "safe.bulk_quoted": "{count, plural, one {# correction modifie un texte entre guillemets ou un passage sourcé.} other {# corrections modifient un texte entre guillemets ou un passage sourcé.}} Vérifiez-les d’abord.",
+    "safe.bulk_summary": "{count, plural, one {# remarque acceptée} other {# remarques acceptées}}, {fixes, plural, one {# correction appliquée au texte} other {# corrections appliquées au texte}}. Une version de chaque chapitre est enregistrée avant, pour pouvoir tout annuler d’un coup.",
+    "safe.bulk_done": "{count, plural, one {# remarque acceptée en une fois.} other {# remarques acceptées en une fois.}}",
+    "safe.bulk_undo": "Annuler cette acceptation groupée",
+    "safe.bulk_undone": "Acceptation groupée annulée : {count, plural, one {# chapitre restauré.} other {# chapitres restaurés.}}",
+    "safe.bulk_undone_kept": "Acceptation groupée annulée : {count, plural, one {# chapitre restauré.} other {# chapitres restaurés.}} Non restaurés, car modifiés depuis : {kept}. Utilisez l’historique pour ceux-là.",
+    "safe.changes_cited_quote": "modifie une citation sourcée",
+    "safe.check_source_first": "Vérifiez la source avant d’appliquer",
+    "This suggestion is advice, not replacement text, so it cannot be applied. Edit the passage by hand if you agree.": "Cette suggestion est un conseil, pas un texte de remplacement : elle ne peut pas être appliquée. Modifiez le passage à la main si vous êtes d’accord.",
+    "Fact Checker and Subject Matter fixes are applied one by one, after checking the source.": "Les corrections du vérificateur des faits et de l’expert du sujet s’appliquent une par une, après vérification de la source.",
+    "This would change a quotation that has a citation. Apply it on its own if you mean to.": "Cela modifierait une citation sourcée. Appliquez-la seule si c’est voulu."
 }

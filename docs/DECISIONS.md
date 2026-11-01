@@ -4718,3 +4718,69 @@ unchanged, the message and no secret in the log), updated expectations in `Sugge
 `JourneyTest`, `GrowthTest`, `BookTypographyTest`,
 `MasterDataReleasesTest`; `tests/Browser/walkthrough-fix.spec.js` (find and
 replace, track changes, the outline step and the URLs, at 1440 and 390 px).
+
+## ADR-00XX — Safe apply, honest prices, citation fixes
+
+**Status:** accepted (2026-11-01). Number assigned at merge.
+
+**Context.** A live walkthrough ("Here to Rise", book 735, 92 citations,
+real Claude reviews) found that applying findings could corrupt a book. A
+bulk "Accept 106? 41 fixes" on the AI Editor screen wrote fact-checker
+advice into the manuscript, replacing a verified Danticat quotation with
+"In her own words: Add a source note identifying where Danticat said or
+wrote this", 41 times across 9 chapters. The real Fact Checker's
+"suggestion" is often an instruction, not replacement text, and nothing at
+the apply layer told the two apart.
+
+**1. Applying a finding never inserts instructions.**
+- `App\Editorial\ApplyGuard::isAdvice()` decides, without a model, whether
+  a suggestion is plausible replacement text for its excerpt. Advice is:
+  an editor's verb ("Add", "Consider", "Verify", "Cite", "Remove",
+  "Rephrase", French and Kreyòl too) as the first word when the excerpt
+  does not start with it, or capitalised after a colon or full stop;
+  sourcing or authorship words ("source", "citation", "footnote", "the
+  author", "source note", "note that", "you should", "consider") the
+  excerpt did not have; a placeholder (`[year]`, `TK`); a question; a
+  suggestion far longer than its excerpt (over 2.5× + 60 characters); or a
+  passage of eight or more words sharing under a quarter of them. It leans
+  towards advice: a real fix held back costs a copy and paste, an
+  instruction applied corrupts the book. A house-style check's replacement
+  is exempt (it is built from the author's own rule).
+- `EditorialFinding::replacement()` is the suggestion only when it is text;
+  both listings (`/books/{book}/findings`, `/sections/{id}/findings`) send
+  it as `suggestion`, so advice shows "Advice, no automatic fix" with no
+  Apply, its text appended to the detail (`detailWithAdvice()`). The stored
+  suggestion is kept as the reviewer wrote it.
+- `SuggestionApplier::apply()` refuses advice, under every caller (single
+  resolve returns 409, bulk reports it skipped). It also reads the chapter
+  fresh: a bulk accept with two fixes in one chapter saved the second over
+  the first when the chapter was loaded once.
+- Bulk accept never applies Fact Checker or Subject Matter fixes
+  (`ApplyGuard::ONE_BY_ONE`); each is applied on its own after checking
+  the source. Their findings without a fix can still be dismissed in bulk.
+- `ApplyGuard::context()` says where an excerpt sits: `cited_quote`
+  (inside quotation marks in a paragraph with a citation: a note marker, an
+  author-date marker like "(NPS 2020)", or a recorded `Citation` excerpt),
+  `quote`, `citation`, or nothing. A bulk accept never changes a cited
+  quotation; the author can still apply that one finding explicitly, and
+  the Apply button says "changes a cited quotation".
+- The bulk confirmation lists the selected findings agent by agent (fixes
+  and notes), ticks only Copy and Line by default, shows Fact Checker and
+  Subject Matter as "apply one by one", warns how many fixes would touch a
+  cited quotation (left out) or text inside quotation marks or a citation,
+  and sends only the ticked agents' findings. A listing response that
+  arrives after a newer one is ignored, so a filter chip and "select all
+  shown" always agree (the walkthrough's "Consistency Agent" chip selected
+  106).
+- Before its first change a bulk accept saves one version of each chapter
+  it will change (`ManuscriptWriter::checkpoint`, reason `manual`, label
+  "Before bulk accept (<batch>)"), and every finding it decides carries the
+  batch (`editorial_findings.bulk_batch`, migration
+  `2026_11_09_1100000_add_bulk_batch_to_editorial_findings`). "Undo this
+  bulk accept" (`POST /books/{book}/findings/bulk/{batch}/undo`) restores
+  each chapter to that version exactly (a `restore` save, so the undone
+  state is itself versioned) and reopens the batch's findings. A chapter
+  written in since is not rolled back over that work: it is reported, and
+  History still has the version.
+- A finding accepted as advice (no text change) reopens by relabelling; an
+  applied fix still comes back out through its undo.

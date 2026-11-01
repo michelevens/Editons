@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 import { useI18n } from '../../i18n';
 import ReviewOptions from './ReviewOptions';
@@ -24,6 +24,9 @@ const SEVERITY = {
     warning: { dot: 'bg-status-warning', tKey: 'ai.severity_warning' },
     suggestion: { dot: 'bg-status-info', tKey: 'ai.severity_suggestion' },
 };
+
+// The agents a bulk accept applies unless the author ticks more.
+const BULK_DEFAULT = ['copy', 'line'];
 
 const SORTS = [
     { key: 'severity', tKey: 'ai.sort_severity' },
@@ -58,6 +61,15 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
     const [styleKey, setStyleKey] = useState(0);
     // Bumped when the style guide changes, so the estimate is fetched again.
     const [styleTick, setStyleTick] = useState(0);
+    // Safe apply (ADR — Safe apply, honest prices, citation fixes): the
+    // agents whose fixes a bulk accept applies (Copy and Line unless the
+    // author ticks more), and the last bulk accept, with its undo.
+    const [bulkAgents, setBulkAgents] = useState(BULK_DEFAULT);
+    const [bulkUndo, setBulkUndo] = useState(null);
+    // Only the newest listing is shown: a slow earlier response arriving
+    // last showed every agent's findings under one agent's chip, and
+    // "select all shown" then picked all of them.
+    const loadSeq = useRef(0);
 
     const load = useCallback(async () => {
         const params = new URLSearchParams();
@@ -66,7 +78,10 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
             if (value) params.set(key, value);
         });
 
+        const seq = ++loadSeq.current;
         const response = await window.axios.get(`/books/${bookId}/findings?${params.toString()}`);
+
+        if (seq !== loadSeq.current) return;
 
         setData(response.data);
         // A selection never includes what the filter now hides.
@@ -108,11 +123,11 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
         }
     };
 
-    const bulk = async (action) => {
+    const bulk = async (action, ids = picked) => {
         setBusy('bulk');
 
         try {
-            const { data: result } = await window.axios.post(`/books/${bookId}/findings/bulk`, { ids: picked, action, confirmed: true });
+            const { data: result } = await window.axios.post(`/books/${bookId}/findings/bulk`, { ids, action, confirmed: true });
             const skipped = result.skipped.length
                 ? ` ${action === 'accept'
                     ? t('ai.bulk_skipped_applied', { count: result.skipped.length, message: result.skipped[0].message })
@@ -123,9 +138,30 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                 : t('ai.bulk_dismissed', { count: result.done })}${skipped}`);
             setPicked([]);
             setConfirming(null);
+            setBulkUndo(result.batch ? { batch: result.batch, done: result.done } : null);
             await load();
         } catch (error) {
             onNotify?.(error.response?.data?.message ?? t('ai.did_not_work'));
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const undoBulk = async () => {
+        if (!bulkUndo) return;
+        setBusy('bulk-undo');
+
+        try {
+            const { data: result } = await window.axios.post(`/books/${bookId}/findings/bulk/${bulkUndo.batch}/undo`);
+            onNotify?.(
+                result.kept.length
+                    ? t('safe.bulk_undone_kept', { count: result.restored, kept: result.kept.map((k) => k.title).join(', ') })
+                    : t('safe.bulk_undone', { count: result.restored }),
+            );
+            setBulkUndo(null);
+            await load();
+        } catch (error) {
+            onNotify?.(error.response?.data?.message ?? t('ai.undo_failed'));
         } finally {
             setBusy(null);
         }
@@ -178,6 +214,21 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
 
     const pickedFindings = openShown.filter((f) => picked.includes(f.id));
     const withFix = pickedFindings.filter((f) => f.suggestion).length;
+    // What a bulk accept would do, agent by agent: fixes from the ticked
+    // agents only; Fact Checker and Subject Matter fixes never; a fix inside
+    // a cited quotation left out (the server refuses it too).
+    const byAgent = Object.values(
+        pickedFindings.reduce((groups, f) => {
+            const group = (groups[f.agent] ??= { agent: f.agent, label: f.agent_label, fixes: 0, notes: 0, oneByOne: f.one_by_one });
+            if (f.suggestion) group.fixes++;
+            else group.notes++;
+            return groups;
+        }, {}),
+    );
+    const toAccept = pickedFindings.filter((f) => !f.one_by_one && bulkAgents.includes(f.agent));
+    const fixesToApply = toAccept.filter((f) => f.suggestion && f.quote !== 'cited_quote');
+    const citedQuotes = toAccept.filter((f) => f.suggestion && f.quote === 'cited_quote').length;
+    const quoted = fixesToApply.filter((f) => f.quote === 'quote' || f.quote === 'citation').length;
     const allPicked = openShown.length > 0 && openShown.every((f) => picked.includes(f.id));
 
     return (
@@ -228,6 +279,28 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                         {t('ai.undo')}
                     </button>
                     <button type="button" aria-label={t('common.close')} onClick={() => setUndo(null)} className="text-text-secondary hover:text-text-primary">
+                        ×
+                    </button>
+                </div>
+            )}
+
+            {bulkUndo && (
+                <div
+                    role="status"
+                    data-a="ai-screen:bulk-undo"
+                    className="mb-4 flex flex-wrap items-center gap-3 rounded-tile border border-border-default bg-bg-subtle px-3 py-2 text-[12.5px] text-text-body"
+                >
+                    <span className="min-w-0 flex-1">{t('safe.bulk_done', { count: bulkUndo.done })}</span>
+                    <button
+                        type="button"
+                        data-a="ai-screen:bulk-undo:button"
+                        disabled={busy === 'bulk-undo'}
+                        onClick={undoBulk}
+                        className="font-semibold text-brand-primary hover:underline disabled:opacity-50"
+                    >
+                        {t('safe.bulk_undo')}
+                    </button>
+                    <button type="button" aria-label={t('common.close')} onClick={() => setBulkUndo(null)} className="text-text-secondary hover:text-text-primary">
                         ×
                     </button>
                 </div>
@@ -333,7 +406,7 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                     {picked.length > 0 && !confirming && (
                         <>
                             {withFix > 0 && (
-                                <button type="button" data-a="ai-screen:bulk:accept" onClick={() => setConfirming('accept')} className="font-semibold text-status-success hover:underline">
+                                <button type="button" data-a="ai-screen:bulk:accept" onClick={() => { setBulkAgents(BULK_DEFAULT); setConfirming('accept'); }} className="font-semibold text-status-success hover:underline">
                                     {t('ai.accept_n', { count: picked.length })}
                                 </button>
                             )}
@@ -347,18 +420,55 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                             role="alertdialog"
                             aria-label={t('ai.confirm')}
                             data-a="ai-screen:confirm"
-                            className="flex w-full flex-wrap items-center gap-2 border-t border-border-default pt-2 sm:w-auto sm:border-0 sm:pt-0"
+                            className={`flex w-full flex-wrap items-center gap-2 border-t border-border-default pt-2 ${
+                                confirming === 'accept' ? '' : 'sm:w-auto sm:border-0 sm:pt-0'
+                            }`}
                         >
-                            <span className="text-text-body">
-                                {confirming === 'accept'
-                                    ? t('ai.confirm_accept', { count: picked.length, fixes: withFix })
-                                    : t('ai.confirm_dismiss', { count: picked.length })}
-                            </span>
+                            {confirming === 'accept' ? (
+                                <div className="w-full space-y-2 text-text-body" data-a="ai-screen:confirm:breakdown">
+                                    <p className="font-semibold">{t('safe.bulk_title')}</p>
+                                    <ul className="space-y-1">
+                                        {byAgent.map((g) => (
+                                            <li key={g.agent} className="flex flex-wrap items-center gap-x-2">
+                                                <label className="flex items-center gap-1.5">
+                                                    <input
+                                                        type="checkbox"
+                                                        data-a={`ai-screen:confirm:agent:${g.agent}`}
+                                                        disabled={g.oneByOne}
+                                                        checked={!g.oneByOne && bulkAgents.includes(g.agent)}
+                                                        onChange={(e) =>
+                                                            setBulkAgents((list) => (e.target.checked ? [...list, g.agent] : list.filter((a) => a !== g.agent)))
+                                                        }
+                                                    />
+                                                    <span className="font-medium">{g.label}</span>
+                                                </label>
+                                                <span className="text-text-secondary">
+                                                    {t('safe.bulk_agent_counts', { fixes: g.fixes, notes: g.notes })}
+                                                </span>
+                                                {g.oneByOne && <span className="text-[11.5px] text-status-warning">{t('safe.one_by_one')}</span>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    {citedQuotes > 0 && (
+                                        <p data-a="ai-screen:confirm:cited" className="rounded bg-status-warning-bg px-2 py-1 text-[12px] text-status-warning">
+                                            {t('safe.bulk_cited_quotes', { count: citedQuotes })}
+                                        </p>
+                                    )}
+                                    {quoted > 0 && (
+                                        <p data-a="ai-screen:confirm:quoted" className="rounded bg-status-warning-bg px-2 py-1 text-[12px] text-status-warning">
+                                            {t('safe.bulk_quoted', { count: quoted })}
+                                        </p>
+                                    )}
+                                    <p className="text-text-secondary">{t('safe.bulk_summary', { count: toAccept.length, fixes: fixesToApply.length })}</p>
+                                </div>
+                            ) : (
+                                <span className="text-text-body">{t('ai.confirm_dismiss', { count: picked.length })}</span>
+                            )}
                             <button
                                 type="button"
                                 data-a="ai-screen:confirm:yes"
-                                disabled={busy === 'bulk'}
-                                onClick={() => bulk(confirming)}
+                                disabled={busy === 'bulk' || (confirming === 'accept' && toAccept.length === 0)}
+                                onClick={() => (confirming === 'accept' ? bulk('accept', toAccept.map((f) => f.id)) : bulk(confirming))}
                                 className="rounded-control bg-brand-fill px-2.5 py-1 text-[12px] font-semibold text-white disabled:opacity-50"
                             >
                                 {confirming === 'accept' ? t('ai.accept') : t('ai.dismiss')}
@@ -427,6 +537,12 @@ export default function AiEditorScreen({ bookId, onOpenSection, onNotify, agent 
                                                     >
                                                         {t('ai.apply_fix')}
                                                     </button>
+                                                )}
+                                                {finding.suggestion && finding.quote === 'cited_quote' && (
+                                                    <span className="text-[11.5px] text-status-warning">{t('safe.changes_cited_quote')}</span>
+                                                )}
+                                                {finding.suggestion && finding.one_by_one && (
+                                                    <span className="text-[11.5px] text-text-secondary">{t('safe.check_source_first')}</span>
                                                 )}
                                                 <button
                                                     data-a={`ai-screen:dismiss:${finding.id}`}

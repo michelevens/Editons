@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Editorial\ApplyGuard;
 use App\Editorial\EditorialAgent;
 use App\Editorial\ReviewPlanner;
 use App\Editorial\Style\StyleGuides;
 use App\Editorial\SuggestionApplier;
 use App\Models\Book;
 use App\Models\EditorialFinding;
+use App\Models\ManuscriptVersion;
+use App\Services\ManuscriptWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -89,6 +93,15 @@ class AiEditorController extends Controller
         $all = EditorialFinding::whereIn('manuscript_section_id', $sections->keys())->get();
         $open = $all->where('status', 'open');
 
+        // Where each open fix would write: inside a quotation, a citation,
+        // or a cited quotation (ADR — Safe apply). The bulk confirmation
+        // warns on these, and leaves cited quotations out.
+        $guard = new ApplyGuard;
+        $texts = $book->sections()
+            ->whereIn('id', $findings->where('status', 'open')->pluck('manuscript_section_id')->unique())
+            ->get(['id', 'content'])
+            ->keyBy('id');
+
         return response()->json([
             'agents' => collect(EditorialAgent::catalogue(for: $request->user(), book: $book))
                 ->map(fn (array $agent) => $agent + [
@@ -117,9 +130,17 @@ class AiEditorController extends Controller
                     'agent_label' => $finding->agent->displayLabel(),
                     'severity' => $finding->severity,
                     'title' => $finding->title,
-                    'detail' => $finding->detail,
+                    // Advice ("Add a source note…") is shown as advice:
+                    // no fix to apply, its text in the detail.
+                    'detail' => $finding->detailWithAdvice(),
                     'excerpt' => $finding->excerpt,
-                    'suggestion' => $finding->suggestion,
+                    'suggestion' => $finding->replacement(),
+                    'one_by_one' => $finding->oneByOne(),
+                    'quote' => $finding->status === 'open' && $finding->replacement() !== null && $texts->has($finding->manuscript_section_id)
+                        ? $guard->context($texts[$finding->manuscript_section_id], $finding->excerpt)
+                        : null,
+                    // Applied in a bulk accept, which can be undone as one.
+                    'bulk_batch' => $finding->bulk_batch,
                     'status' => $finding->status,
                     'rule' => $finding->rule,
                     'term' => $finding->term,
@@ -137,6 +158,14 @@ class AiEditorController extends Controller
      * through SuggestionApplier (its own version, undoable), and one that
      * cannot be applied (the passage moved, or occurs twice) stays open and
      * is reported. Only open findings of this book are touched.
+     *
+     * A bulk accept never writes in (ADR — Safe apply, honest prices,
+     * citation fixes): a Fact Checker or Subject Matter fix (each is checked
+     * against the source and applied on its own), a suggestion that is
+     * advice rather than replacement text, or a change inside a quotation
+     * with a citation attached. Before the first change it saves one
+     * version of each chapter it will touch, labelled with the batch, so
+     * "Undo this bulk accept" puts every chapter back exactly.
      */
     public function bulk(Request $request, Book $book): JsonResponse
     {
@@ -151,11 +180,15 @@ class AiEditorController extends Controller
 
         $findings = EditorialFinding::whereIn('id', $data['ids'])
             ->whereIn('manuscript_section_id', $book->sections()->select('id'))
+            ->with('section')
             ->get();
         $applier = app(SuggestionApplier::class);
+        $guard = new ApplyGuard;
         $user = $request->user();
+        $accept = $data['action'] === 'accept';
         $done = 0;
         $skipped = [];
+        $decide = collect();
 
         foreach ($findings as $finding) {
             if ($finding->status !== 'open') {
@@ -164,9 +197,43 @@ class AiEditorController extends Controller
                 continue;
             }
 
+            if ($accept && $finding->oneByOne() && $finding->suggestion) {
+                $skipped[] = ['id' => $finding->id, 'message' => __('Fact Checker and Subject Matter fixes are applied one by one, after checking the source.')];
+
+                continue;
+            }
+
+            if ($accept && $finding->suggestion && $finding->replacement() === null) {
+                $skipped[] = ['id' => $finding->id, 'message' => __('This suggestion is advice, not replacement text, so it cannot be applied. Edit the passage by hand if you agree.')];
+
+                continue;
+            }
+
+            if ($accept && $finding->replacement() !== null && $guard->context($finding->section, $finding->excerpt) === 'cited_quote') {
+                $skipped[] = ['id' => $finding->id, 'message' => __('This would change a quotation that has a citation. Apply it on its own if you mean to.')];
+
+                continue;
+            }
+
+            $decide->push($finding);
+        }
+
+        $batch = $accept && $decide->isNotEmpty() ? (string) Str::uuid() : null;
+
+        // One version of each chapter the batch will change, before the
+        // first change: the undo point.
+        if ($batch) {
+            $writer = app(ManuscriptWriter::class);
+
+            $decide->filter(fn (EditorialFinding $f) => $f->replacement() !== null)
+                ->unique('manuscript_section_id')
+                ->each(fn (EditorialFinding $f) => $writer->checkpoint($f->section, $user->id, self::checkpointLabel($batch)));
+        }
+
+        foreach ($decide as $finding) {
             $appliedVersion = null;
 
-            if ($data['action'] === 'accept' && $finding->suggestion) {
+            if ($accept && $finding->replacement() !== null) {
                 try {
                     $section = $applier->apply($finding, $user->id);
                     $appliedVersion = $applier->snapshotOf($section);
@@ -178,18 +245,94 @@ class AiEditorController extends Controller
             }
 
             $finding->update([
-                'status' => $data['action'] === 'accept' ? 'accepted' : 'dismissed',
-                'dismissal' => $data['action'] === 'dismiss' ? 'bulk' : null,
+                'status' => $accept ? 'accepted' : 'dismissed',
+                'dismissal' => $accept ? null : 'bulk',
                 'resolved_by' => $user->id,
                 'resolved_at' => now(),
                 'applied_version_id' => $appliedVersion,
+                'bulk_batch' => $batch,
             ]);
             $done++;
         }
 
         // Ids that are not this book's are not reported back one by one:
         // whether a finding exists elsewhere is not this book's business.
-        return response()->json(['done' => $done, 'skipped' => $skipped, 'not_found' => count($data['ids']) - $findings->count()]);
+        return response()->json([
+            'done' => $done,
+            'skipped' => $skipped,
+            'not_found' => count($data['ids']) - $findings->count(),
+            'batch' => $done > 0 ? $batch : null,
+        ]);
+    }
+
+    /** The label of the version a bulk accept saves before it starts. */
+    public static function checkpointLabel(string $batch): string
+    {
+        return "Before bulk accept ({$batch})";
+    }
+
+    /**
+     * Undo a bulk accept: each chapter it changed back to the version saved
+     * before it started, exactly, and its findings reopened.
+     *
+     * A chapter saved since the bulk accept (the author kept writing) is not
+     * rolled back over that work: it is reported, and History still has the
+     * version to restore by hand.
+     */
+    public function undoBulk(Request $request, Book $book, string $batch): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $findings = EditorialFinding::where('bulk_batch', $batch)
+            ->whereIn('manuscript_section_id', $book->sections()->select('id'))
+            ->where('status', 'accepted')
+            ->with('section')
+            ->get();
+
+        abort_if($findings->isEmpty(), 404);
+
+        $checkpoints = ManuscriptVersion::whereIn('manuscript_section_id', $findings->pluck('manuscript_section_id')->unique())
+            ->where('label', self::checkpointLabel($batch))
+            ->get()
+            ->keyBy('manuscript_section_id');
+        $writer = app(ManuscriptWriter::class);
+        $restored = 0;
+        $kept = [];
+
+        foreach ($findings->groupBy('manuscript_section_id') as $sectionId => $group) {
+            $section = $group->first()->section;
+            $checkpoint = $checkpoints->get($sectionId);
+
+            if ($checkpoint) {
+                $last = $group->max('resolved_at');
+
+                if ($section->updated_at && $last && $section->updated_at->gt($last)) {
+                    $kept[] = ['id' => $section->id, 'title' => $section->title];
+
+                    continue;
+                }
+
+                $writer->save(
+                    section: $section,
+                    content: $checkpoint->content,
+                    reason: 'restore',
+                    userId: $request->user()->id,
+                    label: 'Undid bulk accept',
+                );
+                $restored++;
+            }
+
+            EditorialFinding::whereKey($group->modelKeys())->update([
+                'status' => 'open',
+                'dismissal' => null,
+                'resolved_by' => null,
+                'resolved_at' => null,
+                'applied_version_id' => null,
+                'bulk_batch' => null,
+            ]);
+        }
+
+        return response()->json(['restored' => $restored, 'kept' => $kept]);
     }
 
     /**
@@ -249,7 +392,8 @@ class AiEditorController extends Controller
         // back out first, through a real undo, or the finding stays applied.
         $section = null;
 
-        if ($finding->status === 'accepted' && $finding->suggestion) {
+        if ($finding->status === 'accepted' && $finding->suggestion
+            && ($finding->applied_version_id !== null || $finding->replacement() !== null)) {
             try {
                 $section = app(SuggestionApplier::class)->undo($finding, $request->user()->id);
             } catch (RuntimeException $e) {

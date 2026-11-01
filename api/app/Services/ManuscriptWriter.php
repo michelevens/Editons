@@ -165,6 +165,22 @@ class ManuscriptWriter
             || $last->created_at->diffInSeconds(now()) >= self::AUTOSAVE_VERSION_INTERVAL_SECONDS;
     }
 
+    /**
+     * Save a version of the section as it stands, before a batch of writes
+     * (a bulk accept), so the whole batch can be undone in one step. Always
+     * written, even when the last version has the same content: the label
+     * is what the undo finds.
+     */
+    public function checkpoint(ManuscriptSection $section, ?int $userId, string $label): ManuscriptVersion
+    {
+        return DB::transaction(fn () => $this->snapshot(
+            ManuscriptSection::lockForUpdate()->findOrFail($section->id),
+            'manual',
+            $userId,
+            $label,
+        ));
+    }
+
     /** Write the immutable snapshot. Caller holds the row lock. */
     private function snapshot(
         ManuscriptSection $section,
