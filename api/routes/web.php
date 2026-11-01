@@ -1071,4 +1071,36 @@ Route::middleware('auth')->group(function () {
     Route::post('/sections/{section}/draft', [App\Http\Controllers\BookDraftController::class, 'section'])
         ->middleware('throttle:20,1')->name('draft.section');
     Route::post('/sections/{section}/draft/accept', [App\Http\Controllers\BookDraftController::class, 'acceptSection'])->name('draft.accept');
+ | AI research, source-backed fact-checking, cover templates, store copy and
+ | the "Finish my book" checklist (ADR — AI research, source-backed
+ | fact-checking, cover templates). One block, kept apart from the AI book
+ | writer's routes.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/research/runs', [App\Http\Controllers\ResearchAssistantController::class, 'index'])
+        ->name('research.runs.index');
+    Route::post('/books/{book}/research/runs', [App\Http\Controllers\ResearchAssistantController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('research.runs.store');
+    Route::post('/research-runs/{run}/save', [App\Http\Controllers\ResearchAssistantController::class, 'save'])
+        ->name('research.runs.save');
+
+    Route::get('/cover-starters', [App\Http\Controllers\CoverStarterController::class, 'index'])
+        ->name('cover-starters.index');
+    Route::post('/books/{book}/cover/starter/suggest', [App\Http\Controllers\CoverStarterController::class, 'suggest'])
+        ->middleware('throttle:20,1')
+        ->name('cover-starters.suggest');
+    Route::post('/books/{book}/cover/starter', [App\Http\Controllers\CoverStarterController::class, 'apply'])
+        ->name('cover-starters.apply');
+
+    Route::get('/books/{book}/store-copy', [App\Http\Controllers\StoreCopyController::class, 'show'])
+        ->name('store-copy.show');
+    Route::post('/books/{book}/store-copy', [App\Http\Controllers\StoreCopyController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('store-copy.store');
+    Route::post('/books/{book}/store-copy/approve', [App\Http\Controllers\StoreCopyController::class, 'approve'])
+        ->name('store-copy.approve');
+
+    Route::get('/books/{book}/finish', [App\Http\Controllers\FinishController::class, 'show'])
+        ->name('finish.show');
 });

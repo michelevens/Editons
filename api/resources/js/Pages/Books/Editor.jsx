@@ -360,12 +360,15 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
     const chapters = useMemo(() => flatten(binder), [binder]);
 
-    const runAgent = async (agent) => {
+    // extra: review options, e.g. {web: true} for the fact-checker (ADR — AI
+    // research, source-backed fact-checking, cover templates).
+    const runAgent = async (agent, extra = {}) => {
         setRunning(agent);
 
         try {
             const res = await window.axios.post(`/sections/${section.id}/review`, {
                 agent,
+                ...extra,
             });
             setFindings(res.data.findings);
             setCredits(res.data.billing?.credits ?? null);
@@ -1066,7 +1069,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         </Panel>
                     ) : effectivePane === 'research' ? (
                         <Panel>
-                            <ResearchLibrary bookId={book.id} onChanged={refreshLibrary} />
+                            <ResearchLibrary bookId={book.id} onChanged={refreshLibrary} chapters={chapters} />
                         </Panel>
                     ) : effectivePane === 'references' ? (
                         <Panel>

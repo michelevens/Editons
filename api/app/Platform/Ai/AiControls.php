@@ -39,6 +39,9 @@ final class AiControls
         'support_draft' => ['Support reply drafts', 'AI reply drafts are paused.'],
         // ADR — AI writes the book.
         'ai_writer' => ['AI drafting (plans and chapters)', 'AI drafting is paused by Ecrivain — try again later.'],
+        // ADR — AI research, source-backed fact-checking, cover templates.
+        'research' => ['Web research', 'AI research is paused by Ecrivain — try again later.'],
+        'store_copy' => ['Blurb and store copy', 'AI store copy is paused by Ecrivain — try again later.'],
     ];
 
     private const CACHE_KEY = 'platform.ai-controls';

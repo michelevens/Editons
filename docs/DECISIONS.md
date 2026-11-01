@@ -4719,7 +4719,7 @@ unchanged, the message and no secret in the log), updated expectations in `Sugge
 `MasterDataReleasesTest`; `tests/Browser/walkthrough-fix.spec.js` (find and
 replace, track changes, the outline step and the URLs, at 1440 and 390 px).
 
-## ADR-00XX — AI writes the book (plan, chapter writer, consistency pass)
+## ADR-0058 — AI writes the book (plan, chapter writer, consistency pass)
 
 **Status:** accepted (2026-10-31). Number assigned at merge.
 
@@ -4889,3 +4889,137 @@ isolation; Free's taste; the kill switch; the flag; Quick Start's sentence
 to a French plan). `AuthorWalkthroughTest` (Draft with me coming soon while
 the flag is off). `tests/Browser/ai-writer.spec.js` (the one-sentence
 journey to a drafted book and an EPUB at 1440 and 390 px).
+## ADR-0059 — AI research, source-backed fact-checking, cover templates
+
+**Status:** accepted (feat/research).
+
+**Context.** Outside the app, Claude researched real people on the web for
+a book about immigrants ("Here to Rise"), recorded and cited the sources,
+fact-checked claims against them, designed a typographic cover in HTML and
+wrote the blurb and store copy. An author on the site could do none of
+that. Production runs the real Claude driver; there is no image key.
+
+**Decision.**
+
+1. *AI research assistant.* "Research this topic" in the research vault
+   (a question, a chapter, or the book's plan) and "Find sources for this
+   claim" from a selection in the Citations tab.
+   `App\Research\Assistant\AnthropicWebResearcher` calls the Messages API
+   with the server-side `web_search_20260209` and `web_fetch_20260209`
+   tools (fetch citations on, `max_uses` capped, optional blocked domains;
+   a `pause_turn` is resumed at most twice). No structured output:
+   citations are what make the answer checkable, and the API does not
+   combine them with a JSON format. A source is offered only if its URL
+   came back in a `web_search_tool_result` or `web_fetch_tool_result`
+   **and** the answer cites it; the excerpt is the citation's
+   `cited_text`, the summary the citing prose, the publisher the host, the
+   date the result's `page_age`. A URL the model writes without retrieving
+   it is dropped. Pages and the author's material are untrusted data
+   (system prompt and the document block's `context`). Runs are kept
+   (`research_runs`); the author ticks results to save; saved sources
+   arrive **unverified**, `origin=ai_web`, with `provenance`
+   {retrieved_by: ai, run, model, query, retrieved_at, excerpt, summary,
+   sample}. The fake researcher returns three labelled samples on
+   example.org and is never charged. A small client (`ClaudeMessages`)
+   lives in this namespace until the shared generation gateway
+   (`App\Ai\Writer`, built in parallel) lands; it classifies failures as
+   `ProviderUnavailable` like the editorial driver.
+2. *Charging from real usage* (`App\Billing\MeteredCharge`). The most a
+   run may take is held through the ledger's locked spend (`research_web`
+   40, `research_claim` 25, `store_copy` 20, `cover_concepts` 5), then
+   settled to the provider's reported tokens (config/platform.php prices)
+   plus $0.01 per web search, at `billing.metered.usd_per_credit` (0.01:
+   a credit per cent of provider cost, about 3x cost at the 500-credit
+   pack; an owner decision), rounded up, minimum 1. The unused part goes
+   back as one refund row pointing at the hold; a failure releases the
+   hold. An unpriced model keeps the hold. Kill switches `research` and
+   `store_copy` join AiControls.
+3. *Source-backed fact-checking.* The Fact Checker gets the book's saved
+   sources (all but disputed, with their notes and AI excerpt) as a "Saved
+   research sources" document and, only then, a schema with `verdict`
+   (supported, contradicted, unverified), `source_id` and
+   `source_excerpt`. `SourceEvidence::label` checks every verdict: the
+   source must be one that was sent and the quote must be in its text,
+   otherwise the finding is stored **unverified**. There is no "verified".
+   Sample output gets a deterministic match (a figure and a word of the
+   claim in a saved source). With the author's leave (`web: true` on the
+   review; the "Fact-check with web search" button) up to three unverified
+   claims each run a charged "claim" research run and carry the finds as
+   candidates; the verdict stays unverified until the author saves and
+   cites one. Findings carry `evidence`; "Attach citation" and "Save and
+   cite" use the ADR-0056 citation flow and marker.
+   After a live walkthrough with the real driver (a nonfiction book with
+   92 citations): the Fact Checker also gets a "Citations and notes in
+   this chapter" document, the chapter's citations (claim, cited words,
+   locator, the source's author, title, URL and stored excerpt) and its
+   footnotes (the words each follows, the note), which plainText() leaves
+   out; a claim with an attached citation or footnote is checked against
+   that source and never flagged as unsourced, and a quotation matching
+   its source is not "misquoted". The plain text the findings anchor to
+   is unchanged. Its `suggestion` is literal replacement text or nothing:
+   the prompt says so, and the parser (`SourceEvidence::adviceToDetail`,
+   in the driver and again in `label` for any driver) moves an
+   instruction ("Add a source note identifying where Danticat said
+   this") into the detail. The apply layer's general guard is another
+   builder's.
+4. *The book reaches the real agents.* `ReviewRunner::contextFor` adds the
+   book's profile (kind, genre, language, reader, premise, academic level)
+   to `ReviewContext`; the driver sends it as a "Book profile"
+   author-configuration document, and the system prompt branches on the
+   book's settings: fiction is not fact-checked for dialogue or invented
+   events (and dialogue is judged as speech), academic books state the
+   level. Frozen with queued runs. A review given no book
+   (`ReviewContext::none()`) or a fact check with no saved sources sends
+   exactly the request it always did.
+5. *Starter cover templates* (`App\Covers\StarterTemplates`). Eight
+   typographic templates (Quiet, Statement, Storybook, Scholar, Horizon,
+   Sunrise, Journey, Field notes) for nonfiction, fiction, children's,
+   academic and self-help; eight palettes whose ink clears 4.5:1 on both
+   stops; six type pairings from the cover faces; eight original motifs
+   (book, pages, path, leaf, sun, kite, mountains, shapes) drawn as
+   primitives, served as SVG to the picker and rasterised by GD into a PNG
+   cover image, so the front, the wrap and the ebook draw the same.
+   Applying writes ordinary Cover Studio settings: bound text layers
+   (title, subtitle, author, series), a motif image layer clear of the
+   type, a linear background across the whole wrap (the back and spine
+   take their ink from it), and keeps `pre_template` so "Restore the
+   previous cover" works; an uploaded finished cover needs `replace`. The
+   AI suggestion (`StarterSuggestion`, on the cover concepts driver) is
+   constrained to the catalogue's names and metered; it never applies.
+6. *Blurb and store copy* (`App\Marketing\StoreCopy`). From the plan and
+   the manuscript, in the book's language: the blurb, a short and a long
+   description, seven keywords, up to three categories from the store list
+   (anything else is dropped). A draft in `meta.store_copy_draft`; each
+   field is approved (and may be edited) before it is saved: blurb to
+   `description` (the back cover), short to `meta.short_description`, long
+   to `meta.description`, keywords and categories to the KDP plan and
+   meta. The prompt forbids invented praise, awards, reviews, quotes or
+   facts.
+7. *"Finish my book"* (`App\Publishing\FinishChecklist`, GET
+   `/books/{book}/finish`, on the publish screen's Check step): review
+   (line, copy, consistency), fact-check (skipped for fiction), front and
+   back matter, cover from a template, blurb and store copy, publish
+   checks, PDF and EPUB. Costs first: reviews from `ReviewPlanner`, the
+   metered steps at their hold. It runs nothing itself; every action is an
+   existing endpoint with its own approval (the planner's whole-book
+   approval, a confirm before applying a cover, field-by-field store copy).
+   Self-contained, so "Write my book" can link to it.
+
+**Defaults unchanged.** Nothing runs or charges unless asked; reviews
+without a book or sources send main's request; a book's cover changes only
+when a template is applied. Real-driver reviews through the runner now
+carry the book profile (item 4, asked for).
+
+**Tests.** `ResearchAssistantTest` (samples free, saving with provenance,
+claim mode on this book's chapters only, tenant isolation, the mocked
+request shape and parsing, invented and uncited URLs dropped, usage
+charging and the refund of the hold, `pause_turn`, provider failure with
+nothing charged and no secret logged), `FactCheckSourcesTest` (labels,
+disputed and misquoted sources downgraded, the schema and sources document,
+genre and level in the prompts, the unchanged default request, web
+candidates only when allowed, one-click citation), `CoverStarterTest`
+(catalogue, palette contrast, every template rendered with front, back and
+spine contrast passing and the wrap drawn, tweaks, the accent motif,
+restore, suggestion fake and Claude), `StoreCopyTest`,
+`FinishChecklistTest`; `ReviewOptionsTest` updated for the book profile;
+`tests/Browser/ai-research.spec.js` at 1440 and 390 px.

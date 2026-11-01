@@ -5,6 +5,7 @@ import BackgroundEditor, { scopeName } from './cover/BackgroundEditor';
 import CoverTemplateCard from './cover/CoverTemplateCard';
 import Framing from './cover/Framing';
 import LayerEditor from './cover/LayerEditor';
+import StarterTemplatePicker from './cover/StarterTemplatePicker';
 import WrapEditor from './cover/WrapEditor';
 
 /**
@@ -311,6 +312,17 @@ export default function CoverPanel({ bookId, onNotify }) {
 
             <div className="space-y-3 px-4 pt-3">
                 <CoverTemplateCard bookId={bookId} template={cover.template} onChanged={load} onNotify={onNotify} />
+                {!following && (
+                    <StarterTemplatePicker
+                        bookId={bookId}
+                        title={cover.title ?? ''}
+                        onApplied={() => {
+                            load();
+                            setSavedAt((n) => n + 1);
+                        }}
+                        onNotify={onNotify}
+                    />
+                )}
                 <ContrastList bookId={bookId} savedAt={savedAt} epoch={epoch} view={view} />
             </div>
 

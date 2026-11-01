@@ -94,6 +94,31 @@ return [
         'cover_concepts' => 5,
         // One painted image from the image model, at high quality.
         'cover_artwork' => 20,
+        // Metered work (below): these are the HOLDS, the most one run may
+        // take. The run is settled to what it actually used and the rest
+        // goes back at once.
+        'research_web' => 40,
+        'research_claim' => 25,
+        'store_copy' => 20,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Metered credits
+    |--------------------------------------------------------------------------
+    |
+    | Work charged from real usage (ADR — AI research, source-backed
+    | fact-checking, cover templates): the provider's reported tokens and
+    | searches, priced from config/platform.php, become credits at this
+    | rate, rounded up, never below the minimum. A placeholder like the
+    | costs above: one credit per cent of provider cost is about three
+    | times cost at the 500-credit pack's price. An owner decision.
+    |
+    */
+
+    'metered' => [
+        'usd_per_credit' => (float) env('METERED_USD_PER_CREDIT', 0.01),
+        'minimum' => 1,
     ],
 
     /*
