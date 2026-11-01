@@ -222,7 +222,7 @@ it('sends the web search request shape and keeps only retrieved, cited sources',
         $chapter = collect($body['messages'][0]['content'])->firstWhere('type', 'document');
 
         return $request->hasHeader('x-api-key', 'sk-ant-test-key-123456')
-            && $types === ['web_search_20260209', 'web_fetch_20260209']
+            && $types === ['web_search_20250305', 'web_fetch_20250910']
             && $body['tools'][0]['max_uses'] === 5
             && $body['tools'][1]['citations'] === ['enabled' => true]
             && ! isset($body['output_config'])

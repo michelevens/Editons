@@ -91,9 +91,12 @@ class AnthropicWebResearcher implements WebResearcher
      */
     public function payload(ResearchBrief $brief): array
     {
-        $search = ['type' => 'web_search_20260209', 'name' => 'web_search', 'max_uses' => $this->maxSearches];
+        // The basic tool versions, not the 20260209 "dynamic filtering" ones: those search through
+        // code execution and the final answer comes back with no citations, so no source could be
+        // matched to the text and every run returned none (checked against the live API, Nov 2026).
+        $search = ['type' => 'web_search_20250305', 'name' => 'web_search', 'max_uses' => $this->maxSearches];
         $fetch = [
-            'type' => 'web_fetch_20260209',
+            'type' => 'web_fetch_20250910',
             'name' => 'web_fetch',
             'max_uses' => $this->maxFetches,
             'citations' => ['enabled' => true],
