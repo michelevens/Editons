@@ -35,6 +35,8 @@ class ConsistencyController extends Controller
             'variants' => ['array'],
             'variants.*' => ['string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
+            // Editing a declared term (ADR — Author walkthrough fixes).
+            'id' => ['nullable', 'integer'],
         ]);
 
         // A variant identical to the canonical spelling would flag correct
@@ -44,10 +46,18 @@ class ConsistencyController extends Controller
             fn (string $v) => trim($v) !== '' && $v !== $data['canonical'],
         ));
 
-        $book->terms()->updateOrCreate(
-            ['canonical' => $data['canonical']],
-            $data,
-        );
+        $id = $data['id'] ?? null;
+        unset($data['id']);
+
+        if ($id) {
+            // Only this book's own term; its spelling may change too.
+            $book->terms()->findOrFail($id)->update($data);
+        } else {
+            $book->terms()->updateOrCreate(
+                ['canonical' => $data['canonical']],
+                $data,
+            );
+        }
 
         return response()->json([
             'terms' => $this->termsFor($book),

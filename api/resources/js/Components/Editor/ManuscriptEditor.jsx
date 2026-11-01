@@ -1058,18 +1058,24 @@ export default function ManuscriptEditor({
                         onClick={onChapters}
                         aria-haspopup="dialog"
                         aria-label={`${section.title} — switch chapter`}
-                        className="-ml-1.5 flex min-h-[40px] min-w-0 items-center gap-1 rounded-control px-1.5 text-left text-[14px] font-semibold text-text-primary transition hover:bg-bg-subtle md:hidden"
+                        title={section.title}
+                        className="-ml-1.5 flex min-h-[40px] min-w-[7rem] flex-1 items-center gap-1 rounded-control px-1.5 text-left text-[14px] font-semibold text-text-primary transition hover:bg-bg-subtle md:hidden"
                     >
-                        <span className="truncate">{section.title}</span>
+                        {/* Two lines before it is cut, so "1. Beginnings" is never just "1." */}
+                        <span className="line-clamp-2 break-words leading-[1.2]">{section.title}</span>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className="shrink-0 text-text-secondary">
                             <path d="M6 9l6 6 6-6" />
                         </svg>
                     </button>
                 ) : null}
-                <h2 className={`truncate text-[14px] font-semibold text-text-primary ${onChapters ? 'max-md:hidden' : ''}`}>
+                <h2
+                    title={section.title}
+                    data-a="editor:chapter-title"
+                    className={`line-clamp-2 min-w-[8rem] flex-1 break-words text-[14px] font-semibold leading-[1.2] text-text-primary ${onChapters ? 'max-md:hidden' : ''}`}
+                >
                     {section.title}
                 </h2>
-                <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
+                <span className="shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
                     {tr('book.words', { count: words, words: words.toLocaleString() })}
                     {pendingWords > 0 && (
                         <span data-a="editor:pending-words" className="ml-1 text-status-success">
@@ -1552,7 +1558,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
         <div
             role="toolbar"
             aria-label={t('toolbar.formatting')}
-            className="no-scrollbar flex min-h-[47px] shrink-0 items-center gap-0.5 border-b border-border-divider px-[21px] md:flex-wrap md:py-1 max-md:h-[52px] max-md:overflow-x-auto max-md:px-2"
+            className="no-scrollbar flex min-h-[47px] shrink-0 items-center gap-0.5 border-b border-border-divider px-[21px] md:flex-wrap md:py-1 max-md:h-[52px] max-md:overflow-x-auto max-md:px-2 max-md:[mask-image:linear-gradient(to_right,black_85%,transparent)]"
         >
             <select
                 value={block}

@@ -302,7 +302,7 @@ function PlanCard({ plan }) {
                         <b className="font-display text-[22px] font-extrabold tracking-[-0.02em] text-text-primary">
                             {formatNumber(plan.credits)}
                         </b>
-                        {plan.monthly_credits > 0 && (
+                        {plan.monthly_credits > 0 && plan.credits <= plan.monthly_credits && (
                             <span className="text-[12px] text-text-secondary">
                                 {t('profile.credits_of_month', { total: formatNumber(plan.monthly_credits) })}
                             </span>

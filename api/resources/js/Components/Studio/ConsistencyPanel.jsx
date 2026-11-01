@@ -15,6 +15,8 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
     const [issues, setIssues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
+    // The term being edited (ADR — Author walkthrough fixes).
+    const [editing, setEditing] = useState(null);
 
     const load = async () => {
         setLoading(true);
@@ -137,10 +139,24 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
                     <p className="text-sm text-text-secondary">{t('consistency.nothing_declared')}</p>
                 ) : (
                     <ul className="divide-y divide-border-divider rounded-lg border border-border-default bg-bg-surface">
-                        {terms.map((term) => (
+                        {terms.map((term) => editing?.id === term.id ? (
+                            <li key={term.id} className="px-4 py-2.5">
+                                <AddTerm
+                                    bookId={bookId}
+                                    initial={term}
+                                    onCancel={() => setEditing(null)}
+                                    onAdded={(data) => {
+                                        setTerms(data.terms);
+                                        setIssues(data.issues);
+                                        setEditing(null);
+                                    }}
+                                />
+                            </li>
+                        ) : (
                             <li
                                 key={term.id}
-                                className="flex items-center gap-3 px-4 py-2.5"
+                                data-a={`terms:row:${term.id}`}
+                                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5"
                             >
                                 <span className="w-24 shrink-0 text-[10px] font-bold uppercase tracking-wide text-text-secondary">
                                     {{
@@ -160,11 +176,25 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
                                     </span>
                                 )}
                                 <button
+                                    type="button"
+                                    data-a={`terms:edit:${term.id}`}
+                                    onClick={() => setEditing(term)}
+                                    className="ml-auto text-xs font-semibold text-text-secondary hover:text-text-primary"
+                                >
+                                    {t('fric.term_edit')}
+                                </button>
+                                <button
                                     onClick={() => remove(term)}
-                                    className="ml-auto text-xs font-semibold text-text-secondary hover:text-status-danger"
+                                    className="text-xs font-semibold text-text-secondary hover:text-status-danger"
                                 >
                                     {t('consistency.remove')}
                                 </button>
+                                {/* The note, which was saved and never shown. */}
+                                {term.note && (
+                                    <p data-a={`terms:note:${term.id}`} className="basis-full whitespace-pre-line pl-[108px] text-[12.5px] text-text-secondary max-sm:pl-0">
+                                        {term.note}
+                                    </p>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -174,12 +204,12 @@ export default function ConsistencyPanel({ bookId, onOpenSection }) {
     );
 }
 
-function AddTerm({ bookId, onAdded }) {
+function AddTerm({ bookId, onAdded, initial = null, onCancel = null }) {
     const { t } = useI18n();
-    const [kind, setKind] = useState('character');
-    const [canonical, setCanonical] = useState('');
-    const [variants, setVariants] = useState('');
-    const [note, setNote] = useState('');
+    const [kind, setKind] = useState(initial?.kind ?? 'character');
+    const [canonical, setCanonical] = useState(initial?.canonical ?? '');
+    const [variants, setVariants] = useState((initial?.variants ?? []).join(', '));
+    const [note, setNote] = useState(initial?.note ?? '');
     const [saving, setSaving] = useState(false);
 
     const submit = async (e) => {
@@ -195,6 +225,7 @@ function AddTerm({ bookId, onAdded }) {
                     .map((v) => v.trim())
                     .filter(Boolean),
                 note: note || null,
+                ...(initial ? { id: initial.id } : {}),
             });
             onAdded(res.data);
         } finally {
@@ -205,7 +236,7 @@ function AddTerm({ bookId, onAdded }) {
     return (
         <form
             onSubmit={submit}
-            className="mb-6 grid grid-cols-3 gap-3 rounded-lg border border-border-default bg-bg-subtle p-4"
+            className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-border-default bg-bg-subtle p-4 sm:grid-cols-3"
         >
             <label className="text-xs font-semibold text-text-secondary">
                 {t('consistency.kind_label')}
@@ -242,7 +273,7 @@ function AddTerm({ bookId, onAdded }) {
                 />
             </label>
 
-            <label className="col-span-3 text-xs font-semibold text-text-secondary">
+            <label className="text-xs font-semibold text-text-secondary sm:col-span-3">
                 {t('consistency.note')}
                 <input
                     value={note}
@@ -251,13 +282,18 @@ function AddTerm({ bookId, onAdded }) {
                 />
             </label>
 
-            <div className="col-span-3">
+            <div className="sm:col-span-3">
                 <button
                     disabled={saving}
                     className="rounded-md bg-bg-inverse px-4 py-1.5 text-sm font-bold text-text-inverse hover:opacity-90 disabled:opacity-60"
                 >
-                    {saving ? t('editor.save_saving') : t('consistency.add_term')}
+                    {saving ? t('editor.save_saving') : initial ? t('fric.term_save') : t('consistency.add_term')}
                 </button>
+                {onCancel && (
+                    <button type="button" onClick={onCancel} className="ml-2 text-sm font-semibold text-text-secondary hover:text-text-primary">
+                        {t('common.cancel')}
+                    </button>
+                )}
             </div>
         </form>
     );

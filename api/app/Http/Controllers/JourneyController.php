@@ -57,6 +57,8 @@ class JourneyController extends Controller
                 'title' => $book->title,
                 'subtitle' => $book->subtitle,
                 'word_count' => $book->word_count,
+                // A story, for wording that fits it (the outline example).
+                'fiction' => in_array(OutlineBuilder::arcKey($book->book_type, $book->genre), ['fiction', 'childrens'], true),
             ],
             'journey' => $this->payload($book),
         ]);

@@ -1,4 +1,6 @@
 import { Extension, InputRule } from '@tiptap/core';
+import { Fragment, Slice } from '@tiptap/pm/model';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 /**
  * The book's typography rules as you type (ADR — Book language and
@@ -92,6 +94,56 @@ export function typographyRules({ quotes = 'none', french_spacing: french = fals
     return rules;
 }
 
+/**
+ * The same rules over a whole string, for pasted text (ADR — Author
+ * walkthrough fixes): "Correct as you type" ignored paste, so a chapter
+ * pasted from elsewhere kept its straight quotes.
+ */
+export function correctText(text, { quotes = 'none', french_spacing: french = false, dashes = false, ellipsis = false } = {}) {
+    let out = text;
+
+    if (ellipsis) out = out.replace(/(?<!\.)\.\.\.(?!\.)/g, '…');
+
+    if (dashes) {
+        out = out.replace(/(?<!-)--(?!-)/g, '—').replace(/(?<=[  ])-(?= )/g, '–');
+    }
+
+    if (quotes !== 'none') {
+        out = out.replace(/"/g, (q, i, s) => {
+            const prev = i > 0 ? s[i - 1] : '';
+            const opening = prev === '' || OPENS.test(prev);
+
+            if (quotes === 'curly') return opening ? '“' : '”';
+
+            return opening ? '«' + (french ? NBSP : '') : (french ? NBSP : '') + '»';
+        });
+        out = out.replace(/'/g, (q, i, s) => (i === 0 || OPENS.test(s[i - 1]) ? '‘' : '’'));
+    }
+
+    if (french) {
+        out = out.replace(/([\p{L}\p{N}»”’)\]…])[  ]?([;!?])/gu, `$1${NNBSP}$2`).replace(/ +:/g, `${NBSP}:`);
+    }
+
+    return out;
+}
+
+function correctFragment(fragment, options) {
+    const nodes = [];
+
+    fragment.forEach((node) => {
+        if (node.isText) {
+            const code = node.marks.some((mark) => mark.type.name === 'code');
+            nodes.push(code ? node : node.type.schema.text(correctText(node.text, options), node.marks));
+        } else if (node.type.spec.code) {
+            nodes.push(node);
+        } else {
+            nodes.push(node.copy(correctFragment(node.content, options)));
+        }
+    });
+
+    return Fragment.fromArray(nodes);
+}
+
 export const Typography = Extension.create({
     name: 'bookTypography',
 
@@ -101,5 +153,19 @@ export const Typography = Extension.create({
 
     addInputRules() {
         return typographyRules(this.options);
+    },
+
+    // Pasted text is corrected too; Ctrl/Cmd+Z takes the paste back out.
+    addProseMirrorPlugins() {
+        const options = this.options;
+
+        return [
+            new Plugin({
+                key: new PluginKey('bookTypographyPaste'),
+                props: {
+                    transformPasted: (slice) => new Slice(correctFragment(slice.content, options), slice.openStart, slice.openEnd),
+                },
+            }),
+        ];
     },
 });

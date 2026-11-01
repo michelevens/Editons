@@ -3237,3 +3237,11 @@ fric.track_off,Turn off,Désactiver,Editor: tracking bar button,
 fric.track_refused,"Pictures, tables, charts and display equations cannot be removed while tracking changes. Turn Track changes off to remove one.","Les images, tableaux, graphiques et équations isolées ne peuvent pas être supprimés pendant le suivi des modifications. Désactivez le suivi pour en supprimer un.",Editor: why a deletion was refused,
 fric.pending_words,"+{count, plural, one {# word} other {# words}} pending","+{count, plural, one {# mot} other {# mots}} en attente",Editor header: words in tracked insertions,
 fric.changes_count,"{count, plural, one {change} other {changes}}","{count, plural, one {modification} other {modifications}}",Editor header: tracked changes badge,
+fric.term_edit,Edit,Modifier,Characters & Terms: edit a declared term,
+fric.term_save,Save term,Enregistrer,Characters & Terms: save an edited term,
+fric.outline_placeholder_fiction,"An ordinary day
+Something changes
+The long way home","Une journée ordinaire
+Quelque chose change
+Le long chemin du retour",Guided: outline import example for a story,
+fric.unsaved,Unsaved changes,Modifications non enregistrées,Book Settings: a form has edits not saved yet,

@@ -101,7 +101,7 @@ export default function Guided({ book, journey: initial }) {
                     >
                         <img src="/brand/symbol.svg" alt="" width={24} height={24} />
                         <span className="font-display text-[17px] font-bold tracking-[-0.01em] text-text-primary">
-                            Ecrivain
+                            Écrivain
                         </span>
                     </button>
 
@@ -553,7 +553,7 @@ function ImportOutline({ book, send, busy, say }) {
                 rows={8}
                 value={text}
                 autoFocus
-                placeholder={t('guided.outline_placeholder')}
+                placeholder={t(book.fiction ? 'fric.outline_placeholder_fiction' : 'guided.outline_placeholder')}
                 onChange={(event) => setText(event.target.value)}
                 className="mt-3 w-full resize-y rounded-control border border-border-input px-3.5 py-2.5 font-mono text-[13px] leading-relaxed placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
             />

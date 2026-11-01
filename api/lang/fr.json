@@ -3232,5 +3232,9 @@
     "fric.track_off": "Désactiver",
     "fric.track_refused": "Les images, tableaux, graphiques et équations isolées ne peuvent pas être supprimés pendant le suivi des modifications. Désactivez le suivi pour en supprimer un.",
     "fric.pending_words": "+{count, plural, one {# mot} other {# mots}} en attente",
-    "fric.changes_count": "{count, plural, one {modification} other {modifications}}"
+    "fric.changes_count": "{count, plural, one {modification} other {modifications}}",
+    "fric.term_edit": "Modifier",
+    "fric.term_save": "Enregistrer",
+    "fric.outline_placeholder_fiction": "Une journée ordinaire\nQuelque chose change\nLe long chemin du retour",
+    "fric.unsaved": "Modifications non enregistrées"
 }

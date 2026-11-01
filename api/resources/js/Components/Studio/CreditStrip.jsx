@@ -60,7 +60,9 @@ export default function CreditStrip({ balance }) {
         >
             <span className={low ? 'font-semibold' : ''}>
                 <b className="text-text-primary">{formatNumber(credits)}</b>{' '}
-                {monthly > 0
+                {/* "of 5,000" only while the balance is within the month's
+                    allowance: 14,100 "of 5,000" read as an error. */}
+                {monthly > 0 && credits <= monthly
                     ? t('credits.of_monthly_left', { monthly: formatNumber(monthly) })
                     : t('credits.left')}
             </span>

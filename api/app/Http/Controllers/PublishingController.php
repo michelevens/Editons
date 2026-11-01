@@ -531,7 +531,11 @@ class PublishingController extends Controller
                 'id' => $book->id,
                 'title' => $book->title,
                 'author_name' => $book->author_name,
-                'description' => $meta['description'] ?? '',
+                // One blurb: an empty store description starts from the
+                // book's description (the back-cover copy), as the cover's
+                // back already reads the store's when the book has none
+                // (ADR — Author walkthrough fixes). Saved only when edited.
+                'description' => ($meta['description'] ?? '') !== '' ? $meta['description'] : (string) ($book->description ?? ''),
                 'category' => $meta['category'] ?? '',
                 'keywords' => $meta['keywords'] ?? '',
                 'list_price' => $book->list_price,

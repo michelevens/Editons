@@ -1829,7 +1829,9 @@ class PrintBook
             return $this->hyphenate($html, $language, $hyphens);
         }
 
-        $dropcap = (bool) $book->layout()['dropcap'];
+        // Chapters only: a drop cap on the Acknowledgments or a preface
+        // reads as the start of the story (ADR — Author walkthrough fixes).
+        $dropcap = (bool) $book->layout()['dropcap'] && ! in_array($section->type, ['front_matter', 'back_matter'], true);
         // The small-capped opening words, on unless the design turns them off.
         $smallCaps = (bool) $book->layout()['opener']['lead'];
 

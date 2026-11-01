@@ -3232,5 +3232,9 @@
     "fric.track_off": "Dezaktive",
     "fric.track_refused": "Ou pa ka retire foto, tablo, grafik ak ekwasyon apa pandan swivi chanjman aktive. Dezaktive swivi a pou retire youn.",
     "fric.pending_words": "+{count, plural, other {# mo}} ap tann",
-    "fric.changes_count": "{count, plural, other {chanjman}}"
+    "fric.changes_count": "{count, plural, other {chanjman}}",
+    "fric.term_edit": "Modifye",
+    "fric.term_save": "Anrejistre",
+    "fric.outline_placeholder_fiction": "Yon jou tankou lòt\nYon bagay chanje\nLong wout pou retounen lakay",
+    "fric.unsaved": "Chanjman ki poko anrejistre"
 }

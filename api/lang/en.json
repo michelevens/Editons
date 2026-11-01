@@ -3041,5 +3041,9 @@
     "fric.track_off": "Turn off",
     "fric.track_refused": "Pictures, tables, charts and display equations cannot be removed while tracking changes. Turn Track changes off to remove one.",
     "fric.pending_words": "+{count, plural, one {# word} other {# words}} pending",
-    "fric.changes_count": "{count, plural, one {change} other {changes}}"
+    "fric.changes_count": "{count, plural, one {change} other {changes}}",
+    "fric.term_edit": "Edit",
+    "fric.term_save": "Save term",
+    "fric.outline_placeholder_fiction": "An ordinary day\nSomething changes\nThe long way home",
+    "fric.unsaved": "Unsaved changes"
 }

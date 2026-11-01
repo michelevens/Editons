@@ -641,6 +641,24 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // Only the manuscript has a distraction-free form.
     const focused = focusMode && isStudio;
     const openFindings = findings.filter((f) => f.status === 'open');
+    // The Suggestions badge counts the whole book's open findings, as the
+    // AI Editor does; the chapter's own list said 5 where the AI Editor
+    // said 133 (ADR — Author walkthrough fixes). Re-read after a decision.
+    const [bookOpen, setBookOpen] = useState(null);
+
+    useEffect(() => {
+        let live = true;
+        const timer = setTimeout(() => {
+            window.axios.get(`/books/${book.id}/findings`, { params: { status: 'open' } })
+                .then(({ data }) => live && setBookOpen(data.counts?.open ?? null))
+                .catch(() => {});
+        }, 400);
+
+        return () => {
+            live = false;
+            clearTimeout(timer);
+        };
+    }, [book.id, openFindings.length, section?.id]);
 
     // --- The workspace: panels, splitters, presets ----------------------
 
@@ -881,7 +899,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         onSelectNav={(item) => navigate(item.key)}
                         book={{ ...book, word_count: bookWords }}
                         active={liveNav ? effectivePane : null}
-                        badges={{ suggestions: openFindings.length }}
+                        badges={{ suggestions: bookOpen ?? openFindings.length }}
                         onSelect={(item) => navigate(item.key)}
                     />
                 )}
