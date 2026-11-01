@@ -73,10 +73,11 @@ export default function CreditStrip({ balance }) {
                 </span>
             ) : costs && (
                 <span className="hidden sm:inline">
-                    {t('credits.costs', {
+                    {/* Per agent per chapter, as charged: "whole book 40" was a
+                        price nothing charged (ADR — Safe apply). */}
+                    {t('safe.credit_costs', {
                         agent: costs.agent_run,
                         specialist: costs.specialist_run,
-                        book: costs.book_review,
                     })}
                 </span>
             )}

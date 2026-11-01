@@ -16,6 +16,10 @@ import { versionReason } from './VersionHistory';
  */
 
 /** Which glyph and tint each agent uses, keyed by the backend enum value. */
+// Above this many credits, "Review this chapter" shows its cost and asks
+// first.
+const CONFIRM_ABOVE = 20;
+
 const AGENT_STYLE = {
     developmental: { icon: 'aDev', tile: 'bg-status-danger-tile text-status-danger' },
     fact_checker: { icon: 'aFact', tile: 'bg-status-warning-tile text-status-warning' },
@@ -44,6 +48,7 @@ export default function AIEditorPanel({
     bookId,
     onRunAgent,
     onRunFullReview,
+    onOpenAiScreen = null,
     onResolve,
     onReopen,
     onShowInText,
@@ -185,6 +190,7 @@ export default function AIEditorPanel({
                                 reviewProgress={reviewProgress}
                                 onRunAgent={onRunAgent}
                                 onRunFullReview={onRunFullReview}
+                                onOpenAiScreen={onOpenAiScreen}
                                 onOpenAgent={setOpenAgent}
                                 onDirect={direct}
                                 directing={directing}
@@ -230,12 +236,27 @@ function AgentList({
     reviewProgress,
     onRunAgent,
     onRunFullReview,
+    onOpenAiScreen,
     onOpenAgent,
     onDirect,
     directing,
     direction,
 }) {
     const { t } = useI18n();
+    const simulated = usePage().props.editorial?.simulated;
+    // What "Review this chapter" will charge, from the same per-agent costs
+    // the ledger spends (ADR — Safe apply, honest prices, citation fixes):
+    // over the threshold, the author sees it and confirms first.
+    const [confirmFull, setConfirmFull] = useState(false);
+    const planned = agents.filter((agent) => agent.included !== false && agent.fits !== false);
+    const fullCost = simulated ? 0 : planned.reduce((sum, agent) => sum + (agent.cost ?? 0), 0);
+    const startFull = () => {
+        if (fullCost > CONFIRM_ABOVE) {
+            setConfirmFull(true);
+        } else {
+            onRunFullReview();
+        }
+    };
     // The mockup's four tiles, each counted from real findings.
     const tiles = [
         {
@@ -278,7 +299,7 @@ function AgentList({
              */}
             <button
                 data-a="ai:run-full"
-                onClick={onRunFullReview}
+                onClick={startFull}
                 disabled={Boolean(reviewProgress) || directing}
                 className="flex h-[38px] w-full items-center justify-center gap-2 rounded-control bg-gradient-to-r from-ai-gradient-from to-ai-gradient-to text-[13px] font-semibold text-white shadow-floatingButton transition hover:opacity-95 disabled:opacity-80"
             >
@@ -295,6 +316,28 @@ function AgentList({
                 )}
             </button>
 
+            {confirmFull && !reviewProgress && (
+                <div role="alertdialog" aria-label={t('safe.full_confirm_label')} data-a="ai:run-full:confirm" className="mt-2 rounded-tile border border-border-default bg-bg-subtle p-2.5 text-[12px] text-text-body">
+                    <p>{t('safe.full_estimate', { count: planned.length, credits: fullCost })}</p>
+                    <div className="mt-2 flex gap-2">
+                        <button
+                            type="button"
+                            data-a="ai:run-full:yes"
+                            onClick={() => {
+                                setConfirmFull(false);
+                                onRunFullReview();
+                            }}
+                            className="rounded-control bg-brand-fill px-2.5 py-1 text-[12px] font-semibold text-white"
+                        >
+                            {t('safe.full_run', { credits: fullCost })}
+                        </button>
+                        <button type="button" data-a="ai:run-full:no" onClick={() => setConfirmFull(false)} className="rounded-control border border-border-input px-2.5 py-1 text-[12px]">
+                            {t('common.cancel')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <button
                 data-a="ai:direct"
                 onClick={onDirect}
@@ -308,9 +351,21 @@ function AgentList({
                         {t('ai.reading_book')}
                     </>
                 ) : (
-                    t('ai.review_book')
+                    // Free notes on structure, pacing and balance: not the
+                    // AI review of every chapter, which is linked below.
+                    t('safe.structural_notes')
                 )}
             </button>
+            {onOpenAiScreen && (
+                <button
+                    type="button"
+                    data-a="ai:open-ai-screen"
+                    onClick={onOpenAiScreen}
+                    className="mt-1.5 w-full text-center text-[11.5px] font-semibold text-brand-primary hover:underline"
+                >
+                    {t('safe.ai_whole_book')}
+                </button>
+            )}
 
             {direction && (
                 <div className="mt-3 rounded-tile border border-border-default bg-bg-surface p-3">

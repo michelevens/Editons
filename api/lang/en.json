@@ -3061,5 +3061,11 @@
     "safe.bulk_undone": "Bulk accept undone: {count, plural, one {# chapter restored.} other {# chapters restored.}}",
     "safe.bulk_undone_kept": "Bulk accept undone: {count, plural, one {# chapter restored.} other {# chapters restored.}} Not restored, because you wrote in them since: {kept}. Use History for those.",
     "safe.changes_cited_quote": "changes a cited quotation",
-    "safe.check_source_first": "Check the source before applying"
+    "safe.check_source_first": "Check the source before applying",
+    "safe.full_confirm_label": "Review cost",
+    "safe.full_estimate": "{count, plural, one {# editor reviews} other {# editors review}} this chapter, charged per editor: {credits} credits in all. A failed run is refunded.",
+    "safe.full_run": "Review · {credits} credits",
+    "safe.structural_notes": "Structural notes on the whole book · free",
+    "safe.ai_whole_book": "AI review of the whole book…",
+    "safe.credit_costs": "per chapter: one editor {agent} · specialist {specialist}"
 }

@@ -4803,3 +4803,32 @@ markers for the reviewer: "- " and "1. " (from the list's `start`) per
 item, indented under a nested item, "> " per quoted line. `ReviewRunner`
 sends `reviewText()`, and `ReviewPlanner` locates a selection in it,
 across item markers.
+
+**4. Prices match what is charged.** A review is charged per agent per
+chapter (`agent_run` 5, `specialist_run` 8, ReviewRunner). That was always
+true; the price list said otherwise.
+- `/billing` no longer lists `chapter_review` 10, `part_review` 20 or
+  `book_review` 40 (they stay in config/billing.php, unlisted, because the
+  ledger tests and the low-credit mail name them). It lists one editor and
+  one specialist per chapter, "Review this chapter" as the sum over the
+  editors the account's plan includes (examiners excluded), one editor over
+  the whole book as "5–8 per chapter", and a thesis examiner per chapter.
+  The credit strip says "per chapter: one editor 5 · specialist 8" and no
+  longer "whole book 40". The marketing pages state no per-review price, so
+  they are unchanged.
+- The AI Editor screen's estimate already came from the planner, which uses
+  the ledger's own `CreditLedger::costOf`. The studio's "Review this
+  chapter" now sums the same per-agent costs (the catalogue's `cost`) and,
+  above 20 credits, shows them and asks first. Sample output costs nothing
+  and asks nothing.
+- Billing activity groups a run over many chapters into one line, read
+  from the reviews the spends paid for (`options.run_id`, scope `book` or
+  `range`): "Fact Checker — whole book, 17 chapters −136". Refunds and
+  chapter reviews stay their own lines.
+- The panel's free button is "Structural notes on the whole book · free",
+  with "AI review of the whole book…" below it opening the AI Editor screen.
+- `ReviewPlanner::assertSuits()` refuses a thesis examiner on a book that is
+  not academic, before anything is charged or sent, on every endpoint
+  (`/sections/{id}/review`, the estimate, `/books/{id}/reviews`), unless
+  the request says `explicit` (the panel's own agent buttons, picked by
+  hand).

@@ -3256,5 +3256,19 @@
     "safe.check_source_first": "Verifye sous la anvan ou aplike",
     "This suggestion is advice, not replacement text, so it cannot be applied. Edit the passage by hand if you agree.": "Sijesyon sa a se yon konsèy, se pa tèks pou ranplase, kidonk li pa ka aplike. Chanje pasaj la ak men ou si ou dakò.",
     "Fact Checker and Subject Matter fixes are applied one by one, after checking the source.": "Koreksyon Verifikatè Fè ak Espesyalis Sijè a aplike youn pa youn, apre ou fin verifye sous la.",
-    "This would change a quotation that has a citation. Apply it on its own if you mean to.": "Sa ta chanje yon sitasyon ki gen sous. Aplike li pou kont li si se sa ou vle."
+    "This would change a quotation that has a citation. Apply it on its own if you mean to.": "Sa ta chanje yon sitasyon ki gen sous. Aplike li pou kont li si se sa ou vle.",
+    "safe.full_confirm_label": "Pri revizyon an",
+    "safe.full_estimate": "{count, plural, one {# editè revize} other {# editè revize}} chapit sa a, yo peye pou chak editè: {credits} kredi an tout. Si yon revizyon echwe, yo ranbouse l.",
+    "safe.full_run": "Revize · {credits} kredi",
+    "safe.structural_notes": "Nòt sou estrikti tout liv la · gratis",
+    "safe.ai_whole_book": "Revizyon IA tout liv la…",
+    "safe.credit_costs": "pou chak chapit: yon editè {agent} · espesyalis {specialist}",
+    "The thesis examiners read theses and academic books. Pick one by hand to run it on this book.": "Egzaminatè tèz yo li tèz ak liv akademik. Chwazi youn ak men ou pou lanse l sou liv sa a.",
+    "Run one editor on one chapter": "Lanse yon editè sou yon chapit",
+    "Run a specialist reviewer on one chapter": "Lanse yon revizè espesyalis sou yon chapit",
+    "Review this chapter (every editor your plan includes)": "Revize chapit sa a (tout editè plan ou genyen)",
+    "One editor over the whole book, per chapter": "Yon editè sou tout liv la, pou chak chapit",
+    "A thesis examiner, on a thesis, per chapter": "Yon egzaminatè tèz, sou yon tèz, pou chak chapit",
+    ":agent — whole book, :count chapters": ":agent — tout liv la, :count chapit",
+    ":agent — :count chapters": ":agent — :count chapit"
 }

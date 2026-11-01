@@ -363,8 +363,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         setRunning(agent);
 
         try {
+            // Picked by hand: an agent that does not suit the book (an
+            // examiner on a novel) runs only this way (ADR — Safe apply).
             const res = await window.axios.post(`/sections/${section.id}/review`, {
                 agent,
+                explicit: true,
             });
             setFindings(res.data.findings);
             setCredits(res.data.billing?.credits ?? null);
@@ -874,6 +877,8 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         bookId: book.id,
         onRunAgent: runAgent,
         onRunFullReview: runFullReview,
+        // The real whole-book review is the AI Editor screen's.
+        onOpenAiScreen: () => go('ai'),
         onResolve: resolve,
         onReopen: reopen,
         onShowInText: showInText,
