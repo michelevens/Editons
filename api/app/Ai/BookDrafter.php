@@ -264,6 +264,13 @@ class BookDrafter
         abort_if($book->draftRuns()->whereIn('status', DraftRun::ACTIVE)->exists(), 409, __('A draft is already being written for this book.'));
 
         $items = $this->candidates($book, $options);
+
+        if ($items !== [] && $this->freeChaptersLeft($user) === 0) {
+            throw ValidationException::withMessages(['plan' => __('Your free chapter is used. Whole books are part of the :plan plan.', [
+                'plan' => app(\App\Billing\Entitlements::class)->planNameForTier(1),
+            ])]);
+        }
+
         $items = $this->withinPlan($user, $items);
 
         if ($items === []) {

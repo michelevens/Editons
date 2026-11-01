@@ -157,6 +157,14 @@ export default function ManuscriptEditor({
     const [noteEdit, setNoteEdit] = useState(null);
     // Picking a cross-reference target: {local, remote} or null.
     const [xrefPick, setXrefPick] = useState(null);
+    // "AI draft, not yet reviewed" until the author accepts or edits it
+    // (ADR — AI writes the book). The server clears it on the first edit.
+    const [aiDraft, setAiDraft] = useState(section?.ai_draft_state === 'unreviewed');
+    useEffect(() => setAiDraft(section?.ai_draft_state === 'unreviewed'), [section?.id, section?.ai_draft_state]);
+    const acceptDraft = async () => {
+        await window.axios.post(`/sections/${section.id}/draft/accept`);
+        setAiDraft(false);
+    };
 
     // Refs rather than state: these are read inside callbacks and must not
     // retrigger the effect that wires the editor up.
@@ -198,6 +206,7 @@ export default function ManuscriptEditor({
 
                 if (id === sectionId.current) {
                     setWordCount(data.word_count);
+                    if ('ai_draft_state' in data) setAiDraft(data.ai_draft_state === 'unreviewed');
                     // Typing during the save leaves the chapter unsaved.
                     setStatus(pending.current ? 'dirty' : unsent.current.size ? 'error' : 'saved');
                     onSavedRef.current?.(data);
@@ -1186,6 +1195,23 @@ export default function ManuscriptEditor({
                             {tr('fric.track_off')}
                         </button>
                     )}
+                </p>
+            )}
+
+            {aiDraft && (
+                <p
+                    data-a="editor:ai-draft"
+                    className="flex shrink-0 items-center gap-2 border-b border-status-warning/30 bg-status-warning-bg px-3 py-1.5 text-[12px] font-medium text-status-warning sm:px-[21px]"
+                >
+                    <span className="min-w-0 flex-1">{tr('draft.unreviewed_bar')}</span>
+                    <button
+                        type="button"
+                        data-a="editor:ai-draft-accept"
+                        onClick={acceptDraft}
+                        className="shrink-0 rounded-control border border-status-warning/40 bg-bg-surface px-2 py-0.5 text-[11.5px] font-semibold text-status-warning hover:bg-bg-subtle"
+                    >
+                        {tr('draft.accept')}
+                    </button>
                 </p>
             )}
 

@@ -237,6 +237,7 @@ const BOOK_GROUPS = [
         items: [
             { key: 'overview', label: 'Overview', tKey: 'more.overview', icon: 'home' },
             { key: 'manuscript', label: 'Manuscript', tKey: 'more.manuscript', icon: 'doc' },
+            { key: 'draft', label: 'Write my book', tKey: 'more.draft', icon: 'bolt' },
             { key: 'research', label: 'Research', tKey: 'more.research', icon: 'lib' },
             { key: 'terms', label: 'Terms', tKey: 'more.terms', icon: 'users' },
             { key: 'references', label: 'Citations', tKey: 'more.references', icon: 'refs' },

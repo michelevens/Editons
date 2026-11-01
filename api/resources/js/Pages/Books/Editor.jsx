@@ -9,6 +9,7 @@ import AccessibilityPanel from '@/Components/Studio/AccessibilityPanel';
 import CommentsPanel from '@/Components/Studio/CommentsPanel';
 import ConsistencyPanel from '@/Components/Studio/ConsistencyPanel';
 import CreditStrip from '@/Components/Studio/CreditStrip';
+import DraftPanel from '@/Components/Studio/DraftPanel';
 import CoachStrip from '@/Components/Studio/CoachStrip';
 import CoverPanel from '@/Components/Studio/CoverPanel';
 import EditionsPanel from '@/Components/Studio/EditionsPanel';
@@ -1083,6 +1084,17 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         <Panel>
                             <TemplatesPanel section={section} onInsert={insertTemplate} />
                         </Panel>
+                    ) : effectivePane === 'draft' ? (
+                        // Write my book (ADR — AI writes the book).
+                        <Panel>
+                            <DraftPanel
+                                bookId={book.id}
+                                onOpenSection={openSection}
+                                onNavigate={navigate}
+                                onNotify={notify}
+                                onChanged={() => router.reload({ only: ['binder'] })}
+                            />
+                        </Panel>
                     ) : effectivePane === 'workflow' ? (
                         <Panel>
                             <WorkflowBoard bookId={book.id} onOpenSection={openSection} />
@@ -1644,6 +1656,7 @@ const PANE_LABELS = {
     marketing: 'Marketing Kit',
     site: 'Author Website',
     distribution: 'Sales & Distribution',
+    draft: 'Write my book',
 };
 
 /**
