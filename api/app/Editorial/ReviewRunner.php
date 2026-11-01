@@ -110,9 +110,14 @@ class ReviewRunner
 
             // The fact-checker checks claims against the book's saved
             // sources (ADR — AI research, source-backed fact-checking, cover
-            // templates): they travel with the review, read fresh.
+            // templates): they travel with the review, read fresh, with the
+            // chapter's own citations and footnotes, so a sourced claim is
+            // checked against its source rather than called unsourced.
             if ($agent === EditorialAgent::FactChecker) {
-                $context = $context->withSources(SourceEvidence::sourcesFor(Book::findOrFail($section->book_id)));
+                $context = $context->withSources(
+                    SourceEvidence::sourcesFor(Book::findOrFail($section->book_id)),
+                    SourceEvidence::attachedTo($section),
+                );
             }
 
             $result = $this->callDriver($agent, $text, $section, $userId, $context);

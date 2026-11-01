@@ -5,6 +5,7 @@ namespace App\Research\Assistant;
 use App\Editorial\Finding;
 use App\Editorial\ReviewContext;
 use App\Models\Book;
+use App\Models\ManuscriptSection;
 use App\Models\ResearchSource;
 
 /**
@@ -56,6 +57,125 @@ final class SourceEvidence
             ->all();
     }
 
+    /** Most citations and notes sent with one chapter. */
+    public const MAX_ATTACHED = 120;
+
+    /**
+     * What a chapter already cites (live walkthrough, 92 citations: the
+     * reviewer could not see them and called cited facts unsourced).
+     * Citations from the citation flow, with their source, and footnotes
+     * with the text they follow. Neither is in plainText(), which findings
+     * anchor to, so they travel as their own document.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function attachedTo(ManuscriptSection $section): array
+    {
+        $out = [];
+
+        foreach ($section->citations()->with('source')->orderBy('from_offset')->get() as $c) {
+            $s = $c->source;
+            $out[] = array_filter([
+                'kind' => 'citation',
+                'claim' => $c->claim,
+                'cited_words' => $c->excerpt,
+                'locator' => $c->locator,
+                'status' => $c->status,
+                'source_id' => $s?->id,
+                'source' => $s ? array_filter([
+                    'reference' => $s->reference(),
+                    'authors' => $s->authors,
+                    'title' => $s->title,
+                    'url' => $s->url,
+                    'excerpt' => mb_substr(trim(implode("\n", array_filter([$s->provenance['excerpt'] ?? null, $s->notes]))), 0, self::MAX_TEXT) ?: null,
+                ]) : null,
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        // Footnotes: an atom whose text is in its attrs, after the words it
+        // annotates.
+        $walk = function (array $node, string &$before) use (&$walk, &$out): void {
+            if (($node['type'] ?? null) === 'footnote') {
+                $out[] = [
+                    'kind' => 'footnote',
+                    'follows' => trim(mb_substr($before, -240)),
+                    'note' => mb_substr(trim((string) ($node['attrs']['text'] ?? '')), 0, 800),
+                ];
+
+                return;
+            }
+
+            $before .= $node['text'] ?? '';
+
+            foreach ($node['content'] ?? [] as $child) {
+                if (is_array($child)) {
+                    $walk($child, $before);
+                }
+            }
+        };
+
+        foreach (($section->content['content'] ?? []) as $block) {
+            if (is_array($block)) {
+                $before = '';
+                $walk($block, $before);
+            }
+        }
+
+        return array_slice(array_values(array_filter($out, fn ($a) => $a['kind'] !== 'footnote' || $a['note'] !== '')), 0, self::MAX_ATTACHED);
+    }
+
+    /**
+     * A suggestion that is advice, not words for the book ("Add a source
+     * note identifying where Danticat said this"): the real Fact Checker
+     * returned these, and a bulk Accept wrote one into the book in place of
+     * the quote. The suggestion must be literal replacement text or
+     * nothing; advice goes in the detail.
+     */
+    public static function isInstruction(?string $suggestion, ?string $excerpt): bool
+    {
+        $s = trim((string) $suggestion);
+
+        if ($s === '') {
+            return false;
+        }
+
+        $imperative = '/^(please\s+)?(add|cite|include|insert|verify|check|double-check|confirm|consider|provide|attribute|specify|clarify|identify|source|supply|link|reference|qualify|support|replace|remove|delete|rephrase|reword|revise|soften|note|mention|ensure|use|find|look|state|give|ajoute[rz]?|citez?|indiquez?|précise[rz]?|vérifie[rz]?|mentionnez|remplacez|supprimez|mete|verifye|site|endike)\b/iu';
+
+        if (! preg_match($imperative, $s)) {
+            return (bool) preg_match('/\b(source note|citation needed|add a (source|citation|footnote|reference))\b|\[(citation|source)[^\]]*\]/iu', $s);
+        }
+
+        // An imperative that is also the excerpt's own opening ("Add two
+        // cups of flour" for "Add two cup of flour") is replacement text:
+        // most of its words are the excerpt's.
+        $words = fn (string $t) => array_values(array_unique(preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($t), -1, PREG_SPLIT_NO_EMPTY) ?: []));
+        $mine = $words($s);
+        $theirs = $words((string) $excerpt);
+
+        return $mine === [] || count(array_intersect($mine, $theirs)) / count($mine) < 0.6;
+    }
+
+    /** The finding with any advice moved out of the suggestion into the detail. */
+    public static function adviceToDetail(Finding $f): Finding
+    {
+        if (! self::isInstruction($f->suggestion, $f->excerpt)) {
+            return $f;
+        }
+
+        return new Finding(
+            severity: $f->severity,
+            title: $f->title,
+            detail: trim(implode(' ', array_filter([$f->detail, $f->suggestion]))),
+            excerpt: $f->excerpt,
+            suggestion: null,
+            fromOffset: $f->fromOffset,
+            toOffset: $f->toOffset,
+            rule: $f->rule,
+            term: $f->term,
+            evidence: $f->evidence,
+        );
+    }
+
     /**
      * Label every finding. A driver's own verdict is checked against the
      * sources; a finding with none gets "unverified", or for sample output
@@ -69,6 +189,9 @@ final class SourceEvidence
         $sources = collect($context->sources)->keyBy('id');
 
         return array_map(function (Finding $f) use ($sources, $simulated) {
+            // Whatever the driver, a fact-check suggestion is replacement
+            // text or nothing.
+            $f = self::adviceToDetail($f);
             $e = $f->evidence;
 
             if ($e !== null && in_array($e['verdict'] ?? null, ['supported', 'contradicted'], true)) {

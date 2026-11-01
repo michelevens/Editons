@@ -4778,6 +4778,20 @@ that. Production runs the real Claude driver; there is no image key.
    candidates; the verdict stays unverified until the author saves and
    cites one. Findings carry `evidence`; "Attach citation" and "Save and
    cite" use the ADR-0056 citation flow and marker.
+   After a live walkthrough with the real driver (a nonfiction book with
+   92 citations): the Fact Checker also gets a "Citations and notes in
+   this chapter" document, the chapter's citations (claim, cited words,
+   locator, the source's author, title, URL and stored excerpt) and its
+   footnotes (the words each follows, the note), which plainText() leaves
+   out; a claim with an attached citation or footnote is checked against
+   that source and never flagged as unsourced, and a quotation matching
+   its source is not "misquoted". The plain text the findings anchor to
+   is unchanged. Its `suggestion` is literal replacement text or nothing:
+   the prompt says so, and the parser (`SourceEvidence::adviceToDetail`,
+   in the driver and again in `label` for any driver) moves an
+   instruction ("Add a source note identifying where Danticat said
+   this") into the detail. The apply layer's general guard is another
+   builder's.
 4. *The book reaches the real agents.* `ReviewRunner::contextFor` adds the
    book's profile (kind, genre, language, reader, premise, academic level)
    to `ReviewContext`; the driver sends it as a "Book profile"

@@ -11,6 +11,7 @@ use App\Models\ManuscriptSection;
 use App\Models\ResearchRun;
 use App\Models\ResearchSource;
 use App\Models\User;
+use App\Research\Assistant\SourceEvidence;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 
@@ -192,3 +193,86 @@ it('searches the web for unverified claims when the author allows it', function 
     $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertOk();
     expect(ResearchRun::count())->toBe(1);
 });
+
+it('shows the real fact-checker the chapter\'s citations and footnotes with their sources', function () {
+    useRealDriver();
+    $user = User::factory()->create();
+    $book = fcBook($user);
+    app(MonthlyAllowance::class)->ensureGranted($user);
+    $source = fcSource($book, 'Danticat said: “We are all ancestors of the future.”', ['title' => 'Interview with Edwidge Danticat', 'authors' => 'Danticat, E.', 'url' => 'https://example.com/danticat']);
+    $section = $book->sections()->create([
+        'type' => 'chapter', 'title' => 'Voices', 'position' => 1,
+        'content' => ['type' => 'doc', 'content' => [['type' => 'paragraph', 'content' => [
+            ['type' => 'text', 'text' => 'Danticat put it simply: “We are all ancestors of the future.”'],
+            ['type' => 'footnote', 'attrs' => ['text' => 'Interview, Miami, 2019.']],
+            ['type' => 'text', 'text' => ' Her family left Haiti in 1981.'],
+        ]]]],
+    ]);
+    $section->citations()->create([
+        'claim' => 'Danticat put it simply: “We are all ancestors of the future.”',
+        'excerpt' => '“We are all ancestors of the future.”',
+        'research_source_id' => $source->id,
+        'status' => 'supported',
+        'created_by' => $user->id,
+    ]);
+
+    Http::fake(['api.anthropic.com/*' => Http::response(fcResponse([]))]);
+
+    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertOk();
+
+    Http::assertSent(function (HttpRequest $request) use ($source) {
+        $docs = collect($request['messages'][0]['content'])->keyBy('title');
+        $attached = json_decode($docs['Citations and notes in this chapter']['source']['data'] ?? '[]', true);
+        $citation = collect($attached)->firstWhere('kind', 'citation');
+        $note = collect($attached)->firstWhere('kind', 'footnote');
+
+        return $citation['source_id'] === $source->id
+            && $citation['source']['title'] === 'Interview with Edwidge Danticat'
+            && $citation['source']['url'] === 'https://example.com/danticat'
+            && str_contains($citation['source']['excerpt'], 'ancestors of the future')
+            && $citation['cited_words'] === '“We are all ancestors of the future.”'
+            && $note['note'] === 'Interview, Miami, 2019.'
+            && str_ends_with($note['follows'], 'ancestors of the future.”')
+            // The chapter the findings anchor to is unchanged.
+            && $request['messages'][0]['content'][0]['source']['data'] === 'Danticat put it simply: “We are all ancestors of the future.” Her family left Haiti in 1981.'
+            && str_contains($request['system'], 'never flag it as unsourced')
+            && str_contains($request['system'], 'A quotation that matches its cited source is not misquoted');
+    });
+});
+
+it('moves an instruction the fact-checker put in suggestion into the detail', function () {
+    useRealDriver();
+    $user = User::factory()->create();
+    $book = fcBook($user);
+    app(MonthlyAllowance::class)->ensureGranted($user);
+    $section = fcSection($book, 'Danticat said that we are all ancestors of the future. In 2010 the earthquake struck.');
+
+    Http::fake(['api.anthropic.com/*' => Http::response(fcResponse([
+        ['severity' => 'warning', 'title' => 'Unsourced quotation', 'detail' => 'A quotation needs its source.', 'excerpt' => 'Danticat said that we are all ancestors of the future.', 'suggestion' => 'Add a source note identifying where Danticat said or wrote this'],
+        ['severity' => 'suggestion', 'title' => 'Date', 'excerpt' => 'In 2010 the earthquake struck.', 'suggestion' => 'In January 2010 the earthquake struck.'],
+    ]))]);
+
+    $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'fact_checker'])->assertOk();
+
+    $byTitle = EditorialFinding::all()->keyBy('title');
+
+    expect($byTitle['Unsourced quotation']->suggestion)->toBeNull()
+        ->and($byTitle['Unsourced quotation']->detail)->toBe('A quotation needs its source. Add a source note identifying where Danticat said or wrote this')
+        // Real replacement text stays a suggestion.
+        ->and($byTitle['Date']->suggestion)->toBe('In January 2010 the earthquake struck.');
+
+    Http::assertSent(fn (HttpRequest $r) => str_contains($r['system'], '`suggestion` is only ever the literal text that would replace `excerpt`'));
+});
+
+it('tells replacement text from an instruction', function (string $suggestion, string $excerpt, bool $instruction) {
+    expect(SourceEvidence::isInstruction($suggestion, $excerpt))->toBe($instruction);
+})->with([
+    ['Add a source note identifying where Danticat said or wrote this', 'Danticat said it.', true],
+    ['Cite the 2021 census figure here.', 'About 730,000 people.', true],
+    ['Verify this figure against the census.', 'About 730,000 people.', true],
+    ['Ajoutez une source pour ce chiffre.', 'Environ 730 000 personnes.', true],
+    ['About 730,000 people [citation needed]', 'About 730,000 people.', true],
+    ['About 700,000 people.', 'About 730,000 people.', false],
+    ['Add two cups of flour.', 'Add two cup of flour.', false],
+    ['In January 2010 the earthquake struck.', 'In 2010 the earthquake struck.', false],
+]);
