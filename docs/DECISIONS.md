@@ -4784,3 +4784,11 @@ the apply layer told the two apart.
   History still has the version.
 - A finding accepted as advice (no text change) reopens by relabelling; an
   applied fix still comes back out through its undo.
+
+**2. An empty References section no longer blocks the bibliography.**
+`BookReferences::section()` counts a Bibliography-part section as the
+author's own list only when `written()`: text beyond headings, and not the
+template's prompt. Otherwise the list is generated, and in an export plan
+`Anatomy::plan` drops the empty section (`BookReferences::replaced()`) so
+the generated Bibliography takes its place rather than standing beside a
+blank page.

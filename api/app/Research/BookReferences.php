@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\ManuscriptSection;
 use App\Publishing\Anatomy;
 use App\Publishing\BookPart;
+use App\Publishing\BookPartTemplates;
 
 /**
  * The reference list an export adds when the manuscript cites sources
@@ -49,8 +50,13 @@ final class BookReferences
             return null;
         }
 
-        // The author's own list wins.
-        if ($book->sections()->where('part', BookPart::Bibliography->value)->exists()) {
+        // The author's own list wins, when it is one. The app scaffolds an
+        // empty "References" section; counting that as the author's list
+        // left a book with 92 citations and no bibliography (ADR — Safe
+        // apply, honest prices, citation fixes). An empty section, one with
+        // only a heading, or one still holding the template's prompt is
+        // generated in place of.
+        if (self::authorSections($book)->contains(fn (ManuscriptSection $s) => self::written($s))) {
             return null;
         }
 
@@ -92,6 +98,55 @@ final class BookReferences
         $section->setRelation('book', $book);
 
         return $section;
+    }
+
+    /**
+     * The ids of the book's Bibliography sections with nothing written in
+     * them, which the generated list takes the place of in an export.
+     *
+     * @return list<int>
+     */
+    public static function replaced(Book $book): array
+    {
+        return self::authorSections($book)
+            ->reject(fn (ManuscriptSection $s) => self::written($s))
+            ->pluck('id')
+            ->all();
+    }
+
+    /** @return \Illuminate\Support\Collection<int, ManuscriptSection> */
+    private static function authorSections(Book $book)
+    {
+        return $book->sections()->where('part', BookPart::Bibliography->value)->get();
+    }
+
+    /**
+     * Has the author written a list here: text beyond headings, and not the
+     * template's prompt?
+     */
+    public static function written(ManuscriptSection $section): bool
+    {
+        $content = $section->content;
+
+        if (! $content || BookPartTemplates::hasGuidance($content)) {
+            return false;
+        }
+
+        $text = '';
+        $walk = function (array $node) use (&$walk, &$text) {
+            if (($node['type'] ?? null) === 'heading') {
+                return;
+            }
+
+            $text .= ($node['text'] ?? '').' ';
+
+            foreach ($node['content'] ?? [] as $child) {
+                is_array($child) && $walk($child);
+            }
+        };
+        $walk($content);
+
+        return trim($text) !== '';
     }
 
     /**
