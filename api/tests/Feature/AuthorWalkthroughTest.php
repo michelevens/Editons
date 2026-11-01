@@ -328,3 +328,211 @@ it('lets Cover Studio load its fonts from the configured API origin, and nothing
     expect($font[1])->toBe("'self' data: https://api.ecrivain.ai")
         ->not->toContain('*');
 });
+
+/* ------------------------------------------------------------------- URLs */
+
+it('sends the book\'s own address to its studio instead of a 405', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+
+    $this->actingAs($user)->get("/books/{$book->id}")->assertRedirect(route('books.edit', $book));
+    $this->actingAs(User::factory()->create())->get("/books/{$book->id}")->assertForbidden();
+});
+
+it('opens a studio pane, not its JSON, when its address is loaded in the browser', function (string $path, string $target) {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    $html = ['Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Sec-Fetch-Mode' => 'navigate'];
+
+    $this->actingAs($user)->get("/books/{$book->id}/{$path}", $html)
+        ->assertRedirect(str_replace('{id}', (string) $book->id, $target));
+
+    // The pane's own fetch still gets its data.
+    $this->actingAs($user)->getJson("/books/{$book->id}/{$path}")->assertOk();
+})->with([
+    ['design', '/books/{id}/edit?pane=design'],
+    ['publishing', '/books/{id}/edit?pane=publishing'],
+    ['rights', '/books/{id}/edit?pane=rights'],
+    ['sales', '/books/{id}/edit?pane=sales'],
+    ['comments', '/books/{id}/edit?pane=comments'],
+    ['journey', '/books/{id}/guided'],
+]);
+
+/* ------------------------------------------------------------- small items */
+
+it('puts no drop cap on front or back matter', function () {
+    $book = Book::factory()->for(User::factory())->create(['layout' => array_merge(Book::DEFAULT_LAYOUT, ['dropcap' => true])]);
+    $chapter = ManuscriptSection::factory()->for($book)->create(['type' => 'chapter', 'title' => 'The Kite', 'position' => 1000, 'content' => awDoc('Wind came off the sea that morning.')]);
+    $thanks = ManuscriptSection::factory()->for($book)->create(['type' => 'back_matter', 'title' => 'Acknowledgments', 'position' => 2000, 'content' => awDoc('Many people helped with this book.')]);
+
+    $html = app(App\Publishing\PrintBook::class)->html($book, collect([$chapter, $thanks]), 'en');
+
+    expect(substr_count($html, '<span class="dropcap">'))->toBe(1)
+        ->and($html)->toContain('<span class="dropcap">W</span>');
+});
+
+it('starts an empty store description from the book\'s description', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create(['description' => 'A boy, a kite and the wind over Jacmel.', 'meta' => []]);
+
+    expect($this->actingAs($user)->getJson("/books/{$book->id}/publishing")->json('book.description'))->toBe('A boy, a kite and the wind over Jacmel.');
+
+    $book->update(['meta' => ['description' => 'The store copy.']]);
+    expect($this->actingAs($user)->getJson("/books/{$book->id}/publishing")->json('book.description'))->toBe('The store copy.');
+});
+
+it('edits a declared term, keeping its note', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    $terms = $this->actingAs($user)->postJson("/books/{$book->id}/terms", ['kind' => 'character', 'canonical' => 'Ti Jak', 'variants' => ['Tijak'], 'note' => 'Eleven, flies kites.'])
+        ->assertSuccessful()->json('terms');
+
+    expect($terms[0]['note'])->toBe('Eleven, flies kites.');
+
+    $terms = $this->actingAs($user)->postJson("/books/{$book->id}/terms", ['id' => $terms[0]['id'], 'kind' => 'character', 'canonical' => 'Ti-Jak', 'variants' => ['Tijak', 'Ti Jak'], 'note' => 'Eleven.'])
+        ->assertSuccessful()->json('terms');
+
+    expect($terms)->toHaveCount(1)
+        ->and($terms[0]['canonical'])->toBe('Ti-Jak')
+        ->and($terms[0]['note'])->toBe('Eleven.');
+
+    $other = Book::factory()->for($user)->create();
+    $this->actingAs($user)->postJson("/books/{$other->id}/terms", ['id' => $terms[0]['id'], 'kind' => 'character', 'canonical' => 'X'])->assertNotFound();
+});
+
+it('tells Guided when the book is a story', function () {
+    $user = User::factory()->create();
+    $novel = Book::factory()->for($user)->create(['book_type' => null, 'genre' => 'Middle grade']);
+    $guide = Book::factory()->for($user)->create(['book_type' => 'nonfiction', 'genre' => 'Nonfiction']);
+
+    $this->actingAs($user)->get("/books/{$novel->id}/guided")->assertInertia(fn ($page) => $page->where('book.fiction', true));
+    $this->actingAs($user)->get("/books/{$guide->id}/guided")->assertInertia(fn ($page) => $page->where('book.fiction', false));
+});
+
+/* ------------------------------------------------- second walkthrough (book 734) */
+
+it('imports an outline over a scaffold without leaving ghost chapters', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user)->post('/books', ['title' => 'Piti Piti', 'book_type' => 'nonfiction', 'chapters' => 11]);
+    $book = $user->books()->latest('id')->firstOrFail();
+
+    // Prompts are not words: nothing is written yet.
+    expect($book->fresh()->word_count)->toBe(0)
+        ->and($book->sections()->where('type', 'chapter')->where('word_count', '>', 0)->count())->toBe(0);
+
+    $this->actingAs($user)->postJson("/books/{$book->id}/outline/import", ['outline' => "Start small\nKeep going\nFinish"])->assertOk();
+
+    $live = $book->sections()->get();
+    $orphans = $live->filter(fn ($s) => $s->parent_id && ! $live->contains('id', $s->parent_id));
+
+    expect($live->where('type', 'chapter')->pluck('title')->values()->all())->toBe(['Start small', 'Keep going', 'Finish'])
+        ->and($orphans)->toBeEmpty();
+});
+
+it('soft-deletes a part\'s chapters with it, and the migration clears existing ghosts', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    $part = ManuscriptSection::factory()->for($book)->create(['type' => 'part', 'title' => 'Part I', 'position' => 1]);
+    $chapter = ManuscriptSection::factory()->for($book)->create(['type' => 'chapter', 'title' => 'One', 'position' => 1000, 'content' => awDoc('Some real words here.')]);
+    $chapter->forceFill(['parent_id' => $part->id])->save();
+
+    $part->delete();
+    expect($chapter->fresh()->trashed())->toBeTrue();
+
+    // A ghost as the old importer left it: live chapter, deleted parent.
+    $ghostPart = ManuscriptSection::factory()->for($book)->create(['type' => 'part', 'title' => 'Part II', 'position' => 2]);
+    $ghost = ManuscriptSection::factory()->for($book)->create(['type' => 'chapter', 'title' => 'Ghost', 'position' => 2000, 'content' => awDoc('Hidden words.')]);
+    $ghost->forceFill(['parent_id' => $ghostPart->id])->save();
+    Illuminate\Support\Facades\DB::table('manuscript_sections')->where('id', $ghostPart->id)->update(['deleted_at' => now()]);
+    // A prompt counted as words, as before.
+    $prompt = ManuscriptSection::factory()->for($book)->create(['type' => 'chapter', 'title' => 'Two', 'position' => 3000,
+        'content' => awDoc(config('booktypes.nonfiction.chapter_prompt'))]);
+    $prompt->forceFill(['word_count' => 16])->save();
+
+    (require database_path('migrations/2026_11_09_171000_clear_ghost_sections_and_recount_prompts.php'))->up();
+
+    expect($ghost->fresh()->trashed())->toBeTrue()
+        ->and($prompt->fresh()->word_count)->toBe(0)
+        ->and($book->fresh()->word_count)->toBe(0);
+});
+
+it('does not offer a fix for a deliberate reduplication', function () {
+    // Twice in the chapter: a proverb, not a slip.
+    $twice = awFindings('copy', 'Piti piti zwazo fè nich li. Se konsa: piti piti, jou apre jou.');
+    // Inside quotation marks.
+    $quoted = awFindings('copy', 'Grann always said, "piti piti zwazo fè nich li," and smiled.');
+    // A real slip still gets its fix.
+    $slip = awFindings('copy', 'She walked to the the market at dawn.');
+
+    expect($twice->where('title', 'Repeated word')->pluck('suggestion')->filter()->all())->toBe([])
+        ->and($quoted->where('title', 'Repeated word')->pluck('suggestion')->filter()->all())->toBe([])
+        ->and($slip->firstWhere('title', 'Repeated word')->suggestion)->not->toBeNull();
+
+    // Once in this chapter but also in another chapter of the book: no fix.
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+    ManuscriptSection::factory()->for($book)->create(['position' => 1000, 'content' => awDoc('Grann taught us piti piti, slowly.')]);
+    $section = ManuscriptSection::factory()->for($book)->create(['position' => 2000, 'content' => awDoc('He climbed piti piti up the hill.')]);
+    app(ReviewRunner::class)->run($section, EditorialAgent::Copy, $user->id);
+
+    expect(EditorialFinding::where('manuscript_section_id', $section->id)->where('title', 'Repeated word')->value('suggestion'))->toBeNull();
+});
+
+it('counts the generated copyright page as present in the rights checklist', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create(['author_name' => 'Marie Joseph', 'publication' => ['disclaimer' => 'This book is not legal or medical advice.']]);
+    ManuscriptSection::factory()->for($book)->create(['type' => 'chapter', 'title' => 'One', 'position' => 1000, 'content' => awDoc('Words.')]);
+
+    $plan = collect(Anatomy::plan($book)['pages'])->firstWhere('part', 'copyright_page');
+    $checklist = collect($this->actingAs($user)->getJson("/books/{$book->id}/rights")->assertOk()->json('checklist'))->keyBy('key');
+
+    expect($plan['source'])->toBe('generated')
+        ->and($checklist['copyright_page']['done'])->toBeTrue()
+        ->and($checklist['disclaimer']['done'])->toBeTrue();
+});
+
+it('keeps both Book Settings forms\' unsaved fields when either saves', function () {
+    $settings = file_get_contents(resource_path('js/Pages/Books/Settings.jsx'));
+
+    expect(substr_count($settings, 'preserveState: true,'))->toBeGreaterThanOrEqual(4)
+        ->and($settings)->toContain("t('fric.unsaved')");
+});
+
+it('sends an Inertia visit to a pane URL to the studio page', function () {
+    $user = User::factory()->create();
+    $book = Book::factory()->for($user)->create();
+
+    // The asset version the client would send; without it Inertia answers 409 for a stale page.
+    $version = (string) app(App\Http\Middleware\HandleInertiaRequests::class)->version(Illuminate\Http\Request::create('/'));
+
+    $this->actingAs($user)->get("/books/{$book->id}/design", ['X-Inertia' => 'true', 'X-Inertia-Version' => $version, 'X-Requested-With' => 'XMLHttpRequest'])
+        ->assertStatus(409)
+        ->assertHeader('X-Inertia-Location', route('books.edit', ['book' => $book->id, 'pane' => 'design']));
+});
+
+it('spells out the large numeral when the label is spelled out', function () {
+    $book = Book::factory()->for(User::factory())->create(['language' => 'English (US)']);
+    foreach (['One', 'Two', 'Three', 'Four'] as $i => $title) {
+        ManuscriptSection::factory()->for($book)->create(['type' => 'chapter', 'title' => "The {$title}", 'position' => ($i + 1) * 1000, 'content' => awDoc('Words.')]);
+    }
+    $with = fn (string $label) => tap($book->fresh())->update(['layout' => array_merge($book->layout(), [
+        'opener' => ['style' => 'numeral', 'label' => $label] + App\Publishing\InteriorDesign::DEFAULTS['opener'],
+    ])]);
+
+    $words = app(App\Publishing\PrintBook::class)->html($with('words')->fresh(), $book->sections()->orderBy('position')->get(), 'en');
+    $numerals = app(App\Publishing\PrintBook::class)->html($with('numerals')->fresh(), $book->sections()->orderBy('position')->get(), 'en');
+
+    expect($words)->toContain('<p class="opener-figure opener-figure-word">Four</p>')
+        ->and($numerals)->toContain('<p class="opener-figure">4</p>');
+});
+
+it('applies the language\'s quotes at export by default, keeping the stored text', function () {
+    $book = Book::factory()->for(User::factory())->create(['language' => 'English (US)']);
+    $section = ManuscriptSection::factory()->for($book)->create(['type' => 'chapter', 'title' => 'One', 'position' => 1000, 'content' => awDoc('"Fly it," she said.')]);
+
+    expect(App\Editorial\Style\Typography::resolve($book)['apply_at_export'])->toBeTrue();
+
+    $file = app(App\Publishing\Exporter::class)->generate($book, 'html');
+    expect(Illuminate\Support\Facades\Storage::disk('local')->get($file->path))->toContain('“Fly it,” she said.')
+        ->and($section->fresh()->plainText())->toBe('"Fly it," she said.');
+});

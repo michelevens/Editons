@@ -3236,5 +3236,7 @@
     "fric.term_edit": "Modifier",
     "fric.term_save": "Enregistrer",
     "fric.outline_placeholder_fiction": "Une journée ordinaire\nQuelque chose change\nLe long chemin du retour",
-    "fric.unsaved": "Modifications non enregistrées"
+    "fric.unsaved": "Modifications non enregistrées",
+    "fric.kit_build_free": "Créer le kit · gratuit",
+    "fric.kit_rebuild_free": "Refaire · gratuit"
 }

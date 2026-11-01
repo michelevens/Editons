@@ -4526,3 +4526,180 @@ text, the dialog or the account, binder import keeps it unless chosen;
 per-type counts; the 500-word message in English and French),
 `tests/Browser/journey-fix.spec.js` (first book, review, citation and
 store listing at 1440 and 390 px).
+
+## ADR-00XX — Author walkthrough fixes (book 733)
+
+**Status:** accepted (2026-10-31). Number assigned at merge.
+
+**Context.** Two authors wrote real books through the browser only, on the
+live site with `EDITORIAL_DRIVER=fake`: a 15,000-word middle-grade novel
+("The Kite Over Jacmel", book 733) and a self-help book (book 734). The
+fake driver is a configuration decision and stays; everything had to be
+honest under it without regressing the real drivers. What they hit: a
+title page with no author, an AI disclosure that counted heuristic fixes
+as AI (twice), a "Draft with me" option that did nothing, a 422 on "Name
+the chapters", no find and replace, thesis examiners and fact-checking of
+dialogue on a novel, "Suggest" that read as AI and stayed on, five genres,
+CSP errors on cover fonts, raw JSON at studio URLs, ghost chapters after an
+outline import, prompts counted as written words, outline titles spliced
+from the premise, a proverb offered as a typo fix, a second Save that
+dropped fields, a rights checklist blind to the generated copyright page,
+credits charged for a non-AI marketing kit, straight quotes in exports,
+and a spelled-out label the numeral opener ignored.
+
+**Decision.**
+- *Title page.* `Anatomy::titlePageAuthor` drops the author only when the
+  same house is printed on the title page (imprint, publisher, series
+  line). The platform's name is no longer one: an author who signs
+  "Écrivain" keeps their name. Écrivain Prépa (series "Écrivain Prépa",
+  author Écrivain or empty) still prints none.
+- *Honest disclosure.* `EditorialFinding::fromModel()` reads the provenance
+  already recorded: not a house-style check (`source = style_check`) and a
+  review driver that is not simulated (`DriverFactory::simulated`); no
+  review recorded counts as AI, so the disclosure never understates.
+  `SuggestionApplier` saves a model's fix as `ai_suggestion` and any other
+  as the new version reason `check_fix` ("Fix applied (automatic check)").
+  `AiDisclosure` counts only a model's accepted fixes, and "inline AI
+  suggestions" no longer re-count the `ai_suggestion` version every applied
+  fix leaves ("Applied: …", or linked by `applied_version_id`). Each fix
+  now links the snapshot it replaced (`SuggestionApplier::snapshotOf`, the
+  newest), not the chapter's first. Migration `…170000` adds `check_fix`
+  and `replace` to the reason check and relabels past `ai_suggestion`
+  versions whose findings (matched by section and "Applied: <title>") all
+  came from a simulated driver or a style check.
+- *Draft with me.* Shown as "Coming soon" (dashed, disabled, translated) in
+  Guided and on the new-book form, and refused by validation
+  (`Book::ASSISTANCE_AVAILABLE`). Removing it would hide where the product
+  is going; offering it as working was the problem. A book that already
+  has `collaborative` keeps the value. No drafting was built.
+- *Planning.* Book Settings has a "Kind of book" select (`book_type`,
+  validated against `config/booktypes`; changing it never re-scaffolds).
+  Quick Start still sets no type (its promise is one empty page, and a type
+  would scaffold a binder); instead "Name the chapters" no longer fails:
+  a book without a type gets a generic shape, "Untitled chapter" counts as
+  unnamed, and the arc is picked by type and refined by genre
+  (`OutlineBuilder::arcKey`: self-help, business, memoir, biography,
+  religion, education, children's, fiction genres). Titles are neutral
+  stage names; the premise is never spliced in (book 734's "Why Adults with
+  a goal that matters matters now"). New arcs for self-help, biography,
+  education, devotional and a generic one; the nonfiction arc lost its
+  business stages.
+- *Find and replace.* Ctrl/Cmd+F (`editor.find`, not remappable: the
+  browser's own key, taken only on the editor page) and Ctrl/Cmd+Shift+H
+  (`editor.replace`; Ctrl+H is the browser's history, Cmd+H hides the app).
+  A bar under the chapter header: This chapter / Whole manuscript, match
+  case, whole word, next/previous (Enter, Shift+Enter), replace one, replace
+  all. In the chapter, matches are decorations (`FindReplace.js`) and
+  replacing is an ordinary edit (undoable, tracked when Track changes is
+  on). Across the manuscript, `GET /books/{book}/find` lists matches by
+  chapter with snippets (a click opens the chapter with its matches
+  highlighted), and `POST /books/{book}/replace` (confirmed in the app's
+  dialog) replaces in every chapter through `ManuscriptWriter` with reason
+  `replace`, which snapshots each changed chapter first
+  (`App\Manuscript\FindReplace`). Both sides match within runs of adjacent
+  text nodes in one block, so a half-bold phrase is found and its marks
+  stay with the text node a match starts in.
+- *Agents that read the book.* `EditorialAgent::fits($type, $genre)`: the
+  examiners fit only academic types (or an academic genre). The catalogue
+  carries `fits`, sorts unfit agents last, and "Review this chapter" and
+  Review options run only fitting agents; an unfit agent can still be run
+  by hand. The sample driver: the Fact Checker ignores text inside
+  quotation marks; "was/were + -ed adjective" (red, tired…) is not passive;
+  a closing quote or a line break ends a sentence, so dialogue lines are
+  counted one by one; openers ignore leading quotes and dashes; "would
+  rather", "rather than", "quite a few", "the very same", "simply put" are
+  not fillers. A dismissed finding stays dismissed when the same agent
+  raises the same rule over the same words (`ReviewRunner::dismissalKey`).
+- *Track changes.* "Suggest" is "Track changes" (and "Not AI" in its
+  tooltip). Its state is per book for the browser *session*
+  (`sessionStorage`; the old per-browser setting is cleared), so a new
+  session starts with it off; while on, a bar under the header says so with
+  a "Turn off" button. The header shows "+N words pending" beside the
+  accepted count, which read "0 words" for a chapter typed while tracking.
+- *Genres and categories.* Children's, Middle grade, Young adult,
+  Self-help, Business, Biography & memoir, Religion & spirituality and
+  Education appended to the genre defaults; Juvenile Fiction, Juvenile
+  Nonfiction, Young Adult Fiction, Self-Help, Business & Economics,
+  Biography & Autobiography, Religion and Education ("/ General") appended
+  to the store categories. Existing values keep their place.
+- *CSP.* `font-src` adds `security.csp.font_src`, the origin of
+  `VITE_API_URL` only (no wildcard, not the CORS list).
+- *URLs.* `GET /books/{id}` redirects to the editor. The studio panes' JSON
+  endpoints (design, publishing, rights, editions, sales, product,
+  comments, findings, references, notes, marketing kit, launch, analytics,
+  team, workflow, preview, cover wrap, print kit, publish flow, goals,
+  style guide, sources, consistency, accessibility, journey) carry the
+  `StudioPage` middleware: a browser navigation is redirected to the
+  editor with `?pane=` (the journey to Guided), and an Inertia visit gets
+  `Inertia::location` (Book Settings' "Open Design" link landed on JSON).
+  The panes' own fetches are unchanged. Panes still have no URLs of their
+  own beyond `?pane=`.
+- *Ghost chapters and prompts.* Soft-deleting a section soft-deletes its
+  children (model `deleting` event). `OutlineImporter` deletes untouched
+  chapters one by one, then only parts left empty. A block whose text is a
+  scaffold chapter prompt counts no words (`ManuscriptSection::isPrompt`),
+  so a prompt-only chapter is unwritten (Guided said "11 of 11 written").
+  Migration `…171000` soft-deletes live sections under deleted ones (at the
+  parent's time) and recounts chapters of 1–40 words.
+- *Deliberate reduplication.* "Repeated word" has no fix when the pair
+  recurs in the chapter, sits inside quotation marks, or (in the runner)
+  occurs in another chapter of the book: "piti piti" stays a note.
+- *Book Settings.* Both forms save with `preserveState`, so either Save
+  keeps the other form's unsaved fields, and each says "Unsaved changes".
+- *Rights checklist.* The copyright page counts as present when the book
+  generates one (Anatomy plan, `source = generated`); the disclaimer when
+  Publishing details has one.
+- *Marketing kit.* `KitGenerator::usesModel()` is false (it is
+  extractive): no AI credits are charged or required, and the button says
+  "Build kit · free". A model-backed generator returning true is charged
+  and refunded on failure as before.
+- *Typography at export.* `apply_at_export` defaults to on (stored `null`;
+  an explicit off is kept): PDF, EPUB, Word, HTML and Markdown are set with
+  the book's resolved rules (curly quotes or guillemets, French spacing,
+  dashes, ellipsis) through `Exporter::structure`; the stored manuscript is
+  never rewritten. This changes what an untouched book exports — the
+  deliberate exception to "defaults unchanged" asked for by item H.
+- *Spelled-out numeral opener.* With label "Spelled out", the numeral
+  opener sets the word ("Four", smaller than a figure).
+- *Small things.* One blurb: an empty store description starts from the
+  book's description (the cover back already falls back the other way).
+  The credit strip says "14,100 credits left" when the balance is above
+  the monthly allowance (Profile likewise). No drop cap on front or back
+  matter. "Écrivain" with its accent in Guided. The Suggestions badge
+  counts the book's open findings, as the AI Editor does. Chapter titles
+  wrap to two lines (desktop and phone) with the full title on hover, and
+  the phone toolbar fades at its edge to show it scrolls. "Correct as you
+  type" applies to pasted text (Ctrl/Cmd+Z takes the paste back). Term
+  notes are shown under each term and terms are editable (`storeTerm` with
+  `id`). The outline-import example reads as a story for fiction. Cover
+  Studio saves refresh the sidebar thumbnail.
+
+**Defaults unchanged**, except where an item asked otherwise: typography at
+export (H), the sample driver's findings (fewer false ones), the outline
+titles, "Draft with me", and Track changes no longer surviving a new
+session. Real drivers: findings, charges and disclosure for a model's
+fixes are as before.
+
+**Not done.** Store categories: the KDP publish flow already takes up to
+three; the store listing keeps one (K). Real-driver prompts are not told
+the book's genre (the driver interface takes no book); the examiners'
+exclusion from full reviews covers them. Two price fields, the preview page
+count jumping, Cover Studio templates and the AI cover designer (out of
+scope or configuration). A finding dismissed under an older excerpt
+wording is raised again once the text changes, by design.
+
+**Tests.** `tests/Feature/AuthorWalkthroughTest.php` (title page both ways;
+sample-driver fixes give no AI evidence and `check_fix` versions, a
+model's fix counts once; Draft with me refused; outline without a type,
+genre arcs, no premise, Settings type; find by chapter with options, a
+half-bold phrase, replace-all with versions and marks kept, shortcuts;
+agents' fit; dialogue, passive, dialogue sentences, openers, would rather;
+dismissals stick; genres and categories; CSP font-src; book URL and pane
+URLs for browser and Inertia; no drop cap on back matter; store
+description; term edit and note; Guided fiction flag; ghost chapters and
+the migration; reduplication; rights checklist; Settings forms; numeral
+opener; typography at export), updated expectations in `SuggestionTest`,
+`PublishingDeclarationsTest`, `ReviewOptionsTest`, `DiscoverTest`,
+`JourneyTest`, `GrowthTest`, `BookTypographyTest`,
+`MasterDataReleasesTest`; `tests/Browser/walkthrough-fix.spec.js` (find and
+replace, track changes, the outline step and the URLs, at 1440 and 390 px).

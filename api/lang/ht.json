@@ -3236,5 +3236,7 @@
     "fric.term_edit": "Modifye",
     "fric.term_save": "Anrejistre",
     "fric.outline_placeholder_fiction": "Yon jou tankou lòt\nYon bagay chanje\nLong wout pou retounen lakay",
-    "fric.unsaved": "Chanjman ki poko anrejistre"
+    "fric.unsaved": "Chanjman ki poko anrejistre",
+    "fric.kit_build_free": "Kreye twous la · gratis",
+    "fric.kit_rebuild_free": "Refè · gratis"
 }
