@@ -7,6 +7,7 @@ use App\Journey\Coach;
 use App\Journey\OutlineBuilder;
 use App\Journey\OutlineImporter;
 use App\Models\Book;
+use App\Platform\Features;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -111,7 +112,7 @@ class JourneyController extends Controller
         $this->authorize('update', $book);
 
         $data = $request->validate([
-            'assistance' => ['required', Rule::in(Book::ASSISTANCE_AVAILABLE)],
+            'assistance' => ['required', Rule::in(Book::assistanceAvailable($request->user()))],
         ]);
 
         // Changing this never touches the manuscript, which is what makes it
@@ -186,7 +187,14 @@ class JourneyController extends Controller
             'stage' => $book->journey_stage,
             'stages' => $this->stages($book, $chapters, $written),
             'assistance' => $book->assistance,
-            'assistance_levels' => self::ASSISTANCE_LEVELS,
+            // "Draft with me" is available while the AI writer is on (ADR — AI
+            // writes the book); off, it is shown as coming soon as before.
+            'assistance_levels' => array_map(
+                fn (array $level) => $level['key'] === 'collaborative' && Features::enabled('ai_writer', request()->user())
+                    ? array_merge($level, ['available' => true, 'detail' => 'The AI drafts the book from a plan you approve; you review every chapter.'])
+                    : $level,
+                self::ASSISTANCE_LEVELS,
+            ),
             'idea' => [
                 'premise' => $book->premise,
                 'audience' => $book->audience,

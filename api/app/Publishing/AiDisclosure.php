@@ -2,7 +2,9 @@
 
 namespace App\Publishing;
 
+use App\Ai\WriterFactory;
 use App\Models\Book;
+use App\Models\DraftChapter;
 use App\Models\EditorialFinding;
 use App\Models\ManuscriptVersion;
 use App\Models\User;
@@ -31,7 +33,13 @@ class AiDisclosure
     public static function evidence(Book $book): array
     {
         $sections = $book->sections()->withTrashed()->pluck('id');
-        $drafts = ManuscriptVersion::whereIn('manuscript_section_id', $sections)->where('reason', 'ai_draft');
+        // Chapters the sample writer filled are placeholder text, not AI
+        // (ADR — AI writes the book), as the sample driver's fixes are not.
+        $sample = DraftChapter::whereIn('manuscript_section_id', $sections)
+            ->whereNotNull('manuscript_version_id')
+            ->whereHas('run', fn ($q) => $q->whereIn('driver', WriterFactory::simulatedDrivers()))
+            ->pluck('manuscript_version_id');
+        $drafts = ManuscriptVersion::whereIn('manuscript_section_id', $sections)->where('reason', 'ai_draft')->whereNotIn('id', $sample);
         // Only fixes a model wrote. A deterministic check's fix, or the
         // sample driver's, is not AI (EditorialFinding::fromModel).
         $fixes = EditorialFinding::with('review')

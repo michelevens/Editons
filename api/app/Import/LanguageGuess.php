@@ -28,6 +28,28 @@ final class LanguageGuess
     /** Fewer counted words than this is not evidence. */
     private const MINIMUM = 12;
 
+    /**
+     * A one-sentence idea (ADR — AI writes the book): two counted words are
+     * enough when one language has at least twice the other's.
+     *
+     * @return 'en'|'fr'|'ht'|null
+     */
+    public static function guessShort(string $text): ?string
+    {
+        preg_match_all("/[\\p{L}’']+/u", mb_strtolower(mb_substr($text, 0, 2000)), $m);
+        $counts = array_count_values($m[0]);
+        $scores = [];
+
+        foreach (self::WORDS as $language => $words) {
+            $scores[$language] = array_sum(array_map(fn ($w) => $counts[$w] ?? 0, $words));
+        }
+
+        arsort($scores);
+        [$best, $second] = array_values($scores) + [0, 0];
+
+        return $best >= 2 && $best >= $second * 2 ? array_key_first($scores) : null;
+    }
+
     /** @return 'en'|'fr'|'ht'|null */
     public static function guess(string $text): ?string
     {

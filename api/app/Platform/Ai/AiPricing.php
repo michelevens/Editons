@@ -22,6 +22,31 @@ final class AiPricing
         return round(($input / 1_000_000) * $rates['in'] + ($output / 1_000_000) * $rates['out'], 6);
     }
 
+    /**
+     * A call that used prompt caching (ADR — AI writes the book). Input is
+     * the uncached remainder; a cache write costs 1.25 times input (the
+     * five-minute cache) and a read the table's `cache_read` rate, or a
+     * tenth of input where the table has none.
+     */
+    public static function cached(string $provider, ?string $model, int $input, int $output, int $cacheWrite, int $cacheRead): ?float
+    {
+        $rates = self::rates($provider, $model);
+
+        if (! $rates || ! isset($rates['in'], $rates['out'])) {
+            return null;
+        }
+
+        $read = $rates['cache_read'] ?? $rates['in'] * 0.1;
+
+        return round(
+            ($input / 1_000_000) * $rates['in']
+            + ($cacheWrite / 1_000_000) * $rates['in'] * 1.25
+            + ($cacheRead / 1_000_000) * $read
+            + ($output / 1_000_000) * $rates['out'],
+            6,
+        );
+    }
+
     public static function images(string $provider, ?string $model, int $count): ?float
     {
         $rates = self::rates($provider, $model);

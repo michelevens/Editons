@@ -507,6 +507,21 @@ function Assistance({ book, journey, send, busy }) {
                     );
                 })}
             </div>
+
+            {/* Draft with me: the AI plans and writes, the author approves
+                (ADR — AI writes the book). */}
+            {journey.assistance === 'collaborative' && (
+                <div data-a="guided:draft" className="mt-3 flex flex-wrap items-center gap-3 rounded-tile border border-brand-primary/30 bg-brand-primary/[0.04] px-4 py-3">
+                    <p className="min-w-0 flex-1 text-[12.5px] text-text-body">{t('draft.guided_cta_detail')}</p>
+                    <button
+                        data-a="guided:write-my-book"
+                        onClick={() => router.get(route('books.edit', book.id), { pane: 'draft' })}
+                        className="h-9 shrink-0 rounded-control bg-brand-fill px-4 text-[13px] font-semibold text-white hover:bg-brand-primary-hover"
+                    >
+                        {t('draft.title')}
+                    </button>
+                </div>
+            )}
         </section>
     );
 }

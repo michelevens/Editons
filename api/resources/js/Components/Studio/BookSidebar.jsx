@@ -19,6 +19,8 @@ export const SIDEBAR_GROUPS = [
         items: [
             { key: 'overview', label: 'Overview', tKey: 'side.overview', icon: 'home', ready: true },
             { key: 'manuscript', label: 'Manuscript', tKey: 'side.manuscript', icon: 'doc', ready: true },
+            // ADR — AI writes the book; hidden while ai_writer is off.
+            { key: 'draft', label: 'Write my book', tKey: 'side.draft', icon: 'bolt', ready: true },
             { key: 'research', label: 'Research Library', tKey: 'side.research', icon: 'lib', ready: true },
             { key: 'terms', label: 'Characters & Terms', tKey: 'side.terms', icon: 'users', ready: true },
             { key: 'references', label: 'References & Citations', tKey: 'side.references', icon: 'refs', ready: true },

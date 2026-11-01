@@ -6,6 +6,7 @@ import Shelf from '@/Components/Shelf/Shelf';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useI18n } from '@/i18n';
+import { useFeatures } from '@/features';
 
 /**
  * The author's shelf.
@@ -484,6 +485,9 @@ function EmptyShelf({ filter, searching = false }) {
  * editable. They are a starting point to argue with, not a prediction.
  */
 function NewBookForm({ onDone, bookTypes, defaultBookType }) {
+    // "Draft with me" works while the AI writer is on (ADR — AI writes the book).
+    const featureOn = useFeatures();
+    const soonFor = (level) => level.soon && !featureOn('ai_writer');
     const { t, formatNumber } = useI18n();
     // An author who writes one kind of book has said so in their profile.
     // Opening on the scale step skips a question they have already answered,
@@ -724,10 +728,10 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                                 type="button"
                                 data-a={`books:new:assistance:${level.key}`}
                                 aria-pressed={data.assistance === level.key}
-                                disabled={level.soon}
+                                disabled={soonFor(level)}
                                 onClick={() => setData('assistance', level.key)}
                                 className={`rounded-tile border p-3 text-left transition ${
-                                    level.soon
+                                    soonFor(level)
                                         ? 'cursor-not-allowed border-dashed border-border-default bg-bg-subtle'
                                         : data.assistance === level.key
                                           ? 'border-brand-primary bg-brand-primary/[0.04]'
@@ -736,14 +740,14 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                             >
                                 <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-semibold text-text-primary">
                                     {t(level.tKey)}
-                                    {level.soon && (
+                                    {soonFor(level) && (
                                         <span className="rounded-full bg-bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-text-secondary ring-1 ring-border-default">
                                             {t('fric.coming_soon')}
                                         </span>
                                     )}
                                 </span>
                                 <span className="mt-0.5 block text-[11px] leading-snug text-text-secondary">
-                                    {level.soon ? t('fric.draft_soon_blurb') : t(level.blurbKey)}
+                                    {soonFor(level) ? t('fric.draft_soon_blurb') : t(level.blurbKey)}
                                 </span>
                             </button>
                         ))}
@@ -809,7 +813,7 @@ const ASSISTANCE = [
         tKey: 'assist.collaborative',
         blurb: 'Drafts passages from your notes and outline, for you to accept or reject.',
         blurbKey: 'assist.collaborative_blurb',
-        // Not built yet: shown as coming soon (ADR — Author walkthrough fixes).
+        // Coming soon only while the ai_writer flag is off (ADR — AI writes the book).
         soon: true,
     },
 ];

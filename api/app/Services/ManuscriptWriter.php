@@ -84,6 +84,15 @@ class ManuscriptWriter
             // cross-reference points at, here on the chapter's own save,
             // under its lock. Reading the book for cross-references used to
             // give them, and wrote other chapters back from a stale copy.
+            // The author typing into an AI draft makes it theirs: the "AI
+            // draft, not yet reviewed" marker goes (ADR — AI writes the
+            // book). Words, not markup: the editor normalising a draft it
+            // has just opened is not an edit.
+            if ($section->ai_draft_state !== null && in_array($reason, ['autosave', 'manual'], true) && $contentChanged
+                && self::text($section->content) !== self::text($content)) {
+                $section->ai_draft_state = null;
+            }
+
             $section->content = Numbering::label($content) ?? $content;
             $section->word_count = ManuscriptSection::countWords($content);
             $section->save();
@@ -99,6 +108,12 @@ class ManuscriptWriter
 
             return $section->refresh();
         });
+    }
+
+    /** A document's words, for telling an edit from a normalisation. */
+    private static function text(?array $doc): string
+    {
+        return preg_replace('/\s+/u', ' ', trim((new ManuscriptSection(['content' => $doc]))->plainText())) ?? '';
     }
 
     /**

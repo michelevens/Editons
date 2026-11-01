@@ -30,4 +30,6 @@ export const NAV_FEATURES = {
     audio: 'audiobook',
     course: 'course_builder',
     site: 'author_site',
+    // ADR — AI writes the book.
+    draft: 'ai_writer',
 };

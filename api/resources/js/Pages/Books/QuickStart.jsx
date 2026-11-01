@@ -1,6 +1,7 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useI18n } from '@/i18n';
+import { useFeatures } from '@/features';
 
 /**
  * Quick Start.
@@ -30,9 +31,20 @@ export default function QuickStart({ recent }) {
         quick: true,
     });
 
+    const featureOn = useFeatures();
+    const [drafting, setDrafting] = useState(false);
+
     const submit = (event) => {
         event.preventDefault();
         post(route('books.store'));
+    };
+
+    // Draft it with AI (ADR — AI writes the book): the field holds the
+    // book's idea in a sentence; the AI proposes the plan and the studio
+    // opens on Write my book.
+    const draft = () => {
+        setDrafting(true);
+        router.post(route('books.store'), { title: data.title, started_with: 'ai', quick: true, draft: true }, { onFinish: () => setDrafting(false) });
     };
 
     return (
@@ -81,6 +93,21 @@ export default function QuickStart({ recent }) {
                     >
                         {processing ? t('quickstart.opening') : t('register.title')}
                     </button>
+
+                    {featureOn('ai_writer') && (
+                        <>
+                            <button
+                                type="button"
+                                data-a="quick:draft"
+                                onClick={draft}
+                                disabled={processing || drafting || !data.title.trim()}
+                                className="mt-2 h-[44px] w-full rounded-control border border-brand-primary/40 bg-bg-surface text-[14px] font-semibold text-brand-primary transition hover:bg-brand-primary/[0.05] disabled:opacity-50"
+                            >
+                                {drafting ? t('quickstart.opening') : t('draft.quick_button')}
+                            </button>
+                            <p className="mt-1.5 text-[11.5px] leading-relaxed text-text-secondary">{t('draft.quick_hint')}</p>
+                        </>
+                    )}
                 </form>
 
                 {recent.length > 0 && (
