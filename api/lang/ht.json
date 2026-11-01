@@ -3232,11 +3232,14 @@
     "fric.track_off": "Dezaktive",
     "fric.track_refused": "Ou pa ka retire foto, tablo, grafik ak ekwasyon apa pandan swivi chanjman aktive. Dezaktive swivi a pou retire youn.",
     "fric.pending_words": "+{count, plural, other {# mo}} ap tann",
-    "fric.changes_count": "{count, plural, other {chanjman}}",
+    "fric.change_word": "chanjman",
+    "fric.changes_word": "chanjman",
     "fric.term_edit": "Modifye",
     "fric.term_save": "Anrejistre",
     "fric.outline_placeholder_fiction": "Yon jou tankou lòt\nYon bagay chanje\nLong wout pou retounen lakay",
     "fric.unsaved": "Chanjman ki poko anrejistre",
     "fric.kit_build_free": "Kreye twous la · gratis",
-    "fric.kit_rebuild_free": "Refè · gratis"
+    "fric.kit_rebuild_free": "Refè · gratis",
+    "fric.ai_unavailable": "Revizyon IA a pa disponib kounye a. Eseye ankò pita. Yo pa chaje anyen.",
+    "AI review is unavailable right now. Try again later.": "Revizyon IA a pa disponib kounye a. Eseye ankò pita."
 }

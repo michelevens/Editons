@@ -19,6 +19,7 @@ use App\Models\ManuscriptSection;
 use App\Models\User;
 use App\Platform\Ai\AiMeter;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -182,9 +183,27 @@ class ReviewRunner
             // Record the failure rather than swallowing it. A review that
             // silently produced nothing is indistinguishable from a clean
             // chapter, which is the worst possible reading.
+            // The provider being unavailable is said in the author's words,
+            // with its code kept for staff in the log; anything else keeps
+            // its message. Either way, scrubbed of anything like a key.
+            $unavailable = $e instanceof ProviderUnavailable;
+
+            if ($unavailable) {
+                Log::warning('editorial.provider_unavailable', [
+                    'provider' => $e->provider,
+                    'kind' => $e->kind,
+                    'code' => $e->providerCode,
+                    'message' => $e->getMessage(),
+                    'review' => $review->id,
+                ]);
+            }
+
             $review->update([
                 'status' => 'failed',
-                'error' => mb_substr($e->getMessage(), 0, 500),
+                'error' => $unavailable
+                    ? __('AI review is unavailable right now. Try again later.')
+                    : mb_substr(ProviderUnavailable::scrub($e->getMessage()), 0, 500),
+                'options' => array_merge($review->options ?? [], $unavailable ? ['unavailable' => $e->kind] : []) ?: null,
                 'completed_at' => now(),
             ]);
 
@@ -229,7 +248,7 @@ class ReviewRunner
                 ? $this->driver->reviewWith($agent, $text, $context)
                 : $this->driver->review($agent, $text);
         } catch (Throwable $e) {
-            AiMeter::record(...$row, model: null, status: 'failed', latencyMs: AiMeter::since($started), error: $e->getMessage());
+            AiMeter::record(...$row, model: null, status: 'failed', latencyMs: AiMeter::since($started), error: ProviderUnavailable::scrub($e->getMessage()));
 
             throw $e;
         }

@@ -116,6 +116,9 @@ class EditorialController extends Controller
                 'agent' => $review->agent->value,
                 'status' => $review->status,
                 'error' => $review->error,
+                // The provider could not review (billing, auth, rate limit,
+                // timeout, server): the panel says so, nothing was charged.
+                'unavailable' => ($review->options ?? [])['unavailable'] ?? null,
                 // Heuristics, not a model: the panel labels the result as
                 // sample output, and nothing was charged.
                 'simulated' => $this->runner->simulated(),

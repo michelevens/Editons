@@ -3041,11 +3041,13 @@
     "fric.track_off": "Turn off",
     "fric.track_refused": "Pictures, tables, charts and display equations cannot be removed while tracking changes. Turn Track changes off to remove one.",
     "fric.pending_words": "+{count, plural, one {# word} other {# words}} pending",
-    "fric.changes_count": "{count, plural, one {change} other {changes}}",
+    "fric.change_word": "change",
+    "fric.changes_word": "changes",
     "fric.term_edit": "Edit",
     "fric.term_save": "Save term",
     "fric.outline_placeholder_fiction": "An ordinary day\nSomething changes\nThe long way home",
     "fric.unsaved": "Unsaved changes",
     "fric.kit_build_free": "Build kit · free",
-    "fric.kit_rebuild_free": "Rebuild · free"
+    "fric.kit_rebuild_free": "Rebuild · free",
+    "fric.ai_unavailable": "AI review is unavailable right now. Try again later. Nothing was charged."
 }

@@ -536,3 +536,50 @@ it('applies the language\'s quotes at export by default, keeping the stored text
     expect(Illuminate\Support\Facades\Storage::disk('local')->get($file->path))->toContain('“Fly it,” she said.')
         ->and($section->fresh()->plainText())->toBe('"Fly it," she said.');
 });
+
+/* ------------------------------------------------------- provider failures (M) */
+
+it('handles each provider failure gracefully: unchanged credits, a plain message, no secret logged', function (int $status, array $body, string $kind) {
+    $logged = [];
+    Illuminate\Support\Facades\Log::listen(function ($event) use (&$logged) {
+        $logged[] = $event->message.' '.json_encode($event->context);
+    });
+
+    app()->bind(App\Editorial\Contracts\EditorialDriver::class, fn () => new App\Editorial\Drivers\AnthropicDriver(apiKey: 'sk-ant-api03-SECRETKEY1234567890', model: 'claude-sonnet-5-5'));
+    Illuminate\Support\Facades\Http::fake(['api.anthropic.com/*' => Illuminate\Support\Facades\Http::response($body, $status)]);
+
+    $user = User::factory()->subscribed('studio', 500)->create();
+    $section = ManuscriptSection::factory()->for(Book::factory()->for($user))->create(['content' => awDoc('The kite rose over Jacmel.')]);
+
+    $response = $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'line'])->assertOk();
+
+    expect($response->json('review.status'))->toBe('failed')
+        ->and($response->json('review.unavailable'))->toBe($kind)
+        ->and($response->json('review.error'))->toBe('AI review is unavailable right now. Try again later.')
+        ->and(json_encode($response->json()))->not->toContain('sk-ant')->not->toContain('credit balance')
+        ->and(app(App\Billing\CreditLedger::class)->balanceFor($user))->toBe(500)
+        ->and(EditorialFinding::where('manuscript_section_id', $section->id)->count())->toBe(0);
+
+    $log = implode("\n", $logged);
+    expect($log)->toContain('editorial.provider_unavailable')->toContain($kind)
+        ->not->toContain('SECRETKEY')->not->toContain('anthropic-version');
+})->with([
+    'billing' => [400, ['type' => 'error', 'error' => ['type' => 'invalid_request_error', 'message' => 'Your credit balance is too low to access the Anthropic API. Key sk-ant-api03-SECRETKEY1234567890']], 'billing'],
+    'auth' => [401, ['type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key']], 'auth'],
+    'rate limit' => [429, ['type' => 'error', 'error' => ['type' => 'rate_limit_error', 'message' => 'Number of requests has exceeded your rate limit']], 'rate_limit'],
+    'server' => [529, ['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'Overloaded']], 'server'],
+    'timeout' => [504, ['type' => 'error', 'error' => ['type' => 'api_error', 'message' => 'Gateway timeout']], 'timeout'],
+]);
+
+it('treats a dropped connection as the provider being unavailable', function () {
+    app()->bind(App\Editorial\Contracts\EditorialDriver::class, fn () => new App\Editorial\Drivers\AnthropicDriver(apiKey: 'sk-ant-api03-SECRETKEY1234567890', model: 'claude-sonnet-5-5'));
+    Illuminate\Support\Facades\Http::fake(fn () => throw new Illuminate\Http\Client\ConnectionException('cURL error 28 with header x-api-key: sk-ant-api03-SECRETKEY1234567890'));
+
+    $user = User::factory()->subscribed('studio', 500)->create();
+    $section = ManuscriptSection::factory()->for(Book::factory()->for($user))->create(['content' => awDoc('Words here.')]);
+    $response = $this->actingAs($user)->postJson("/sections/{$section->id}/review", ['agent' => 'line'])->assertOk();
+
+    expect($response->json('review.unavailable'))->toBe('timeout')
+        ->and(app(App\Billing\CreditLedger::class)->balanceFor($user))->toBe(500)
+        ->and(App\Editorial\ProviderUnavailable::scrub('key sk-ant-api03-abcdef123456 and sk-proj-zzzzzz999'))->toBe('key sk-[redacted] and sk-[redacted]');
+});

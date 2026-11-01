@@ -10,6 +10,8 @@ use App\Editorial\ReviewContext;
 use App\Editorial\ReviewResult;
 use App\Platform\Ai\AiPricing;
 use Illuminate\Support\Facades\Http;
+use App\Editorial\ProviderUnavailable;
+use Illuminate\Http\Client\ConnectionException;
 use RuntimeException;
 
 /**
@@ -109,14 +111,21 @@ class AnthropicDriver implements EditorialDriver, ReadsReviewContext
             return new ReviewResult(findings: [], model: $model);
         }
 
-        $response = Http::withHeaders([
-            'x-api-key' => $this->apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type' => 'application/json',
-        ])
-            ->timeout($this->timeout)
-            ->retry(2, 1000, throw: false)
-            ->post('https://api.anthropic.com/v1/messages', $this->payload($agent, $text, $context));
+        try {
+            $response = Http::withHeaders([
+                'x-api-key' => $this->apiKey,
+                'anthropic-version' => '2023-06-01',
+                'content-type' => 'application/json',
+            ])
+                ->timeout($this->timeout)
+                ->retry(2, 1000, throw: false)
+                ->post('https://api.anthropic.com/v1/messages', $this->payload($agent, $text, $context));
+        } catch (ConnectionException $e) {
+            // A timeout or a dropped connection: the provider is unavailable,
+            // not the chapter at fault. The exception's text is not kept: it
+            // can name the request.
+            throw new ProviderUnavailable('timeout', 'anthropic', 'connection', 'No response from the provider.');
+        }
 
         if ($response->successful() && $response->json('stop_reason') === 'refusal') {
             throw new RuntimeException('The reviewer declined this chapter. Nothing was charged.');
@@ -126,9 +135,14 @@ class AnthropicDriver implements EditorialDriver, ReadsReviewContext
             // Surface the provider's own message. ReviewRunner catches this
             // and records a failed review, which is what makes a silent
             // no-findings result impossible to confuse with a clean chapter.
-            throw new RuntimeException(
-                'Anthropic review failed: '
-                .($response->json('error.message') ?? $response->status()),
+            // Classified (billing, auth, rate limit, timeout, server) so the
+            // author is told it is unavailable rather than shown the
+            // provider's text (ADR — Author walkthrough fixes).
+            throw ProviderUnavailable::fromHttp(
+                'anthropic',
+                $response->status(),
+                $response->json('error.type'),
+                $response->json('error.message') ?? (string) $response->status(),
             );
         }
 

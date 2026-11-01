@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,6 +26,14 @@ class StudioPage
 
         if (! $request->isMethod('GET') || ! ($inertia || self::isNavigation($request)) || ! ($book = $request->route('book'))) {
             return $next($request);
+        }
+
+        // Only a pane that would have answered with its data: a 403, a 404
+        // (a module switched off) or a redirect stays what it was.
+        $response = $next($request);
+
+        if (! $response instanceof JsonResponse || ! $response->isSuccessful()) {
+            return $response;
         }
 
         $id = is_object($book) ? $book->getKey() : $book;

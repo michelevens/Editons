@@ -368,6 +368,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             });
             setFindings(res.data.findings);
             setCredits(res.data.billing?.credits ?? null);
+            // A failed run returns 200 with nothing found: said, never shown
+            // as a clean chapter (ADR — Author walkthrough fixes).
+            if (res.data.review?.status === 'failed') {
+                notify(res.data.review.unavailable ? t('fric.ai_unavailable') : t('review.run_failed'));
+            }
         } catch (error) {
             // Previously this had no catch, so a refusal — the plan does not
             // include this agent, or the balance will not cover it — failed
@@ -417,6 +422,12 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 latest = res.data.findings;
                 setFindings(latest);
                 setCredits(res.data.billing?.credits ?? null);
+
+                // The provider is down: the other agents would fail too.
+                if (res.data.review?.status === 'failed' && res.data.review.unavailable) {
+                    notify(t('fric.ai_unavailable'));
+                    break;
+                }
             } catch (error) {
                 const refusal = error.response?.data?.errors;
 

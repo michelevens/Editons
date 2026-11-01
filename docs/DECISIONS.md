@@ -4674,6 +4674,20 @@ and a spelled-out label the numeral opener ignored.
   `id`). The outline-import example reads as a story for fiction. Cover
   Studio saves refresh the sidebar thumbnail.
 
+- *Provider failures (M).* `AnthropicDriver` turns a failed call into
+  `App\Editorial\ProviderUnavailable` with a kind (billing or quota,
+  auth, rate limit, timeout, server, other) and the provider's code; a
+  dropped connection is a timeout and its text (which can name the
+  request) is not kept. `ReviewRunner` records the review as failed with
+  "AI review is unavailable right now. Try again later." (translated),
+  marks `options.unavailable`, refunds the charge as before, saves no
+  findings, and logs `editorial.provider_unavailable` for staff with the
+  provider, kind, code and message. Anything shaped like `sk-ant-…`/`sk-…`
+  is scrubbed from what is logged, metered or shown; headers are never
+  logged. The review response carries `unavailable`, and the panel says so
+  (and stops a full review) instead of showing an empty chapter as clean.
+  The happy path of the real driver is unchanged.
+
 **Defaults unchanged**, except where an item asked otherwise: typography at
 export (H), the sample driver's findings (fewer false ones), the outline
 titles, "Draft with me", and Track changes no longer surviving a new
@@ -4698,7 +4712,8 @@ dismissals stick; genres and categories; CSP font-src; book URL and pane
 URLs for browser and Inertia; no drop cap on back matter; store
 description; term edit and note; Guided fiction flag; ghost chapters and
 the migration; reduplication; rights checklist; Settings forms; numeral
-opener; typography at export), updated expectations in `SuggestionTest`,
+opener; typography at export; each provider failure with credits
+unchanged, the message and no secret in the log), updated expectations in `SuggestionTest`,
 `PublishingDeclarationsTest`, `ReviewOptionsTest`, `DiscoverTest`,
 `JourneyTest`, `GrowthTest`, `BookTypographyTest`,
 `MasterDataReleasesTest`; `tests/Browser/walkthrough-fix.spec.js` (find and

@@ -1122,7 +1122,7 @@ export default function ManuscriptEditor({
                         className="flex h-7 shrink-0 items-center gap-1 rounded-badge bg-status-success-bg px-2 text-[11.5px] font-semibold text-status-success max-md:h-9"
                     >
                         {changes.length}
-                        <span className="max-sm:sr-only">{tr('fric.changes_count', { count: changes.length })}</span>
+                        <span className="max-sm:sr-only">{tr(changes.length === 1 ? 'fric.change_word' : 'fric.changes_word')}</span>
                     </button>
                 )}
                 {suggestAllowed && (
