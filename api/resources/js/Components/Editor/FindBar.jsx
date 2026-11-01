@@ -63,6 +63,9 @@ export default function FindBar({ editor, bookId, sectionId, mode = 'find', focu
         let live = true;
         const timer = setTimeout(async () => {
             try {
+                // The open chapter's last edit first: the server searches
+                // what is saved, and a replace just made here is not yet.
+                await onFlush?.();
                 const { data } = await window.axios.get(`/books/${bookId}/find`, { params: { q: term, case: matchCase ? 1 : 0, word: wholeWord ? 1 : 0 } });
                 if (live) setResults(data);
             } catch {
