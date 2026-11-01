@@ -32,6 +32,10 @@ class RightsDeclaration
         'permission' => 'Written permission',
         'licence' => 'A licence',
         'public_domain' => 'Public domain',
+        // Short quotations, credited, used without asking (ADR — Safe
+        // apply, honest prices, citation fixes). What the author states,
+        // like the others; the app does not judge whether a use is fair.
+        'fair_use' => 'Quotations used under fair use / short quotation, credited',
         'unsure' => 'Not sure yet',
     ];
 
@@ -79,8 +83,9 @@ class RightsDeclaration
             'materials' => $declaration['materials'] ?? [],
             'confirmed_by' => $declaration['confirmed_name'] ?? null,
             'confirmed_at' => $declaration['confirmed_at'] ?? null,
-            'kinds' => self::KINDS,
-            'permissions' => self::PERMISSIONS,
+            // In the reader's language (the keys are what is stored).
+            'kinds' => array_map(fn (string $label) => __($label), self::KINDS),
+            'permissions' => array_map(fn (string $label) => __($label), self::PERMISSIONS),
         ];
     }
 }

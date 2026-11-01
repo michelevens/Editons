@@ -3279,5 +3279,15 @@
     "safe.mark_verified": "Marquer vérifiées",
     "safe.mark_unverified": "Marquer non vérifiées",
     "safe.select_source": "Sélectionner {title}",
-    "safe.field_accessed": "Consulté le"
+    "safe.field_accessed": "Consulté le",
+    "safe.fair_use_hint": "Pour de courts passages cités afin de commenter, critiquer ou illustrer, chacun crédité à sa source. Qu’un usage relève du droit de citation dépend du cas et du pays ; ceci enregistre ce que vous déclarez et n’est pas un avis juridique.",
+    "Quotation": "Citation",
+    "Image or illustration": "Image ou illustration",
+    "Official paper or document": "Document officiel",
+    "Other material": "Autre contenu",
+    "Written permission": "Autorisation écrite",
+    "A licence": "Une licence",
+    "Public domain": "Domaine public",
+    "Quotations used under fair use / short quotation, credited": "Citations courtes au titre du droit de citation (fair use), créditées",
+    "Not sure yet": "Pas encore sûr"
 }

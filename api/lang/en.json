@@ -3076,5 +3076,6 @@
     "safe.mark_verified": "Mark verified",
     "safe.mark_unverified": "Mark unverified",
     "safe.select_source": "Select {title}",
-    "safe.field_accessed": "Accessed on"
+    "safe.field_accessed": "Accessed on",
+    "safe.fair_use_hint": "For short passages quoted to discuss, review or illustrate, each credited to its source. Whether a use is fair or a permitted quotation depends on the case and the country; this records what you state and is not legal advice."
 }

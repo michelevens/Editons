@@ -4860,3 +4860,11 @@ true; the price list said otherwise.
   "(Accessed: 31 October 2026)". Nothing is printed when none is stored.
 - The BibTeX import keeps a bare "$" before a figure ("$15 Million"); a
   math pair ("$10^6$") still loses its delimiters.
+
+**6. Rights declaration: fair use.** `RightsDeclaration::PERMISSIONS` gains
+`fair_use`, "Quotations used under fair use / short quotation, credited",
+which does not count as unsure. Choosing it shows a short neutral note
+(what the option is for, that fairness depends on the case and the country,
+and that this records the author's statement and is not legal advice). The
+kinds and permissions are now sent in the reader's language (en, fr, ht);
+the stored keys are unchanged.

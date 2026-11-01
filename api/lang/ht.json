@@ -3279,5 +3279,15 @@
     "safe.mark_verified": "Make verifye",
     "safe.mark_unverified": "Make pa verifye",
     "safe.select_source": "Chwazi {title}",
-    "safe.field_accessed": "Konsilte le"
+    "safe.field_accessed": "Konsilte le",
+    "safe.fair_use_hint": "Pou ti pasaj ou site pou diskite, kritike oswa montre yon bagay, chak ak sous li. Si yon itilizasyon jis oswa si yon sitasyon pèmèt, sa depann de ka a ak peyi a; sa a anrejistre sa ou deklare, se pa yon konsèy legal.",
+    "Quotation": "Sitasyon",
+    "Image or illustration": "Imaj oswa ilistrasyon",
+    "Official paper or document": "Papye ofisyèl oswa dokiman",
+    "Other material": "Lòt materyèl",
+    "Written permission": "Pèmisyon alekri",
+    "A licence": "Yon lisans",
+    "Public domain": "Domèn piblik",
+    "Quotations used under fair use / short quotation, credited": "Sitasyon kout ki itilize dapre itilizasyon jis (fair use), ak sous yo",
+    "Not sure yet": "Poko sèten"
 }
