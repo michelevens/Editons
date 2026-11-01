@@ -72,7 +72,7 @@ export default function StarterTemplatePicker({ bookId, title = '', onApplied, o
                 <p className="mt-2 text-[11.5px] text-text-secondary">{t('common.loading')}</p>
             ) : (
                 <>
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-8">
                         {catalogue.templates.map((tpl) => {
                             const chosen = choice?.template === tpl.key;
                             const p = palette(chosen ? choice.palette : tpl.palette);
