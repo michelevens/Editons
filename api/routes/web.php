@@ -1065,4 +1065,23 @@ Route::middleware('auth')->group(function () {
         ->name('research.runs.store');
     Route::post('/research-runs/{run}/save', [App\Http\Controllers\ResearchAssistantController::class, 'save'])
         ->name('research.runs.save');
+
+    Route::get('/cover-starters', [App\Http\Controllers\CoverStarterController::class, 'index'])
+        ->name('cover-starters.index');
+    Route::post('/books/{book}/cover/starter/suggest', [App\Http\Controllers\CoverStarterController::class, 'suggest'])
+        ->middleware('throttle:20,1')
+        ->name('cover-starters.suggest');
+    Route::post('/books/{book}/cover/starter', [App\Http\Controllers\CoverStarterController::class, 'apply'])
+        ->name('cover-starters.apply');
+
+    Route::get('/books/{book}/store-copy', [App\Http\Controllers\StoreCopyController::class, 'show'])
+        ->name('store-copy.show');
+    Route::post('/books/{book}/store-copy', [App\Http\Controllers\StoreCopyController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('store-copy.store');
+    Route::post('/books/{book}/store-copy/approve', [App\Http\Controllers\StoreCopyController::class, 'approve'])
+        ->name('store-copy.approve');
+
+    Route::get('/books/{book}/finish', [App\Http\Controllers\FinishController::class, 'show'])
+        ->name('finish.show');
 });
