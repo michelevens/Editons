@@ -24,6 +24,8 @@ import { ImageBar, TableBar } from './PlacementBar';
 import { useKeyboardInset, useOnline } from './useKeyboard';
 import MathDialog from './MathDialog';
 import { Typography } from './Typography';
+import { FindReplace } from './FindReplace';
+import FindBar from './FindBar';
 import { matches } from '../../shortcuts';
 import { t as tr, useI18n } from '../../i18n';
 
@@ -137,6 +139,10 @@ export default function ManuscriptEditor({
     showStatusBar = true,
     typewriter: typewriterSetting = undefined,
     onTypewriter = null,
+    // Find across the manuscript: open a chapter at its matches, and take
+    // the rewritten open chapter after a replace in every chapter.
+    onOpenSection = null,
+    onReplacedAll = null,
     ref,
 }) {
     const user = usePage().props.auth?.user ?? null;
@@ -300,9 +306,11 @@ export default function ManuscriptEditor({
                 }),
                 // Tracked changes; switched on through its storage below.
                 Suggest.configure({
-                    onRefused: () => setNotice('Pictures, tables, charts and display equations cannot be removed while suggesting. Turn Suggest off to remove one.'),
+                    onRefused: () => setNotice(tr('fric.track_refused')),
                 }),
                 CommentAnchors,
+                // Find and replace highlights (FindReplace.js).
+                FindReplace,
                 // A quotation's box kind, chosen in the toolbar (Callout.js).
                 CalloutChoice,
                 ...(typography?.as_you_type
@@ -473,6 +481,25 @@ export default function ManuscriptEditor({
         };
     }, [status, flush]);
 
+    // Find (Ctrl/Cmd+F) and replace (Ctrl/Cmd+Shift+H; Ctrl+H is the
+    // browser's history and Cmd+H hides the app on a Mac), ADR — Author
+    // walkthrough fixes. `at` re-focuses the bar when pressed again.
+    const [find, setFind] = useState(null);
+
+    useEffect(() => {
+        const onKey = (e) => {
+            if (matches('editor.find', e)) {
+                e.preventDefault();
+                setFind({ mode: 'find', at: Date.now() });
+            } else if (matches('editor.replace', e)) {
+                e.preventDefault();
+                setFind({ mode: 'replace', at: Date.now() });
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
     // Ctrl/Cmd+S forces a save and a version, because writers press it
     // (editor.save in the shortcut registry: the author may move it).
     useEffect(() => {
@@ -626,15 +653,19 @@ export default function ManuscriptEditor({
 
     // --- Review: suggest mode, its changes, comments on a selection -------
 
-    // Remembered per browser and per book, like typewriter scrolling: it is
-    // how this person is working on this book on this device (an editor
-    // suggesting on a client's manuscript, the author writing on their
-    // own), not a fact about the book every collaborator should inherit.
+    // Track changes ("Suggest" before; ADR — Author walkthrough fixes).
+    // Remembered per book for this browser session only: a new session
+    // starts with it off, because an author who left it on found a whole
+    // chapter turned into pending changes the next day. While it is on, a
+    // bar under the header says so, with a button to turn it off.
     const calloutCss = useCalloutCss(bookId);
     const suggestKey = `ecrivain:suggest:${bookId ?? 'book'}`;
     const [suggesting, setSuggesting] = useState(() => {
         try {
-            return window.localStorage.getItem(suggestKey) === '1';
+            // The old per-browser setting is forgotten, not carried over.
+            window.localStorage.removeItem(suggestKey);
+
+            return window.sessionStorage.getItem(suggestKey) === '1';
         } catch {
             return false;
         }
@@ -643,7 +674,7 @@ export default function ManuscriptEditor({
     const toggleSuggest = () => {
         setSuggesting((on) => {
             try {
-                window.localStorage.setItem(suggestKey, on ? '0' : '1');
+                window.sessionStorage.setItem(suggestKey, on ? '0' : '1');
             } catch {
                 // Private mode: the choice lasts for this page only.
             }
@@ -1008,6 +1039,9 @@ export default function ManuscriptEditor({
     const floatingBar = floating && !docked;
     const toolbarShown = showToolbar && (!floating || Boolean(bubble) || toolbarFocus);
     const readingMinutes = Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+    // Words waiting as tracked insertions: the count above is the accepted
+    // text only, so a chapter typed with Track changes on read "0 words".
+    const pendingWords = changes.reduce((sum, change) => sum + (change.inserted.match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)?.length ?? 0), 0);
 
     return (
         <div className="flex h-full flex-col">
@@ -1024,19 +1058,30 @@ export default function ManuscriptEditor({
                         onClick={onChapters}
                         aria-haspopup="dialog"
                         aria-label={`${section.title} — switch chapter`}
-                        className="-ml-1.5 flex min-h-[40px] min-w-0 items-center gap-1 rounded-control px-1.5 text-left text-[14px] font-semibold text-text-primary transition hover:bg-bg-subtle md:hidden"
+                        title={section.title}
+                        className="-ml-1.5 flex min-h-[40px] min-w-[7rem] flex-1 items-center gap-1 rounded-control px-1.5 text-left text-[14px] font-semibold text-text-primary transition hover:bg-bg-subtle md:hidden"
                     >
-                        <span className="truncate">{section.title}</span>
+                        {/* Two lines before it is cut, so "1. Beginnings" is never just "1." */}
+                        <span className="line-clamp-2 break-words leading-[1.2]">{section.title}</span>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className="shrink-0 text-text-secondary">
                             <path d="M6 9l6 6 6-6" />
                         </svg>
                     </button>
                 ) : null}
-                <h2 className={`truncate text-[14px] font-semibold text-text-primary ${onChapters ? 'max-md:hidden' : ''}`}>
+                <h2
+                    title={section.title}
+                    data-a="editor:chapter-title"
+                    className={`line-clamp-2 min-w-[8rem] flex-1 break-words text-[14px] font-semibold leading-[1.2] text-text-primary ${onChapters ? 'max-md:hidden' : ''}`}
+                >
                     {section.title}
                 </h2>
-                <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
+                <span className="shrink-0 text-[11.5px] tabular-nums text-text-secondary max-sm:hidden">
                     {tr('book.words', { count: words, words: words.toLocaleString() })}
+                    {pendingWords > 0 && (
+                        <span data-a="editor:pending-words" className="ml-1 text-status-success">
+                            {tr('fric.pending_words', { count: pendingWords })}
+                        </span>
+                    )}
                 </span>
                 {/* The chapter's word goal: the ring fills as the
                     chapter grows, and opens the goals sheet. Without a goal
@@ -1077,7 +1122,7 @@ export default function ManuscriptEditor({
                         className="flex h-7 shrink-0 items-center gap-1 rounded-badge bg-status-success-bg px-2 text-[11.5px] font-semibold text-status-success max-md:h-9"
                     >
                         {changes.length}
-                        <span className="max-sm:sr-only">{changes.length === 1 ? 'change' : 'changes'}</span>
+                        <span className="max-sm:sr-only">{tr(changes.length === 1 ? 'fric.change_word' : 'fric.changes_word')}</span>
                     </button>
                 )}
                 {suggestAllowed && (
@@ -1086,17 +1131,34 @@ export default function ManuscriptEditor({
                     data-a="editor:suggest"
                     onClick={toggleSuggest}
                     aria-pressed={suggesting}
-                    title={suggesting ? tr('jfix.suggesting_title') : tr('jfix.suggest_title')}
+                    title={suggesting ? tr('fric.tracking_title') : tr('fric.track_title')}
                     className={`flex h-7 shrink-0 items-center gap-1 rounded-control px-1.5 text-[12px] font-semibold transition max-md:h-9 max-md:min-w-9 max-md:justify-center ${
                         suggesting ? 'bg-status-success-bg text-status-success' : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary'
                     }`}
                 >
                     <Icon name="aLine" size={15} />
-                    <span className="max-lg:sr-only">{suggesting ? tr('jfix.suggesting') : tr('jfix.suggest')}</span>
+                    <span className="max-lg:sr-only">{suggesting ? tr('fric.tracking') : tr('fric.track')}</span>
                 </button>
                 )}
                 {headerActions}
             </header>
+
+            {find && editor && (
+                <FindBar
+                    editor={editor}
+                    bookId={bookId}
+                    sectionId={section.id}
+                    mode={find.mode}
+                    focusAt={find.at}
+                    onClose={() => {
+                        setFind(null);
+                        editor.commands.focus();
+                    }}
+                    onOpenSection={onOpenSection}
+                    onFlush={() => Promise.race([flush(), new Promise((resolve) => setTimeout(resolve, FLUSH_WAIT_MS))])}
+                    onReplacedAll={onReplacedAll}
+                />
+            )}
 
             {/* Said in words as well as by the pressed button: on a phone
                 the button is an icon, and typing that does not delete is
@@ -1107,13 +1169,23 @@ export default function ManuscriptEditor({
                     // only one in the chapter.
                     role={notice ? 'alert' : undefined}
                     data-a={notice ? 'editor:suggest-notice' : 'editor:suggesting'}
-                    className={`shrink-0 border-b px-3 py-1 text-[11.5px] sm:px-[21px] ${
+                    className={`flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-[12px] font-medium sm:px-[21px] ${
                         notice
                             ? 'border-status-warning/30 bg-status-warning-bg text-status-warning'
                             : 'border-status-success/20 bg-status-success-bg text-status-success'
                     }`}
                 >
-                    {notice ?? tr('jfix.suggesting_notice')}
+                    <span className="min-w-0 flex-1">{notice ?? tr('fric.tracking_notice')}</span>
+                    {!notice && (
+                        <button
+                            type="button"
+                            data-a="editor:suggest-off"
+                            onClick={toggleSuggest}
+                            className="shrink-0 rounded-control border border-status-success/40 bg-bg-surface px-2 py-0.5 text-[11.5px] font-semibold text-status-success hover:bg-bg-subtle"
+                        >
+                            {tr('fric.track_off')}
+                        </button>
+                    )}
                 </p>
             )}
 
@@ -1486,7 +1558,7 @@ function Toolbar({ editor, onMath, onImage, onChart, onFootnote, onXref, onDone 
         <div
             role="toolbar"
             aria-label={t('toolbar.formatting')}
-            className="no-scrollbar flex min-h-[47px] shrink-0 items-center gap-0.5 border-b border-border-divider px-[21px] md:flex-wrap md:py-1 max-md:h-[52px] max-md:overflow-x-auto max-md:px-2"
+            className="no-scrollbar flex min-h-[47px] shrink-0 items-center gap-0.5 border-b border-border-divider px-[21px] md:flex-wrap md:py-1 max-md:h-[52px] max-md:overflow-x-auto max-md:px-2 max-md:[mask-image:linear-gradient(to_right,black_85%,transparent)]"
         >
             <select
                 value={block}

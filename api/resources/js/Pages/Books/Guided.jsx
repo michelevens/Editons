@@ -101,7 +101,7 @@ export default function Guided({ book, journey: initial }) {
                     >
                         <img src="/brand/symbol.svg" alt="" width={24} height={24} />
                         <span className="font-display text-[17px] font-bold tracking-[-0.01em] text-text-primary">
-                            Ecrivain
+                            Écrivain
                         </span>
                     </button>
 
@@ -466,12 +466,15 @@ function Assistance({ book, journey, send, busy }) {
             <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 {journey.assistance_levels.map((level) => {
                     const chosen = journey.assistance === level.key;
+                    // "Draft with me" is not built yet (ADR — Author walkthrough fixes).
+                    const soon = level.available === false;
 
                     return (
                         <button
                             key={level.key}
                             data-a={`guided:assist:${level.key}`}
-                            disabled={busy === 'assist'}
+                            disabled={busy === 'assist' || soon}
+                            aria-disabled={soon || undefined}
                             onClick={() =>
                                 send(
                                     'patch',
@@ -482,16 +485,23 @@ function Assistance({ book, journey, send, busy }) {
                             }
                             aria-pressed={chosen}
                             className={`rounded-tile border px-4 py-3 text-left transition ${
-                                chosen
-                                    ? 'border-brand-primary bg-brand-primary/[0.05]'
-                                    : 'border-border-default bg-bg-surface hover:border-brand-primary/40'
+                                soon
+                                    ? 'cursor-not-allowed border-dashed border-border-default bg-bg-subtle'
+                                    : chosen
+                                      ? 'border-brand-primary bg-brand-primary/[0.05]'
+                                      : 'border-border-default bg-bg-surface hover:border-brand-primary/40'
                             }`}
                         >
-                            <span className="block text-[13.5px] font-semibold text-text-primary">
-                                {level.name}
+                            <span className="flex items-center gap-2 text-[13.5px] font-semibold text-text-primary">
+                                {t(`assist.${level.key}`)}
+                                {soon && (
+                                    <span className="rounded-full bg-bg-surface px-2 py-0.5 text-[10.5px] font-semibold text-text-secondary ring-1 ring-border-default">
+                                        {t('fric.coming_soon')}
+                                    </span>
+                                )}
                             </span>
                             <span className="mt-0.5 block text-[12px] leading-relaxed text-text-secondary">
-                                {level.detail}
+                                {soon ? t('fric.draft_soon_blurb') : t(`assist.${level.key}_blurb`)}
                             </span>
                         </button>
                     );
@@ -543,7 +553,7 @@ function ImportOutline({ book, send, busy, say }) {
                 rows={8}
                 value={text}
                 autoFocus
-                placeholder={t('guided.outline_placeholder')}
+                placeholder={t(book.fiction ? 'fric.outline_placeholder_fiction' : 'guided.outline_placeholder')}
                 onChange={(event) => setText(event.target.value)}
                 className="mt-3 w-full resize-y rounded-control border border-border-input px-3.5 py-2.5 font-mono text-[13px] leading-relaxed placeholder:text-text-secondary focus:border-brand-primary focus:ring-0"
             />

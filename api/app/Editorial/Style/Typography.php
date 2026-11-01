@@ -36,7 +36,10 @@ final class Typography
     /** What a book stores before the author chooses anything. */
     public const DEFAULTS = [
         'as_you_type' => false,
-        'apply_at_export' => false,
+        // Null: the default, which is on (ADR — Author walkthrough fixes).
+        // A French book exported with 248 straight quotes although its
+        // language writes « guillemets »; the stored text is never changed.
+        'apply_at_export' => null,
         'quotes' => null,
         'french_spacing' => null,
         'dashes' => null,
@@ -71,9 +74,8 @@ final class Typography
     {
         $out = array_merge(self::DEFAULTS, array_intersect_key($stored ?? [], self::DEFAULTS));
 
-        foreach (['as_you_type', 'apply_at_export'] as $key) {
-            $out[$key] = (bool) $out[$key];
-        }
+        $out['as_you_type'] = (bool) $out['as_you_type'];
+        $out['apply_at_export'] = $out['apply_at_export'] === null ? null : (bool) $out['apply_at_export'];
 
         foreach (['french_spacing', 'dashes', 'ellipsis'] as $key) {
             $out[$key] = $out[$key] === null ? null : (bool) $out[$key];
@@ -119,6 +121,10 @@ final class Typography
         foreach ($defaults as $key => $value) {
             $rules[$key] = $stored[$key] ?? $value;
         }
+
+        // Applied at export unless the author turned it off.
+        $defaults['apply_at_export'] = true;
+        $rules['apply_at_export'] = $stored['apply_at_export'] ?? true;
 
         return $rules + ['language' => $language, 'stored' => $stored, 'defaults' => $defaults];
     }

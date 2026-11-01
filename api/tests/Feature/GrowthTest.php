@@ -204,14 +204,14 @@ it('takes the audience the author gives it', function () {
         ->and($kit['email']['body'])->toContain('nurse practitioners');
 });
 
-it('charges credits, and refunds when there is nothing to work with', function () {
+it('charges no AI credits for a kit no model wrote', function () {
+    // Extractive: the author's own sentences (ADR — Author walkthrough fixes).
     $user = User::factory()->subscribed('studio', 100)->create();
     $book = kitBook($user);
 
-    $this->actingAs($user)->postJson("/books/{$book->id}/marketing-kit")->assertOk();
+    $this->actingAs($user)->postJson("/books/{$book->id}/marketing-kit")->assertOk()->assertJsonPath('cost', 0);
 
-    expect(app(CreditLedger::class)->balanceFor($user))
-        ->toBe(100 - config('billing.costs.marketing_kit'));
+    expect(app(CreditLedger::class)->balanceFor($user))->toBe(100);
 
     $empty = $user->books()->create(['title' => 'Nothing Yet']);
 
@@ -219,20 +219,34 @@ it('charges credits, and refunds when there is nothing to work with', function (
         ->postJson("/books/{$empty->id}/marketing-kit")
         ->assertStatus(422);
 
-    // Unchanged from after the first, successful run: the failed one was
-    // refunded rather than charged.
-    expect(app(CreditLedger::class)->balanceFor($user))
-        ->toBe(100 - config('billing.costs.marketing_kit'));
+    expect(app(CreditLedger::class)->balanceFor($user))->toBe(100);
+
+    // An empty balance does not stop it either.
+    $broke = User::factory()->broke()->create();
+    $this->actingAs($broke)->postJson('/books/'.kitBook($broke)->id.'/marketing-kit')->assertOk();
 });
 
-it('refuses when the balance will not cover it', function () {
-    $user = User::factory()->broke()->create();
+it('charges, and refunds a failure, when a model writes the kit', function () {
+    $user = User::factory()->subscribed('studio', 100)->create();
     $book = kitBook($user);
+    app()->instance(App\Marketing\KitGenerator::class, new class extends App\Marketing\KitGenerator
+    {
+        public function usesModel(): bool
+        {
+            return true;
+        }
+    });
 
-    $this->actingAs($user)
-        ->postJson("/books/{$book->id}/marketing-kit")
-        ->assertStatus(422)
-        ->assertJsonValidationErrors('credits');
+    $this->actingAs($user)->postJson("/books/{$book->id}/marketing-kit")->assertOk();
+    expect(app(CreditLedger::class)->balanceFor($user))->toBe(100 - config('billing.costs.marketing_kit'));
+
+    $empty = $user->books()->create(['title' => 'Nothing Yet']);
+    $this->actingAs($user)->postJson("/books/{$empty->id}/marketing-kit")->assertStatus(422);
+    expect(app(CreditLedger::class)->balanceFor($user))->toBe(100 - config('billing.costs.marketing_kit'));
+
+    $broke = User::factory()->broke()->create();
+    $this->actingAs($broke)->postJson('/books/'.kitBook($broke)->id.'/marketing-kit')
+        ->assertStatus(422)->assertJsonValidationErrors('credits');
 });
 
 // --- The screens that are not built -------------------------------------

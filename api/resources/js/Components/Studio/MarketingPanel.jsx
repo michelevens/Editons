@@ -80,7 +80,11 @@ export default function MarketingPanel({ bookId, onNotify }) {
                     onClick={generate}
                     className="ml-auto rounded-control bg-brand-fill px-3 py-2 text-[12.5px] font-semibold text-white transition hover:bg-brand-primary-hover disabled:opacity-50"
                 >
-                    {busy ? t('marketing.building') : kit ? t('marketing.rebuild_cost', { cost }) : t('marketing.build_cost', { cost })}
+                    {busy
+                        ? t('marketing.building')
+                        : cost > 0
+                          ? (kit ? t('marketing.rebuild_cost', { cost }) : t('marketing.build_cost', { cost }))
+                          : (kit ? t('fric.kit_rebuild_free') : t('fric.kit_build_free'))}
                 </button>
             </header>
 

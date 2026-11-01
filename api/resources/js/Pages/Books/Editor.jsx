@@ -225,6 +225,24 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
 
     useEffect(() => setSection(activeSection), [activeSection?.id]);
 
+    // A cover saved in Cover Studio: the sidebar's thumbnail is re-read, a
+    // moment after the last change, rather than staying on the old palette
+    // until a reload (ADR — Author walkthrough fixes).
+    useEffect(() => {
+        let timer = null;
+        const onCover = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => router.reload({ only: ['book'], preserveScroll: true }), 1200);
+        };
+
+        window.addEventListener('ecrivain:cover-changed', onCover);
+
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('ecrivain:cover-changed', onCover);
+        };
+    }, []);
+
     // The last text selected in the chapter, for the AI Editor's "Review
     // the selection" (ADR — Style guides and review options). Kept when the
     // author moves to that screen, which is when the selection collapses.
@@ -350,6 +368,11 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
             });
             setFindings(res.data.findings);
             setCredits(res.data.billing?.credits ?? null);
+            // A failed run returns 200 with nothing found: said, never shown
+            // as a clean chapter (ADR — Author walkthrough fixes).
+            if (res.data.review?.status === 'failed') {
+                notify(res.data.review.unavailable ? t('fric.ai_unavailable') : t('review.run_failed'));
+            }
         } catch (error) {
             // Previously this had no catch, so a refusal — the plan does not
             // include this agent, or the balance will not cover it — failed
@@ -382,7 +405,9 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
         let latest = findings;
         // Only the agents the plan includes (ADR — Journey friction fixes):
         // the others are shown locked, and asking for them would be refused.
-        const included = agents.filter((agent) => agent.included !== false);
+        // And only those that suit the book: no thesis examiner on a novel
+        // (ADR — Author walkthrough fixes).
+        const included = agents.filter((agent) => agent.included !== false && agent.fits !== false);
 
         for (const [index, agent] of included.entries()) {
             setReviewProgress({
@@ -397,6 +422,12 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                 latest = res.data.findings;
                 setFindings(latest);
                 setCredits(res.data.billing?.credits ?? null);
+
+                // The provider is down: the other agents would fail too.
+                if (res.data.review?.status === 'failed' && res.data.review.unavailable) {
+                    notify(t('fric.ai_unavailable'));
+                    break;
+                }
             } catch (error) {
                 const refusal = error.response?.data?.errors;
 
@@ -639,6 +670,24 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
     // Only the manuscript has a distraction-free form.
     const focused = focusMode && isStudio;
     const openFindings = findings.filter((f) => f.status === 'open');
+    // The Suggestions badge counts the whole book's open findings, as the
+    // AI Editor does; the chapter's own list said 5 where the AI Editor
+    // said 133 (ADR — Author walkthrough fixes). Re-read after a decision.
+    const [bookOpen, setBookOpen] = useState(null);
+
+    useEffect(() => {
+        let live = true;
+        const timer = setTimeout(() => {
+            window.axios.get(`/books/${book.id}/findings`, { params: { status: 'open' } })
+                .then(({ data }) => live && setBookOpen(data.counts?.open ?? null))
+                .catch(() => {});
+        }, 400);
+
+        return () => {
+            live = false;
+            clearTimeout(timer);
+        };
+    }, [book.id, openFindings.length, section?.id]);
 
     // --- The workspace: panels, splitters, presets ----------------------
 
@@ -879,7 +928,7 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                         onSelectNav={(item) => navigate(item.key)}
                         book={{ ...book, word_count: bookWords }}
                         active={liveNav ? effectivePane : null}
-                        badges={{ suggestions: openFindings.length }}
+                        badges={{ suggestions: bookOpen ?? openFindings.length }}
                         onSelect={(item) => navigate(item.key)}
                     />
                 )}
@@ -1154,6 +1203,21 @@ export default function Editor({ book, binder, activeSection, agents, sources, p
                                         showStatusBar={layout.panels.statusBar}
                                         typewriter={layout.canvas.typewriter}
                                         onTypewriter={(on) => ws.update({ canvas: { typewriter: on } }, { preset: layout.preset })}
+                                        onOpenSection={openSection}
+                                        onReplacedAll={(data) => {
+                                            // The open chapter, rewritten on the server, is
+                                            // re-read; the others load when opened.
+                                            if (data.current) {
+                                                setSection((value) => (value?.id === data.current.id ? {
+                                                    ...value,
+                                                    content: data.current.content,
+                                                    word_count: data.current.word_count,
+                                                    revision: (value.revision ?? 0) + 1,
+                                                } : value));
+                                            }
+                                            setBookWords(data.book_word_count);
+                                            load();
+                                        }}
                                         headerActions={
                                             <>
                                                 <ViewMenu

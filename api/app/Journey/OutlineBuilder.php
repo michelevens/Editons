@@ -18,8 +18,13 @@ use RuntimeException;
  * The arcs are structural, not inventive. A nonfiction book that teaches
  * something moves from why it matters, through what to do, to what goes
  * wrong and what comes after; a memoir moves through time. Those are shapes
- * the form has, not claims about this particular book. The author's own
- * premise and audience supply the subject; the arc supplies only the order.
+ * the form has, not claims about this particular book.
+ *
+ * Titles are neutral: the author's premise is not spliced in. Doing so
+ * produced "Why Adults with a goal that matters matters now" (ADR — Author
+ * walkthrough fixes). The arc is chosen by the book's type, refined by its
+ * genre (a self-help or business book typed only "Nonfiction"), and a book
+ * with no type gets a generic shape rather than an error.
  *
  * What it deliberately does not do is write chapter summaries or prose. It
  * names chapters, which is a scaffold the author argues with — and arguing
@@ -31,31 +36,28 @@ class OutlineBuilder
     /**
      * Chapter arcs by book type.
      *
-     * Each entry is a stage of the usual shape, phrased as something that
-     * can take the book's subject. `:subject` is replaced with what the
-     * author said the book is about.
+     * Each entry is a stage of the usual shape, phrased so that it fits
+     * any book of that kind.
      *
      * @var array<string, array<int, string>>
      */
     private const ARCS = [
         'nonfiction' => [
-            'Why :subject matters now',
-            'What most people get wrong about :subject',
+            'Why it matters',
+            'What is usually misunderstood',
             'The groundwork',
-            'Making the first decision',
-            'Building the system',
-            'Running it day to day',
-            'The money side',
-            'Working with other people',
+            'The first decision',
+            'Building the approach',
+            'Day to day',
+            'Working with others',
             'When it goes wrong',
-            'Measuring whether it worked',
-            'Scaling what works',
+            'Measuring progress',
             'Common traps',
             'What comes after',
-            'Where to start on Monday',
+            'Where to start',
         ],
         'business' => [
-            'The problem with how :subject is usually done',
+            'The problem with the usual way',
             'A better way to think about it',
             'The method',
             'Putting it into practice',
@@ -64,6 +66,57 @@ class OutlineBuilder
             'Measuring it',
             'Scaling it',
             'What to do first',
+        ],
+        'self_help' => [
+            'Where you are now',
+            'Why change is hard',
+            'A different way to see it',
+            'The first small step',
+            'Building the habit',
+            'When you slip',
+            'The people around you',
+            'Keeping going',
+            'Looking back, looking ahead',
+        ],
+        'biography' => [
+            'Origins',
+            'Early years',
+            'Coming of age',
+            'The first turning point',
+            'The work',
+            'Setbacks',
+            'The height',
+            'Later years',
+            'Legacy',
+        ],
+        'educational' => [
+            'Introduction',
+            'Key ideas',
+            'Foundations',
+            'Practice',
+            'Going further',
+            'Applying what you learned',
+            'Review',
+        ],
+        'devotional' => [
+            'Beginning',
+            'Listening',
+            'Trust',
+            'Struggle',
+            'Grace',
+            'Community',
+            'Renewal',
+        ],
+        // A book of no known type: a shape that fits fiction and nonfiction.
+        'generic' => [
+            'Beginnings',
+            'First steps',
+            'Building',
+            'The turning point',
+            'Going further',
+            'Challenges',
+            'Bringing it together',
+            'Endings',
         ],
         'memoir' => [
             'Before',
@@ -92,7 +145,7 @@ class OutlineBuilder
             'Returning changed',
         ],
         'technical' => [
-            'What :subject is for',
+            'What it is for',
             'Getting set up',
             'The core ideas',
             'Your first working example',
@@ -193,8 +246,9 @@ class OutlineBuilder
      */
     public function build(Book $book): int
     {
-        $type = BookType::find($book->book_type)
-            ?? throw new RuntimeException('This book has no type, so there is no shape to outline against.');
+        // A book with no type (Quick Start's) gets a generic shape rather
+        // than a 422: the author asked for chapter names, not a form.
+        $type = BookType::find($book->book_type);
 
         $chapters = $book->sections()
             ->where('type', 'chapter')
@@ -233,7 +287,8 @@ class OutlineBuilder
      */
     private function isUntitled(ManuscriptSection $chapter): bool
     {
-        return (bool) preg_match('/^Chapter \d+$/', trim($chapter->title));
+        // "Untitled chapter" is what the binder names a new chapter now.
+        return (bool) preg_match('/^(Chapter \d+|Untitled chapter( \d+)?)$/i', trim((string) $chapter->title));
     }
 
     /**
@@ -241,10 +296,9 @@ class OutlineBuilder
      *
      * @return array<int, string>
      */
-    private function titlesFor(BookType $type, Book $book, int $count): array
+    private function titlesFor(?BookType $type, Book $book, int $count): array
     {
-        $arc = self::ARCS[$type->key] ?? self::ARCS['nonfiction'];
-        $subject = $this->subject($book);
+        $arc = self::ARCS[self::arcKey($type?->key, $book->genre)];
 
         $titles = [];
 
@@ -256,37 +310,44 @@ class OutlineBuilder
 
             $titles[] = $stage === null
                 ? ($index + 1).'. Chapter '.($index + 1)
-                : ($index + 1).'. '.str_replace(':subject', $subject, $stage);
+                : ($index + 1).'. '.$stage;
         }
 
         return $titles;
     }
 
     /**
-     * What the book is about, in a few words.
-     *
-     * Taken from the premise where there is one, because that is the
-     * author's own sentence. Falls back to the title, which is at least also
-     * theirs. Never invented.
+     * Which arc fits: the type's own, refined by genre where the type is
+     * broad ("Nonfiction") or missing, else the generic shape.
      */
-    private function subject(Book $book): string
+    public static function arcKey(?string $type, ?string $genre): string
     {
-        $premise = trim((string) $book->premise);
+        $genre = mb_strtolower(trim((string) $genre));
+        $byGenre = match (true) {
+            $genre === '' => null,
+            str_contains($genre, 'self-help') || str_contains($genre, 'self help') || str_contains($genre, 'développement') => 'self_help',
+            str_contains($genre, 'business') || str_contains($genre, 'affaires') => 'business',
+            str_contains($genre, 'memoir') || str_contains($genre, 'mémoires') => 'memoir',
+            str_contains($genre, 'biograph') => 'biography',
+            str_contains($genre, 'religio') || str_contains($genre, 'spiritu') => 'devotional',
+            str_contains($genre, 'education') || str_contains($genre, 'éducation') => 'educational',
+            str_contains($genre, "children") || str_contains($genre, 'jeunesse') || str_contains($genre, 'picture book') => 'childrens',
+            str_contains($genre, 'nonfiction') || str_contains($genre, 'non-fiction') => null,
+            str_contains($genre, 'middle grade') || str_contains($genre, 'young adult') || str_contains($genre, 'fiction')
+                || str_contains($genre, 'novel') || str_contains($genre, 'roman') || str_contains($genre, 'fantasy')
+                || str_contains($genre, 'mystery') || str_contains($genre, 'romance') || str_contains($genre, 'thriller') => 'fiction',
+            default => null,
+        };
 
-        if ($premise === '') {
-            return $book->title;
+        if ($type === null || $type === 'nonfiction') {
+            return $byGenre ?? ($type === null ? 'generic' : 'nonfiction');
         }
 
-        // The first clause: a premise is often a full sentence, and a chapter
-        // title carrying all of it reads as a paragraph.
-        $first = preg_split('/[.,;:]| - /', $premise)[0] ?? $premise;
-        $words = preg_split('/\s+/', trim($first)) ?: [];
-
-        if (count($words) <= 6) {
-            return trim($first);
-        }
-
-        return implode(' ', array_slice($words, 0, 6));
+        return match ($type) {
+            'graphic_novel' => 'fiction',
+            'anthology' => 'generic',
+            default => isset(self::ARCS[$type]) ? $type : ($byGenre ?? 'generic'),
+        };
     }
 
     /** The arcs available, for a client that wants to show what it will do. */

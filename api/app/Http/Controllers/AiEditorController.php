@@ -90,7 +90,7 @@ class AiEditorController extends Controller
         $open = $all->where('status', 'open');
 
         return response()->json([
-            'agents' => collect(EditorialAgent::catalogue(for: $request->user()))
+            'agents' => collect(EditorialAgent::catalogue(for: $request->user(), book: $book))
                 ->map(fn (array $agent) => $agent + [
                     'open' => $open->where('agent', $agent['value'])->count(),
                 ])
@@ -169,7 +169,7 @@ class AiEditorController extends Controller
             if ($data['action'] === 'accept' && $finding->suggestion) {
                 try {
                     $section = $applier->apply($finding, $user->id);
-                    $appliedVersion = $section->versions()->where('reason', 'ai_suggestion')->value('id');
+                    $appliedVersion = $applier->snapshotOf($section);
                 } catch (RuntimeException $e) {
                     $skipped[] = ['id' => $finding->id, 'message' => $e->getMessage()];
 

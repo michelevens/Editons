@@ -19,6 +19,7 @@ use App\Models\ManuscriptSection;
 use App\Models\User;
 use App\Platform\Ai\AiMeter;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -115,6 +116,7 @@ class ReviewRunner
                 $this->kept($result->findings, $agent, $context, 'agent'),
                 $this->kept($checked, EditorialAgent::Copy, $context, 'style_check'),
             );
+            $keep = $this->deliberateRepeats($keep, $section);
 
             DB::transaction(function () use ($review, $section, $agent, $result, $keep, $selection, $readsStyle) {
                 // Supersede the previous open findings from this same agent.
@@ -137,7 +139,20 @@ class ReviewRunner
 
                 $stale->delete();
 
+                // What the author dismissed stays dismissed: the same agent
+                // and rule over the same words, on a later run over text
+                // that has not changed (ADR — Author walkthrough fixes).
+                $dismissed = EditorialFinding::where('manuscript_section_id', $section->id)
+                    ->where('status', 'dismissed')
+                    ->get(['agent', 'rule', 'excerpt', 'title'])
+                    ->map(fn (EditorialFinding $d) => self::dismissalKey($d->agent->value, $d->rule, $d->excerpt, $d->title))
+                    ->flip();
+
                 foreach ($keep as [$f, $findingAgent, $rule, $term, $source]) {
+                    if ($dismissed->has(self::dismissalKey($findingAgent->value, $rule, $f->excerpt, $f->title))) {
+                        continue;
+                    }
+
                     EditorialFinding::create([
                         'editorial_review_id' => $review->id,
                         'manuscript_section_id' => $section->id,
@@ -168,9 +183,27 @@ class ReviewRunner
             // Record the failure rather than swallowing it. A review that
             // silently produced nothing is indistinguishable from a clean
             // chapter, which is the worst possible reading.
+            // The provider being unavailable is said in the author's words,
+            // with its code kept for staff in the log; anything else keeps
+            // its message. Either way, scrubbed of anything like a key.
+            $unavailable = $e instanceof ProviderUnavailable;
+
+            if ($unavailable) {
+                Log::warning('editorial.provider_unavailable', [
+                    'provider' => $e->provider,
+                    'kind' => $e->kind,
+                    'code' => $e->providerCode,
+                    'message' => $e->getMessage(),
+                    'review' => $review->id,
+                ]);
+            }
+
             $review->update([
                 'status' => 'failed',
-                'error' => mb_substr($e->getMessage(), 0, 500),
+                'error' => $unavailable
+                    ? __('AI review is unavailable right now. Try again later.')
+                    : mb_substr(ProviderUnavailable::scrub($e->getMessage()), 0, 500),
+                'options' => array_merge($review->options ?? [], $unavailable ? ['unavailable' => $e->kind] : []) ?: null,
                 'completed_at' => now(),
             ]);
 
@@ -215,7 +248,7 @@ class ReviewRunner
                 ? $this->driver->reviewWith($agent, $text, $context)
                 : $this->driver->review($agent, $text);
         } catch (Throwable $e) {
-            AiMeter::record(...$row, model: null, status: 'failed', latencyMs: AiMeter::since($started), error: $e->getMessage());
+            AiMeter::record(...$row, model: null, status: 'failed', latencyMs: AiMeter::since($started), error: ProviderUnavailable::scrub($e->getMessage()));
 
             throw $e;
         }
@@ -284,6 +317,48 @@ class ReviewRunner
         }
 
         return $out;
+    }
+
+    /**
+     * A doubled word that also occurs in another chapter is a choice of the
+     * author's ("piti piti"), not a slip: its fix is taken away and it stays
+     * as a note (ADR — Author walkthrough fixes).
+     *
+     * @param  array<int, array{0: Finding, 1: EditorialAgent, 2: ?string, 3: ?string, 4: string}>  $keep
+     */
+    private function deliberateRepeats(array $keep, ManuscriptSection $section): array
+    {
+        foreach ($keep as $i => [$f, $findingAgent, $rule, $term, $source]) {
+            if ($f->title !== 'Repeated word' || ! $f->suggestion || ! preg_match('/^(\S+\s+\S+)/u', (string) $f->excerpt, $pair)) {
+                continue;
+            }
+
+            $elsewhere = ManuscriptSection::where('book_id', $section->book_id)
+                ->where('id', '!=', $section->id)
+                ->whereRaw('content::text ILIKE ?', ['%'.addcslashes($pair[1], '%_\\').'%'])
+                ->exists();
+
+            if ($elsewhere) {
+                $keep[$i][0] = new Finding(
+                    severity: 'suggestion',
+                    title: $f->title,
+                    detail: 'The same word twice in a row, and elsewhere in the book too: perhaps deliberate. Change it by hand if it is not.',
+                    excerpt: $f->excerpt,
+                    fromOffset: $f->fromOffset,
+                    toOffset: $f->toOffset,
+                    rule: $f->rule,
+                    term: $f->term,
+                );
+            }
+        }
+
+        return $keep;
+    }
+
+    /** How a dismissed finding is recognised again: agent, rule, words. */
+    private static function dismissalKey(string $agent, ?string $rule, ?string $excerpt, ?string $title): string
+    {
+        return $agent.'|'.($rule ?? '').'|'.($excerpt ?? '#'.$title);
     }
 
     /** Is this driver's output sample output rather than a model's review? */

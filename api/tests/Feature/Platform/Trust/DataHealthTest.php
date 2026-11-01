@@ -104,7 +104,9 @@ it('reports orphaned chapters and versions, empty books, staff without two-facto
     $book = Book::factory()->create(['created_at' => now()->subDays(3)]);
     $part = ManuscriptSection::factory()->for($book)->create(['type' => 'part']);
     $child = ManuscriptSection::factory()->for($book)->create(['parent_id' => $part->id]);
-    $part->delete(); // soft: the chapter is left under a deleted part
+    // Soft-deleting a part now takes its chapters with it (ADR — Author
+    // walkthrough fixes); a chapter left under a deleted part is older data.
+    Illuminate\Support\Facades\DB::table('manuscript_sections')->where('id', $part->id)->update(['deleted_at' => now()]);
 
     Book::factory()->create(['created_at' => now()->subDays(2)]); // no chapters
     platformAdmin('support', twoFactor: false);

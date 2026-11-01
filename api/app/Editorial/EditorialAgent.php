@@ -4,6 +4,7 @@ namespace App\Editorial;
 
 use App\Billing\Entitlements;
 use App\I18n\Locales;
+use App\Models\Book;
 use App\Models\User;
 
 /**
@@ -110,6 +111,25 @@ enum EditorialAgent: string
      * returns. Academic integrity is the product's to protect here, not
      * only the student's.
      */
+    /** Book types an examiner reads: theses, dissertations, academic books. */
+    public const ACADEMIC_TYPES = ['academic', 'masters_thesis', 'phd_dissertation', 'phd_publication', 'masters_project'];
+
+    /**
+     * Does this agent suit a book of this type and genre? The examiners
+     * read a thesis as a committee would; on a novel or a self-help book
+     * every finding they make is noise. An agent that does not fit is still
+     * there to run by hand; it is left out of a full review.
+     */
+    public function fits(?string $bookType, ?string $genre = null): bool
+    {
+        if ($this->coachesOnly()) {
+            return in_array($bookType, self::ACADEMIC_TYPES, true)
+                || (bool) preg_match('/academ|thesis|th[eè]se|dissert|m[ée]moire de/iu', (string) $genre);
+        }
+
+        return true;
+    }
+
     public function coachesOnly(): bool
     {
         return in_array($this, [self::MastersExaminer, self::DoctoralExaminer], true);
@@ -144,13 +164,16 @@ enum EditorialAgent: string
      * @param  array<int, string>  $preferred
      * @return array<int, array<string, mixed>>
      */
-    public static function catalogue(array $preferred = [], ?User $for = null): array
+    public static function catalogue(array $preferred = [], ?User $for = null, ?Book $book = null): array
     {
         $rank = array_flip($preferred);
         $entitlements = $for ? app(Entitlements::class) : null;
 
         $agents = array_map(fn (self $a) => [
             'value' => $a->value,
+            // Whether it suits this book (ADR — Author walkthrough fixes):
+            // a "Review this chapter" runs only agents that do.
+            'fits' => $book ? $a->fits($book->book_type, $book->genre) : true,
             'label' => $a->displayLabel(),
             'description' => $a->displayDescription(),
             'specialist' => $a->isSpecialist(),
@@ -172,7 +195,8 @@ enum EditorialAgent: string
             $aRank = $rank[$a['value']] ?? PHP_INT_MAX;
             $bRank = $rank[$b['value']] ?? PHP_INT_MAX;
 
-            return $aRank <=> $bRank
+            return ($b['fits'] <=> $a['fits'])
+                ?: $aRank <=> $bRank
                 ?: $position[$a['value']] <=> $position[$b['value']];
         });
 

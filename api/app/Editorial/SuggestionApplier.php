@@ -65,17 +65,31 @@ class SuggestionApplier
         // exactly like something typed, which is what makes accepting one
         // safe to do.
         //
-        // Recorded as `ai_suggestion`, not `manual`. The words came from a
-        // reviewer, and an author asked to declare AI assistance can only
-        // answer honestly if the history says so. That distinction cannot be
-        // recovered after the fact.
+        // Recorded as `ai_suggestion`, not `manual`, when a model wrote the
+        // words: an author asked to declare AI assistance can only answer
+        // honestly if the history says so. A deterministic check's fix (a
+        // house-style rule, the sample driver's heuristics) is `check_fix`:
+        // calling it AI would overstate just as `manual` would understate.
+        // That distinction cannot be recovered after the fact.
         return $this->writer->save(
             section: $section,
             content: $updated,
-            reason: 'ai_suggestion',
+            reason: $finding->fromModel() ? 'ai_suggestion' : 'check_fix',
             userId: $userId,
             label: "Applied: {$finding->title}",
         );
+    }
+
+    /** The version reasons an applied fix is saved with. */
+    public const REASONS = ['ai_suggestion', 'check_fix'];
+
+    /**
+     * The snapshot the latest applied fix replaced, for a later undo: the
+     * newest, not the first one the chapter ever had.
+     */
+    public function snapshotOf(ManuscriptSection $section): ?int
+    {
+        return $section->versions()->whereIn('reason', self::REASONS)->latest('id')->value('id');
     }
 
     /**

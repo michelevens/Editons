@@ -67,6 +67,14 @@ return [
             (string) env('CORS_ALLOWED_ORIGINS', ''),
             (string) env('CSP_CONNECT_SRC', ''),
         ),
+
+        /*
+        | The app's own API origin, for fonts: Cover Studio loads its faces
+        | from /cover-fonts on the API host, and a font-src of 'self' alone
+        | blocked all fourteen (ADR — Author walkthrough fixes). Only the
+        | configured origin, never a wildcard.
+        */
+        'font_src' => $origins((string) env('VITE_API_URL', '')),
     ],
 
 ];

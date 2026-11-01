@@ -116,6 +116,9 @@ class EditorialController extends Controller
                 'agent' => $review->agent->value,
                 'status' => $review->status,
                 'error' => $review->error,
+                // The provider could not review (billing, auth, rate limit,
+                // timeout, server): the panel says so, nothing was charged.
+                'unavailable' => ($review->options ?? [])['unavailable'] ?? null,
                 // Heuristics, not a model: the panel labels the result as
                 // sample output, and nothing was charged.
                 'simulated' => $this->runner->simulated(),
@@ -351,13 +354,12 @@ class EditorialController extends Controller
 
         if ($data['status'] === 'accepted' && $finding->suggestion) {
             try {
-                $section = app(SuggestionApplier::class)->apply($finding, $request->user()->id);
+                $applier = app(SuggestionApplier::class);
+                $section = $applier->apply($finding, $request->user()->id);
                 $applied = true;
 
                 // The snapshot the fix replaced, for a later undo.
-                $appliedVersion = $section->versions()
-                    ->where('reason', 'ai_suggestion')
-                    ->value('id');
+                $appliedVersion = $applier->snapshotOf($section);
             } catch (\RuntimeException $e) {
                 // The passage moved or is ambiguous. Say so and leave the
                 // finding open, rather than closing it over an edit that did

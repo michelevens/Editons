@@ -37,13 +37,16 @@ class ManuscriptWriter
      * record the state they are trying to escape.
      *
      * @param  array|null  $content  ProseMirror document JSON
-     * @param  'autosave'|'manual'|'import'|'restore'|'ai_suggestion'|'ai_draft'|'review'  $reason
+     * @param  'autosave'|'manual'|'import'|'restore'|'ai_suggestion'|'ai_draft'|'review'|'typography'|'check_fix'|'replace'  $reason
      *
      * The two ai_ reasons mark text that came from a reviewer or a generator
      * rather than from the author. Kept distinct from `manual` because an
      * author may have to declare AI assistance, and a declaration is only
      * honest if the history is — the distinction cannot be reconstructed
      * once it has been recorded as something else.
+     *
+     * `check_fix` is a deterministic check's fix applied on the author's
+     * approval (not AI); `replace` is a manuscript-wide find and replace.
      *
      * `review` is suggested changes (Suggest mode) accepted or rejected in
      * the editor; its label says how many of each, and whose.

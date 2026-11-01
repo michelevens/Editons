@@ -97,6 +97,9 @@ export default function CoverPanel({ bookId, onNotify }) {
                 setData({ ...response.data, cover: overlay(response.data.cover, queued.current) });
                 setSavedAt(Date.now());
             }
+
+            // The sidebar's thumbnail follows (ADR — Author walkthrough fixes).
+            window.dispatchEvent(new CustomEvent('ecrivain:cover-changed'));
         } catch (error) {
             notify.current?.(
                 error.response?.data?.message ?? t('cover.change_not_saved'),

@@ -35,6 +35,32 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         'arguably', 'basically', 'essentially', 'actually', 'simply',
     ];
 
+    /**
+     * Fixed expressions in which a "filler" is the meaning: "would rather",
+     * "rather than", "quite a few", "very same". Never counted, never
+     * offered as a deletion (ADR — Author walkthrough fixes).
+     */
+    private const FIXED_EXPRESSIONS = [
+        'rather' => ['before' => '(?:would|had|\'d|’d)', 'after' => '(?:than)'],
+        'quite' => ['after' => '(?:a\s+(?:few|lot|bit|while)|so)'],
+        'very' => ['before' => '(?:the|this|that)', 'after' => '(?:same|much\s+so)'],
+        'simply' => ['after' => '(?:put)'],
+    ];
+
+    /**
+     * Words after "was/were" that end like a participle but are adjectives:
+     * "was red", "was tired" is a state, not passive voice.
+     */
+    private const ADJECTIVES_IN_ED = [
+        'tired', 'bored', 'scared', 'worried', 'excited', 'interested', 'ashamed', 'naked', 'wicked',
+        'sacred', 'ragged', 'rugged', 'crooked', 'beloved', 'aged', 'learned', 'pleased', 'delighted',
+        'surprised', 'amazed', 'frightened', 'terrified', 'confused', 'embarrassed', 'disappointed',
+        'satisfied', 'relieved', 'annoyed', 'exhausted', 'determined', 'convinced', 'supposed', 'used',
+        'married', 'dressed', 'prepared', 'finished', 'thrilled', 'stunned', 'puzzled', 'alarmed',
+        'talented', 'skilled', 'experienced', 'blessed', 'cursed', 'jagged', 'wretched', 'kindred',
+        'hundred', 'sacred', 'shed', 'naked',
+    ];
+
     public function name(): string
     {
         return 'fake';
@@ -80,7 +106,10 @@ class FakeDriver implements EditorialDriver, SimulatesReview
             // Passive voice: "was/were/is/are/been" followed by a past
             // participle. Crude — English participles are irregular — so this
             // is reported as a suggestion, never a correction.
-            if (preg_match('/\b(was|were|is|are|been|being)\s+(\w+ed|written|given|taken|made|shown|known|held)\b/i', $sentence, $m)) {
+            // A word of five letters or more ending in -ed ("was red" is a
+            // colour), and not one of the -ed adjectives ("was tired").
+            if (preg_match_all('/\b(was|were|is|are|been|being)\s+(\w{3,}ed|written|given|taken|made|shown|known|held)\b/i', $sentence, $all, PREG_SET_ORDER)
+                && ($m = collect($all)->first(fn ($hit) => ! in_array(mb_strtolower($hit[2]), self::ADJECTIVES_IN_ED, true) && ! preg_match('/eed$/i', $hit[2])))) {
                 $out[] = new Finding(
                     severity: 'suggestion',
                     title: 'Possible passive voice',
@@ -101,7 +130,13 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         $out = [];
 
         foreach (self::HEDGES as $word) {
-            if (preg_match_all('/\b'.preg_quote($word, '/').'\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+            if (preg_match_all($this->hedgePattern($word), $text, $m, PREG_OFFSET_CAPTURE)) {
+                $m[0] = array_values(array_filter($m[0], fn ($hit) => ! $this->inFixedExpression($text, $word, $hit[1])));
+
+                if ($m[0] === []) {
+                    continue;
+                }
+
                 $count = count($m[0]);
                 $fix = $this->hedgeFix($text, $word);
                 $at = $fix[2] ?? $m[0][0][1];
@@ -134,12 +169,22 @@ class FakeDriver implements EditorialDriver, SimulatesReview
                 // locatable.
                 [$excerpt, $replacement] = $this->widen($text, $hit[0], $hit[1]);
 
+                // A reduplication used on purpose ("piti piti", "so so",
+                // a proverb) is not a typo: when the pair comes back in the
+                // chapter, or sits inside quotation marks, it is pointed
+                // out and never offered as a fix (ADR — Author walkthrough
+                // fixes). The runner does the same across the book.
+                $deliberate = preg_match_all('/\b'.preg_quote($hit[0], '/').'\b/iu', $text) > 1
+                    || self::insideQuotes($text, $hit[1]);
+
                 $out[] = new Finding(
-                    severity: 'warning',
+                    severity: $deliberate ? 'suggestion' : 'warning',
                     title: 'Repeated word',
-                    detail: 'The same word appears twice in a row.',
+                    detail: $deliberate
+                        ? 'The same word twice in a row, more than once or in quoted speech: perhaps deliberate. Change it by hand if it is not.'
+                        : 'The same word appears twice in a row.',
                     excerpt: $excerpt,
-                    suggestion: $replacement,
+                    suggestion: $deliberate ? null : $replacement,
                     fromOffset: $hit[1],
                     toOffset: $hit[1] + mb_strlen($excerpt),
                 );
@@ -178,8 +223,11 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         $out = [];
 
         foreach ($this->sentences($text) as [$sentence, $offset]) {
-            $hasStat = (bool) preg_match('/\b\d+(\.\d+)?\s*(%|percent|million|billion|thousand)\b/i', $sentence);
-            $hasAbsolute = (bool) preg_match('/\b(always|never|all|none|every|proven|guaranteed|the only)\b/i', $sentence);
+            // What characters say is not a claim the book makes: dialogue
+            // (text inside quotation marks) is left out.
+            $narration = self::withoutDialogue($sentence);
+            $hasStat = (bool) preg_match('/\b\d+(\.\d+)?\s*(%|percent|million|billion|thousand)\b/i', $narration);
+            $hasAbsolute = (bool) preg_match('/\b(always|never|all|none|every|proven|guaranteed|the only)\b/i', $narration);
 
             if ($hasStat) {
                 $out[] = new Finding(
@@ -236,7 +284,10 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         // rarely do.
         $openers = [];
         foreach ($this->sentences($text) as [$s, $_]) {
-            $first = strtolower(strtok(trim($s), " \t\n"));
+            // Leading quotation marks and dashes are not part of the word:
+            // "\u{201C}She" and "She" are the same opener.
+            preg_match('/^[\s\p{P}\p{S}]*([\p{L}\p{N}\'’-]+)/u', $s, $word);
+            $first = mb_strtolower($word[1] ?? '');
             if (mb_strlen($first) > 2) {
                 $openers[$first] = ($openers[$first] ?? 0) + 1;
             }
@@ -411,7 +462,10 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         $out = [];
         // A full stop only ends a sentence when a space or the end follows
         // it, so "73.48%", "e.g." mid-word and "U.S." stay inside theirs.
-        if (preg_match_all('/(?:[^.!?]|[.!?](?=\S))+[.!?]+/u', $text, $m, PREG_OFFSET_CAPTURE)) {
+        // A closing quotation mark after it still ends the sentence, and so
+        // does a line break: three lines of dialogue are three sentences,
+        // not one of 55 words (ADR — Author walkthrough fixes).
+        if (preg_match_all('/(?:[^.!?\n]|[.!?](?![\s"\x{201D}\x{2019}\x{00BB})]|$))+(?:[.!?]+["\x{201D}\x{2019}\x{00BB})]*|(?=\n)|$)/u', $text, $m, PREG_OFFSET_CAPTURE)) {
             foreach ($m[0] as [$s, $offset]) {
                 $trimmed = trim($s);
                 if ($trimmed !== '') {
@@ -421,6 +475,23 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         }
 
         return $out;
+    }
+
+    /** Is this byte offset inside quotation marks, within its paragraph? */
+    public static function insideQuotes(string $text, int $at): bool
+    {
+        $start = strrpos(substr($text, 0, $at), "\n");
+        $before = substr($text, $start === false ? 0 : $start + 1, $at - ($start === false ? 0 : $start + 1));
+
+        return substr_count($before, '"') % 2 === 1
+            || substr_count($before, "\u{201C}") > substr_count($before, "\u{201D}")
+            || substr_count($before, "\u{00AB}") > substr_count($before, "\u{00BB}");
+    }
+
+    /** A sentence with its quoted speech taken out. */
+    public static function withoutDialogue(string $sentence): string
+    {
+        return preg_replace('/"[^"]*"|\x{201C}[^\x{201D}]*\x{201D}|\x{00AB}[^\x{00BB}]*\x{00BB}/u', ' ', $sentence) ?? $sentence;
     }
 
     private function clip(string $s, int $max = 180): string
@@ -451,12 +522,39 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         }
 
         foreach ($m[0] as [$hit, $at]) {
+            // Not inside a fixed expression ("would rather").
+            if ($this->inFixedExpression($text, $word, $at)) {
+                continue;
+            }
+
             if ($span = $this->uniqueSpan($text, $at, $at + strlen($hit))) {
                 return [$span[0], rtrim($span[1]).' '.ltrim($span[2]), $at];
             }
         }
 
         return null;
+    }
+
+    /** A filler word, outside the fixed expressions it belongs to. */
+    private function hedgePattern(string $word): string
+    {
+        $fixed = self::FIXED_EXPRESSIONS[$word] ?? [];
+        $after = isset($fixed['after']) ? '(?!\s+'.$fixed['after'].'\b)' : '';
+
+        // Lookbehinds need a fixed width, so "before" is checked separately
+        // (inFixedExpression); the pattern handles what follows.
+        return '/\b'.preg_quote($word, '/').'\b'.$after.'/iu';
+    }
+
+    /** Is the filler at this byte offset part of a fixed expression? */
+    private function inFixedExpression(string $text, string $word, int $at): bool
+    {
+        $fixed = self::FIXED_EXPRESSIONS[$word] ?? [];
+        $head = substr($text, max(0, $at - 20), min(20, $at));
+        $tail = substr($text, $at + strlen($word), 30);
+
+        return (isset($fixed['before']) && preg_match('/\b'.$fixed['before'].'\s+$/iu', $head))
+            || (isset($fixed['after']) && preg_match('/^\s+'.$fixed['after'].'\b/iu', $tail));
     }
 
     /**

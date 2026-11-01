@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Editorial\DriverFactory;
 use App\Editorial\EditorialAgent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -45,6 +46,24 @@ class EditorialFinding extends Model
     public function section(): BelongsTo
     {
         return $this->belongsTo(ManuscriptSection::class, 'manuscript_section_id');
+    }
+
+    /**
+     * Did a model write this finding? Read from the provenance recorded on
+     * its review (driver and model): a house-style check, or a driver that
+     * produces sample output (the fake driver's heuristics), is not AI. A
+     * finding with no review recorded counts as AI: when the record cannot
+     * say, a disclosure must not understate.
+     */
+    public function fromModel(): bool
+    {
+        if ($this->source === 'style_check') {
+            return false;
+        }
+
+        $driver = $this->review?->driver;
+
+        return $driver === null || ! DriverFactory::simulated($driver);
     }
 
     /**

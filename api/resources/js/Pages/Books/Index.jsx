@@ -724,18 +724,26 @@ function NewBookForm({ onDone, bookTypes, defaultBookType }) {
                                 type="button"
                                 data-a={`books:new:assistance:${level.key}`}
                                 aria-pressed={data.assistance === level.key}
+                                disabled={level.soon}
                                 onClick={() => setData('assistance', level.key)}
                                 className={`rounded-tile border p-3 text-left transition ${
-                                    data.assistance === level.key
-                                        ? 'border-brand-primary bg-brand-primary/[0.04]'
-                                        : 'border-border-default hover:border-border-input'
+                                    level.soon
+                                        ? 'cursor-not-allowed border-dashed border-border-default bg-bg-subtle'
+                                        : data.assistance === level.key
+                                          ? 'border-brand-primary bg-brand-primary/[0.04]'
+                                          : 'border-border-default hover:border-border-input'
                                 }`}
                             >
-                                <span className="block text-[12.5px] font-semibold text-text-primary">
+                                <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-semibold text-text-primary">
                                     {t(level.tKey)}
+                                    {level.soon && (
+                                        <span className="rounded-full bg-bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-text-secondary ring-1 ring-border-default">
+                                            {t('fric.coming_soon')}
+                                        </span>
+                                    )}
                                 </span>
                                 <span className="mt-0.5 block text-[11px] leading-snug text-text-secondary">
-                                    {t(level.blurbKey)}
+                                    {level.soon ? t('fric.draft_soon_blurb') : t(level.blurbKey)}
                                 </span>
                             </button>
                         ))}
@@ -801,5 +809,7 @@ const ASSISTANCE = [
         tKey: 'assist.collaborative',
         blurb: 'Drafts passages from your notes and outline, for you to accept or reject.',
         blurbKey: 'assist.collaborative_blurb',
+        // Not built yet: shown as coming soon (ADR — Author walkthrough fixes).
+        soon: true,
     },
 ];
