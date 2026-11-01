@@ -78,22 +78,30 @@ class GrowthController extends Controller
             'audience' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
-        // Charged like any other generated work, and checked before it runs
-        // so the author is told up front rather than part way through.
-        $this->entitlements->assertCanAfford($request->user(), 'marketing_kit');
+        // AI credits pay for a model's work. The kit is assembled from the
+        // author's own sentences (extractive), so it is free; only a
+        // generator backed by a model is charged, checked before it runs so
+        // the author is told up front (ADR — Author walkthrough fixes).
+        $charge = null;
 
-        $charge = $this->ledger->spend(
-            user: $request->user(),
-            label: 'marketing_kit',
-            subject: $book,
-        );
+        if ($this->generator->usesModel()) {
+            $this->entitlements->assertCanAfford($request->user(), 'marketing_kit');
+
+            $charge = $this->ledger->spend(
+                user: $request->user(),
+                label: 'marketing_kit',
+                subject: $book,
+            );
+        }
 
         try {
             $kit = $this->generator->generate($book, $data['audience'] ?? null);
         } catch (Throwable $e) {
             // Refunded, for the same reason a failed review is: nobody should
             // pay for work that did not happen.
-            $this->ledger->refund($charge, 'Marketing kit failed');
+            if ($charge) {
+                $this->ledger->refund($charge, 'Marketing kit failed');
+            }
 
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -108,7 +116,8 @@ class GrowthController extends Controller
     {
         return [
             'kit' => $book->marketing_kit,
-            'cost' => config('billing.costs.marketing_kit'),
+            // Nothing to pay while no model writes it.
+            'cost' => $this->generator->usesModel() ? config('billing.costs.marketing_kit') : 0,
             'has_chapters' => $book->sections()->where('type', '!=', 'part')->exists(),
         ];
     }

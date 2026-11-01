@@ -23,6 +23,17 @@ use RuntimeException;
  */
 class KitGenerator
 {
+    /**
+     * Whether a model writes the kit. Not today: it is assembled from the
+     * author's own sentences, so it costs no AI credits (ADR — Author
+     * walkthrough fixes). A provider-backed generator says true here, and
+     * only then is the run charged.
+     */
+    public function usesModel(): bool
+    {
+        return false;
+    }
+
     public function generate(Book $book, ?string $audience = null): array
     {
         $chapters = $book->sections()
