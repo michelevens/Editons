@@ -162,6 +162,8 @@ it('keeps the platform’s share whole in the console, and shows commissions on 
 });
 
 it('shows the seller partner commissions as their own line, in the report and the statement', function () {
+    // Mid-month: the sales land in UTC and the monthly report reads the seller's month, which differ around midnight on the 1st.
+    $this->travelTo(now()->startOfMonth()->addDays(14));
     $partner = partnerFor();
     $product = partnerProduct(rate: 25);
     partnerBuy($product, cookie: $partner);

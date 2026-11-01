@@ -4527,7 +4527,7 @@ per-type counts; the 500-word message in English and French),
 `tests/Browser/journey-fix.spec.js` (first book, review, citation and
 store listing at 1440 and 390 px).
 
-## ADR-00XX — Author walkthrough fixes (book 733)
+## ADR-0057 — Author walkthrough fixes (book 733)
 
 **Status:** accepted (2026-10-31). Number assigned at merge.
 
