@@ -131,6 +131,7 @@ final class Ris
             'doi' => $one('DO'),
             'isbn' => $isbn,
             'notes' => $one('N1'),
+            'accessed' => $one('Y2'),
         ];
     }
 }

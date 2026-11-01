@@ -267,6 +267,9 @@ Route::middleware('auth')->group(function () {
         ->name('research.index');
     Route::post('/books/{book}/sources', [ResearchController::class, 'store'])
         ->name('research.store');
+    // Safe apply (ADR — Safe apply, honest prices, citation fixes).
+    Route::post('/books/{book}/sources/verify', [ResearchController::class, 'verifyMany'])
+        ->name('research.verify-many');
     Route::patch('/sources/{source}/verification', [ResearchController::class, 'verify'])
         ->name('research.verify');
     Route::delete('/sources/{source}', [ResearchController::class, 'destroy'])

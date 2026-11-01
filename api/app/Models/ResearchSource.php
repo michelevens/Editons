@@ -27,6 +27,8 @@ class ResearchSource extends Model
         'kind', 'title', 'authors', 'publisher', 'published',
         'container', 'volume', 'issue', 'pages', 'edition',
         'url', 'doi', 'isbn', 'notes', 'tags', 'collection',
+        // When a web page was consulted (ADR — Safe apply).
+        'accessed',
     ];
 
     /** Where an entry came from; null is typed in by hand. Server-set only. */

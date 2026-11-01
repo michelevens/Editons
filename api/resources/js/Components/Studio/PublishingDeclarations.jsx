@@ -206,6 +206,13 @@ function Declaration({ bookId, data, busy, send, editable }) {
                                 {t('declarations.remove')}
                             </button>
                         )}
+                        {/* A neutral word on what the option means, not
+                            legal advice (ADR — Safe apply). */}
+                        {item.permission === 'fair_use' && (
+                            <p data-a={`rights:material:${index}:fair-use`} className="text-[11px] leading-snug text-text-secondary sm:col-span-4">
+                                {t('safe.fair_use_hint')}
+                            </p>
+                        )}
                     </li>
                 ))}
             </ul>

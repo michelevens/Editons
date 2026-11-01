@@ -455,6 +455,10 @@ class Anatomy
         // In an export, the cited sources close the book (BookReferences):
         // a section that is never saved, read like any back matter.
         if (ExportOptions::active($book) && ($references = BookReferences::section($book))) {
+            // An empty Bibliography section gives way to the generated one,
+            // rather than standing beside it as a blank page.
+            $replaced = BookReferences::replaced($book);
+            $pages = array_values(array_filter($pages, fn (array $page) => ! in_array($page['section_id'] ?? null, $replaced, true)));
             $pages[] = self::sectionPage($book, $references, 0, $language);
         }
 

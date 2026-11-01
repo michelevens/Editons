@@ -123,6 +123,8 @@ class ResearchController extends Controller
             'doi' => ['nullable', 'string', 'max:255'],
             'isbn' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            // When a web page was consulted, as the author writes it.
+            'accessed' => ['nullable', 'string', 'max:40'],
             'tags' => ['sometimes', 'array', 'max:'.ResearchSource::MAX_TAGS],
             'tags.*' => ['nullable', 'string', 'max:40'],
             'collection' => ['nullable', 'string', 'max:80'],
@@ -167,6 +169,35 @@ class ResearchController extends Controller
         $source->save();
 
         return response()->json(['sources' => self::sourcesFor($source->book)]);
+    }
+
+    /**
+     * Mark many sources at once (ADR — Safe apply, honest prices, citation
+     * fixes): verifying 86 imported sources took about 90 clicks, and fast
+     * clicking raced the re-renders. Each is still one source checked by
+     * this person, recorded as verify() records it. Only this book's.
+     */
+    public function verifyMany(Request $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer'],
+            'verification' => ['required', 'in:'.implode(',', ResearchSource::VERIFICATIONS)],
+        ]);
+
+        $count = $book->sources()->whereIn('id', $data['ids'])->update([
+            'verification' => $data['verification'],
+            'verified_by' => $request->user()->id,
+            'verified_at' => now(),
+        ]);
+
+        return response()->json([
+            'updated' => $count,
+            'sources' => self::sourcesFor($book),
+            'facets' => self::facets($book),
+        ]);
     }
 
     public function destroy(ResearchSource $source): JsonResponse
@@ -354,6 +385,7 @@ class ResearchController extends Controller
                 'doi' => $s->doi,
                 'isbn' => $s->isbn,
                 'notes' => $s->notes,
+                'accessed' => $s->accessed,
                 'reference' => $s->reference(),
                 'verification' => $s->verification,
                 'usable_as_evidence' => $s->isUsableAsEvidence(),

@@ -6,7 +6,9 @@ use App\Billing\CreditLedger;
 use App\Billing\Entitlements;
 use App\Billing\MonthlyAllowance;
 use App\Billing\PlanCatalog;
+use App\Editorial\EditorialAgent;
 use App\Models\CreditTransaction;
+use App\Models\EditorialReview;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -99,7 +101,7 @@ class BillingController extends Controller
                 ])
                 ->values()
                 ->all(),
-            'costs' => $this->costRows(),
+            'costs' => $this->costRows($user),
             'packs' => collect(config('billing.packs'))
                 ->map(fn (array $pack, string $key) => [
                     'key' => $key,
@@ -130,10 +132,29 @@ class BillingController extends Controller
     /**
      * What each action costs, labelled for a person.
      *
+     * A review is charged per agent per chapter (ReviewRunner spends
+     * `agent_run` or `specialist_run` for each), so that is what is listed,
+     * with what a chapter and a whole book come to. The old rows said "Review
+     * one chapter 10" and "Review the whole book 40" while a chapter review
+     * charged 52–60 and one agent over a book 136 (ADR — Safe apply, honest
+     * prices, citation fixes). Those three keys stay in config/billing.php,
+     * unlisted.
+     *
      * @return array<int, array<string, mixed>>
      */
-    private function costRows(): array
+    private function costRows($user = null): array
     {
+        $unlisted = ['chapter_review', 'part_review', 'book_review'];
+        $agent = (int) config('billing.costs.agent_run');
+        $specialist = (int) config('billing.costs.specialist_run');
+
+        // "Review this chapter" runs every agent the plan includes and that
+        // suits the book; the examiners only on a thesis.
+        $chapter = collect(EditorialAgent::cases())
+            ->reject(fn (EditorialAgent $a) => $a->coachesOnly())
+            ->filter(fn (EditorialAgent $a) => ! $user || app(Entitlements::class)->canRunAgent($user, $a))
+            ->sum(fn (EditorialAgent $a) => (int) config("billing.costs.{$a->costLabel()}"));
+
         $labels = [
             'chapter_review' => 'Review one chapter',
             'part_review' => 'Review a part',
@@ -147,13 +168,22 @@ class BillingController extends Controller
             'cover_artwork' => 'Paint cover artwork',
         ];
 
+        $labels['agent_run'] = __('Run one editor on one chapter');
+        $labels['specialist_run'] = __('Run a specialist reviewer on one chapter');
+
         return collect(config('billing.costs'))
+            ->except($unlisted)
             ->map(fn (int $cost, string $key) => [
                 'key' => $key,
                 'label' => $labels[$key] ?? $key,
                 'cost' => $cost,
             ])
             ->values()
+            ->merge([
+                ['key' => 'review_chapter', 'label' => __('Review this chapter (every editor your plan includes)'), 'cost' => $chapter],
+                ['key' => 'review_book_agent', 'label' => __('One editor over the whole book, per chapter'), 'cost' => "{$agent}–{$specialist}"],
+                ['key' => 'review_examiner', 'label' => __('A thesis examiner, on a thesis, per chapter'), 'cost' => $specialist],
+            ])
             ->all();
     }
 
@@ -164,17 +194,69 @@ class BillingController extends Controller
      */
     private function activity(int $userId): array
     {
-        return CreditTransaction::where('user_id', $userId)
+        $rows = CreditTransaction::where('user_id', $userId)
             ->latest()
-            ->limit(20)
-            ->get()
-            ->map(fn (CreditTransaction $row) => [
-                'id' => $row->id,
-                'label' => $this->describe($row),
-                'amount' => $row->amount,
-                'kind' => $row->kind,
-                'at' => $row->created_at->diffForHumans(),
-            ])
+            ->latest('id')
+            ->limit(500)
+            ->get();
+
+        // A run over many chapters is one line, "Fact Checker — whole book,
+        // 17 chapters −136", not seventeen "Specialist reviewer −8" lines
+        // (ADR — Safe apply). Runs are read from the reviews the spends paid
+        // for; a refund stays its own line.
+        $reviews = EditorialReview::whereIn('id', $rows->where('subject_type', (new EditorialReview)->getMorphClass())->pluck('subject_id'))
+            ->get(['id', 'agent', 'options'])
+            ->keyBy('id');
+        $runOf = function (CreditTransaction $row) use ($reviews): ?string {
+            $review = $row->kind === 'spend' && $row->subject_type === (new EditorialReview)->getMorphClass() ? $reviews->get($row->subject_id) : null;
+            $run = $review?->options['run_id'] ?? null;
+
+            return $run && in_array($review->options['scope'] ?? null, ['book', 'range'], true) ? $run : null;
+        };
+
+        $lines = [];
+        $index = [];
+
+        foreach ($rows as $row) {
+            $run = $runOf($row);
+
+            if ($run !== null && isset($index[$run])) {
+                $line = &$lines[$index[$run]];
+                $line['amount'] += $row->amount;
+                $line['chapters']++;
+                unset($line);
+
+                continue;
+            }
+
+            if ($run !== null) {
+                $index[$run] = count($lines);
+            }
+
+            $lines[] = ['row' => $row, 'amount' => $row->amount, 'chapters' => 1, 'run' => $run];
+        }
+
+        return collect($lines)
+            ->take(20)
+            ->map(function (array $line) use ($reviews) {
+                $row = $line['row'];
+                $label = $this->describe($row);
+
+                if ($line['run'] !== null) {
+                    $review = $reviews->get($row->subject_id);
+                    $label = __(($review->options['scope'] ?? null) === 'book'
+                        ? ':agent — whole book, :count chapters'
+                        : ':agent — :count chapters', ['agent' => $review->agent->displayLabel(), 'count' => $line['chapters']]);
+                }
+
+                return [
+                    'id' => $row->id,
+                    'label' => $label,
+                    'amount' => $line['amount'],
+                    'kind' => $row->kind,
+                    'at' => $row->created_at->diffForHumans(),
+                ];
+            })
             ->all();
     }
 

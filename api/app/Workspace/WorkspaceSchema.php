@@ -93,10 +93,58 @@ final class WorkspaceSchema
         ],
         // The preset last applied, if the layout is still that preset.
         'preset' => 'string?',
+        // The phone's own panels (ADR — Safe apply, honest prices,
+        // citation fixes): a layout chosen at 390 px hid the AI panel and
+        // then the binder on the desktop. Until the author changes the
+        // layout on a phone (`set`), the phone follows the main one.
+        'compact' => [
+            'set' => 'bool',
+            'panels' => self::PANELS,
+            'subpanels' => self::SUBPANELS,
+            'rails' => self::RAILS,
+            'preset' => 'string?',
+        ],
     ];
+
+    private const PANELS = [
+        'topNav' => 'bool',
+        'sidebar' => 'bool',
+        'credits' => 'bool',
+        'outline' => 'bool',
+        'right' => 'bool',
+        'bottom' => 'bool',
+        'toolbar' => 'bool',
+        'statusBar' => 'bool',
+    ];
+
+    private const SUBPANELS = [
+        'outlineTabs' => 'bool',
+        'outlineTools' => 'bool',
+        'outlineGoals' => 'bool',
+        'rightTabs' => ['editor' => 'bool', 'comments' => 'bool', 'research' => 'bool', 'checks' => 'bool'],
+        'bottomCards' => ['research' => 'bool', 'design' => 'bool', 'cover' => 'bool', 'export' => 'bool'],
+    ];
+
+    private const RAILS = ['outline' => 'bool', 'right' => 'bool'];
 
     /** The studio as it was before any of this: everything shown. */
     public static function defaults(): array
+    {
+        $main = self::mainDefaults();
+
+        return $main + [
+            'compact' => [
+                'set' => false,
+                'panels' => $main['panels'],
+                'subpanels' => $main['subpanels'],
+                'rails' => $main['rails'],
+                'preset' => null,
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private static function mainDefaults(): array
     {
         return [
             'version' => self::VERSION,
@@ -157,6 +205,10 @@ final class WorkspaceSchema
             $errors["{$field}.subpanels.rightTabs"] = 'Keep at least one tab in the right panel, or hide the panel.';
         }
 
+        if ($errors === [] && ! in_array(true, $merged['compact']['subpanels']['rightTabs'], true)) {
+            $errors["{$field}.compact.subpanels.rightTabs"] = 'Keep at least one tab in the right panel, or hide the panel.';
+        }
+
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
@@ -183,7 +235,8 @@ final class WorkspaceSchema
     /** The parts of a layout a preset holds: everything but its own name. */
     public static function layoutOf(array $settings): array
     {
-        unset($settings['preset'], $settings['version']);
+        // A preset is a layout, not a device: the phone's own panels stay out.
+        unset($settings['preset'], $settings['version'], $settings['compact']);
 
         return $settings;
     }

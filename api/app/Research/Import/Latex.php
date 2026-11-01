@@ -59,6 +59,12 @@ final class Latex
             '---' => '—', '--' => '–', '``' => '“', "''" => '”', '~' => ' ',
         ]);
 
+        // A bare "$" before a figure is money, not math: "$15 Million" lost
+        // its dollar sign (ADR — Safe apply, honest prices, citation fixes).
+        // A math pair ("$10^6$", "$\alpha$") still loses its delimiters.
+        $s = preg_replace('/\$([^$]*[\\\\^_{}][^$]*)\$/', '$1', $s) ?? $s;
+        $s = preg_replace('/\$(?=\d)/', "\u{E002}", $s) ?? $s;
+
         // Any other command: keep what it wraps (\emph{x} → x), drop the rest.
         $s = preg_replace('/\\\\[A-Za-z]+\*?\s*/', '', $s) ?? $s;
         $s = str_replace(['{', '}', '$'], '', $s);

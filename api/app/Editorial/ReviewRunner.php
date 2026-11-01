@@ -86,7 +86,8 @@ class ReviewRunner
         $charge = null;
 
         try {
-            $full = $section->plainText();
+            // With list and quote markers (ADR — Safe apply).
+            $full = $section->reviewText();
             $text = $selection ? mb_substr($full, $selection['offset'], $selection['length']) : $full;
 
             if (trim($text) === '') {

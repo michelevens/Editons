@@ -50,6 +50,9 @@ class ReviewPlanner
             'focus' => ['nullable', 'string', 'max:'.ReviewContext::MAX_FOCUS],
             'sensitivity' => ['nullable', 'string', 'in:'.implode(',', ReviewContext::SENSITIVITIES)],
             'approved' => ['sometimes', 'boolean'],
+            // The author picked an agent that does not suit the book (a
+            // thesis examiner on a novel) on purpose (ADR — Safe apply).
+            'explicit' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -63,6 +66,8 @@ class ReviewPlanner
     {
         $agent = EditorialAgent::tryFrom((string) $data['agent'])
             ?? throw ValidationException::withMessages(['agent' => 'Unknown editorial agent.']);
+
+        self::assertSuits($agent, $book, (bool) ($data['explicit'] ?? false));
 
         $order = $this->readingOrder($book);
         $ids = $order->pluck('id')->all();
@@ -83,7 +88,8 @@ class ReviewPlanner
 
         foreach ($pick as $id) {
             $section = $sections[$id];
-            $text = $section->plainText();
+            // The text the reviewer reads, markers and all (ReviewRunner).
+            $text = $section->reviewText();
             $selection = null;
 
             if ($scope === 'selection') {
@@ -100,6 +106,22 @@ class ReviewPlanner
             : new ReviewContext(focus: $focus === '' ? null : $focus, sensitivity: $data['sensitivity'] ?? 'standard');
 
         return ['agent' => $agent, 'scope' => $scope, 'context' => $context, 'items' => $items];
+    }
+
+    /**
+     * A thesis examiner never runs, and is never billed, on a book that is
+     * not a thesis or an academic book, from any screen, unless the author
+     * picked it on purpose (ADR — Safe apply, honest prices, citation
+     * fixes). The walkthrough's self-help book paid for ten examiner
+     * findings in one chapter.
+     *
+     * @throws ValidationException
+     */
+    public static function assertSuits(EditorialAgent $agent, Book $book, bool $explicit): void
+    {
+        if (! $explicit && ! $agent->fits($book->book_type, $book->genre)) {
+            throw ValidationException::withMessages(['agent' => __('The thesis examiners read theses and academic books. Pick one by hand to run it on this book.')]);
+        }
     }
 
     /**
@@ -244,7 +266,8 @@ class ReviewPlanner
     private function locate(string $text, string $selected): array
     {
         $words = preg_split('/\s+/u', trim($selected), -1, PREG_SPLIT_NO_EMPTY);
-        $pattern = '/'.implode('\s+', array_map(fn ($w) => preg_quote($w, '/'), $words)).'/u';
+        // A selection over several list items crosses their markers.
+        $pattern = '/'.implode('\s+(?:(?:-|>|\d+\.)\s+)*', array_map(fn ($w) => preg_quote($w, '/'), $words)).'/u';
 
         if ($words === [] || ! preg_match($pattern, $text, $m, PREG_OFFSET_CAPTURE)) {
             throw ValidationException::withMessages(['selection' => 'The selected text is not in the chapter as saved. Save, then select it again.']);

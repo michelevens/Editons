@@ -29,6 +29,7 @@ final class Entry
         'title' => 255, 'authors' => 255, 'publisher' => 255, 'published' => 255,
         'container' => 255, 'volume' => 40, 'issue' => 40, 'pages' => 40,
         'edition' => 40, 'url' => 2000, 'doi' => 255, 'isbn' => 255, 'notes' => 5000,
+        'accessed' => 40,
     ];
 
     /**

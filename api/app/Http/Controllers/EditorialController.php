@@ -94,10 +94,13 @@ class EditorialController extends Controller
             // leave unverified (ADR — AI research, source-backed
             // fact-checking, cover templates). Off unless asked.
             'web' => ['nullable', 'boolean'],
+            // An agent that does not suit the book, picked on purpose.
+            'explicit' => ['sometimes', 'boolean'],
         ]);
 
         $agent = EditorialAgent::tryFrom($data['agent']);
         abort_unless($agent, 422, 'Unknown editorial agent.');
+        ReviewPlanner::assertSuits($agent, $section->book, (bool) ($data['explicit'] ?? false));
 
         // Every check before any work starts, so an author is told up front
         // rather than watching a review begin and then fail. The spend itself

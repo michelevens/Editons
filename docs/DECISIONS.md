@@ -5024,7 +5024,7 @@ spine contrast passing and the wrap drawn, tweaks, the accent motif,
 restore, suggestion fake and Claude), `StoreCopyTest`,
 `FinishChecklistTest`; `ReviewOptionsTest` updated for the book profile;
 `tests/Browser/ai-research.spec.js` at 1440 and 390 px.
-## ADR-00XX — Safe apply, honest prices, citation fixes
+## ADR-0060 — Safe apply, honest prices, citation fixes
 
 **Status:** accepted (2026-11-01). Number assigned at merge.
 
@@ -5089,3 +5089,113 @@ the apply layer told the two apart.
   History still has the version.
 - A finding accepted as advice (no text change) reopens by relabelling; an
   applied fix still comes back out through its undo.
+
+**2. An empty References section no longer blocks the bibliography.**
+`BookReferences::section()` counts a Bibliography-part section as the
+author's own list only when `written()`: text beyond headings, and not the
+template's prompt. Otherwise the list is generated, and in an export plan
+`Anatomy::plan` drops the empty section (`BookReferences::replaced()`) so
+the generated Bibliography takes its place rather than standing beside a
+blank page.
+
+**3. The text sent to reviewers keeps its breaks.** `ManuscriptSection::
+plainText()` flattened each top-level block, so a list became one run of
+sentences ("…everything else.Add daily immersion…") and every chapter got
+six to eight false, billed "missing break between list items" findings.
+Every block inside another (a list item, a quoted paragraph, a table cell)
+now gets its own line, and a hard break is a newline. `reviewText()` adds
+markers for the reviewer: "- " and "1. " (from the list's `start`) per
+item, indented under a nested item, "> " per quoted line. `ReviewRunner`
+sends `reviewText()`, and `ReviewPlanner` locates a selection in it,
+across item markers.
+
+**4. Prices match what is charged.** A review is charged per agent per
+chapter (`agent_run` 5, `specialist_run` 8, ReviewRunner). That was always
+true; the price list said otherwise.
+- `/billing` no longer lists `chapter_review` 10, `part_review` 20 or
+  `book_review` 40 (they stay in config/billing.php, unlisted, because the
+  ledger tests and the low-credit mail name them). It lists one editor and
+  one specialist per chapter, "Review this chapter" as the sum over the
+  editors the account's plan includes (examiners excluded), one editor over
+  the whole book as "5–8 per chapter", and a thesis examiner per chapter.
+  The credit strip says "per chapter: one editor 5 · specialist 8" and no
+  longer "whole book 40". The marketing pages state no per-review price, so
+  they are unchanged.
+- The AI Editor screen's estimate already came from the planner, which uses
+  the ledger's own `CreditLedger::costOf`. The studio's "Review this
+  chapter" now sums the same per-agent costs (the catalogue's `cost`) and,
+  above 20 credits, shows them and asks first. Sample output costs nothing
+  and asks nothing.
+- Billing activity groups a run over many chapters into one line, read
+  from the reviews the spends paid for (`options.run_id`, scope `book` or
+  `range`): "Fact Checker — whole book, 17 chapters −136". Refunds and
+  chapter reviews stay their own lines.
+- The panel's free button is "Structural notes on the whole book · free",
+  with "AI review of the whole book…" below it opening the AI Editor screen.
+- `ReviewPlanner::assertSuits()` refuses a thesis examiner on a book that is
+  not academic, before anything is charged or sent, on every endpoint
+  (`/sections/{id}/review`, the estimate, `/books/{id}/reviews`), unless
+  the request says `explicit` (the panel's own agent buttons, picked by
+  hand).
+
+**5. Citations and sources.**
+- The citation source picker (`CitationsTab`) shows "Title — Author (Year)
+  · Site" (the site is the container, the publisher or the URL's host) and
+  has a search over title, author, year and site; the chosen source stays
+  listed while the search changes. It is still a `<select>`, so it works
+  with a keyboard and a screen reader as before.
+- Sources can be selected (one, or all shown) and marked verified or
+  unverified at once: `POST /books/{book}/sources/verify` records each as
+  `verify()` does (who, when), for this book's sources only.
+- Bibliography: `Bibliography::looksCorporate()` (more than four words, an
+  acronym, a web address, an institutional word such as Service, Staff,
+  Editors, Museum, News) keeps an organisation whole, and an inverted one
+  ("Service, National Park", "Staff, NBC Bay Area", "Editors,
+  Biography.com") is put back the right way round. The BibTeX import uses
+  the same test, so it no longer inverts "National Park Service". Words
+  that are also common surnames (Hall, Park, Court) are left out.
+- A web page (`kind` website) has its title in quotation marks and its site
+  in roman in Chicago, Chicago notes and APA, in the entry and the note.
+- An access date is stored when the author or the file gives one (new
+  `research_sources.accessed`, migration
+  `2026_11_09_1100001_add_accessed_to_research_sources`; the add form's
+  "Accessed on" for a web source; BibTeX `urldate`; RIS `Y2`) and printed
+  for web sources: Chicago "Accessed October 31, 2026.", APA "Retrieved
+  October 31, 2026, from <URL>", MLA "Accessed 31 Oct. 2026.", Harvard
+  "(Accessed: 31 October 2026)". Nothing is printed when none is stored.
+- The BibTeX import keeps a bare "$" before a figure ("$15 Million"); a
+  math pair ("$10^6$") still loses its delimiters.
+
+**6. Rights declaration: fair use.** `RightsDeclaration::PERMISSIONS` gains
+`fair_use`, "Quotations used under fair use / short quotation, credited",
+which does not count as unsure. Choosing it shows a short neutral note
+(what the option is for, that fairness depends on the case and the country,
+and that this records the author's statement and is not legal advice). The
+kinds and permissions are now sent in the reader's language (en, fr, ht);
+the stored keys are unchanged.
+
+**7. A phone's layout stays on the phone.** The workspace settings gain a
+`compact` group (`set`, `panels`, `subpanels`, `rails`, `preset`),
+validated like the rest. `useWorkspace` watches `(max-width: 767px)`: on a
+phone, a change to panels, sub-panels or rails (a toggle, a preset) goes
+into `compact` (copied from the main layout the first time) and the phone
+shows it; the canvas, sizes and everything else stay shared. Until a layout
+is changed on a phone, the phone follows the main layout as before. A
+preset saves the layout shown, never the phone's group.
+
+**Tests.** `tests/Feature/SafeApplyTest.php` (advice told from replacement
+text, both ways; advice shown as advice; no instruction applied, single or
+bulk; Fact Checker and Subject Matter left out of bulk and applied one by
+one; the cited-quotation guard; one version per chapter and an exact undo;
+no rollback over later writing; another book's batch),
+`SafeReferencesTest.php` (empty, blank and heading-only References
+sections; a written list kept), `SafeReviewTextTest.php` (lists, nested
+lists, blockquotes, headings, hard breaks; the text the driver receives; a
+selection across items), `SafePricesTest.php` (the price list, one billing
+line per whole-book run, examiners refused unless picked),
+`SafeCitationsTest.php` (organisations, quoted web titles, access dates,
+"$", bulk verify, the access date stored), `SafeRightsTest.php` (fair use
+stored and translated), `SafeWorkspaceTest.php` (the phone's group kept
+apart, validated, out of presets); `tests/Browser/safe-apply.spec.js` (the
+bulk-accept breakdown and its undo, the citation picker's search, at 1440
+and 390 px, no console errors, no horizontal scroll).

@@ -35,6 +35,10 @@ export default function ResearchLibrary({ bookId, onChanged, chapters = [] }) {
     const [error, setError] = useState(null);
     const [notice, setNotice] = useState(null);
     const requestRef = useRef(0);
+    // Many sources marked at once (ADR — Safe apply, honest prices,
+    // citation fixes): 86 imports took about 90 clicks.
+    const [picked, setPicked] = useState([]);
+    const [marking, setMarking] = useState(false);
 
     const load = async (next = filters) => {
         const ticket = ++requestRef.current;
@@ -48,6 +52,8 @@ export default function ResearchLibrary({ bookId, onChanged, chapters = [] }) {
             if (ticket !== requestRef.current) return;
             setSources(res.data.sources);
             setFacets(res.data.facets);
+            // A selection never holds what the list no longer shows.
+            setPicked((ids) => ids.filter((id) => res.data.sources.some((s) => s.id === id)));
         } finally {
             if (ticket === requestRef.current) setLoading(false);
         }
@@ -72,6 +78,22 @@ export default function ResearchLibrary({ bookId, onChanged, chapters = [] }) {
     const verify = async (source, verification) => {
         await window.axios.patch(`/sources/${source.id}/verification`, { verification });
         changed();
+    };
+
+    const markMany = async (verification) => {
+        if (!picked.length) return;
+        setMarking(true);
+
+        try {
+            const res = await window.axios.post(`/books/${bookId}/sources/verify`, { ids: picked, verification });
+            setNotice(t('safe.sources_marked', { count: res.data.updated }));
+            setPicked([]);
+            changed();
+        } catch (err) {
+            setError(err.response?.data?.message ?? t('research.save_failed'));
+        } finally {
+            setMarking(false);
+        }
     };
 
     const remove = async (source) => {
@@ -265,10 +287,48 @@ export default function ResearchLibrary({ bookId, onChanged, chapters = [] }) {
                             {t('research.showing', { shown: sources.length, total: facets?.total ?? sources.length })}
                         </p>
                     )}
+                    <div
+                        data-a="research:bulk"
+                        className="sticky top-0 z-10 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-border-default bg-bg-surface px-3 py-2 text-sm"
+                    >
+                        <label className="flex items-center gap-1.5 text-text-body">
+                            <input
+                                type="checkbox"
+                                data-a="research:pick-all"
+                                checked={sources.length > 0 && sources.every((s) => picked.includes(s.id))}
+                                onChange={(e) => setPicked(e.target.checked ? sources.map((s) => s.id) : [])}
+                            />
+                            {picked.length ? t('safe.sources_selected', { count: picked.length }) : t('safe.sources_select_all', { count: sources.length })}
+                        </label>
+                        {picked.length > 0 && (
+                            <>
+                                <button
+                                    type="button"
+                                    data-a="research:bulk:verified"
+                                    disabled={marking}
+                                    onClick={() => markMany('verified')}
+                                    className="font-semibold text-status-success hover:underline disabled:opacity-50"
+                                >
+                                    {t('safe.mark_verified')}
+                                </button>
+                                <button
+                                    type="button"
+                                    data-a="research:bulk:unverified"
+                                    disabled={marking}
+                                    onClick={() => markMany('unverified')}
+                                    className="font-semibold text-text-secondary hover:text-text-primary disabled:opacity-50"
+                                >
+                                    {t('safe.mark_unverified')}
+                                </button>
+                            </>
+                        )}
+                    </div>
                     <ul className="space-y-2">
                         {sources.map((s) => (
                             <SourceRow
                                 key={s.id}
+                                picked={picked.includes(s.id)}
+                                onPick={(on) => setPicked((ids) => (on ? [...ids, s.id] : ids.filter((id) => id !== s.id)))}
                                 source={s}
                                 collections={facets?.collections ?? []}
                                 onVerify={verify}
@@ -298,7 +358,7 @@ function FilterSelect({ label, value, onChange, a, children }) {
     );
 }
 
-function SourceRow({ source: s, collections, onVerify, onRemove, onOrganise, onTag }) {
+function SourceRow({ source: s, collections, onVerify, onRemove, onOrganise, onTag, picked = false, onPick = null }) {
     const { t } = useI18n();
     const [editing, setEditing] = useState(false);
     const [tags, setTags] = useState('');
@@ -322,7 +382,17 @@ function SourceRow({ source: s, collections, onVerify, onRemove, onOrganise, onT
     return (
         <li data-a={`research:source:${s.id}`} className="rounded-lg border border-border-default bg-bg-surface p-4">
             <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
+                {onPick && (
+                    <input
+                        type="checkbox"
+                        aria-label={t('safe.select_source', { title: s.title })}
+                        data-a={`research:pick:${s.id}`}
+                        checked={picked}
+                        onChange={(e) => onPick(e.target.checked)}
+                        className="mt-1 shrink-0"
+                    />
+                )}
+                <div className="min-w-0 flex-1">
                     <p className="break-words font-semibold text-text-primary">{s.title}</p>
                     <p className="break-words text-sm text-text-secondary">
                         {s.reference}
@@ -628,6 +698,7 @@ function ImportFile({ bookId, collections, onImported }) {
 }
 
 const BLANK = {
+    accessed: '',
     kind: 'journal_article',
     title: '',
     authors: '',
@@ -829,10 +900,19 @@ function AddSource({ bookId, collections, onAdded, onError }) {
                 </datalist>
             </label>
 
-            <label className="col-span-2 text-xs font-semibold text-text-secondary">
+            <label className={`${form.kind === 'website' ? '' : 'col-span-2 '}text-xs font-semibold text-text-secondary max-sm:col-span-2`}>
                 URL
                 <input {...field('url')} type="url" placeholder="https://…" />
             </label>
+
+            {/* When the page was read: Chicago, MLA, APA and Harvard print
+                it for a web source (ADR — Safe apply). */}
+            {form.kind === 'website' && (
+                <label className="text-xs font-semibold text-text-secondary max-sm:col-span-2">
+                    {t('safe.field_accessed')}
+                    <input {...field('accessed')} type="date" data-a="research:accessed" />
+                </label>
+            )}
 
             <label className="col-span-2 text-xs font-semibold text-text-secondary">
                 {t('research.field_notes')}
