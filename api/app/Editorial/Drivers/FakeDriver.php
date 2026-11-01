@@ -169,12 +169,22 @@ class FakeDriver implements EditorialDriver, SimulatesReview
                 // locatable.
                 [$excerpt, $replacement] = $this->widen($text, $hit[0], $hit[1]);
 
+                // A reduplication used on purpose ("piti piti", "so so",
+                // a proverb) is not a typo: when the pair comes back in the
+                // chapter, or sits inside quotation marks, it is pointed
+                // out and never offered as a fix (ADR — Author walkthrough
+                // fixes). The runner does the same across the book.
+                $deliberate = preg_match_all('/\b'.preg_quote($hit[0], '/').'\b/iu', $text) > 1
+                    || self::insideQuotes($text, $hit[1]);
+
                 $out[] = new Finding(
-                    severity: 'warning',
+                    severity: $deliberate ? 'suggestion' : 'warning',
                     title: 'Repeated word',
-                    detail: 'The same word appears twice in a row.',
+                    detail: $deliberate
+                        ? 'The same word twice in a row, more than once or in quoted speech: perhaps deliberate. Change it by hand if it is not.'
+                        : 'The same word appears twice in a row.',
                     excerpt: $excerpt,
-                    suggestion: $replacement,
+                    suggestion: $deliberate ? null : $replacement,
                     fromOffset: $hit[1],
                     toOffset: $hit[1] + mb_strlen($excerpt),
                 );
@@ -465,6 +475,17 @@ class FakeDriver implements EditorialDriver, SimulatesReview
         }
 
         return $out;
+    }
+
+    /** Is this byte offset inside quotation marks, within its paragraph? */
+    public static function insideQuotes(string $text, int $at): bool
+    {
+        $start = strrpos(substr($text, 0, $at), "\n");
+        $before = substr($text, $start === false ? 0 : $start + 1, $at - ($start === false ? 0 : $start + 1));
+
+        return substr_count($before, '"') % 2 === 1
+            || substr_count($before, "\u{201C}") > substr_count($before, "\u{201D}")
+            || substr_count($before, "\u{00AB}") > substr_count($before, "\u{00BB}");
     }
 
     /** A sentence with its quoted speech taken out. */

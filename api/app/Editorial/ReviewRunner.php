@@ -115,6 +115,7 @@ class ReviewRunner
                 $this->kept($result->findings, $agent, $context, 'agent'),
                 $this->kept($checked, EditorialAgent::Copy, $context, 'style_check'),
             );
+            $keep = $this->deliberateRepeats($keep, $section);
 
             DB::transaction(function () use ($review, $section, $agent, $result, $keep, $selection, $readsStyle) {
                 // Supersede the previous open findings from this same agent.
@@ -297,6 +298,42 @@ class ReviewRunner
         }
 
         return $out;
+    }
+
+    /**
+     * A doubled word that also occurs in another chapter is a choice of the
+     * author's ("piti piti"), not a slip: its fix is taken away and it stays
+     * as a note (ADR — Author walkthrough fixes).
+     *
+     * @param  array<int, array{0: Finding, 1: EditorialAgent, 2: ?string, 3: ?string, 4: string}>  $keep
+     */
+    private function deliberateRepeats(array $keep, ManuscriptSection $section): array
+    {
+        foreach ($keep as $i => [$f, $findingAgent, $rule, $term, $source]) {
+            if ($f->title !== 'Repeated word' || ! $f->suggestion || ! preg_match('/^(\S+\s+\S+)/u', (string) $f->excerpt, $pair)) {
+                continue;
+            }
+
+            $elsewhere = ManuscriptSection::where('book_id', $section->book_id)
+                ->where('id', '!=', $section->id)
+                ->whereRaw('content::text ILIKE ?', ['%'.addcslashes($pair[1], '%_\\').'%'])
+                ->exists();
+
+            if ($elsewhere) {
+                $keep[$i][0] = new Finding(
+                    severity: 'suggestion',
+                    title: $f->title,
+                    detail: 'The same word twice in a row, and elsewhere in the book too: perhaps deliberate. Change it by hand if it is not.',
+                    excerpt: $f->excerpt,
+                    fromOffset: $f->fromOffset,
+                    toOffset: $f->toOffset,
+                    rule: $f->rule,
+                    term: $f->term,
+                );
+            }
+        }
+
+        return $keep;
     }
 
     /** How a dismissed finding is recognised again: agent, rule, words. */
