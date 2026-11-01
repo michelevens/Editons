@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Editorial\ApplyGuard;
 use App\Editorial\DriverFactory;
 use App\Editorial\EditorialAgent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,6 +32,8 @@ class EditorialFinding extends Model
         // The fact-checker's verdict, source and excerpt (ADR — AI research,
         // source-backed fact-checking, cover templates).
         'evidence',
+        // The bulk accept this was decided in, for its undo (ADR — Safe apply).
+        'bulk_batch',
     ];
 
     protected function casts(): array
@@ -68,6 +71,43 @@ class EditorialFinding extends Model
         $driver = $this->review?->driver;
 
         return $driver === null || ! DriverFactory::simulated($driver);
+    }
+
+    /**
+     * The suggestion, when it is replacement text that may be written in.
+     *
+     * Null for advice ("Add a source note…", "Consider…"): a reviewer's
+     * instruction to the author is shown as advice and never applied (ADR —
+     * Safe apply). A house-style check's replacement is built from the
+     * author's own rule, so it is always text.
+     */
+    public function replacement(): ?string
+    {
+        if ($this->suggestion === null || $this->suggestion === '') {
+            return null;
+        }
+
+        if ($this->source === 'style_check') {
+            return $this->suggestion;
+        }
+
+        return ApplyGuard::isAdvice($this->excerpt, $this->suggestion) ? null : $this->suggestion;
+    }
+
+    /** The detail, with a suggestion that is advice moved into it. */
+    public function detailWithAdvice(): ?string
+    {
+        if ($this->suggestion === null || $this->suggestion === '' || $this->replacement() !== null) {
+            return $this->detail;
+        }
+
+        return trim(($this->detail ?? '').' '.$this->suggestion);
+    }
+
+    /** Applied one by one, never in a bulk accept. */
+    public function oneByOne(): bool
+    {
+        return in_array($this->agent?->value, ApplyGuard::ONE_BY_ONE, true);
     }
 
     /**

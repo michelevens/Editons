@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Billing\Entitlements;
+use App\Editorial\ApplyGuard;
 use App\Editorial\BookDirector;
 use App\Editorial\DriverFactory;
 use App\Editorial\EditorialAgent;
@@ -358,6 +359,8 @@ class EditorialController extends Controller
 
         if ($data['status'] === 'accepted' && $finding->suggestion) {
             try {
+                // Advice is refused here too (ADR — Safe apply): the
+                // applier throws rather than write an instruction in.
                 $applier = app(SuggestionApplier::class);
                 $section = $applier->apply($finding, $request->user()->id);
                 $applied = true;
@@ -398,6 +401,7 @@ class EditorialController extends Controller
     private function findingsFor(ManuscriptSection $section): array
     {
         $text = $section->plainText();
+        $guard = new ApplyGuard;
 
         return EditorialFinding::where('manuscript_section_id', $section->id)
             ->with('review:id,driver')
@@ -410,9 +414,12 @@ class EditorialController extends Controller
                 'agent_label' => $f->agent->displayLabel(),
                 'severity' => $f->severity,
                 'title' => $f->title,
-                'detail' => $f->detail,
+                // Advice is shown as advice, never as a fix to apply
+                // (ADR — Safe apply).
+                'detail' => $f->detailWithAdvice(),
                 'excerpt' => $f->excerpt,
-                'suggestion' => $f->suggestion,
+                'suggestion' => $f->replacement(),
+                'quote' => $f->status === 'open' && $f->replacement() !== null ? $guard->context($section, $f->excerpt) : null,
                 'status' => $f->status,
                 'rule' => $f->rule,
                 'term' => $f->term,

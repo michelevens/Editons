@@ -31,7 +31,10 @@ class SuggestionApplier
      */
     public function apply(EditorialFinding $finding, ?int $userId = null): ManuscriptSection
     {
-        $section = $finding->section;
+        // Read fresh: in a bulk accept the finding's loaded chapter is the
+        // copy from before the previous fix, and replacing in it would save
+        // over that fix.
+        $section = $finding->section()->firstOrFail();
 
         if (! $finding->suggestion) {
             throw new RuntimeException('This finding offers no replacement to apply.');
@@ -39,6 +42,13 @@ class SuggestionApplier
 
         if (! $finding->excerpt) {
             throw new RuntimeException('This finding is not anchored to any text.');
+        }
+
+        // Advice is never written into the book: "Add a source note…" in
+        // place of a verified quotation is corruption, not an edit (ADR —
+        // Safe apply). Checked here, under every caller, single or bulk.
+        if ($finding->replacement() === null) {
+            throw new RuntimeException(__('This suggestion is advice, not replacement text, so it cannot be applied. Edit the passage by hand if you agree.'));
         }
 
         $content = $section->content ?? ['type' => 'doc', 'content' => []];
@@ -59,7 +69,7 @@ class SuggestionApplier
             );
         }
 
-        $updated = $this->replaceFirst($content, $finding->excerpt, $finding->suggestion);
+        $updated = $this->replaceFirst($content, $finding->excerpt, $finding->replacement());
 
         // Through the normal writer: an AI edit is versioned and revertible
         // exactly like something typed, which is what makes accepting one

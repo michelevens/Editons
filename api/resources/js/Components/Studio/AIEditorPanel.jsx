@@ -601,6 +601,10 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText, secti
                                         className="text-[11.5px] font-semibold text-status-success hover:underline"
                                     >
                                         {t('ai.apply')}
+                                        {/* Applied only on purpose, one at a time (ADR — Safe apply). */}
+                                        {finding.quote === 'cited_quote' && (
+                                            <span className="ml-1.5 font-normal text-status-warning">· {t('safe.changes_cited_quote')}</span>
+                                        )}
                                     </button>
                                 ) : (
                                     <span className="text-[11px] text-text-secondary" title={t('jfix.advice_why')}>

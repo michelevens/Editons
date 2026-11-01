@@ -3284,5 +3284,17 @@
     "finish.cover_confirm": "Use the “{template}” template for the cover? Your current cover can be restored.",
     "finish.export_started": "Making the PDF and EPUB. They will be in Export when ready.",
     "finish.failed": "That did not work. Nothing was charged.",
-    "AI writing is unavailable right now. Try again later. Nothing was charged.": "AI writing is unavailable right now. Try again later. Nothing was charged."
+    "AI writing is unavailable right now. Try again later. Nothing was charged.": "AI writing is unavailable right now. Try again later. Nothing was charged.",
+    "safe.bulk_title": "Apply these fixes?",
+    "safe.bulk_agent_counts": "{fixes, plural, one {# fix} other {# fixes}}, {notes, plural, one {# note} other {# notes}}",
+    "safe.one_by_one": "Apply one by one, after checking the source",
+    "safe.bulk_cited_quotes": "{count, plural, one {# fix would change a quotation that has a citation and is left out.} other {# fixes would change a quotation that has a citation and are left out.}} Apply them one by one if you mean to.",
+    "safe.bulk_quoted": "{count, plural, one {# fix changes text inside quotation marks or a cited passage.} other {# fixes change text inside quotation marks or a cited passage.}} Check them first.",
+    "safe.bulk_summary": "{count, plural, one {# finding accepted} other {# findings accepted}}, {fixes, plural, one {# fix applied to the text} other {# fixes applied to the text}}. A version of each chapter is saved first, so you can undo it all at once.",
+    "safe.bulk_done": "{count, plural, one {# finding accepted in one bulk accept.} other {# findings accepted in one bulk accept.}}",
+    "safe.bulk_undo": "Undo this bulk accept",
+    "safe.bulk_undone": "Bulk accept undone: {count, plural, one {# chapter restored.} other {# chapters restored.}}",
+    "safe.bulk_undone_kept": "Bulk accept undone: {count, plural, one {# chapter restored.} other {# chapters restored.}} Not restored, because you wrote in them since: {kept}. Use History for those.",
+    "safe.changes_cited_quote": "changes a cited quotation",
+    "safe.check_source_first": "Check the source before applying"
 }
