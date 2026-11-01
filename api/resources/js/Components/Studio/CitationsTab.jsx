@@ -183,6 +183,13 @@ function AddCitation({ sectionId, sources, selectionText = '', onAdded, onManage
     const [claim, setClaim] = useState(selected);
     const [sourceId, setSourceId] = useState('');
     const [locator, setLocator] = useState('');
+    const [query, setQuery] = useState('');
+    // The sources the search matches, and the chosen one even when it no
+    // longer does.
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const shown = sources.filter(
+        (s) => String(s.id) === String(sourceId) || words.every((w) => sourceHaystack(s).includes(w)),
+    );
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
 
@@ -236,23 +243,39 @@ function AddCitation({ sectionId, sources, selectionText = '', onAdded, onManage
                     </button>
                 </p>
             ) : (
-                <select
-                    value={sourceId}
-                    data-a="citations:source"
-                    aria-label={t('jfix.citation_source')}
-                    onChange={(e) => setSourceId(e.target.value)}
-                    className="mt-2 w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
-                >
-                    <option value="">{t('citations.no_source_yet')}</option>
-                    {sources.map((s) => (
-                        <option key={s.id} value={s.id}>
-                            {s.reference}
-                            {s.verification !== 'verified'
-                                ? ` (${{ verified: t('research.standing_verified'), disputed: t('research.standing_disputed'), unverified: t('research.standing_unverified') }[s.verification] ?? s.verification})`
-                                : ''}
+                <>
+                    {/* Search by title, author, year or site: "The Kavli
+                        Prize (2020)" twice told an author nothing (ADR —
+                        Safe apply, honest prices, citation fixes). */}
+                    <input
+                        type="search"
+                        value={query}
+                        data-a="citations:source-search"
+                        aria-label={t('safe.source_search')}
+                        placeholder={t('safe.source_search')}
+                        onChange={(e) => setQuery(e.target.value)}
+                        className="mt-2 w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
+                    />
+                    <select
+                        value={sourceId}
+                        data-a="citations:source"
+                        aria-label={t('jfix.citation_source')}
+                        onChange={(e) => setSourceId(e.target.value)}
+                        className="mt-1.5 w-full rounded border-border-input text-[12px] focus:border-brand-primary focus:ring-brand-primary"
+                    >
+                        <option value="">
+                            {shown.length < sources.length ? t('safe.sources_matching', { count: shown.length }) : t('citations.no_source_yet')}
                         </option>
-                    ))}
-                </select>
+                        {shown.map((s) => (
+                            <option key={s.id} value={s.id}>
+                                {sourceLabel(s)}
+                                {s.verification !== 'verified'
+                                    ? ` (${{ verified: t('research.standing_verified'), disputed: t('research.standing_disputed'), unverified: t('research.standing_unverified') }[s.verification] ?? s.verification})`
+                                    : ''}
+                            </option>
+                        ))}
+                    </select>
+                </>
             )}
 
             <input
@@ -279,4 +302,27 @@ function AddCitation({ sectionId, sources, selectionText = '', onAdded, onManage
             </button>
         </form>
     );
+}
+
+/** "Title — Author (2020) · Site": enough to tell two sources apart. */
+function sourceLabel(s) {
+    const year = (String(s.published ?? '').match(/\b(1[5-9]\d{2}|20\d{2})\b/) ?? [])[1];
+    const site = sourceSite(s);
+    const who = [s.authors, year && `(${year})`].filter(Boolean).join(' ');
+
+    return [s.title, who].filter(Boolean).join(' — ') + (site ? ` · ${site}` : '');
+}
+
+function sourceSite(s) {
+    if (s.container || s.publisher) return s.container || s.publisher;
+
+    try {
+        return s.url ? new URL(s.url).hostname.replace(/^www\./, '') : '';
+    } catch {
+        return '';
+    }
+}
+
+function sourceHaystack(s) {
+    return [s.title, s.authors, s.published, s.container, s.publisher, s.url, sourceSite(s)].filter(Boolean).join(' ').toLowerCase();
 }

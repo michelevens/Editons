@@ -3270,5 +3270,14 @@
     "One editor over the whole book, per chapter": "Yon editè sou tout liv la, pou chak chapit",
     "A thesis examiner, on a thesis, per chapter": "Yon egzaminatè tèz, sou yon tèz, pou chak chapit",
     ":agent — whole book, :count chapters": ":agent — tout liv la, :count chapit",
-    ":agent — :count chapters": ":agent — :count chapit"
+    ":agent — :count chapters": ":agent — :count chapit",
+    "safe.source_search": "Chèche yon sous: tit, otè, ane, sit",
+    "safe.sources_matching": "{count, plural, one {# sous koresponn — chwazi l} other {# sous koresponn — chwazi youn}}",
+    "safe.sources_marked": "{count, plural, one {# sous make.} other {# sous make.}}",
+    "safe.sources_selected": "{count, plural, one {# chwazi} other {# chwazi}}",
+    "safe.sources_select_all": "Chwazi tout {count} ki parèt yo",
+    "safe.mark_verified": "Make verifye",
+    "safe.mark_unverified": "Make pa verifye",
+    "safe.select_source": "Chwazi {title}",
+    "safe.field_accessed": "Konsilte le"
 }

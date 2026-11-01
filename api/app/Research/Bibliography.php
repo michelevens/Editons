@@ -5,6 +5,7 @@ namespace App\Research;
 use App\Models\Book;
 use App\Models\Citation;
 use App\Models\ResearchSource;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -143,7 +144,8 @@ class Bibliography
         $names = $this->names($source);
         $natural = array_map(fn ($n) => $this->natural($n), $names);
         $surnames = array_map(fn ($n) => $n['last'], $names);
-        $article = $source->kind === 'journal_article' || ($source->container && $source->kind !== 'book');
+        // A web page's title is quoted, like an article's (ADR — Safe apply).
+        $article = $source->kind === 'journal_article' || $source->kind === 'website' || ($source->container && $source->kind !== 'book');
         $page = $locator ? ', '.preg_replace('/^(?:pp?\.\s*)/', '', trim($locator)) : '';
 
         if (! $first) {
@@ -239,16 +241,34 @@ class Bibliography
         $edition = trim((string) $source->edition);
         $link = $this->link($source);
         $article = $source->kind === 'journal_article' || ($container && $source->kind !== 'book');
+        // A web page's title is in quotation marks, its site in roman, in
+        // Chicago and APA (ADR — Safe apply): it was set in italics, like a
+        // book. The site is the container, else the publisher.
+        $web = $source->kind === 'website' && in_array($style, ['APA', 'Chicago', 'Chicago-notes'], true);
 
-        $entry = match ($style) {
-            'Chicago' => $this->chicago($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
-            'Chicago-notes' => $this->chicagoNotes($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
-            'MLA' => $this->mla($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
-            'Harvard' => $this->harvard($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
-            'IEEE' => "[{$number}] ".$this->ieee($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
-            'Vancouver' => "{$number}. ".$this->vancouver($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
-            default => $this->apa($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+        $entry = match (true) {
+            $web => $this->web($style, $names, $title, $year, $container ?: $publisher),
+            default => match ($style) {
+                'Chicago' => $this->chicago($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+                'Chicago-notes' => $this->chicagoNotes($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+                'MLA' => $this->mla($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+                'Harvard' => $this->harvard($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+                'IEEE' => "[{$number}] ".$this->ieee($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+                'Vancouver' => "{$number}. ".$this->vancouver($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+                default => $this->apa($names, $title, $year, $container, $publisher, $volume, $issue, $pages, $edition, $article),
+            },
         };
+
+        // When a web source was consulted, if it is stored.
+        $accessed = $source->kind === 'website' ? $this->accessed($source, $style) : '';
+
+        if ($accessed !== '' && in_array($style, ['Chicago', 'Chicago-notes'], true)) {
+            $entry .= " Accessed {$accessed}.";
+        }
+
+        if ($accessed !== '' && $style === 'APA' && $link && ! $source->doi) {
+            $entry .= " Retrieved {$accessed}, from";
+        }
 
         if ($link) {
             $entry .= match ($style) {
@@ -261,12 +281,76 @@ class Bibliography
             $entry .= '.';
         }
 
+        if ($accessed !== '' && $style === 'MLA') {
+            $entry .= ". Accessed {$accessed}.";
+        }
+
+        if ($accessed !== '' && $style === 'Harvard') {
+            $entry .= " (Accessed: {$accessed}).";
+        }
+
         // Missing parts leave stray punctuation behind ("Title. ." when a
         // source has no publisher or year); tidy it once, here.
         $entry = preg_replace('/\s+/', ' ', trim($entry));
         $entry = preg_replace(['/\s+([.,])/', '/,\s*\./', '/\.(?:\s*\.)+/'], ['$1', '.', '.'], $entry);
 
         return preg_replace('/,\s*$/', '.', $entry);
+    }
+
+    /**
+     * A web page in APA or Chicago: the page's title in quotation marks, the
+     * site in roman.
+     *
+     *   APA:      Author. (2020). “Title.” Site.
+     *   Chicago:  Author. 2020. “Title.” Site.
+     *   Notes:    Author. “Title.” Site, 2020.
+     *
+     * @param  array<int, array{first: string, last: string, initials: string, corporate: bool}>  $names
+     */
+    private function web(string $style, array $names, string $title, string $year, string $site): string
+    {
+        $site = $site !== '' ? " {$site}." : '';
+
+        if ($style === 'APA') {
+            $listed = array_map(fn ($n) => $n['corporate'] ? $n['last'] : "{$n['last']}, {$n['initials']}", $names);
+            $authors = $this->more ? implode(', ', $listed).', et al.' : $this->join($listed, ', ', ', & ', 20);
+
+            return $authors ? $this->stop($authors)." ({$year}). “{$title}.”{$site}" : "“{$title}.” ({$year}).{$site}";
+        }
+
+        $authors = $this->invertFirst($names, 'and', 10);
+        $lead = $authors ? $this->stop($authors).' ' : '';
+
+        if ($style === 'Chicago') {
+            return $authors ? "{$lead}{$year}. “{$title}.”{$site}" : "“{$title}.”{$site} {$year}.";
+        }
+
+        return "{$lead}“{$title}.”".rtrim($site, '.').($year !== 'n.d.' ? ", {$year}." : '.');
+    }
+
+    /**
+     * The access date in the style's shape, when one is stored and reads as
+     * a date ("2026-10-31", "October 31, 2026"); anything else as written.
+     */
+    private function accessed(ResearchSource $source, string $style): string
+    {
+        $raw = trim((string) $source->accessed);
+
+        if ($raw === '') {
+            return '';
+        }
+
+        try {
+            $date = Carbon::parse($raw);
+        } catch (\Throwable) {
+            return $raw;
+        }
+
+        return match ($style) {
+            'MLA' => $date->format('j M. Y'),
+            'Harvard' => $date->format('j F Y'),
+            default => $date->format('F j, Y'),
+        };
     }
 
     /** @param  array<int, array{first: string, last: string, initials: string, corporate: bool}>  $names */
@@ -462,16 +546,20 @@ class Bibliography
     {
         if (str_contains($person, ',')) {
             [$last, $first] = array_map('trim', explode(',', $person, 2));
+
+            // An organisation an import or a person inverted, "Service,
+            // National Park" or "Staff, NBC Bay Area", is put back the right
+            // way round and kept whole (ADR — Safe apply, honest prices,
+            // citation fixes).
+            if (self::invertedCorporate($last, $first)) {
+                return ['first' => '', 'last' => "{$first} {$last}", 'initials' => '', 'corporate' => true];
+            }
         } else {
             $words = preg_split('/\s+/u', $person);
 
             // One word, or anything that reads as an institution, is kept
             // whole rather than inverted into "Organization, W. H.".
-            // An acronym ("IBM", "CDC") or an institutional word marks an
-            // organisation: "Facebook Research" is not Mr. Research.
-            if (count($words) === 1 || count($words) > 4
-                || preg_match('/\b[A-Z]{2,}\b/u', $person)
-                || preg_match('/\b(?:of|for|the|Inc|Ltd|LLC|Corp|Corporation|Company|Institute|Organization|Organisation|Association|Society|University|Agency|Bank|Council|Department|Office|Group|Foundation|Commission|Centre|Center|Research|Analytics|Labs?|Laboratory|Systems|Technologies|Press|Media|Network|Partners|Bureau|Services?|Administration|Board|Authority|Ministry|Consortium|Project|Team)\b/u', $person)) {
+            if (count($words) === 1 || self::looksCorporate($person)) {
                 return ['first' => '', 'last' => $person, 'initials' => '', 'corporate' => true];
             }
 
@@ -486,6 +574,43 @@ class Bibliography
             ->implode(' ');
 
         return ['first' => $first, 'last' => $last, 'initials' => $initials, 'corporate' => false];
+    }
+
+    /**
+     * Does this name read as an organisation rather than a person? More
+     * than four words, an acronym ("IBM", "NBC Bay Area"), a web address
+     * ("Biography.com Editors"), or an institutional word: "Facebook
+     * Research" is not Mr. Research, "National Park Service" not Mr.
+     * Service. Shared with the BibTeX import, so neither inverts one.
+     */
+    public static function looksCorporate(string $name): bool
+    {
+        $words = preg_split('/\s+/u', trim($name));
+
+        return count($words) > 4
+            || preg_match('/\b[A-Z]{2,}\b/u', $name)
+            || preg_match('/\w\.(?:com|org|gov|net|edu|co|io|fr|ht|uk)\b/iu', $name)
+            || preg_match('/\b(?:'.self::INSTITUTIONAL.')\b/u', $name);
+    }
+
+    /** Words that mark an organisation, not a person. */
+    private const INSTITUTIONAL = 'of|for|the|Inc|Ltd|LLC|Corp|Corporation|Company|Institute|Organization|Organisation|Association|Society|University|Agency|Bank|Council|Department|Office|Group|Foundation|Commission|Centre|Center|Research|Analytics|Labs?|Laboratory|Systems|Technologies|Press|Media|Network|Partners|Bureau|Services?|Administration|Board|Authority|Ministry|Consortium|Project|Team|Staff|Editors|Editorial|News|Newsroom|Museum|Library|Archives?|Magazine|Times|Journal|Radio|Television|Prize|Committee|Fund|Trust|Hospital|School|College|Academy|Senate|Congress|Government|Federation|League|Union|Coalition|Alliance|Initiative|Program|Programme|Records|Studio|Studios';
+
+    /**
+     * "Service, National Park": a surname slot holding an institutional
+     * word, or a given-name slot that is no person's (an acronym, a web
+     * address, more than three words).
+     */
+    private static function invertedCorporate(string $last, string $first): bool
+    {
+        if ($first === '' || preg_match('/^(?:\p{Lu}\.\s*)+$/u', $first)) {
+            return false; // "Smith, J." — initials are a person's
+        }
+
+        return (bool) preg_match('/^(?:Staff|Editors|Editorial|Service|Services|Agency|Office|Department|Bureau|Administration|Board|Museum|Library|Society|Foundation|Institute|Council|Committee|Commission|News|Newsroom|Team|Press|Media|Group|Center|Centre|University|Association|Organization|Organisation)$/u', $last)
+            || preg_match('/\b[A-Z]{2,}\b/u', $first)
+            || preg_match('/\w\.(?:com|org|gov|net|edu|co|io|fr|ht|uk)\b/iu', $first)
+            || count(preg_split('/\s+/u', $first)) > 3;
     }
 
     /** "Smith, Jane, and Kofi Lee" — the Chicago shape. */

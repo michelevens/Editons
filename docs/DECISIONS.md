@@ -4832,3 +4832,31 @@ true; the price list said otherwise.
   (`/sections/{id}/review`, the estimate, `/books/{id}/reviews`), unless
   the request says `explicit` (the panel's own agent buttons, picked by
   hand).
+
+**5. Citations and sources.**
+- The citation source picker (`CitationsTab`) shows "Title — Author (Year)
+  · Site" (the site is the container, the publisher or the URL's host) and
+  has a search over title, author, year and site; the chosen source stays
+  listed while the search changes. It is still a `<select>`, so it works
+  with a keyboard and a screen reader as before.
+- Sources can be selected (one, or all shown) and marked verified or
+  unverified at once: `POST /books/{book}/sources/verify` records each as
+  `verify()` does (who, when), for this book's sources only.
+- Bibliography: `Bibliography::looksCorporate()` (more than four words, an
+  acronym, a web address, an institutional word such as Service, Staff,
+  Editors, Museum, News) keeps an organisation whole, and an inverted one
+  ("Service, National Park", "Staff, NBC Bay Area", "Editors,
+  Biography.com") is put back the right way round. The BibTeX import uses
+  the same test, so it no longer inverts "National Park Service". Words
+  that are also common surnames (Hall, Park, Court) are left out.
+- A web page (`kind` website) has its title in quotation marks and its site
+  in roman in Chicago, Chicago notes and APA, in the entry and the note.
+- An access date is stored when the author or the file gives one (new
+  `research_sources.accessed`, migration
+  `2026_11_09_1100001_add_accessed_to_research_sources`; the add form's
+  "Accessed on" for a web source; BibTeX `urldate`; RIS `Y2`) and printed
+  for web sources: Chicago "Accessed October 31, 2026.", APA "Retrieved
+  October 31, 2026, from <URL>", MLA "Accessed 31 Oct. 2026.", Harvard
+  "(Accessed: 31 October 2026)". Nothing is printed when none is stored.
+- The BibTeX import keeps a bare "$" before a figure ("$15 Million"); a
+  math pair ("$10^6$") still loses its delimiters.

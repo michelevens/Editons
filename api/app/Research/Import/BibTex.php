@@ -307,6 +307,7 @@ final class BibTex
             'doi' => $f['doi'] ?? null,
             'isbn' => $f['isbn'] ?? null,
             'notes' => $f['note'] ?? $f['annote'] ?? null,
+            'accessed' => $f['urldate'] ?? null,
         ];
     }
 
@@ -331,8 +332,12 @@ final class BibTex
             $name = Latex::decode($name);
 
             // "René Préval" → "Préval, René", so every person in the column
-            // has the shape Bibliography::person() reads best.
-            if ($corporate || str_contains($name, ',') || ! str_contains($name, ' ')) {
+            // has the shape Bibliography::person() reads best. An
+            // organisation without braces ("National Park Service", "NBC
+            // Bay Area Staff") is kept whole, not made "Service, National
+            // Park" (ADR — Safe apply, honest prices, citation fixes).
+            if ($corporate || str_contains($name, ',') || ! str_contains($name, ' ')
+                || \App\Research\Bibliography::looksCorporate($name)) {
                 return $name;
             }
             $words = preg_split('/\s+/u', $name);

@@ -3270,5 +3270,14 @@
     "One editor over the whole book, per chapter": "Un correcteur sur tout le livre, par chapitre",
     "A thesis examiner, on a thesis, per chapter": "Un examinateur de thèse, sur une thèse, par chapitre",
     ":agent — whole book, :count chapters": ":agent — livre entier, :count chapitres",
-    ":agent — :count chapters": ":agent — :count chapitres"
+    ":agent — :count chapters": ":agent — :count chapitres",
+    "safe.source_search": "Chercher une source : titre, auteur, année, site",
+    "safe.sources_matching": "{count, plural, one {# source correspond — choisissez-la} other {# sources correspondent — choisissez-en une}}",
+    "safe.sources_marked": "{count, plural, one {# source marquée.} other {# sources marquées.}}",
+    "safe.sources_selected": "{count, plural, one {# sélectionnée} other {# sélectionnées}}",
+    "safe.sources_select_all": "Tout sélectionner ({count} affichées)",
+    "safe.mark_verified": "Marquer vérifiées",
+    "safe.mark_unverified": "Marquer non vérifiées",
+    "safe.select_source": "Sélectionner {title}",
+    "safe.field_accessed": "Consulté le"
 }

@@ -3067,5 +3067,14 @@
     "safe.full_run": "Review · {credits} credits",
     "safe.structural_notes": "Structural notes on the whole book · free",
     "safe.ai_whole_book": "AI review of the whole book…",
-    "safe.credit_costs": "per chapter: one editor {agent} · specialist {specialist}"
+    "safe.credit_costs": "per chapter: one editor {agent} · specialist {specialist}",
+    "safe.source_search": "Search sources: title, author, year, site",
+    "safe.sources_matching": "{count, plural, one {# source matches — choose it} other {# sources match — choose one}}",
+    "safe.sources_marked": "{count, plural, one {# source marked.} other {# sources marked.}}",
+    "safe.sources_selected": "{count, plural, one {# selected} other {# selected}}",
+    "safe.sources_select_all": "Select all {count} shown",
+    "safe.mark_verified": "Mark verified",
+    "safe.mark_unverified": "Mark unverified",
+    "safe.select_source": "Select {title}",
+    "safe.field_accessed": "Accessed on"
 }
