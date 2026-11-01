@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import KdpGuideView from '@/Components/Publish/KdpGuideView';
 import { formatMoney, t, useI18n } from '../../i18n';
+import FinishChecklist from './FinishChecklist';
 import Icon from './Icon';
 
 /**
@@ -157,6 +158,8 @@ export default function PublishFlow({ bookId, onNotify, onNavigate }) {
             </header>
 
             <div className="min-h-0 flex-1 overflow-auto p-4">
+                {/* "Finish my book" (ADR — AI research, source-backed fact-checking, cover templates). */}
+                {step === 'check' && <FinishChecklist bookId={bookId} onNavigate={onNavigate} onNotify={onNotify} />}
                 {step === 'check' && (
                     <CheckStep data={data} busy={busy} waiting={Boolean(waitingSince)} onFix={fix} onRegenerate={regenerate} onNext={() => setStep('channels')} />
                 )}
