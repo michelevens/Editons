@@ -95,6 +95,23 @@ class MarkdownImporter
     }
 
     /**
+     * One section's Markdown as a document, with no chapter split and
+     * nothing written: what the AI writer's chapters go through, so their
+     * headings, lists, quotations and boxes come out as an import's do
+     * (ADR — AI writes the book).
+     *
+     * @return array<string, mixed>
+     */
+    public function convert(string $markdown, ?ImportReport $report = null): array
+    {
+        $this->noteDefinitions = [];
+
+        return $this->toProseMirror(str_replace(["
+", ""], "
+", $markdown), $report ?? new ImportReport);
+    }
+
+    /**
      * The section titles an import of $markdown would make, in order, and
      * nothing written: the import preview, where the author can give each
      * one a type (ADR — AI-written imports).

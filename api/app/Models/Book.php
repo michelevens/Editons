@@ -81,6 +81,19 @@ class Book extends Model
      */
     public const ASSISTANCE_AVAILABLE = ['author_led', 'coach'];
 
+    /**
+     * The levels this account can choose: "Draft with me" too while the AI
+     * writer is on for it (ADR — AI writes the book).
+     *
+     * @return list<string>
+     */
+    public static function assistanceAvailable(?User $user): array
+    {
+        return \App\Platform\Features::enabled('ai_writer', $user)
+            ? [...self::ASSISTANCE_AVAILABLE, 'collaborative']
+            : self::ASSISTANCE_AVAILABLE;
+    }
+
     public const JOURNEY_STAGES = [
         'discover', 'plan', 'create', 'improve', 'design', 'publish',
     ];
@@ -279,6 +292,8 @@ class Book extends Model
     {
         return [
             'settings' => 'array',
+            // The AI writer's brief and plan (ADR — AI writes the book).
+            'ai_plan' => 'array',
             'layout' => 'array',
             'print' => 'array',
             'isbn_plan' => 'array',
@@ -442,5 +457,11 @@ class Book extends Model
     {
         $this->word_count = (int) $this->sections()->sum('word_count');
         $this->save();
+    }
+
+    /** "Write my book" runs, newest first (ADR — AI writes the book). */
+    public function draftRuns(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(DraftRun::class)->latest('id');
     }
 }

@@ -8,6 +8,7 @@ use App\Journey\BookType;
 use App\Journey\Scaffolder;
 use App\Mail\NotificationSettings;
 use App\Models\Book;
+use App\Platform\Features;
 use App\Models\Isbn;
 use App\Models\ManuscriptSection;
 use App\Platform\House\House;
@@ -161,10 +162,13 @@ class BookController extends Controller
             'book_type' => ['nullable', 'string', Rule::in(array_keys(config('booktypes')))],
             'chapters' => ['nullable', 'integer', 'min:1', 'max:60'],
             'target_words' => ['nullable', 'integer', 'min:100', 'max:500000'],
-            'assistance' => ['nullable', Rule::in(Book::ASSISTANCE_AVAILABLE)],
+            'assistance' => ['nullable', Rule::in(Book::assistanceAvailable($request->user()))],
             'started_with' => ['nullable', 'string', 'max:40'],
             // Quick Start's own door (ADR — Journey friction fixes).
             'quick' => ['nullable', 'boolean'],
+            // "Draft it with AI" (ADR — AI writes the book): the title field
+            // holds the author's one-sentence idea; the AI proposes the plan.
+            'draft' => ['nullable', 'boolean'],
             // Asked at creation in the genre's own words, because the moment
             // somebody has just chosen "Cookbook" is the moment "What ties
             // these recipes together?" is easiest to answer. Optional: it is
@@ -186,7 +190,7 @@ class BookController extends Controller
             // Ownership from the session, never from input — see the Book
             // model's note on why user_id is not fillable.
             $book = $request->user()->books()->create(array_merge(
-                Arr::except($data, ['chapters', 'quick']),
+                Arr::except($data, ['chapters', 'quick', 'draft']),
                 $type ? [
                     // A book that knows its type and its premise starts past
                     // Discover. Without a premise it stays there, because
@@ -228,6 +232,36 @@ class BookController extends Controller
 
             return $book;
         });
+
+        // Draft with me (ADR — AI writes the book): the idea goes to the
+        // planner straight away and the studio opens on Write my book, where
+        // the plan appears for the author to accept. A refusal (paused AI,
+        // no credits) is shown there rather than losing the new book.
+        if (($request->boolean('draft') || ($data['assistance'] ?? null) === 'collaborative')
+            && Features::enabled('ai_writer', $request->user())) {
+            if ($request->boolean('draft')) {
+                $book->update(['premise' => $book->premise ?: mb_substr($data['title'], 0, 2000), 'assistance' => 'collaborative']);
+            }
+
+            if (filled($book->premise)) {
+                try {
+                    // The idea's own language, else the author's interface
+                    // language; the book is written in it.
+                    $language = \App\Import\LanguageGuess::guessShort((string) $book->premise) ?? app()->getLocale();
+
+                    if ($request->boolean('draft') && ($name = \App\Import\LanguageGuess::name(\App\Ai\BookPrompts::language($language)))) {
+                        $book->update(['language' => $name]);
+                    }
+
+                    $drafter = app(\App\Ai\BookDrafter::class);
+                    $drafter->propose($book, $request->user(), $drafter->brief($book, ['language' => $language]));
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+
+            return redirect()->route('books.edit', ['book' => $book, 'pane' => 'draft']);
+        }
 
         // Quick Start promises an empty page, so an author's first book from
         // it opens in the focused writing view, with the full studio one
@@ -331,6 +365,8 @@ class BookController extends Controller
                 'content' => $active->content,
                 'word_count' => $active->word_count,
                 'word_goal' => $active->word_goal,
+                // "AI draft, not yet reviewed" (ADR — AI writes the book).
+                'ai_draft_state' => $active->ai_draft_state,
                 'versions_count' => $active->versions()->count(),
                 'updated_at' => $active->updated_at->toIso8601String(),
             ] : null,

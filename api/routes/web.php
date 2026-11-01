@@ -1050,3 +1050,25 @@ Route::get('/account-exports/{export}/download', AccountExportDownloadController
     ->whereNumber('export')
     ->middleware(['signed', 'throttle:10,1'])
     ->name('account-exports.download');
+
+/*
+ | AI writes the book (ADR — AI writes the book): the plan, one approval,
+ | the run and its controls, and per-section writing. Behind the ai_writer
+ | feature flag, which the controller checks.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/books/{book}/draft', [App\Http\Controllers\BookDraftController::class, 'show'])
+        ->middleware(StudioPage::class.':draft')->name('draft.show');
+    Route::post('/books/{book}/draft/plan', [App\Http\Controllers\BookDraftController::class, 'plan'])
+        ->middleware('throttle:10,1')->name('draft.plan');
+    Route::put('/books/{book}/draft/plan', [App\Http\Controllers\BookDraftController::class, 'updatePlan'])->name('draft.plan.update');
+    Route::post('/books/{book}/draft/plan/accept', [App\Http\Controllers\BookDraftController::class, 'accept'])->name('draft.plan.accept');
+    Route::post('/books/{book}/draft/runs', [App\Http\Controllers\BookDraftController::class, 'start'])
+        ->middleware('throttle:10,1')->name('draft.start');
+    Route::post('/draft-runs/{run}/pause', [App\Http\Controllers\BookDraftController::class, 'pause'])->name('draft.pause');
+    Route::post('/draft-runs/{run}/resume', [App\Http\Controllers\BookDraftController::class, 'resume'])->name('draft.resume');
+    Route::post('/draft-runs/{run}/cancel', [App\Http\Controllers\BookDraftController::class, 'cancel'])->name('draft.cancel');
+    Route::post('/sections/{section}/draft', [App\Http\Controllers\BookDraftController::class, 'section'])
+        ->middleware('throttle:20,1')->name('draft.section');
+    Route::post('/sections/{section}/draft/accept', [App\Http\Controllers\BookDraftController::class, 'acceptSection'])->name('draft.accept');
+});

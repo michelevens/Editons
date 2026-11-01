@@ -35,6 +35,15 @@ class WriterFactory
     /** Whether the configured writer produces sample text. Read from config: asking builds no client. */
     public static function simulated(?string $name = null): bool
     {
-        return (config('writer.drivers.'.($name ?? config('writer.driver')).'.class')) === Writers\FakeWriter::class;
+        $class = config('writer.drivers.'.($name ?? config('writer.driver')).'.class');
+
+        return is_string($class) && class_exists($class)
+            && (new \ReflectionClass($class))->newInstanceWithoutConstructor()->simulated();
+    }
+
+    /** @return list<string> the configured drivers that write sample text */
+    public static function simulatedDrivers(): array
+    {
+        return array_values(array_filter(array_keys((array) config('writer.drivers', [])), fn ($name) => self::simulated($name)));
     }
 }

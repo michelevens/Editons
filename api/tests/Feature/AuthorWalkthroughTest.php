@@ -90,9 +90,11 @@ it('counts a model\'s accepted fix once, as AI-assisted', function () {
         ->and($section->versions()->where('reason', 'check_fix')->count())->toBe(1);
 });
 
-it('shows "Draft with me" as coming soon and does not let it be chosen', function () {
+it('shows "Draft with me" as coming soon and does not let it be chosen while the AI writer is off', function () {
     $user = User::factory()->create();
     $book = Book::factory()->for($user)->create(['assistance' => 'author_led']);
+    // On by default since ADR — AI writes the book; off, it is as it was.
+    app(\App\Platform\Features::class)->setGlobal('ai_writer', false, 'Off for this test', User::factory()->create());
 
     $this->actingAs($user)->patchJson("/books/{$book->id}/assistance", ['assistance' => 'collaborative'])
         ->assertUnprocessable();

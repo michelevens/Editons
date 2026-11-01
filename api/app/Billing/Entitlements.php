@@ -50,6 +50,12 @@ class Entitlements
         return (string) ($this->cheapestPlanWithTier($agent->minimumTier())['name'] ?? 'Studio');
     }
 
+    /** The cheapest plan at or above a tier, by name (ADR — AI writes the book). */
+    public function planNameForTier(int $tier): string
+    {
+        return (string) ($this->cheapestPlanWithTier($tier)['name'] ?? 'Author');
+    }
+
     /**
      * Refuse an agent the plan does not include.
      *

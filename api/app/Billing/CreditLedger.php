@@ -96,6 +96,34 @@ class CreditLedger
     }
 
     /**
+     * Settle a reservation at what the work really cost (ADR — AI writes
+     * the book): the difference goes back as a refund row pointing at the
+     * reservation, so the ledger shows both the hold and the true charge.
+     * Never charges more than was reserved. Returns the credits charged.
+     */
+    public function settle(CreditTransaction $spend, int $actual): int
+    {
+        $reserved = abs($spend->amount);
+        $actual = max(0, min($actual, $reserved));
+
+        if ($actual < $reserved) {
+            DB::transaction(function () use ($spend, $reserved, $actual) {
+                if (! CreditTransaction::where('reverses_id', $spend->id)->exists()) {
+                    CreditTransaction::create([
+                        'user_id' => $spend->user_id,
+                        'amount' => $reserved - $actual,
+                        'kind' => 'refund',
+                        'label' => "Unused: {$spend->label}",
+                        'reverses_id' => $spend->id,
+                    ]);
+                }
+            });
+        }
+
+        return $actual;
+    }
+
+    /**
      * Grant a plan's monthly credits.
      *
      * Idempotent on `external_reference`, which carries Stripe's invoice ID.

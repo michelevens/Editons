@@ -82,6 +82,8 @@ class ManuscriptSectionController extends Controller
             'word_count' => $section->word_count,
             'book_word_count' => $section->book->word_count,
             'versions_count' => $section->versions()->count(),
+            // Cleared once the author edits an AI draft (ADR — AI writes the book).
+            'ai_draft_state' => $section->ai_draft_state,
         ]);
     }
 

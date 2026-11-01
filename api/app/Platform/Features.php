@@ -101,6 +101,13 @@ final class Features
             'default' => true,
             'requires' => null,
         ],
+        // ADR — AI writes the book.
+        'ai_writer' => [
+            'label' => 'AI writes the book (Draft with me)',
+            'description' => 'The AI plan and chapter writer: Write my book, Write this chapter, and "Draft with me" in Guided, Quick Start and the new-book form. Off shows "Draft with me" as coming soon.',
+            'default' => true,
+            'requires' => null,
+        ],
     ];
 
     private const CACHE_KEY = 'platform.feature-flags';
