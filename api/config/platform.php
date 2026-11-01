@@ -51,10 +51,12 @@ return [
             'anthropic' => [
                 'claude-fable-5-1' => ['in' => 10.0, 'out' => 50.0],
                 'claude-fable-5' => ['in' => 10.0, 'out' => 50.0],
-                'claude-opus-5-5' => ['in' => 4.0, 'out' => 20.0],
+                // cache_read: USD per million cached input tokens read (the
+                // claude-api reference, 2026-10-06); others read at a tenth.
+                'claude-opus-5-5' => ['in' => 4.0, 'out' => 20.0, 'cache_read' => 0.20],
                 'claude-opus-5' => ['in' => 5.0, 'out' => 25.0],
                 'claude-opus-4-8' => ['in' => 5.0, 'out' => 25.0],
-                'claude-sonnet-5-5' => ['in' => 2.0, 'out' => 10.0],
+                'claude-sonnet-5-5' => ['in' => 2.0, 'out' => 10.0, 'cache_read' => 0.20],
                 'claude-sonnet-5' => ['in' => 2.0, 'out' => 10.0],
                 'claude-sonnet-4-6' => ['in' => 3.0, 'out' => 15.0],
                 // Up to 100K input tokens; Écrivain never sends more.
