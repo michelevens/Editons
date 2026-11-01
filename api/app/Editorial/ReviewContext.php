@@ -32,7 +32,36 @@ final class ReviewContext
         public readonly string $sensitivity = 'standard',
         public readonly array $disabledRules = [],
         public readonly ?int $styleVersionId = null,
+        // The book (ADR — AI research, source-backed fact-checking, cover
+        // templates): {profile: {label: value}, fiction: bool, academic:
+        // ?string, language: string}. Author configuration, from the
+        // book's settings; empty when the review was not given a book.
+        public readonly array $book = [],
+        // May the fact-checker search the web for claims the saved sources
+        // leave unverified? The author's choice per review; off by default.
+        public readonly bool $web = false,
+        // The book's saved sources the fact-checker checks claims against:
+        // list of {id, reference, title, url, text, verification}.
+        public readonly array $sources = [],
     ) {}
+
+    /** The same options, with the saved sources the fact-checker reads. */
+    public function withSources(array $sources): self
+    {
+        return new self($this->style, $this->focus, $this->sensitivity, $this->disabledRules, $this->styleVersionId, $this->book, $this->web, $sources);
+    }
+
+    /** The same options, with web checking switched on or off. */
+    public function withWeb(bool $web): self
+    {
+        return new self($this->style, $this->focus, $this->sensitivity, $this->disabledRules, $this->styleVersionId, $this->book, $web, $this->sources);
+    }
+
+    /** Is the book fiction (from its settings)? Dialogue and invented events are not fact-checked. */
+    public function fiction(): bool
+    {
+        return (bool) ($this->book['fiction'] ?? false);
+    }
 
     /** The same options with nothing in them: today's review. */
     public static function none(): self

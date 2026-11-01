@@ -89,6 +89,10 @@ class EditorialController extends Controller
             // Optional review options (ADR — Style guides and review options).
             'focus' => ['nullable', 'string', 'max:'.ReviewContext::MAX_FOCUS],
             'sensitivity' => ['nullable', 'string', 'in:'.implode(',', ReviewContext::SENSITIVITIES)],
+            // The fact-checker may search the web for what the saved sources
+            // leave unverified (ADR — AI research, source-backed
+            // fact-checking, cover templates). Off unless asked.
+            'web' => ['nullable', 'boolean'],
         ]);
 
         $agent = EditorialAgent::tryFrom($data['agent']);
@@ -107,7 +111,7 @@ class EditorialController extends Controller
         }
 
         $focus = trim((string) ($data['focus'] ?? ''));
-        $context = $this->runner->contextFor($section, $focus === '' ? null : $focus, $data['sensitivity'] ?? 'standard');
+        $context = $this->runner->contextFor($section, $focus === '' ? null : $focus, $data['sensitivity'] ?? 'standard', $agent === EditorialAgent::FactChecker && ($data['web'] ?? false));
         $review = $this->runner->run($section, $agent, $request->user()->id, $context, options: ['scope' => 'chapter']);
 
         return response()->json([
@@ -419,6 +423,10 @@ class EditorialController extends Controller
                 'stale' => $f->isStale($text),
                 // Produced by a driver that runs heuristics, not a model.
                 'simulated' => DriverFactory::simulated($f->review?->driver),
+                // The fact-checker's verdict, source and excerpt, and web
+                // candidates (ADR — AI research, source-backed fact-checking,
+                // cover templates). Null for the other agents.
+                'evidence' => $f->evidence,
             ])
             ->all();
     }

@@ -3265,5 +3265,14 @@
     "airesearch.provenance_note": "Les sources enregistrées indiquent que l’IA les a trouvées, quand, avec quel modèle et pour quelle question. Cette recherche a coûté {credits} crédits.",
     "airesearch.saved_notice": "{count, plural, one {# source enregistrée, non vérifiée.} other {# sources enregistrées, non vérifiées.}}",
     "AI research is unavailable right now. Try again later. Nothing was charged.": "La recherche par IA est indisponible pour le moment. Réessayez plus tard. Rien n’a été facturé.",
-    "That chapter does not belong to this book.": "Ce chapitre n’appartient pas à ce livre."
+    "That chapter does not belong to this book.": "Ce chapitre n’appartient pas à ce livre.",
+    "evidence.supported": "Étayée par une source",
+    "evidence.contradicted": "Contredite par une source",
+    "evidence.unverified": "Non vérifiée",
+    "evidence.no_source": "Aucune de vos sources enregistrées ne tranche cette affirmation.",
+    "evidence.attach": "Joindre la citation",
+    "evidence.cited": "Citée",
+    "evidence.candidates": "Trouvé sur le Web (pas encore dans votre bibliothèque) :",
+    "evidence.web_intro": "Vérifie les affirmations par rapport à vos sources enregistrées. Peut aussi chercher sur le Web celles qui restent non vérifiées, facturé à l’usage.",
+    "evidence.web_run": "Vérifier avec une recherche Web"
 }

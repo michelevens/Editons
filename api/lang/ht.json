@@ -3265,5 +3265,14 @@
     "airesearch.provenance_note": "Sous ou anrejistre yo note se IA ki te jwenn yo, ki lè, ak ki modèl epi pou ki kesyon. Rechèch sa a koute {credits} kredi.",
     "airesearch.saved_notice": "{count, plural, other {# sous anrejistre, pa verifye.}}",
     "AI research is unavailable right now. Try again later. Nothing was charged.": "Rechèch IA a pa disponib kounye a. Eseye ankò pita. Yo pa chaje anyen.",
-    "That chapter does not belong to this book.": "Chapit sa a pa nan liv sa a."
+    "That chapter does not belong to this book.": "Chapit sa a pa nan liv sa a.",
+    "evidence.supported": "Yon sous apiye l",
+    "evidence.contradicted": "Yon sous di lòt bagay",
+    "evidence.unverified": "Pa verifye",
+    "evidence.no_source": "Okenn nan sous ou anrejistre yo pa regle afimasyon sa a.",
+    "evidence.attach": "Mete sitasyon an",
+    "evidence.cited": "Site",
+    "evidence.candidates": "Jwenn sou entènèt (poko nan bibliyotèk ou):",
+    "evidence.web_intro": "Li tcheke afimasyon yo ak sous ou anrejistre yo. Li ka chèche sou entènèt tou pou sa ki rete pa verifye yo, yo chaje dapre sa w itilize.",
+    "evidence.web_run": "Tcheke ak rechèch sou entènèt"
 }

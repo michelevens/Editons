@@ -3073,5 +3073,14 @@
     "airesearch.provenance_note": "Saved sources record that AI retrieved them, when, with which model and for which question. This run cost {credits} credits.",
     "airesearch.saved_notice": "{count, plural, one {# source saved, unverified.} other {# sources saved, unverified.}}",
     "AI research is unavailable right now. Try again later. Nothing was charged.": "AI research is unavailable right now. Try again later. Nothing was charged.",
-    "That chapter does not belong to this book.": "That chapter does not belong to this book."
+    "That chapter does not belong to this book.": "That chapter does not belong to this book.",
+    "evidence.supported": "Supported by a source",
+    "evidence.contradicted": "Contradicted by a source",
+    "evidence.unverified": "Unverified",
+    "evidence.no_source": "None of your saved sources settles this claim.",
+    "evidence.attach": "Attach citation",
+    "evidence.cited": "Cited",
+    "evidence.candidates": "Found on the web (not yet in your library):",
+    "evidence.web_intro": "Checks claims against your saved sources. It can also search the web for the ones they leave unverified, charged by use.",
+    "evidence.web_run": "Fact-check with web search"
 }

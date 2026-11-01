@@ -117,6 +117,16 @@ it('reviews a book without a guide with main’s request, through the runner', f
 
     $sent = roSent();
     $sent['messages'][0]['content'][0]['source']['data'] = sha1($sent['messages'][0]['content'][0]['source']['data']);
+
+    // Main's request plus the book profile (ADR — AI research,
+    // source-backed fact-checking, cover templates): a block after the
+    // chapter and one paragraph at the end of the system prompt.
+    $profile = array_pop($sent['messages'][0]['content']);
+    expect($profile['title'])->toBe('Book profile');
+    [$system, $said] = explode("\n\nThe user message also contains a document titled \"Book profile\"", $sent['system']);
+    $sent['system'] = $system;
+    expect($said)->toContain('Judge the chapter for that book');
+
     expect(json_encode($sent))->toBe(json_encode($fixture['payloads']['copy:short']))
         ->and($review->style_guide_version_id)->toBeNull()
         ->and($review->style_digest)->toBeNull();
@@ -315,12 +325,14 @@ it('estimates a run from token counts and the gateway’s prices before running'
     $estimate = $this->actingAs($user)->postJson("/books/{$book->id}/reviews/estimate", ['agent' => 'copy', 'scope' => 'book'])
         ->assertOk()->json('estimate');
 
-    $one = roDriver()->estimate(EditorialAgent::Copy, mb_strlen(trim(str_repeat('Words in a sentence. ', 100))), ReviewContext::none());
+    // The runner's own options, which carry the book profile.
+    $context = app(ReviewRunner::class)->contextFor($book->sections()->orderBy('position')->first());
+    $one = roDriver()->estimate(EditorialAgent::Copy, mb_strlen(trim(str_repeat('Words in a sentence. ', 100))), $context);
     expect($estimate['sections'])->toBe(3)
         ->and($estimate['reviewable'])->toBe(2)
         ->and($estimate['model'])->toBe('claude-sonnet-5-5')
         ->and($estimate['input_tokens'])->toBeGreaterThan($one['input_tokens'])
-        ->and($estimate['usd'])->toBe(round(AiPricing::tokens('anthropic', 'claude-sonnet-5-5', $one['input_tokens'], $one['output_tokens']) + roDriver()->estimate(EditorialAgent::Copy, mb_strlen(trim(str_repeat('More words here. ', 50))), ReviewContext::none())['usd'], 4))
+        ->and($estimate['usd'])->toBe(round(AiPricing::tokens('anthropic', 'claude-sonnet-5-5', $one['input_tokens'], $one['output_tokens']) + roDriver()->estimate(EditorialAgent::Copy, mb_strlen(trim(str_repeat('More words here. ', 50))), $context)['usd'], 4))
         ->and($estimate['credits'])->toBe(2 * config('billing.costs.agent_run'))
         ->and($estimate['simulated'])->toBeFalse();
 

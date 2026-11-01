@@ -29,5 +29,15 @@ final class Finding
         public readonly ?int $toOffset = null,
         public readonly ?string $rule = null,
         public readonly ?string $term = null,
+        // The fact-checker's verdict (ADR — AI research, source-backed
+        // fact-checking, cover templates): {verdict: supported|contradicted|
+        // unverified, source_id, source_excerpt, …}. Null for other agents.
+        public readonly ?array $evidence = null,
     ) {}
+
+    /** The same finding with this evidence. */
+    public function withEvidence(?array $evidence): self
+    {
+        return new self($this->severity, $this->title, $this->detail, $this->excerpt, $this->suggestion, $this->fromOffset, $this->toOffset, $this->rule, $this->term, $evidence);
+    }
 }

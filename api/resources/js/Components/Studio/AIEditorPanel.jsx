@@ -2,6 +2,7 @@ import { usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import CitationsTab from './CitationsTab';
 import CommentsPanel from './CommentsPanel';
+import FindingEvidence, { FactCheckWeb } from './FindingEvidence';
 import Icon from './Icon';
 import { useI18n } from '../../i18n';
 import ReviewDeck from './ReviewDeck';
@@ -163,6 +164,10 @@ export default function AIEditorPanel({
                             onBack={() => setOpenAgent(null)}
                             onResolve={onResolve}
                             onShowInText={onShowInText}
+                            sectionId={sectionId}
+                            onCite={onCite}
+                            onRunAgent={onRunAgent}
+                            running={running}
                         />
                     ) : (
                         <>
@@ -495,7 +500,7 @@ function SampleNotice() {
     );
 }
 
-function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
+function AgentFindings({ agent, findings, onBack, onResolve, onShowInText, sectionId = null, onCite = null, onRunAgent = null, running = null }) {
     const { t } = useI18n();
     const open = findings.filter((f) => f.status === 'open');
     const resolved = findings.length - open.length;
@@ -518,6 +523,10 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
             </p>
 
             <SampleNotice />
+
+            {agent?.value === 'fact_checker' && onRunAgent && (
+                <FactCheckWeb running={running === 'fact_checker'} onRun={() => onRunAgent('fact_checker', { web: true })} />
+            )}
 
             {open.length === 0 ? (
                 <p className="mt-4 rounded-tile bg-status-success-bg px-3 py-2.5 text-[11.5px] text-status-success">
@@ -569,6 +578,10 @@ function AgentFindings({ agent, findings, onBack, onResolve, onShowInText }) {
                                 <p className="mt-1.5 rounded bg-status-warning-bg px-1.5 py-1 text-[10.5px] font-semibold text-status-warning">
                                     {t('ai.stale')}
                                 </p>
+                            )}
+
+                            {finding.evidence && (
+                                <FindingEvidence finding={finding} sectionId={sectionId} onCite={onCite} />
                             )}
 
                             <div className="mt-2 flex items-center gap-3">

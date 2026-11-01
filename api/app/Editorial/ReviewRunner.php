@@ -18,6 +18,9 @@ use App\Models\EditorialReview;
 use App\Models\ManuscriptSection;
 use App\Models\User;
 use App\Platform\Ai\AiMeter;
+use App\Research\Assistant\BookProfile;
+use App\Research\Assistant\SourceEvidence;
+use App\Research\Assistant\WebFactCheck;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -105,7 +108,32 @@ class ReviewRunner
             // credits pay for, and production ran on them for weeks.
             $charge = $this->simulated() ? null : $this->charge($userId, $agent, $review);
 
+            // The fact-checker checks claims against the book's saved
+            // sources (ADR — AI research, source-backed fact-checking, cover
+            // templates): they travel with the review, read fresh.
+            if ($agent === EditorialAgent::FactChecker) {
+                $context = $context->withSources(SourceEvidence::sourcesFor(Book::findOrFail($section->book_id)));
+            }
+
             $result = $this->callDriver($agent, $text, $section, $userId, $context);
+
+            // Every fact-check finding leaves labelled, its source checked;
+            // then, when the author allowed it, the web for what is left.
+            if ($agent === EditorialAgent::FactChecker) {
+                $labelled = SourceEvidence::label($result->findings, $context, $this->simulated());
+
+                if ($context->web && $userId && $user = User::find($userId)) {
+                    $labelled = app(WebFactCheck::class)->attach($labelled, $section, $user);
+                }
+
+                $result = new ReviewResult(
+                    findings: $labelled,
+                    model: $result->model,
+                    inputTokens: $result->inputTokens,
+                    outputTokens: $result->outputTokens,
+                    costUsd: $result->costUsd,
+                );
+            }
 
             // The guide's own terms, checked without a model. Reported as
             // the Copy Editor's, which is the agent house style belongs to.
@@ -167,6 +195,7 @@ class ReviewRunner
                         'rule' => $rule,
                         'term' => $term,
                         'source' => $source,
+                        'evidence' => $f->evidence,
                     ]);
                 }
 
@@ -269,11 +298,12 @@ class ReviewRunner
      * The options a review of this section uses when none were given: the
      * book's style guide (its own rules over it), standard sensitivity.
      */
-    public function contextFor(ManuscriptSection $section, ?string $focus = null, string $sensitivity = 'standard'): ReviewContext
+    public function contextFor(ManuscriptSection $section, ?string $focus = null, string $sensitivity = 'standard', bool $web = false): ReviewContext
     {
         // Read fresh: a loaded relation may predate a word added to the
         // dictionary a moment ago.
-        $effective = app(StyleGuides::class)->effective(Book::findOrFail($section->book_id));
+        $book = Book::findOrFail($section->book_id);
+        $effective = app(StyleGuides::class)->effective($book);
 
         return new ReviewContext(
             style: $effective['configured'] ? $effective['rules'] : null,
@@ -281,6 +311,15 @@ class ReviewRunner
             sensitivity: $sensitivity,
             disabledRules: $effective['disabled_rules'],
             styleVersionId: $effective['version']?->id,
+            // The book's kind, genre, language and reader, for the prompts
+            // (ADR — AI research, source-backed fact-checking, cover templates).
+            book: [
+                'profile' => BookProfile::for($book),
+                'fiction' => BookProfile::isFiction($book),
+                'academic' => BookProfile::academicLevel($book),
+                'language' => BookProfile::language($book),
+            ],
+            web: $web,
         );
     }
 

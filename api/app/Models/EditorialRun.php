@@ -64,6 +64,8 @@ class EditorialRun extends Model
             sensitivity: $c['sensitivity'] ?? 'standard',
             disabledRules: $c['disabled_rules'] ?? [],
             styleVersionId: $c['style_version_id'] ?? null,
+            book: $c['book'] ?? [],
+            web: (bool) ($c['web'] ?? false),
         );
     }
 
@@ -75,6 +77,8 @@ class EditorialRun extends Model
             'sensitivity' => $context->sensitivity,
             'disabled_rules' => $context->disabledRules,
             'style_version_id' => $context->styleVersionId,
+            'book' => $context->book,
+            'web' => $context->web,
         ];
     }
 
